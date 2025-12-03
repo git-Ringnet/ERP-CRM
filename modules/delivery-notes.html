@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biên bản giao nhận - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Biên bản giao nhận (B/L)</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Tạo biên bản
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quản lý giao nhận hàng hóa</h4>
+            <p>Theo dõi quá trình giao hàng, nghiệm thu và ký nhận. Hỗ trợ giao từng phần và chữ ký điện tử.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm biên bản...">
+            <select class="filter-select" id="filterStatus">
+                <option value="">Tất cả trạng thái</option>
+                <option value="pending">Chờ giao</option>
+                <option value="delivering">Đang giao</option>
+                <option value="delivered">Đã giao</option>
+                <option value="accepted">Đã nghiệm thu</option>
+                <option value="rejected">Từ chối nhận</option>
+            </select>
+            <button class="btn-secondary" onclick="exportData()">
+                <i class="fas fa-file-export"></i> Xuất Excel
+            </button>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã B/L</th>
+                        <th>Đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Ngày giao</th>
+                        <th>Người nhận</th>
+                        <th>Tiến độ</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Tạo biên bản giao nhận</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã biên bản <span class="required">*</span></label>
+                        <input type="text" name="code" required placeholder="BL-">
+                    </div>
+                    <div class="form-group">
+                        <label>Đơn hàng liên quan <span class="required">*</span></label>
+                        <select name="order" required onchange="loadOrderDetails(this.value)">
+                            <option value="">Chọn đơn hàng...</option>
+                            <option value="DH001">DH001 - Công ty ABC</option>
+                            <option value="DH002">DH002 - Công ty XYZ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày giao hàng <span class="required">*</span></label>
+                        <input type="datetime-local" name="deliveryDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Người giao hàng <span class="required">*</span></label>
+                        <select name="deliveryPerson" required>
+                            <option value="">Chọn nhân viên...</option>
+                            <option value="NV001">Nguyễn Văn A</option>
+                            <option value="NV002">Trần Văn B</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Địa điểm giao hàng <span class="required">*</span></label>
+                    <textarea name="deliveryAddress" rows="2" required></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Người nhận <span class="required">*</span></label>
+                        <input type="text" name="receiverName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>SĐT người nhận <span class="required">*</span></label>
+                        <input type="tel" name="receiverPhone" required>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Danh sách sản phẩm giao</h4>
+
+                <div id="productList">
+                    <div class="product-item" style="margin-bottom: 10px; padding: 10px; border: 1px solid #dee2e6; border-radius: 5px;">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Sản phẩm</label>
+                                <input type="text" name="products[0][name]" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>SL đơn hàng</label>
+                                <input type="number" name="products[0][orderQty]" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>SL đã giao</label>
+                                <input type="number" name="products[0][deliveredQty]" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>SL giao lần này <span class="required">*</span></label>
+                                <input type="number" name="products[0][currentQty]" min="0" required onchange="validateQuantity(0)">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Serial/Lô (nếu có)</label>
+                            <input type="text" name="products[0][serial]" placeholder="Nhập serial hoặc số lô, cách nhau bởi dấu phẩy">
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Hình ảnh hiện trường</h4>
+
+                <div class="form-group">
+                    <label>Upload ảnh</label>
+                    <input type="file" name="photos" accept="image/*" multiple onchange="previewPhotos(this)">
+                    <small style="color: #6c757d;">
+                        <i class="fas fa-info-circle"></i> Có thể chọn nhiều ảnh. Chấp nhận JPG, PNG (tối đa 5MB/ảnh)
+                    </small>
+                    <div id="photoPreview" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tình trạng hàng hóa</label>
+                    <select name="condition">
+                        <option value="good">Tốt - Không hư hỏng</option>
+                        <option value="minor_damage">Hư hỏng nhỏ</option>
+                        <option value="damaged">Hư hỏng</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Chữ ký điện tử</h4>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Chữ ký người giao</label>
+                        <div style="border: 1px solid #dee2e6; height: 150px; border-radius: 5px; position: relative;">
+                            <canvas id="deliverySignature" width="300" height="150" style="cursor: crosshair;"></canvas>
+                            <button type="button" onclick="clearSignature('delivery')" style="position: absolute; top: 5px; right: 5px; padding: 5px 10px;">
+                                <i class="fas fa-eraser"></i> Xóa
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Chữ ký người nhận</label>
+                        <div style="border: 1px solid #dee2e6; height: 150px; border-radius: 5px; position: relative;">
+                            <canvas id="receiverSignature" width="300" height="150" style="cursor: crosshair;"></canvas>
+                            <button type="button" onclick="clearSignature('receiver')" style="position: absolute; top: 5px; right: 5px; padding: 5px 10px;">
+                                <i class="fas fa-eraser"></i> Xóa
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="hidden" name="id">
+                <input type="hidden" name="status" value="pending">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                    <button type="button" class="btn-primary" onclick="confirmDelivery()">
+                        <i class="fas fa-check"></i> Xác nhận giao hàng
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="printDeliveryNote()">
+                        <i class="fas fa-print"></i> In biên bản
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="delivery-notes.js"></script>
+    <script>
+        // Initialize signature pads
+        let deliveryCanvas, receiverCanvas;
+        let deliveryCtx, receiverCtx;
+        let isDrawing = false;
+
+        window.onload = function() {
+            deliveryCanvas = document.getElementById('deliverySignature');
+            receiverCanvas = document.getElementById('receiverSignature');
+            deliveryCtx = deliveryCanvas.getContext('2d');
+            receiverCtx = receiverCanvas.getContext('2d');
+
+            setupCanvas(deliveryCanvas, deliveryCtx);
+            setupCanvas(receiverCanvas, receiverCtx);
+        };
+
+        function setupCanvas(canvas, ctx) {
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            // Touch events for mobile
+            canvas.addEventListener('touchstart', handleTouch);
+            canvas.addEventListener('touchmove', handleTouch);
+            canvas.addEventListener('touchend', stopDrawing);
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const ctx = e.target.getContext('2d');
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const ctx = e.target.getContext('2d');
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            if (e.type === 'touchstart') {
+                isDrawing = true;
+                const ctx = e.target.getContext('2d');
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            } else if (e.type === 'touchmove' && isDrawing) {
+                const ctx = e.target.getContext('2d');
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        }
+
+        function clearSignature(type) {
+            if (type === 'delivery') {
+                deliveryCtx.clearRect(0, 0, deliveryCanvas.width, deliveryCanvas.height);
+            } else {
+                receiverCtx.clearRect(0, 0, receiverCanvas.width, receiverCanvas.height);
+            }
+        }
+
+        function previewPhotos(input) {
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+
+            if (input.files) {
+                Array.from(input.files).forEach((file, index) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const div = document.createElement('div');
+                        div.style.position = 'relative';
+                        div.innerHTML = `
+                            <img src="${e.target.result}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 5px;">
+                            <button type="button" onclick="removePhoto(${index})" style="position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer;">×</button>
+                        `;
+                        preview.appendChild(div);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        }
+
+        function removePhoto(index) {
+            // Implement photo removal logic
+            alert('Xóa ảnh ' + index);
+        }
+
+        function validateQuantity(index) {
+            const orderQty = parseFloat(document.querySelector(`[name="products[${index}][orderQty]"]`).value) || 0;
+            const deliveredQty = parseFloat(document.querySelector(`[name="products[${index}][deliveredQty]"]`).value) || 0;
+            const currentQty = parseFloat(document.querySelector(`[name="products[${index}][currentQty]"]`).value) || 0;
+
+            if (currentQty + deliveredQty > orderQty) {
+                alert('Số lượng giao vượt quá số lượng đơn hàng!');
+                document.querySelector(`[name="products[${index}][currentQty]"]`).value = orderQty - deliveredQty;
+            }
+        }
+
+        function loadOrderDetails(orderId) {
+            // Load order details and populate product list
+            alert('Đang tải thông tin đơn hàng ' + orderId);
+        }
+
+        function confirmDelivery() {
+            if (confirm('Xác nhận đã giao hàng thành công?')) {
+                alert('Đã xác nhận giao hàng!');
+                closeModal();
+            }
+        }
+
+        function printDeliveryNote() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

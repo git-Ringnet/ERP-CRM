@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý hàng hóa - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý hàng hóa</h2>
+            <button class="btn-primary" onclick="openAddProductModal()">
+                <i class="fas fa-plus"></i> Thêm sản phẩm
+            </button>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm sản phẩm...">
+            <select class="filter-select" id="filterType">
+                <option value="">Tất cả</option>
+                <option value="serial">Theo Serial Number</option>
+                <option value="lot">Theo Số lô</option>
+                <option value="normal">Thông thường</option>
+            </select>
+            <button class="btn-secondary" onclick="exportData()">
+                <i class="fas fa-file-export"></i> Xuất Excel
+            </button>
+        </div>
+
+        <div class="data-table">
+            <table id="productTable">
+                <thead>
+                    <tr>
+                        <th>Mã SP</th>
+                        <th>Tên sản phẩm</th>
+                        <th>Đơn vị</th>
+                        <th>Giá bán</th>
+                        <th>Giá vốn</th>
+                        <th>Tồn kho</th>
+                        <th>Loại quản lý</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="productTableBody">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Add/Edit Product -->
+    <div id="productModal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeProductModal()">&times;</span>
+            <h3 id="modalTitle">Thêm sản phẩm mới</h3>
+            
+            <form id="productForm" onsubmit="saveProduct(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã sản phẩm <span class="required">*</span></label>
+                        <input type="text" name="code" id="productCode" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Loại quản lý <span class="required">*</span></label>
+                        <select name="managementType" id="productManagementType" required onchange="toggleManagementFields()">
+                            <option value="normal">Thông thường</option>
+                            <option value="serial">Theo Serial Number</option>
+                            <option value="lot">Theo Số lô</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tên sản phẩm <span class="required">*</span></label>
+                    <input type="text" name="name" id="productName" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nhóm sản phẩm</label>
+                        <select name="category" id="productCategory">
+                            <option value="">Chọn nhóm</option>
+                            <option value="electronics">Điện tử</option>
+                            <option value="furniture">Nội thất</option>
+                            <option value="office">Văn phòng phẩm</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Đơn vị tính <span class="required">*</span></label>
+                        <input type="text" name="unit" id="productUnit" required placeholder="VD: Cái, Hộp, Kg...">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Giá bán (VNĐ) <span class="required">*</span></label>
+                        <input type="number" name="price" id="productPrice" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Giá vốn (VNĐ) <span class="required">*</span></label>
+                        <input type="number" name="cost" id="productCost" required min="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tồn kho tối thiểu</label>
+                        <input type="number" name="minStock" id="productMinStock" value="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Tồn kho tối đa</label>
+                        <input type="number" name="maxStock" id="productMaxStock" value="0" min="0">
+                    </div>
+                </div>
+
+                <!-- Serial Number Fields -->
+                <div id="serialFields" style="display: none;">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="autoGenerateSerial" id="autoGenerateSerial">
+                            Tự động tạo Serial Number
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Prefix Serial</label>
+                        <input type="text" name="serialPrefix" id="serialPrefix" placeholder="VD: SN-">
+                    </div>
+                </div>
+
+                <!-- Lot Number Fields -->
+                <div id="lotFields" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Thời hạn sử dụng (tháng)</label>
+                            <input type="number" name="expiryMonths" id="expiryMonths" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" name="trackExpiry" id="trackExpiry">
+                                Theo dõi hạn sử dụng
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Mô tả sản phẩm</label>
+                    <textarea name="description" id="productDescription" rows="3"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" id="productNote" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id" id="productId">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeProductModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../script.js"></script>
+    <script src="products.js"></script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết khách hàng - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        .customer-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .customer-header h2 {
+            margin: 0 0 10px 0;
+            color: white;
+        }
+        .customer-meta {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+        }
+        .customer-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card h4 {
+            margin: 0 0 10px 0;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        .timeline-item {
+            position: relative;
+            padding-bottom: 20px;
+            border-left: 2px solid #dee2e6;
+            padding-left: 20px;
+            margin-left: 10px;
+        }
+        .timeline-item:before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #3498db;
+        }
+        .timeline-item:last-child {
+            border-left-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="module-page">
+        <!-- Customer Header -->
+        <div class="customer-header">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <h2 id="customerName">Công ty TNHH ABC</h2>
+                    <div class="customer-meta">
+                        <div class="customer-meta-item">
+                            <i class="fas fa-tag"></i>
+                            <span id="customerType">Khách hàng VIP</span>
+                        </div>
+                        <div class="customer-meta-item">
+                            <i class="fas fa-envelope"></i>
+                            <span id="customerEmail">contact@abc.com</span>
+                        </div>
+                        <div class="customer-meta-item">
+                            <i class="fas fa-phone"></i>
+                            <span id="customerPhone">0123456789</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="createQuotation()">
+                        <i class="fas fa-file-alt"></i> Tạo báo giá
+                    </button>
+                    <button class="btn-primary" onclick="createOrder()">
+                        <i class="fas fa-shopping-cart"></i> Tạo đơn hàng
+                    </button>
+                    <button class="btn-secondary" onclick="editCustomer()">
+                        <i class="fas fa-edit"></i> Sửa
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-cards">
+            <div class="stat-card">
+                <h4>Tổng đơn hàng</h4>
+                <div class="value" style="color: #3498db;">45</div>
+                <small style="color: #27ae60;"><i class="fas fa-arrow-up"></i> +12% so với tháng trước</small>
+            </div>
+            <div class="stat-card">
+                <h4>Tổng doanh thu</h4>
+                <div class="value" style="color: #27ae60;">2.5 tỷ</div>
+                <small style="color: #27ae60;"><i class="fas fa-arrow-up"></i> +8% so với tháng trước</small>
+            </div>
+            <div class="stat-card">
+                <h4>Công nợ hiện tại</h4>
+                <div class="value" style="color: #e74c3c;">150 tr</div>
+                <small style="color: #6c757d;">Hạn mức: 500 tr (30%)</small>
+            </div>
+            <div class="stat-card">
+                <h4>Dự án đang thực hiện</h4>
+                <div class="value" style="color: #f39c12;">3</div>
+                <small style="color: #6c757d;">2 dự án hoàn thành</small>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('overview')">Tổng quan</button>
+            <button class="tab-btn" onclick="switchTab('transactions')">Lịch sử giao dịch</button>
+            <button class="tab-btn" onclick="switchTab('projects')">Dự án</button>
+            <button class="tab-btn" onclick="switchTab('team')">Team & Follow</button>
+            <button class="tab-btn" onclick="switchTab('delivery')">Giao hàng & Hóa đơn</button>
+            <button class="tab-btn" onclick="switchTab('lending')">Sản phẩm cho mượn</button>
+            <button class="tab-btn" onclick="switchTab('documents')">Tài liệu</button>
+        </div>
+
+        <!-- Tab: Tổng quan -->
+        <div id="overview-tab" class="tab-content active">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                <div>
+                    <h4>Timeline hoạt động gần đây</h4>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div style="color: #6c757d; font-size: 12px;">2 giờ trước</div>
+                            <div><strong>Đơn hàng DH-2025-001</strong> đã được giao thành công</div>
+                            <div style="color: #6c757d; font-size: 13px;">Người giao: Nguyễn Văn A</div>
+                        </div>
+                        <div class="timeline-item">
+                            <div style="color: #6c757d; font-size: 12px;">1 ngày trước</div>
+                            <div><strong>Báo giá BG-2025-015</strong> đã được khách chấp nhận</div>
+                            <div style="color: #6c757d; font-size: 13px;">Người tạo: Trần Thị B</div>
+                        </div>
+                        <div class="timeline-item">
+                            <div style="color: #6c757d; font-size: 12px;">3 ngày trước</div>
+                            <div><strong>Cuộc họp</strong> với khách hàng về dự án mới</div>
+                            <div style="color: #6c757d; font-size: 13px;">Tham gia: Nguyễn Văn A, Trần Thị B</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4>Thông tin liên hệ</h4>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                        <p><strong>Địa chỉ:</strong><br>123 Đường ABC, Quận 1, TP.HCM</p>
+                        <p><strong>MST:</strong> 0123456789</p>
+                        <p><strong>Website:</strong> <a href="#">www.abc.com</a></p>
+                        <p><strong>Người liên hệ:</strong> Nguyễn Văn X</p>
+                        <p><strong>Ngày tạo:</strong> 01/01/2024</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Lịch sử giao dịch -->
+        <div id="transactions-tab" class="tab-content">
+            <div class="search-filter" style="margin-bottom: 15px;">
+                <select class="filter-select" id="transactionType">
+                    <option value="">Tất cả loại</option>
+                    <option value="quotation">Báo giá</option>
+                    <option value="contract">Hợp đồng</option>
+                    <option value="order">Đơn hàng</option>
+                    <option value="payment">Thanh toán</option>
+                </select>
+                <input type="date" class="filter-select" placeholder="Từ ngày">
+                <input type="date" class="filter-select" placeholder="Đến ngày">
+            </div>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Nội dung</th>
+                            <th>Giá trị</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Dự án -->
+        <div id="projects-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã dự án</th>
+                            <th>Tên dự án</th>
+                            <th>Giá trị</th>
+                            <th>Tiến độ</th>
+                            <th>Ngày bắt đầu</th>
+                            <th>Deadline</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Team & Follow -->
+        <div id="team-tab" class="tab-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>Nhân viên đang follow</h4>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nhân viên</th>
+                                    <th>Vai trò</th>
+                                    <th>Từ ngày</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="currentTeamBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4>Lịch sử làm việc</h4>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nhân viên</th>
+                                    <th>Hoạt động</th>
+                                    <th>Thời gian</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teamHistoryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Giao hàng & Hóa đơn -->
+        <div id="delivery-tab" class="tab-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>Tình trạng giao hàng</h4>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Đơn hàng</th>
+                                    <th>Ngày giao</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deliveryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4>Hóa đơn</h4>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Số HĐ</th>
+                                    <th>Ngày xuất</th>
+                                    <th>Giá trị</th>
+                                    <th>Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoiceBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Sản phẩm cho mượn -->
+        <div id="lending-tab" class="tab-content">
+            <button class="btn-primary" onclick="createLending()" style="margin-bottom: 15px;">
+                <i class="fas fa-plus"></i> Tạo phiếu cho mượn
+            </button>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã phiếu</th>
+                            <th>Sản phẩm</th>
+                            <th>Số lượng</th>
+                            <th>Ngày mượn</th>
+                            <th>Hạn trả</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lendingBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Tài liệu -->
+        <div id="documents-tab" class="tab-content">
+            <button class="btn-primary" onclick="uploadDocument()" style="margin-bottom: 15px;">
+                <i class="fas fa-upload"></i> Upload tài liệu
+            </button>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tên file</th>
+                            <th>Loại</th>
+                            <th>Kích thước</th>
+                            <th>Người upload</th>
+                            <th>Ngày upload</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="documentsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="customer-detail.js"></script>
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+        }
+
+        function createQuotation() {
+            window.parent.postMessage({action: 'navigate', module: 'modules/quotations.html'}, '*');
+        }
+
+        function createOrder() {
+            window.parent.postMessage({action: 'navigate', module: 'modules/sales-orders.html'}, '*');
+        }
+
+        function editCustomer() {
+            alert('Chỉnh sửa thông tin khách hàng');
+        }
+
+        function createLending() {
+            alert('Tạo phiếu cho mượn');
+        }
+
+        function uploadDocument() {
+            alert('Upload tài liệu');
+        }
+    </script>
+</body>
+</html>

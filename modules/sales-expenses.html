@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi phí bán hàng - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý chi phí bán hàng</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Thêm chi phí
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Chi phí bán hàng</h4>
+            <p>Ghi nhận các chi phí phát sinh trong quá trình bán hàng: Vận chuyển, Marketing, Hoa hồng, Chi phí khác.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm...">
+            <select class="filter-select" id="filterType" onchange="filterData()">
+                <option value="">Tất cả loại chi phí</option>
+                <option value="shipping">Vận chuyển</option>
+                <option value="marketing">Marketing</option>
+                <option value="commission">Hoa hồng</option>
+                <option value="other">Khác</option>
+            </select>
+            <input type="month" id="filterMonth" class="filter-select" onchange="loadData()">
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã chi phí</th>
+                        <th>Loại chi phí</th>
+                        <th>Đơn hàng</th>
+                        <th>Mô tả</th>
+                        <th>Số tiền</th>
+                        <th>Ngày phát sinh</th>
+                        <th>Người phụ trách</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                <div>
+                    <strong>Tổng chi phí:</strong>
+                    <div style="font-size: 20px; color: #e74c3c;" id="totalExpense">0đ</div>
+                </div>
+                <div>
+                    <strong>Vận chuyển:</strong>
+                    <div style="font-size: 20px; color: #3498db;" id="shippingExpense">0đ</div>
+                </div>
+                <div>
+                    <strong>Marketing:</strong>
+                    <div style="font-size: 20px; color: #f39c12;" id="marketingExpense">0đ</div>
+                </div>
+                <div>
+                    <strong>Hoa hồng:</strong>
+                    <div style="font-size: 20px; color: #27ae60;" id="commissionExpense">0đ</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Thêm chi phí bán hàng</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Loại chi phí <span class="required">*</span></label>
+                        <select name="type" required>
+                            <option value="">Chọn loại</option>
+                            <option value="shipping">Vận chuyển</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="commission">Hoa hồng</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Đơn hàng liên quan</label>
+                        <select name="orderId">
+                            <option value="">Chọn đơn hàng</option>
+                            <option value="DH001">DH001 - Công ty ABC</option>
+                            <option value="DH002">DH002 - Công ty XYZ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Mô tả chi phí <span class="required">*</span></label>
+                    <input type="text" name="description" required placeholder="VD: Chi phí vận chuyển đơn hàng DH001">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Số tiền (VNĐ) <span class="required">*</span></label>
+                        <input type="number" name="amount" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Ngày phát sinh <span class="required">*</span></label>
+                        <input type="date" name="date" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Người phụ trách</label>
+                    <select name="assignedTo">
+                        <option value="">Chọn người phụ trách</option>
+                        <option value="Nguyễn Văn A">Nguyễn Văn A</option>
+                        <option value="Trần Thị B">Trần Thị B</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="sales-expenses.js"></script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Skillset nhân viên - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý Skillset cho từng nhân viên</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Thêm kỹ năng
+            </button>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng nhân viên</div>
+                    <div class="stat-value" id="totalEmployees">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="stat-icon"><i class="fas fa-certificate"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng kỹ năng</div>
+                    <div class="stat-value" id="totalSkills">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="stat-icon"><i class="fas fa-star"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Kỹ năng chuyên môn</div>
+                    <div class="stat-value" id="technicalSkills">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-icon"><i class="fas fa-comments"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Kỹ năng mềm</div>
+                    <div class="stat-value" id="softSkills">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quản lý Skillset</h4>
+            <p>Quản lý kỹ năng của từng nhân viên: Kỹ năng chuyên môn, kỹ năng mềm, chứng chỉ, trình độ. Đánh giá mức độ thành thạo.</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('all')">Tất cả kỹ năng</button>
+            <button class="tab-btn" onclick="switchTab('technical')">Kỹ năng chuyên môn</button>
+            <button class="tab-btn" onclick="switchTab('soft')">Kỹ năng mềm</button>
+            <button class="tab-btn" onclick="switchTab('certificate')">Chứng chỉ</button>
+        </div>
+
+        <!-- Tab All Skills -->
+        <div id="all-tab" class="tab-content active">
+            <div class="search-filter">
+                <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm nhân viên...">
+                <select class="filter-select" id="filterDept">
+                    <option value="">Tất cả phòng ban</option>
+                    <option value="Kinh doanh">Kinh doanh</option>
+                    <option value="Kế toán">Kế toán</option>
+                    <option value="IT">IT</option>
+                    <option value="Kho">Kho</option>
+                </select>
+            </div>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã NV</th>
+                            <th>Họ tên</th>
+                            <th>Phòng ban</th>
+                            <th>Kỹ năng</th>
+                            <th>Loại kỹ năng</th>
+                            <th>Mức độ</th>
+                            <th>Chứng chỉ</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Technical Skills -->
+        <div id="technical-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nhân viên</th>
+                            <th>Kỹ năng chuyên môn</th>
+                            <th>Mức độ</th>
+                            <th>Kinh nghiệm (năm)</th>
+                            <th>Ghi chú</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="technicalTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Soft Skills -->
+        <div id="soft-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nhân viên</th>
+                            <th>Kỹ năng mềm</th>
+                            <th>Mức độ</th>
+                            <th>Đánh giá</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="softTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Certificates -->
+        <div id="certificate-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nhân viên</th>
+                            <th>Tên chứng chỉ</th>
+                            <th>Tổ chức cấp</th>
+                            <th>Ngày cấp</th>
+                            <th>Ngày hết hạn</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="certificateTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Thêm kỹ năng cho nhân viên</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nhân viên <span class="required">*</span></label>
+                        <select name="employee" required>
+                            <option value="">Chọn nhân viên</option>
+                            <option value="Nguyễn Văn A">Nguyễn Văn A</option>
+                            <option value="Trần Thị B">Trần Thị B</option>
+                            <option value="Lê Văn C">Lê Văn C</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Loại kỹ năng <span class="required">*</span></label>
+                        <select name="skillType" required onchange="updateSkillOptions()">
+                            <option value="">Chọn loại</option>
+                            <option value="technical">Kỹ năng chuyên môn</option>
+                            <option value="soft">Kỹ năng mềm</option>
+                            <option value="certificate">Chứng chỉ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tên kỹ năng/Chứng chỉ <span class="required">*</span></label>
+                    <input type="text" name="skillName" required placeholder="VD: JavaScript, Giao tiếp, PMP...">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mức độ thành thạo <span class="required">*</span></label>
+                        <select name="level" required>
+                            <option value="">Chọn mức độ</option>
+                            <option value="beginner">Mới bắt đầu</option>
+                            <option value="intermediate">Trung bình</option>
+                            <option value="advanced">Nâng cao</option>
+                            <option value="expert">Chuyên gia</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Kinh nghiệm (năm)</label>
+                        <input type="number" name="experience" min="0" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <div id="certificateFields" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tổ chức cấp</label>
+                            <input type="text" name="issuer" placeholder="VD: Microsoft, PMI...">
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày cấp</label>
+                            <input type="date" name="issueDate">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Ngày hết hạn</label>
+                        <input type="date" name="expiryDate">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="employee-skills.js"></script>
+</body>
+</html>

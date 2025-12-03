@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kế toán - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý Kế toán</h2>
+            <button class="btn-secondary" onclick="exportMisa()">
+                <i class="fas fa-file-export"></i> Xuất file Misa
+            </button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('orders')">Theo dõi đơn hàng</button>
+            <button class="tab-btn" onclick="switchTab('payment')">Quản lý thanh toán</button>
+            <button class="tab-btn" onclick="switchTab('currency')">Quản lý tiền tệ</button>
+            <button class="tab-btn" onclick="switchTab('reports')">Báo cáo tài chính</button>
+        </div>
+
+        <!-- Tab Theo dõi đơn hàng -->
+        <div id="orders-tab" class="tab-content active">
+            <h3>Theo dõi, thống kê đơn hàng bán, đơn hàng nhập</h3>
+            
+            <div class="search-filter">
+                <input type="text" class="search-input" placeholder="Tìm kiếm đơn hàng...">
+                <select class="filter-select">
+                    <option value="">Tất cả loại</option>
+                    <option value="sales">Đơn hàng bán</option>
+                    <option value="purchase">Đơn hàng nhập</option>
+                </select>
+            </div>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Loại</th>
+                            <th>Đối tác</th>
+                            <th>Ngày</th>
+                            <th>Tổng tiền</th>
+                            <th>Đã thanh toán</th>
+                            <th>Còn lại</th>
+                            <th>Trạng thái TT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Quản lý thanh toán -->
+        <div id="payment-tab" class="tab-content">
+            <h3>Quản lý theo dõi thanh toán của khách hàng, nhà cung cấp</h3>
+            
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Đối tác</th>
+                            <th>Loại</th>
+                            <th>Tổng phải thu/trả</th>
+                            <th>Đã thu/trả</th>
+                            <th>Còn lại</th>
+                            <th>Quá hạn</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paymentTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Quản lý tiền tệ -->
+        <div id="currency-tab" class="tab-content">
+            <h3>Quản lý tiền tệ (Đa tiền tệ cho giao dịch, lịch sử tỷ giá)</h3>
+            
+            <button class="btn-primary" onclick="openAddCurrencyModal()" style="margin-bottom: 15px;">
+                <i class="fas fa-plus"></i> Thêm tỷ giá
+            </button>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tiền tệ</th>
+                            <th>Ký hiệu</th>
+                            <th>Tỷ giá (VNĐ)</th>
+                            <th>Ngày cập nhật</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="currencyTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab Báo cáo tài chính -->
+        <div id="reports-tab" class="tab-content">
+            <h3>Báo cáo tài chính</h3>
+            
+            <!-- Dashboard Cards -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">
+                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Tổng doanh thu</div>
+                        <div class="stat-value" id="totalRevenue">0đ</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Chi phí mua hàng</div>
+                        <div class="stat-value" id="totalCost">0đ</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Lợi nhuận</div>
+                        <div class="stat-value" id="totalProfit">0đ</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Tỷ suất lợi nhuận</div>
+                        <div class="stat-value" id="profitMargin">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
+                <div class="report-card" onclick="viewReport('income')">
+                    <i class="fas fa-chart-line" style="font-size: 40px; color: #27ae60;"></i>
+                    <h4>Báo cáo lãi lỗ</h4>
+                    <p>Thu chi, lợi nhuận</p>
+                </div>
+                <div class="report-card" onclick="viewReport('balance')">
+                    <i class="fas fa-balance-scale" style="font-size: 40px; color: #3498db;"></i>
+                    <h4>Bảng cân đối kế toán</h4>
+                    <p>Tài sản, nợ, vốn</p>
+                </div>
+                <div class="report-card" onclick="viewReport('cashflow')">
+                    <i class="fas fa-money-bill-wave" style="font-size: 40px; color: #f39c12;"></i>
+                    <h4>Báo cáo dòng tiền</h4>
+                    <p>Dòng tiền vào/ra</p>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4><i class="fas fa-info-circle"></i> Các chức năng kế toán</h4>
+                <ul style="padding-left: 20px; margin-top: 10px;">
+                    <li>Đối soát: Theo dõi hoạt động kinh doanh (bán hàng, mua hàng, kho)</li>
+                    <li>Hỗ trợ ghi nhận nhật ký kế toán theo từng loại hình vận chuyển kho</li>
+                    <li>Xuất file dữ liệu chứng từ phù hợp với Misa, theo template chuẩn</li>
+                    <li>Phân quyền truy cập hệ thống cho nhân viên theo vị trí làm việc</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="accounting.js"></script>
+</body>
+</html>

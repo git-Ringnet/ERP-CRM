@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công thức chi phí - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Công thức tính chi phí bán hàng</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Thêm công thức
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Thiết lập công thức tính chi phí</h4>
+            <p>Tạo công thức tự động tính chi phí bán hàng: Chiết khấu, Hoa hồng, Vận chuyển, Chi phí khác. Áp dụng theo điều kiện: Dự án, Khách hàng, Sản phẩm.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm công thức...">
+            <select class="filter-select" id="filterType">
+                <option value="">Tất cả loại</option>
+                <option value="discount">Chiết khấu</option>
+                <option value="commission">Hoa hồng</option>
+                <option value="shipping">Vận chuyển</option>
+                <option value="other">Chi phí khác</option>
+            </select>
+            <select class="filter-select" id="filterStatus">
+                <option value="">Tất cả trạng thái</option>
+                <option value="active">Đang áp dụng</option>
+                <option value="inactive">Tạm dừng</option>
+            </select>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã công thức</th>
+                        <th>Tên công thức</th>
+                        <th>Loại chi phí</th>
+                        <th>Cách tính</th>
+                        <th>Điều kiện áp dụng</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Thêm công thức mới</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã công thức <span class="required">*</span></label>
+                        <input type="text" name="code" required placeholder="CF-">
+                    </div>
+                    <div class="form-group">
+                        <label>Loại chi phí <span class="required">*</span></label>
+                        <select name="type" required>
+                            <option value="">Chọn loại...</option>
+                            <option value="discount">Chiết khấu</option>
+                            <option value="commission">Hoa hồng</option>
+                            <option value="shipping">Vận chuyển</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="other">Chi phí khác</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tên công thức <span class="required">*</span></label>
+                    <input type="text" name="name" required placeholder="VD: Chiết khấu khách hàng VIP">
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Cách tính</h4>
+
+                <div class="form-group">
+                    <label>Phương thức tính <span class="required">*</span></label>
+                    <select name="method" required onchange="handleMethodChange(this.value)">
+                        <option value="">Chọn phương thức...</option>
+                        <option value="percentage">Phần trăm (%)</option>
+                        <option value="fixed">Số tiền cố định</option>
+                        <option value="per_unit">Theo đơn vị (VD: /km, /kg)</option>
+                        <option value="formula">Công thức tùy chỉnh</option>
+                    </select>
+                </div>
+
+                <div id="percentageGroup" class="form-group" style="display: none;">
+                    <label>Phần trăm (%) <span class="required">*</span></label>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <input type="number" name="percentage" min="0" max="100" step="0.01" placeholder="VD: 5">
+                        </div>
+                        <div class="form-group">
+                            <label>Tính trên</label>
+                            <select name="percentageBase">
+                                <option value="revenue">Doanh thu</option>
+                                <option value="profit">Lợi nhuận</option>
+                                <option value="cost">Giá vốn</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="fixedGroup" class="form-group" style="display: none;">
+                    <label>Số tiền cố định (VNĐ) <span class="required">*</span></label>
+                    <input type="number" name="fixedAmount" min="0" placeholder="VD: 500000">
+                </div>
+
+                <div id="perUnitGroup" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Đơn giá <span class="required">*</span></label>
+                            <input type="number" name="unitPrice" min="0" placeholder="VD: 5000">
+                        </div>
+                        <div class="form-group">
+                            <label>Đơn vị <span class="required">*</span></label>
+                            <select name="unit">
+                                <option value="km">Km (khoảng cách)</option>
+                                <option value="kg">Kg (trọng lượng)</option>
+                                <option value="m3">M³ (thể tích)</option>
+                                <option value="item">Sản phẩm</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="formulaGroup" class="form-group" style="display: none;">
+                    <label>Công thức tùy chỉnh <span class="required">*</span></label>
+                    <textarea name="customFormula" rows="3" placeholder="VD: (revenue * 0.05) + (distance * 5000)"></textarea>
+                    <small style="color: #6c757d;">
+                        <i class="fas fa-info-circle"></i> 
+                        Biến có thể dùng: revenue (doanh thu), profit (lợi nhuận), cost (giá vốn), quantity (số lượng), distance (khoảng cách), weight (trọng lượng)
+                    </small>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Điều kiện áp dụng</h4>
+
+                <div class="form-group">
+                    <label>Áp dụng cho</label>
+                    <select name="applyTo" onchange="handleApplyToChange(this.value)">
+                        <option value="all">Tất cả</option>
+                        <option value="project">Theo dự án</option>
+                        <option value="customer">Theo khách hàng</option>
+                        <option value="product">Theo sản phẩm</option>
+                        <option value="order_value">Theo giá trị đơn hàng</option>
+                    </select>
+                </div>
+
+                <div id="projectGroup" class="form-group" style="display: none;">
+                    <label>Chọn dự án</label>
+                    <select name="projects" multiple size="5">
+                        <option value="DA001">Dự án ABC</option>
+                        <option value="DA002">Dự án XYZ</option>
+                        <option value="DA003">Dự án DEF</option>
+                    </select>
+                    <small style="color: #6c757d;">Giữ Ctrl để chọn nhiều dự án</small>
+                </div>
+
+                <div id="customerGroup" class="form-group" style="display: none;">
+                    <label>Chọn khách hàng</label>
+                    <select name="customers" multiple size="5">
+                        <option value="KH001">Công ty ABC</option>
+                        <option value="KH002">Công ty XYZ</option>
+                        <option value="KH003">Công ty DEF</option>
+                    </select>
+                    <small style="color: #6c757d;">Giữ Ctrl để chọn nhiều khách hàng</small>
+                </div>
+
+                <div id="productGroup" class="form-group" style="display: none;">
+                    <label>Chọn sản phẩm</label>
+                    <select name="products" multiple size="5">
+                        <option value="SP001">Laptop Dell XPS 15</option>
+                        <option value="SP002">Màn hình LG 27 inch</option>
+                        <option value="SP003">Bàn làm việc</option>
+                    </select>
+                    <small style="color: #6c757d;">Giữ Ctrl để chọn nhiều sản phẩm</small>
+                </div>
+
+                <div id="orderValueGroup" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Giá trị đơn hàng từ</label>
+                            <input type="number" name="minOrderValue" min="0" placeholder="VD: 10000000">
+                        </div>
+                        <div class="form-group">
+                            <label>Đến</label>
+                            <input type="number" name="maxOrderValue" min="0" placeholder="VD: 50000000">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày bắt đầu</label>
+                        <input type="date" name="startDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Ngày kết thúc</label>
+                        <input type="date" name="endDate">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Trạng thái</label>
+                    <select name="status">
+                        <option value="active">Đang áp dụng</option>
+                        <option value="inactive">Tạm dừng</option>
+                    </select>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Preview kết quả</h4>
+
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Doanh thu mẫu (VNĐ)</label>
+                            <input type="number" id="sampleRevenue" value="10000000" onchange="calculatePreview()">
+                        </div>
+                        <div class="form-group">
+                            <label>Số lượng/Khoảng cách/Trọng lượng</label>
+                            <input type="number" id="sampleQuantity" value="10" onchange="calculatePreview()">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;">
+                        <strong>Chi phí dự kiến:</strong> <span id="previewResult" style="color: #e74c3c; font-size: 18px;">0 VNĐ</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="testFormula()">
+                        <i class="fas fa-calculator"></i> Test công thức
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="cost-formula.js"></script>
+    <script>
+        function handleMethodChange(method) {
+            // Hide all groups
+            document.getElementById('percentageGroup').style.display = 'none';
+            document.getElementById('fixedGroup').style.display = 'none';
+            document.getElementById('perUnitGroup').style.display = 'none';
+            document.getElementById('formulaGroup').style.display = 'none';
+
+            // Show selected group
+            if (method === 'percentage') {
+                document.getElementById('percentageGroup').style.display = 'block';
+            } else if (method === 'fixed') {
+                document.getElementById('fixedGroup').style.display = 'block';
+            } else if (method === 'per_unit') {
+                document.getElementById('perUnitGroup').style.display = 'block';
+            } else if (method === 'formula') {
+                document.getElementById('formulaGroup').style.display = 'block';
+            }
+        }
+
+        function handleApplyToChange(applyTo) {
+            // Hide all groups
+            document.getElementById('projectGroup').style.display = 'none';
+            document.getElementById('customerGroup').style.display = 'none';
+            document.getElementById('productGroup').style.display = 'none';
+            document.getElementById('orderValueGroup').style.display = 'none';
+
+            // Show selected group
+            if (applyTo === 'project') {
+                document.getElementById('projectGroup').style.display = 'block';
+            } else if (applyTo === 'customer') {
+                document.getElementById('customerGroup').style.display = 'block';
+            } else if (applyTo === 'product') {
+                document.getElementById('productGroup').style.display = 'block';
+            } else if (applyTo === 'order_value') {
+                document.getElementById('orderValueGroup').style.display = 'block';
+            }
+        }
+
+        function calculatePreview() {
+            const method = document.querySelector('[name="method"]').value;
+            const revenue = parseFloat(document.getElementById('sampleRevenue').value) || 0;
+            const quantity = parseFloat(document.getElementById('sampleQuantity').value) || 0;
+            let result = 0;
+
+            if (method === 'percentage') {
+                const percentage = parseFloat(document.querySelector('[name="percentage"]').value) || 0;
+                result = revenue * (percentage / 100);
+            } else if (method === 'fixed') {
+                result = parseFloat(document.querySelector('[name="fixedAmount"]').value) || 0;
+            } else if (method === 'per_unit') {
+                const unitPrice = parseFloat(document.querySelector('[name="unitPrice"]').value) || 0;
+                result = unitPrice * quantity;
+            }
+
+            document.getElementById('previewResult').textContent = result.toLocaleString('vi-VN') + ' VNĐ';
+        }
+
+        function testFormula() {
+            calculatePreview();
+            alert('Kết quả test đã hiển thị ở phần Preview!');
+        }
+    </script>
+</body>
+</html>

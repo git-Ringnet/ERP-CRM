@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý xuất nhập kho - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý xuất nhập kho</h2>
+            <div>
+                <button class="btn-primary" onclick="openAddModal('import')">
+                    <i class="fas fa-arrow-down"></i> Nhập kho
+                </button>
+                <button class="btn-primary" onclick="openAddModal('export')">
+                    <i class="fas fa-arrow-up"></i> Xuất kho
+                </button>
+                <button class="btn-secondary" onclick="openAddModal('transfer')">
+                    <i class="fas fa-exchange-alt"></i> Điều chuyển
+                </button>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quản lý xuất nhập tồn</h4>
+            <p>Quản lý xuất nhập tồn, điều chuyển tồn kho. Theo dõi lịch sử xuất nhập kho chi tiết.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm phiếu...">
+            <select class="filter-select" id="filterType">
+                <option value="">Tất cả loại</option>
+                <option value="import">Nhập kho</option>
+                <option value="export">Xuất kho</option>
+                <option value="transfer">Điều chuyển</option>
+            </select>
+            <select class="filter-select" id="filterWarehouse">
+                <option value="">Tất cả kho</option>
+                <option value="Kho chính">Kho chính</option>
+                <option value="Kho phụ">Kho phụ</option>
+            </select>
+            <button class="btn-secondary" onclick="exportData()">
+                <i class="fas fa-file-export"></i> Xuất Excel
+            </button>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã phiếu</th>
+                        <th>Loại</th>
+                        <th>Kho</th>
+                        <th>Ngày</th>
+                        <th>Người thực hiện</th>
+                        <th>Tổng SL</th>
+                        <th>Ghi chú</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Phiếu nhập kho</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã phiếu <span class="required">*</span></label>
+                        <input type="text" name="code" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Loại phiếu <span class="required">*</span></label>
+                        <select name="type" id="transactionType" required onchange="toggleTransferFields()">
+                            <option value="import">Nhập kho</option>
+                            <option value="export">Xuất kho</option>
+                            <option value="transfer">Điều chuyển</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Kho <span class="required">*</span></label>
+                        <select name="warehouse" required>
+                            <option value="">Chọn kho</option>
+                            <option value="Kho chính">Kho chính</option>
+                            <option value="Kho phụ">Kho phụ</option>
+                            <option value="Kho ảo">Kho ảo</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="toWarehouseGroup" style="display: none;">
+                        <label>Kho đích <span class="required">*</span></label>
+                        <select name="toWarehouse">
+                            <option value="">Chọn kho đích</option>
+                            <option value="Kho chính">Kho chính</option>
+                            <option value="Kho phụ">Kho phụ</option>
+                            <option value="Kho ảo">Kho ảo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày <span class="required">*</span></label>
+                        <input type="date" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Người thực hiện <span class="required">*</span></label>
+                        <select name="employee" required>
+                            <option value="">Chọn nhân viên</option>
+                            <option value="Nguyễn Văn A">Nguyễn Văn A</option>
+                            <option value="Trần Thị B">Trần Thị B</option>
+                            <option value="Lê Văn C">Lê Văn C</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" id="referenceGroup">
+                    <label>Liên quan đến</label>
+                    <select name="reference">
+                        <option value="">Không liên quan</option>
+                        <option value="DH001">Đơn hàng DH001</option>
+                        <option value="PO001">Đơn mua hàng PO001</option>
+                    </select>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Chi tiết sản phẩm</h4>
+
+                <div id="productList">
+                    <div class="product-item">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Sản phẩm</label>
+                                <select name="products[0][name]" required>
+                                    <option value="">Chọn sản phẩm</option>
+                                    <option value="Laptop Dell XPS 15">Laptop Dell XPS 15</option>
+                                    <option value="Màn hình LG 27 inch">Màn hình LG 27 inch</option>
+                                    <option value="Bàn làm việc">Bàn làm việc</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Số lượng</label>
+                                <input type="number" name="products[0][quantity]" min="1" value="1" required onchange="calculateTotalQty()">
+                            </div>
+                            <div class="form-group">
+                                <label>Đơn vị</label>
+                                <input type="text" name="products[0][unit]" value="Cái" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Serial/Lô</label>
+                                <input type="text" name="products[0][serial]" placeholder="Nếu có">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-secondary" onclick="addProductRow()" style="margin-bottom: 15px;">
+                    <i class="fas fa-plus"></i> Thêm sản phẩm
+                </button>
+
+                <div class="form-group">
+                    <label><strong>Tổng số lượng:</strong> <span id="totalQty">1</span></label>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="3"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                    <button type="button" class="btn-primary" onclick="saveAndPrint()">
+                        <i class="fas fa-print"></i> Lưu và in
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="inventory-transactions.js"></script>
+    <script>
+        if (typeof loadData === 'function') {
+            loadData();
+        }
+    </script></script>
+</body>
+</html>

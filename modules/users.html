@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý người dùng - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý người dùng & Phân quyền</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Thêm user
+            </button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('users')">Người dùng</button>
+            <button class="tab-btn" onclick="switchTab('roles')">Vai trò & Quyền</button>
+            <button class="tab-btn" onclick="switchTab('teams')">Teams</button>
+        </div>
+
+        <!-- Tab: Users -->
+        <div id="users-tab" class="tab-content active">
+            <div class="search-filter">
+                <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm user...">
+                <select class="filter-select" id="filterRole">
+                    <option value="">Tất cả vai trò</option>
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="sales">Sales</option>
+                    <option value="accountant">Accountant</option>
+                    <option value="warehouse">Warehouse</option>
+                </select>
+                <select class="filter-select" id="filterStatus">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Họ tên</th>
+                            <th>Email</th>
+                            <th>Vai trò</th>
+                            <th>Team</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Roles -->
+        <div id="roles-tab" class="tab-content">
+            <button class="btn-primary" onclick="openRoleModal()" style="margin-bottom: 15px;">
+                <i class="fas fa-plus"></i> Thêm vai trò
+            </button>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <h4 style="color: #e74c3c;"><i class="fas fa-user-shield"></i> Admin</h4>
+                    <p style="color: #6c757d; font-size: 13px;">Toàn quyền hệ thống</p>
+                    <div style="margin-top: 10px;">
+                        <span style="background: #fee; color: #c00; padding: 3px 8px; border-radius: 3px; font-size: 12px;">2 users</span>
+                    </div>
+                    <button class="btn-secondary" onclick="editRole('admin')" style="margin-top: 10px; width: 100%;">
+                        <i class="fas fa-edit"></i> Chỉnh sửa quyền
+                    </button>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <h4 style="color: #3498db;"><i class="fas fa-user-tie"></i> Manager</h4>
+                    <p style="color: #6c757d; font-size: 13px;">Quản lý team, duyệt đơn</p>
+                    <div style="margin-top: 10px;">
+                        <span style="background: #e7f3ff; color: #3498db; padding: 3px 8px; border-radius: 3px; font-size: 12px;">5 users</span>
+                    </div>
+                    <button class="btn-secondary" onclick="editRole('manager')" style="margin-top: 10px; width: 100%;">
+                        <i class="fas fa-edit"></i> Chỉnh sửa quyền
+                    </button>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <h4 style="color: #27ae60;"><i class="fas fa-user"></i> Sales</h4>
+                    <p style="color: #6c757d; font-size: 13px;">Bán hàng, CRM</p>
+                    <div style="margin-top: 10px;">
+                        <span style="background: #d5f4e6; color: #27ae60; padding: 3px 8px; border-radius: 3px; font-size: 12px;">15 users</span>
+                    </div>
+                    <button class="btn-secondary" onclick="editRole('sales')" style="margin-top: 10px; width: 100%;">
+                        <i class="fas fa-edit"></i> Chỉnh sửa quyền
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Teams -->
+        <div id="teams-tab" class="tab-content">
+            <button class="btn-primary" onclick="openTeamModal()" style="margin-bottom: 15px;">
+                <i class="fas fa-plus"></i> Thêm team
+            </button>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tên team</th>
+                            <th>Trưởng team</th>
+                            <th>Số thành viên</th>
+                            <th>Mô tả</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teamsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal User -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Thêm user mới</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Username <span class="required">*</span></label>
+                        <input type="text" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password <span class="required">*</span></label>
+                        <input type="password" name="password" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email <span class="required">*</span></label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Số điện thoại</label>
+                        <input type="tel" name="phone">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Liên kết nhân viên</label>
+                    <select name="employeeId">
+                        <option value="">Chọn nhân viên...</option>
+                        <option value="NV001">Nguyễn Văn A</option>
+                        <option value="NV002">Trần Thị B</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Vai trò <span class="required">*</span></label>
+                        <select name="role" required>
+                            <option value="">Chọn vai trò...</option>
+                            <option value="admin">Admin</option>
+                            <option value="manager">Manager</option>
+                            <option value="sales">Sales</option>
+                            <option value="accountant">Accountant</option>
+                            <option value="warehouse">Warehouse</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Team</label>
+                        <select name="teamId">
+                            <option value="">Chọn team...</option>
+                            <option value="T001">Team Bán hàng 1</option>
+                            <option value="T002">Team Bán hàng 2</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Trạng thái</label>
+                    <select name="status">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Role Permissions -->
+    <div id="roleModal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeRoleModal()">&times;</span>
+            <h3>Chỉnh sửa quyền: <span id="roleName"></span></h3>
+            
+            <div style="max-height: 500px; overflow-y: auto;">
+                <div style="margin-bottom: 20px;">
+                    <h4 style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <input type="checkbox" id="masterDataAll" onchange="toggleSection('masterData')"> 
+                        Master Data
+                    </h4>
+                    <div style="padding-left: 30px;">
+                        <label><input type="checkbox" name="perm_customers_view"> Khách hàng - Xem</label><br>
+                        <label><input type="checkbox" name="perm_customers_create"> Khách hàng - Thêm</label><br>
+                        <label><input type="checkbox" name="perm_customers_edit"> Khách hàng - Sửa</label><br>
+                        <label><input type="checkbox" name="perm_customers_delete"> Khách hàng - Xóa</label><br>
+                        <hr style="margin: 10px 0;">
+                        <label><input type="checkbox" name="perm_products_view"> Hàng hóa - Xem</label><br>
+                        <label><input type="checkbox" name="perm_products_create"> Hàng hóa - Thêm</label><br>
+                        <label><input type="checkbox" name="perm_products_edit"> Hàng hóa - Sửa</label><br>
+                        <label><input type="checkbox" name="perm_products_delete"> Hàng hóa - Xóa</label><br>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <input type="checkbox" id="salesAll" onchange="toggleSection('sales')"> 
+                        Bán hàng
+                    </h4>
+                    <div style="padding-left: 30px;">
+                        <label><input type="checkbox" name="perm_quotations_view"> Báo giá - Xem</label><br>
+                        <label><input type="checkbox" name="perm_quotations_create"> Báo giá - Thêm</label><br>
+                        <label><input type="checkbox" name="perm_quotations_approve"> Báo giá - Duyệt</label><br>
+                        <hr style="margin: 10px 0;">
+                        <label><input type="checkbox" name="perm_orders_view"> Đơn hàng - Xem</label><br>
+                        <label><input type="checkbox" name="perm_orders_create"> Đơn hàng - Thêm</label><br>
+                        <label><input type="checkbox" name="perm_orders_approve"> Đơn hàng - Duyệt</label><br>
+                        <hr style="margin: 10px 0;">
+                        <label><input type="checkbox" name="perm_margin_view"> <strong>Xem Margin</strong></label><br>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <input type="checkbox" id="warehouseAll" onchange="toggleSection('warehouse')"> 
+                        Kho
+                    </h4>
+                    <div style="padding-left: 30px;">
+                        <label><input type="checkbox" name="perm_inventory_view"> Tồn kho - Xem</label><br>
+                        <label><input type="checkbox" name="perm_inventory_export"> Xuất kho</label><br>
+                        <label><input type="checkbox" name="perm_inventory_import"> Nhập kho</label><br>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <input type="checkbox" id="accountingAll" onchange="toggleSection('accounting')"> 
+                        Kế toán
+                    </h4>
+                    <div style="padding-left: 30px;">
+                        <label><input type="checkbox" name="perm_accounting_view"> Xem báo cáo tài chính</label><br>
+                        <label><input type="checkbox" name="perm_accounting_edit"> Chỉnh sửa kế toán</label><br>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeRoleModal()">
+                    <i class="fas fa-times"></i> Hủy
+                </button>
+                <button type="button" class="btn-primary" onclick="saveRolePermissions()">
+                    <i class="fas fa-save"></i> Lưu quyền
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="users.js"></script>
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+        }
+
+        function openRoleModal() {
+            document.getElementById('roleModal').style.display = 'block';
+        }
+
+        function closeRoleModal() {
+            document.getElementById('roleModal').style.display = 'none';
+        }
+
+        function editRole(role) {
+            document.getElementById('roleName').textContent = role.toUpperCase();
+            openRoleModal();
+        }
+
+        function toggleSection(section) {
+            const checkboxes = document.querySelectorAll(`[name^="perm_${section}"]`);
+            const masterCheckbox = document.getElementById(section + 'All');
+            checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+        }
+
+        function saveRolePermissions() {
+            alert('Đã lưu quyền!');
+            closeRoleModal();
+        }
+
+        function openTeamModal() {
+            alert('Tạo team mới');
+        }
+    </script>
+</body>
+</html>

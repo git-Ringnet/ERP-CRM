@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chấm công, điểm danh - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Chấm công, điểm danh</h2>
+            <div>
+                <button class="btn-primary" onclick="openCheckInModal()">
+                    <i class="fas fa-clock"></i> Chấm công
+                </button>
+                <button class="btn-secondary" onclick="exportData()">
+                    <i class="fas fa-file-export"></i> Xuất Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng nhân viên</div>
+                    <div class="stat-value" id="totalEmployees">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Đi làm hôm nay</div>
+                    <div class="stat-value" id="presentToday">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Đi muộn</div>
+                    <div class="stat-value" id="lateToday">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="stat-icon"><i class="fas fa-user-clock"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tăng ca (giờ)</div>
+                    <div class="stat-value" id="totalOvertime">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Tích hợp API chấm công</h4>
+            <p>Tích hợp với thiết bị chấm công, đồng bộ dữ liệu tự động. Theo dõi giờ vào/ra, tăng ca, nghỉ phép.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm nhân viên...">
+            <input type="month" id="filterMonth" class="filter-select" onchange="loadData()">
+            <select class="filter-select" id="filterDept">
+                <option value="">Tất cả phòng ban</option>
+                <option value="Kinh doanh">Kinh doanh</option>
+                <option value="Kế toán">Kế toán</option>
+                <option value="Kho">Kho</option>
+            </select>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã NV</th>
+                        <th>Họ tên</th>
+                        <th>Phòng ban</th>
+                        <th>Số ngày công</th>
+                        <th>Đi muộn</th>
+                        <th>Về sớm</th>
+                        <th>Tăng ca (giờ)</th>
+                        <th>Nghỉ phép</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="attendance.js"></script>
+</body>
+</html>

@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini ERP/CRM System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Hệ thống Mini ERP/CRM</h1>
+            <div class="user-info">
+                <span id="userName">Admin</span>
+                <button class="btn-logout">Đăng xuất</button>
+            </div>
+        </header>
+
+        <nav class="sidebar">
+            <ul class="nav-menu">
+                <li class="nav-section">MASTER DATA</li>
+                <li class="nav-item active" data-module="customers">
+                    <i class="nav-icon fas fa-users"></i>
+                    <span>Khách hàng</span>
+                </li>
+                <li class="nav-item" data-module="suppliers">
+                    <i class="nav-icon fas fa-building"></i>
+                    <span>Nhà cung cấp</span>
+                </li>
+                <li class="nav-item" data-module="employees">
+                    <i class="nav-icon fas fa-user-tie"></i>
+                    <span>Nhân viên</span>
+                </li>
+                <li class="nav-item" data-module="products">
+                    <i class="nav-icon fas fa-box"></i>
+                    <span>Hàng hóa</span>
+                </li>
+                <li class="nav-item" data-module="company-structure">
+                    <i class="nav-icon fas fa-sitemap"></i>
+                    <span>Sơ đồ cơ cấu công ty</span>
+                </li>
+                <li class="nav-item" data-module="asset-management">
+                    <i class="nav-icon fas fa-barcode"></i>
+                    <span>Quản lý tài sản</span>
+                </li>
+                
+                <li class="nav-section">BÁN HÀNG</li>
+                <li class="nav-item" data-module="price-list">
+                    <i class="nav-icon fas fa-tags"></i>
+                    <span>Bảng giá</span>
+                </li>
+                <li class="nav-item" data-module="sales-orders">
+                    <i class="nav-icon fas fa-file-invoice"></i>
+                    <span>Đơn hàng</span>
+                </li>
+                <li class="nav-item" data-module="sales-approval">
+                    <i class="nav-icon fas fa-check-circle"></i>
+                    <span>Xét duyệt đơn</span>
+                </li>
+                <li class="nav-item" data-module="sales-debt">
+                    <i class="nav-icon fas fa-hand-holding-usd"></i>
+                    <span>Hạn mức công nợ</span>
+                </li>
+                <li class="nav-item" data-module="sales-expenses">
+                    <i class="nav-icon fas fa-receipt"></i>
+                    <span>Chi phí bán hàng</span>
+                </li>
+                <li class="nav-item" data-module="sales-margin">
+                    <i class="nav-icon fas fa-chart-line"></i>
+                    <span>Margin đơn hàng</span>
+                </li>
+                <li class="nav-item" data-module="sales-project">
+                    <i class="nav-icon fas fa-project-diagram"></i>
+                    <span>Bán theo dự án</span>
+                </li>
+                
+                <li class="nav-section">MUA HÀNG</li>
+                <li class="nav-item" data-module="purchase-orders">
+                    <i class="nav-icon fas fa-shopping-cart"></i>
+                    <span>Đơn mua hàng</span>
+                </li>
+                
+                <li class="nav-section">KHO</li>
+                <li class="nav-item" data-module="warehouses">
+                    <i class="nav-icon fas fa-warehouse"></i>
+                    <span>Quản lý kho</span>
+                </li>
+                <li class="nav-item" data-module="inventory">
+                    <i class="nav-icon fas fa-chart-bar"></i>
+                    <span>Tồn kho</span>
+                </li>
+                
+                <li class="nav-section">CRM</li>
+                <li class="nav-item" data-module="crm-contacts">
+                    <i class="nav-icon fas fa-phone"></i>
+                    <span>Liên hệ</span>
+                </li>
+                
+                <li class="nav-section">KẾ TOÁN</li>
+                <li class="nav-item" data-module="accounting">
+                    <i class="nav-icon fas fa-calculator"></i>
+                    <span>Kế toán</span>
+                </li>
+                
+                <li class="nav-section">NHÂN SỰ</li>
+                <li class="nav-item" data-module="attendance">
+                    <i class="nav-icon fas fa-clock"></i>
+                    <span>Chấm công</span>
+                </li>
+                <li class="nav-item" data-module="payroll">
+                    <i class="nav-icon fas fa-money-bill-wave"></i>
+                    <span>Tính lương</span>
+                </li>
+                <li class="nav-item" data-module="kpi">
+                    <i class="nav-icon fas fa-tasks"></i>
+                    <span>KPI</span>
+                </li>
+                <li class="nav-item" data-module="sales-target">
+                    <i class="nav-icon fas fa-bullseye"></i>
+                    <span>Doanh số bán hàng</span>
+                </li>
+                <li class="nav-item" data-module="tools">
+                    <i class="nav-icon fas fa-tools"></i>
+                    <span>Công cụ dụng cụ</span>
+                </li>
+                <li class="nav-item" data-module="employee-skills">
+                    <i class="nav-icon fas fa-graduation-cap"></i>
+                    <span>Skillset nhân viên</span>
+                </li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <!-- Customers Module -->
+            <div id="customers" class="module-content active">
+                <div class="content-header">
+                    <h2>Quản lý khách hàng</h2>
+                    <button class="btn-primary" onclick="openAddCustomerModal()">+ Thêm khách hàng</button>
+                </div>
+                
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm khách hàng...">
+                    <select class="filter-select">
+                        <option>Tất cả</option>
+                        <option>Khách hàng VIP</option>
+                        <option>Khách hàng thường</option>
+                    </select>
+                </div>
+
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã KH</th>
+                                <th>Tên khách hàng</th>
+                                <th>Email</th>
+                                <th>Số điện thoại</th>
+                                <th>Địa chỉ</th>
+                                <th>Loại KH</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerTableBody">
+                            <tr>
+                                <td>KH001</td>
+                                <td>Công ty TNHH ABC</td>
+                                <td>abc@company.com</td>
+                                <td>0901234567</td>
+                                <td>Hà Nội</td>
+                                <td><span class="badge badge-vip">VIP</span></td>
+                                <td>
+                                    <button class="btn-icon btn-edit" onclick="editCustomer(1)"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete" onclick="deleteCustomer(1)"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>KH002</td>
+                                <td>Công ty CP XYZ</td>
+                                <td>xyz@company.com</td>
+                                <td>0912345678</td>
+                                <td>TP.HCM</td>
+                                <td><span class="badge badge-normal">Thường</span></td>
+                                <td>
+                                    <button class="btn-icon btn-edit" onclick="editCustomer(2)"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete" onclick="deleteCustomer(2)"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Other modules will be similar structure -->
+            <div id="suppliers" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý nhà cung cấp</h2>
+                    <button class="btn-primary" onclick="openAddSupplierModal()">+ Thêm nhà cung cấp</button>
+                </div>
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm nhà cung cấp...">
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã NCC</th>
+                                <th>Tên nhà cung cấp</th>
+                                <th>Email</th>
+                                <th>Số điện thoại</th>
+                                <th>Địa chỉ</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>NCC001</td>
+                                <td>Nhà cung cấp A</td>
+                                <td>supplier-a@email.com</td>
+                                <td>0923456789</td>
+                                <td>Hà Nội</td>
+                                <td>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="employees" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý nhân viên</h2>
+                    <button class="btn-primary" onclick="openAddEmployeeModal()">+ Thêm nhân viên</button>
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã NV</th>
+                                <th>Họ tên</th>
+                                <th>Chức vụ</th>
+                                <th>Phòng ban</th>
+                                <th>Email</th>
+                                <th>Số điện thoại</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>NV001</td>
+                                <td>Nguyễn Văn A</td>
+                                <td>Nhân viên kinh doanh</td>
+                                <td>Kinh doanh</td>
+                                <td>nva@company.com</td>
+                                <td>0934567890</td>
+                                <td>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="products" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý hàng hóa</h2>
+                    <button class="btn-primary" onclick="openAddProductModal()">+ Thêm sản phẩm</button>
+                </div>
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm sản phẩm...">
+                    <select class="filter-select">
+                        <option>Tất cả</option>
+                        <option>Có serial number</option>
+                        <option>Theo lô</option>
+                    </select>
+                </div>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã SP</th>
+                                <th>Tên sản phẩm</th>
+                                <th>Đơn vị</th>
+                                <th>Giá</th>
+                                <th>Tồn kho</th>
+                                <th>Loại quản lý</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>SP001</td>
+                                <td>Laptop Dell XPS 15</td>
+                                <td>Cái</td>
+                                <td>25,000,000đ</td>
+                                <td>50</td>
+                                <td><span class="badge badge-serial">Serial Number</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view" onclick="viewProductDetail(1)"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>SP002</td>
+                                <td>Màn hình LG 27 inch</td>
+                                <td>Cái</td>
+                                <td>5,500,000đ</td>
+                                <td>120</td>
+                                <td><span class="badge badge-lot">Số lô</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view" onclick="viewProductDetail(2)"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="company-structure" class="module-content">
+                <div class="content-header">
+                    <h2>Sơ đồ cơ cấu công ty</h2>
+                    <button class="btn-primary" onclick="openAddDepartmentModal()">+ Thêm phòng ban</button>
+                </div>
+                
+                <div class="org-chart">
+                    <div class="org-level">
+                        <div class="org-node org-ceo">
+                            <div class="org-title">Ban Giám Đốc</div>
+                            <div class="org-name">Nguyễn Văn A</div>
+                            <div class="org-count">1 người</div>
+                        </div>
+                    </div>
+                    
+                    <div class="org-level">
+                        <div class="org-node org-manager">
+                            <div class="org-title">Phòng Kinh Doanh</div>
+                            <div class="org-name">Trần Thị B</div>
+                            <div class="org-count">8 người</div>
+                            <button class="btn-icon" onclick="viewDepartment('sales')"><i class="fas fa-eye"></i></button>
+                        </div>
+                        
+                        <div class="org-node org-manager">
+                            <div class="org-title">Phòng Kế Toán</div>
+                            <div class="org-name">Lê Văn C</div>
+                            <div class="org-count">5 người</div>
+                            <button class="btn-icon" onclick="viewDepartment('accounting')"><i class="fas fa-eye"></i></button>
+                        </div>
+                        
+                        <div class="org-node org-manager">
+                            <div class="org-title">Phòng Kho</div>
+                            <div class="org-name">Phạm Thị D</div>
+                            <div class="org-count">6 người</div>
+                            <button class="btn-icon" onclick="viewDepartment('warehouse')"><i class="fas fa-eye"></i></button>
+                        </div>
+                        
+                        <div class="org-node org-manager">
+                            <div class="org-title">Phòng Hành Chính</div>
+                            <div class="org-name">Hoàng Văn E</div>
+                            <div class="org-count">4 người</div>
+                            <button class="btn-icon" onclick="viewDepartment('admin')"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="department-list">
+                    <h3>Danh sách phòng ban</h3>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã PB</th>
+                                    <th>Tên phòng ban</th>
+                                    <th>Trưởng phòng</th>
+                                    <th>Số nhân viên</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>PB001</td>
+                                    <td>Phòng Kinh Doanh</td>
+                                    <td>Trần Thị B</td>
+                                    <td>8</td>
+                                    <td>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>PB002</td>
+                                    <td>Phòng Kế Toán</td>
+                                    <td>Lê Văn C</td>
+                                    <td>5</td>
+                                    <td>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="asset-management" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý hàng hóa, tài sản theo Serial Number & Số lô</h2>
+                    <button class="btn-primary" onclick="openAddAssetModal()">+ Thêm tài sản</button>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('serial')">Theo Serial Number</button>
+                    <button class="tab-btn" onclick="switchTab('lot')">Theo Số lô</button>
+                    <button class="tab-btn" onclick="switchTab('internal')">Serial nội bộ</button>
+                </div>
+                
+                <div id="serial-tab" class="tab-content active">
+                    <div class="search-filter">
+                        <input type="text" class="search-input" placeholder="Tìm kiếm theo serial number...">
+                        <button class="btn-primary" onclick="generateSerialNumber()"><i class="fas fa-sync-alt"></i> Tạo mã tự động</button>
+                    </div>
+                    
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Serial Number</th>
+                                    <th>Mã sản phẩm</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th>Ngày nhập</th>
+                                    <th>Kho</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>SN-2025-001234</strong></td>
+                                    <td>SP001</td>
+                                    <td>Laptop Dell XPS 15</td>
+                                    <td>01/11/2025</td>
+                                    <td>Kho chính</td>
+                                    <td><span class="badge badge-approved">Còn hàng</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SN-2025-001235</strong></td>
+                                    <td>SP001</td>
+                                    <td>Laptop Dell XPS 15</td>
+                                    <td>01/11/2025</td>
+                                    <td>Kho chính</td>
+                                    <td><span class="badge badge-rejected">Đã bán</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SN-2025-001236</strong></td>
+                                    <td>SP003</td>
+                                    <td>iPhone 15 Pro Max</td>
+                                    <td>05/11/2025</td>
+                                    <td>Kho phụ</td>
+                                    <td><span class="badge badge-approved">Còn hàng</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="lot-tab" class="tab-content">
+                    <div class="search-filter">
+                        <input type="text" class="search-input" placeholder="Tìm kiếm theo số lô...">
+                        <button class="btn-primary" onclick="generateLotNumber()"><i class="fas fa-sync-alt"></i> Tạo số lô tự động</button>
+                    </div>
+                    
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Số lô</th>
+                                    <th>Mã sản phẩm</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th>Ngày sản xuất</th>
+                                    <th>Hạn sử dụng</th>
+                                    <th>Số lượng</th>
+                                    <th>Kho</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>LOT-2025-11-001</strong></td>
+                                    <td>SP002</td>
+                                    <td>Màn hình LG 27 inch</td>
+                                    <td>01/11/2025</td>
+                                    <td>01/11/2027</td>
+                                    <td>50</td>
+                                    <td>Kho chính</td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>LOT-2025-11-002</strong></td>
+                                    <td>SP002</td>
+                                    <td>Màn hình LG 27 inch</td>
+                                    <td>05/11/2025</td>
+                                    <td>05/11/2027</td>
+                                    <td>70</td>
+                                    <td>Kho chính</td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="internal-tab" class="tab-content">
+                    <div class="info-box">
+                        <h4><i class="fas fa-info-circle"></i> Serial nội bộ</h4>
+                        <p>Hệ thống tự động tạo mã serial nội bộ cho mỗi sản phẩm để quản lý và truy xuất nguồn gốc.</p>
+                        <p><strong>Cấu trúc mã:</strong> [Mã SP]-[Năm]-[Tháng]-[STT]</p>
+                        <p><strong>Ví dụ:</strong> SP001-2025-11-00001</p>
+                    </div>
+                    
+                    <div class="search-filter">
+                        <input type="text" class="search-input" placeholder="Tìm kiếm theo serial nội bộ...">
+                        <button class="btn-primary" onclick="generateInternalSerial()"><i class="fas fa-sync-alt"></i> Tạo serial nội bộ</button>
+                    </div>
+                    
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Serial nội bộ</th>
+                                    <th>Serial nhà SX</th>
+                                    <th>Mã sản phẩm</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>SP001-2025-11-00001</strong></td>
+                                    <td>SN-2025-001234</td>
+                                    <td>SP001</td>
+                                    <td>Laptop Dell XPS 15</td>
+                                    <td>01/11/2025</td>
+                                    <td><span class="badge badge-approved">Hoạt động</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-print"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SP001-2025-11-00002</strong></td>
+                                    <td>SN-2025-001235</td>
+                                    <td>SP001</td>
+                                    <td>Laptop Dell XPS 15</td>
+                                    <td>01/11/2025</td>
+                                    <td><span class="badge badge-rejected">Đã xuất</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-print"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SP003-2025-11-00001</strong></td>
+                                    <td>IMEI-123456789</td>
+                                    <td>SP003</td>
+                                    <td>iPhone 15 Pro Max</td>
+                                    <td>05/11/2025</td>
+                                    <td><span class="badge badge-approved">Hoạt động</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-print"></i></button>
+                                        <button class="btn-icon"><i class="fas fa-clipboard"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="price-list" class="module-content">
+                <div class="content-header">
+                    <h2>Bảng giá sản phẩm</h2>
+                    <button class="btn-primary" onclick="openAddPriceListModal()">+ Thêm bảng giá</button>
+                </div>
+                
+                <div class="info-box">
+                    <h4><i class="fas fa-info-circle"></i> Quản lý bảng giá</h4>
+                    <p>Cho phép cập nhật bảng giá sản phẩm định kỳ, nhiều bảng giá bán theo nhu cầu khác nhau</p>
+                </div>
+                
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm bảng giá...">
+                    <select class="filter-select">
+                        <option>Tất cả bảng giá</option>
+                        <option>Bảng giá VIP</option>
+                        <option>Bảng giá thường</option>
+                        <option>Bảng giá khuyến mãi</option>
+                    </select>
+                </div>
+                
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã bảng giá</th>
+                                <th>Tên bảng giá</th>
+                                <th>Loại khách hàng</th>
+                                <th>Ngày áp dụng</th>
+                                <th>Ngày hết hạn</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>BG001</td>
+                                <td>Bảng giá VIP Q4/2025</td>
+                                <td>Khách hàng VIP</td>
+                                <td>01/10/2025</td>
+                                <td>31/12/2025</td>
+                                <td><span class="badge badge-approved">Đang áp dụng</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon"><i class="fas fa-copy"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>BG002</td>
+                                <td>Bảng giá thường Q4/2025</td>
+                                <td>Khách hàng thường</td>
+                                <td>01/10/2025</td>
+                                <td>31/12/2025</td>
+                                <td><span class="badge badge-approved">Đang áp dụng</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon"><i class="fas fa-copy"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sales-orders" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý đơn hàng bán</h2>
+                    <div>
+                        <button class="btn-primary" onclick="openAddOrderModal()"><i class="fas fa-plus"></i> Tạo đơn hàng</button>
+                        <button class="btn-secondary" onclick="exportOrders()"><i class="fas fa-file-export"></i> Xuất Excel</button>
+                    </div>
+                </div>
+                
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm đơn hàng...">
+                    <select class="filter-select">
+                        <option>Tất cả trạng thái</option>
+                        <option>Chờ duyệt</option>
+                        <option>Đã duyệt</option>
+                        <option>Đang giao</option>
+                        <option>Hoàn thành</option>
+                        <option>Đã hủy</option>
+                    </select>
+                    <select class="filter-select">
+                        <option>Loại đơn hàng</option>
+                        <option>Bán lẻ</option>
+                        <option>Bán theo dự án</option>
+                    </select>
+                </div>
+                
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã đơn</th>
+                                <th>Loại</th>
+                                <th>Khách hàng</th>
+                                <th>Ngày tạo</th>
+                                <th>Tổng tiền</th>
+                                <th>Margin</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>DH001</strong></td>
+                                <td><span class="badge badge-normal">Bán lẻ</span></td>
+                                <td>Công ty TNHH ABC</td>
+                                <td>09/11/2025</td>
+                                <td>100,000,000đ</td>
+                                <td><span class="text-success">15%</span></td>
+                                <td><span class="badge badge-pending">Chờ duyệt</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view" title="Xem chi tiết"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit" title="Sửa"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon" title="Gửi email"><i class="fas fa-envelope"></i></button>
+                                    <button class="btn-icon" title="Xuất hóa đơn"><i class="fas fa-file-invoice"></i></button>
+                                    <button class="btn-icon btn-delete" title="Xóa"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>DH002</strong></td>
+                                <td><span class="badge badge-vip">Dự án</span></td>
+                                <td>Công ty CP XYZ</td>
+                                <td>08/11/2025</td>
+                                <td>500,000,000đ</td>
+                                <td><span class="text-success">12%</span></td>
+                                <td><span class="badge badge-approved">Đã duyệt</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon"><i class="fas fa-envelope"></i></button>
+                                    <button class="btn-icon"><i class="fas fa-file-invoice"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sales-approval" class="module-content">
+                <div class="content-header">
+                    <h2>Xét duyệt đơn hàng (2 cấp)</h2>
+                </div>
+                
+                <div class="info-box">
+                    <h4><i class="fas fa-info-circle"></i> Quy trình xét duyệt</h4>
+                    <p>Xét duyệt báo giá theo 2 cấp, theo tình trạng và yêu cầu khách hàng: đang còn công nợ, hạn mức công nợ, có triển khai hay không</p>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchApprovalTab('level1')">Cấp 1 - Trưởng phòng</button>
+                    <button class="tab-btn" onclick="switchApprovalTab('level2')">Cấp 2 - Giám đốc</button>
+                    <button class="tab-btn" onclick="switchApprovalTab('approved')">Đã duyệt</button>
+                    <button class="tab-btn" onclick="switchApprovalTab('rejected')">Từ chối</button>
+                </div>
+                
+                <div id="level1-approval" class="tab-content active">
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã đơn</th>
+                                    <th>Khách hàng</th>
+                                    <th>Tổng tiền</th>
+                                    <th>Công nợ hiện tại</th>
+                                    <th>Hạn mức</th>
+                                    <th>Người tạo</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>DH001</strong></td>
+                                    <td>Công ty TNHH ABC</td>
+                                    <td>100,000,000đ</td>
+                                    <td class="text-warning">50,000,000đ</td>
+                                    <td>200,000,000đ</td>
+                                    <td>Nguyễn Văn A</td>
+                                    <td>09/11/2025</td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-primary" style="padding: 5px 12px; font-size: 13px;" onclick="approveOrder(1, 1)">
+                                            <i class="fas fa-check"></i> Duyệt
+                                        </button>
+                                        <button class="btn-secondary" style="padding: 5px 12px; font-size: 13px;" onclick="rejectOrder(1)">
+                                            <i class="fas fa-times"></i> Từ chối
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="level2-approval" class="tab-content">
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã đơn</th>
+                                    <th>Khách hàng</th>
+                                    <th>Tổng tiền</th>
+                                    <th>Margin</th>
+                                    <th>Người duyệt cấp 1</th>
+                                    <th>Ngày duyệt cấp 1</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="text-center">Không có đơn hàng chờ duyệt cấp 2</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sales-debt" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý hạn mức công nợ</h2>
+                    <button class="btn-primary"><i class="fas fa-plus"></i> Thiết lập hạn mức</button>
+                </div>
+                
+                <div class="search-filter">
+                    <input type="text" class="search-input" placeholder="Tìm kiếm khách hàng...">
+                    <select class="filter-select">
+                        <option>Tất cả</option>
+                        <option>Vượt hạn mức</option>
+                        <option>Gần hạn mức</option>
+                        <option>An toàn</option>
+                    </select>
+                </div>
+                
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Khách hàng</th>
+                                <th>Hạn mức công nợ</th>
+                                <th>Công nợ hiện tại</th>
+                                <th>Còn lại</th>
+                                <th>Tỷ lệ sử dụng</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Công ty TNHH ABC</td>
+                                <td>200,000,000đ</td>
+                                <td>50,000,000đ</td>
+                                <td>150,000,000đ</td>
+                                <td><span class="text-success">25%</span></td>
+                                <td><span class="badge badge-approved">An toàn</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Công ty CP XYZ</td>
+                                <td>100,000,000đ</td>
+                                <td>85,000,000đ</td>
+                                <td>15,000,000đ</td>
+                                <td><span class="text-warning">85%</span></td>
+                                <td><span class="badge badge-pending">Gần hạn mức</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sales-expenses" class="module-content">
+                <div class="content-header">
+                    <h2>Chi phí bán hàng</h2>
+                    <button class="btn-primary"><i class="fas fa-plus"></i> Ghi nhận chi phí</button>
+                </div>
+                
+                <div class="info-box">
+                    <h4><i class="fas fa-info-circle"></i> Ghi nhận chi phí bán hàng</h4>
+                    <p>Chi nhận chi phí bán hàng cho từng đơn hàng (vận chuyển, hoa hồng, khuyến mãi...)</p>
+                </div>
+                
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã đơn hàng</th>
+                                <th>Khách hàng</th>
+                                <th>Loại chi phí</th>
+                                <th>Số tiền</th>
+                                <th>Ngày ghi nhận</th>
+                                <th>Người ghi nhận</th>
+                                <th>Ghi chú</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>DH001</td>
+                                <td>Công ty TNHH ABC</td>
+                                <td>Vận chuyển</td>
+                                <td>2,000,000đ</td>
+                                <td>09/11/2025</td>
+                                <td>Nguyễn Văn A</td>
+                                <td>Giao hàng tận nơi</td>
+                                <td>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DH001</td>
+                                <td>Công ty TNHH ABC</td>
+                                <td>Hoa hồng</td>
+                                <td>5,000,000đ</td>
+                                <td>09/11/2025</td>
+                                <td>Nguyễn Văn A</td>
+                                <td>Hoa hồng 5%</td>
+                                <td>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sales-margin" class="module-content">
+                <div class="content-header">
+                    <h2>Theo dõi và ghi nhận Margin</h2>
+                    <button class="btn-secondary"><i class="fas fa-chart-line"></i> Báo cáo Margin</button>
+                </div>
+                
+                <div class="info-box">
+                    <h4><i class="fas fa-info-circle"></i> Tính toán Margin</h4>
+                    <p>Theo dõi và ghi nhận margin đơn hàng bán. Tính margin cho từng sản phẩm và tổng margin đơn hàng.</p>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchMarginTab('order')">Theo đơn hàng</button>
+                    <button class="tab-btn" onclick="switchMarginTab('product')">Theo sản phẩm</button>
+                </div>
+                
+                <div id="order-margin" class="tab-content active">
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã đơn</th>
+                                    <th>Khách hàng</th>
+                                    <th>Doanh thu</th>
+                                    <th>Giá vốn</th>
+                                    <th>Chi phí BH</th>
+                                    <th>Lợi nhuận</th>
+                                    <th>Margin %</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>DH001</strong></td>
+                                    <td>Công ty TNHH ABC</td>
+                                    <td>100,000,000đ</td>
+                                    <td>75,000,000đ</td>
+                                    <td>7,000,000đ</td>
+                                    <td class="text-success">18,000,000đ</td>
+                                    <td><span class="badge badge-approved">18%</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>DH002</strong></td>
+                                    <td>Công ty CP XYZ</td>
+                                    <td>500,000,000đ</td>
+                                    <td>420,000,000đ</td>
+                                    <td>20,000,000đ</td>
+                                    <td class="text-success">60,000,000đ</td>
+                                    <td><span class="badge badge-approved">12%</span></td>
+                                    <td>
+                                        <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="product-margin" class="tab-content">
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã SP</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th>Giá bán TB</th>
+                                    <th>Giá vốn TB</th>
+                                    <th>Margin TB</th>
+                                    <th>Số lượng bán</th>
+                                    <th>Tổng lợi nhuận</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>SP001</td>
+                                    <td>Laptop Dell XPS 15</td>
+                                    <td>25,000,000đ</td>
+                                    <td>20,000,000đ</td>
+                                    <td><span class="badge badge-approved">20%</span></td>
+                                    <td>15</td>
+                                    <td class="text-success">75,000,000đ</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sales-project" class="module-content">
+                <div class="content-header">
+                    <h2>Bán hàng theo dự án</h2>
+                    <button class="btn-primary"><i class="fas fa-plus"></i> Tạo dự án mới</button>
+                </div>
+                
+                <div class="info-box">
+                    <h4><i class="fas fa-info-circle"></i> Quản lý dự án bán hàng</h4>
+                    <p>Bán hàng lẻ và bán theo dự án. Theo dõi tiến độ, đơn hàng và doanh thu theo từng dự án.</p>
+                </div>
+                
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã dự án</th>
+                                <th>Tên dự án</th>
+                                <th>Khách hàng</th>
+                                <th>Giá trị dự án</th>
+                                <th>Đã thanh toán</th>
+                                <th>Tiến độ</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>DA001</strong></td>
+                                <td>Dự án cung cấp thiết bị văn phòng</td>
+                                <td>Công ty CP XYZ</td>
+                                <td>500,000,000đ</td>
+                                <td>300,000,000đ</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 60%">60%</div>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-pending">Đang thực hiện</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>DA002</strong></td>
+                                <td>Dự án lắp đặt hệ thống mạng</td>
+                                <td>Công ty TNHH DEF</td>
+                                <td>800,000,000đ</td>
+                                <td>800,000,000đ</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100%">100%</div>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-approved">Hoàn thành</span></td>
+                                <td>
+                                    <button class="btn-icon btn-view"><i class="fas fa-eye"></i></button>
+                                    <button class="btn-icon btn-edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="purchase-orders" class="module-content">
+                <div class="content-header">
+                    <h2>Đơn mua hàng</h2>
+                    <button class="btn-primary">+ Tạo đơn mua</button>
+                </div>
+            </div>
+
+            <div id="warehouses" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý kho</h2>
+                    <button class="btn-primary">+ Thêm kho</button>
+                </div>
+            </div>
+
+            <div id="inventory" class="module-content">
+                <div class="content-header">
+                    <h2>Tồn kho</h2>
+                </div>
+            </div>
+
+            <div id="crm-contacts" class="module-content">
+                <div class="content-header">
+                    <h2>Quản lý liên hệ CRM</h2>
+                    <button class="btn-primary">+ Thêm liên hệ</button>
+                </div>
+            </div>
+
+            <div id="accounting" class="module-content">
+                <div class="content-header">
+                    <h2>Kế toán</h2>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Add/Edit Customer -->
+    <div id="customerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCustomerModal()">&times;</span>
+            <h3 id="customerModalTitle">Thêm khách hàng mới</h3>
+            <form id="customerForm" onsubmit="saveCustomer(event)">
+                <div class="form-group">
+                    <label>Mã khách hàng</label>
+                    <input type="text" name="code" required>
+                </div>
+                <div class="form-group">
+                    <label>Tên khách hàng</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Số điện thoại</label>
+                    <input type="tel" name="phone" required>
+                </div>
+                <div class="form-group">
+                    <label>Địa chỉ</label>
+                    <textarea name="address" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Loại khách hàng</label>
+                    <select name="type">
+                        <option value="normal">Thường</option>
+                        <option value="vip">VIP</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeCustomerModal()">Hủy</button>
+                    <button type="submit" class="btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

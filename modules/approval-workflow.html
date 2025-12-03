@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cấu hình quy trình duyệt - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        .workflow-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .workflow-steps {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        .workflow-step {
+            background: #e7f3ff;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            position: relative;
+        }
+        .workflow-step.active {
+            background: #3498db;
+            color: white;
+        }
+        .workflow-arrow {
+            color: #3498db;
+            font-size: 20px;
+        }
+        .step-actions {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            display: flex;
+            gap: 3px;
+        }
+        .step-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Cấu hình quy trình duyệt</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Tạo quy trình mới
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quản lý quy trình phê duyệt</h4>
+            <p>Tùy chỉnh số cấp duyệt cho từng loại chứng từ. Thêm hoặc bớt cấp duyệt theo nhu cầu. Gán người duyệt cho từng cấp.</p>
+        </div>
+
+        <!-- Workflow Cards -->
+        <div id="workflowList">
+            <!-- Báo giá -->
+            <div class="workflow-card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h3 style="margin: 0 0 5px 0; color: #3498db;">
+                            <i class="fas fa-file-alt"></i> Báo giá
+                        </h3>
+                        <p style="color: #6c757d; margin: 0;">Quy trình phê duyệt báo giá trước khi gửi khách hàng</p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secondary" onclick="editWorkflow('quotation')">
+                            <i class="fas fa-edit"></i> Chỉnh sửa
+                        </button>
+                        <button class="btn-secondary" onclick="toggleWorkflow('quotation')">
+                            <i class="fas fa-power-off"></i> Tắt
+                        </button>
+                    </div>
+                </div>
+
+                <div class="workflow-steps">
+                    <div class="workflow-step">
+                        <strong>Cấp 1</strong><br>
+                        <small>Trưởng phòng</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step">
+                        <strong>Cấp 2</strong><br>
+                        <small>Giám đốc</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step active">
+                        <strong>Hoàn thành</strong>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <small><strong>Trạng thái:</strong> <span style="color: #27ae60;">Đang hoạt động</span></small> | 
+                    <small><strong>Số cấp:</strong> 2</small> | 
+                    <small><strong>Cập nhật:</strong> 15/11/2025</small>
+                </div>
+            </div>
+
+            <!-- Hợp đồng -->
+            <div class="workflow-card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h3 style="margin: 0 0 5px 0; color: #9b59b6;">
+                            <i class="fas fa-file-contract"></i> Hợp đồng
+                        </h3>
+                        <p style="color: #6c757d; margin: 0;">Quy trình phê duyệt hợp đồng trước khi ký kết</p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secondary" onclick="editWorkflow('contract')">
+                            <i class="fas fa-edit"></i> Chỉnh sửa
+                        </button>
+                        <button class="btn-secondary" onclick="toggleWorkflow('contract')">
+                            <i class="fas fa-power-off"></i> Tắt
+                        </button>
+                    </div>
+                </div>
+
+                <div class="workflow-steps">
+                    <div class="workflow-step">
+                        <strong>Cấp 1</strong><br>
+                        <small>Trưởng phòng</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step">
+                        <strong>Cấp 2</strong><br>
+                        <small>Giám đốc</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step">
+                        <strong>Cấp 3</strong><br>
+                        <small>Pháp chế</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step active">
+                        <strong>Hoàn thành</strong>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <small><strong>Trạng thái:</strong> <span style="color: #27ae60;">Đang hoạt động</span></small> | 
+                    <small><strong>Số cấp:</strong> 3</small> | 
+                    <small><strong>Cập nhật:</strong> 15/11/2025</small>
+                </div>
+            </div>
+
+            <!-- Đơn hàng -->
+            <div class="workflow-card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h3 style="margin: 0 0 5px 0; color: #27ae60;">
+                            <i class="fas fa-shopping-cart"></i> Đơn hàng
+                        </h3>
+                        <p style="color: #6c757d; margin: 0;">Quy trình phê duyệt đơn hàng trước khi xuất kho</p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secondary" onclick="editWorkflow('order')">
+                            <i class="fas fa-edit"></i> Chỉnh sửa
+                        </button>
+                        <button class="btn-secondary" onclick="toggleWorkflow('order')">
+                            <i class="fas fa-power-off"></i> Tắt
+                        </button>
+                    </div>
+                </div>
+
+                <div class="workflow-steps">
+                    <div class="workflow-step">
+                        <strong>Cấp 1</strong><br>
+                        <small>Trưởng phòng</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step">
+                        <strong>Cấp 2</strong><br>
+                        <small>Giám đốc</small>
+                    </div>
+                    <i class="fas fa-arrow-right workflow-arrow"></i>
+                    <div class="workflow-step active">
+                        <strong>Hoàn thành</strong>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <small><strong>Trạng thái:</strong> <span style="color: #27ae60;">Đang hoạt động</span></small> | 
+                    <small><strong>Số cấp:</strong> 2</small> | 
+                    <small><strong>Cập nhật:</strong> 15/11/2025</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Chỉnh sửa quy trình -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Chỉnh sửa quy trình duyệt</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Loại chứng từ <span class="required">*</span></label>
+                        <select name="documentType" required>
+                            <option value="">Chọn loại...</option>
+                            <option value="quotation">Báo giá</option>
+                            <option value="contract">Hợp đồng</option>
+                            <option value="order">Đơn hàng</option>
+                            <option value="purchase">Đơn mua hàng</option>
+                            <option value="payment">Phiếu chi</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Trạng thái</label>
+                        <select name="status">
+                            <option value="active">Đang hoạt động</option>
+                            <option value="inactive">Tạm dừng</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4>Các cấp duyệt</h4>
+                    <button type="button" class="btn-primary" onclick="addApprovalLevel()">
+                        <i class="fas fa-plus"></i> Thêm cấp duyệt
+                    </button>
+                </div>
+
+                <div id="approvalLevels">
+                    <!-- Cấp 1 -->
+                    <div class="approval-level" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px; position: relative;">
+                        <div style="position: absolute; top: 10px; right: 10px;">
+                            <button type="button" class="btn-danger" onclick="removeLevel(0)" style="padding: 5px 10px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        
+                        <h5 style="margin: 0 0 10px 0;">Cấp 1</h5>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Tên cấp duyệt <span class="required">*</span></label>
+                                <input type="text" name="levels[0][name]" required placeholder="VD: Trưởng phòng">
+                            </div>
+                            <div class="form-group">
+                                <label>Người duyệt <span class="required">*</span></label>
+                                <select name="levels[0][approver]" required>
+                                    <option value="">Chọn người duyệt...</option>
+                                    <option value="role_manager">Vai trò: Manager</option>
+                                    <option value="role_director">Vai trò: Director</option>
+                                    <option value="user_001">Nguyễn Văn A</option>
+                                    <option value="user_002">Trần Thị B</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Điều kiện (tùy chọn)</label>
+                            <input type="text" name="levels[0][condition]" placeholder="VD: Giá trị > 10,000,000">
+                        </div>
+                    </div>
+
+                    <!-- Cấp 2 -->
+                    <div class="approval-level" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px; position: relative;">
+                        <div style="position: absolute; top: 10px; right: 10px;">
+                            <button type="button" class="btn-danger" onclick="removeLevel(1)" style="padding: 5px 10px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        
+                        <h5 style="margin: 0 0 10px 0;">Cấp 2</h5>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Tên cấp duyệt <span class="required">*</span></label>
+                                <input type="text" name="levels[1][name]" required placeholder="VD: Giám đốc">
+                            </div>
+                            <div class="form-group">
+                                <label>Người duyệt <span class="required">*</span></label>
+                                <select name="levels[1][approver]" required>
+                                    <option value="">Chọn người duyệt...</option>
+                                    <option value="role_director">Vai trò: Director</option>
+                                    <option value="user_003">Lê Văn C</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Điều kiện (tùy chọn)</label>
+                            <input type="text" name="levels[1][condition]" placeholder="VD: Giá trị > 50,000,000">
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Cài đặt nâng cao</h4>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="allowSkip"> 
+                        Cho phép bỏ qua cấp duyệt nếu người duyệt vắng mặt
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="autoApprove"> 
+                        Tự động duyệt nếu không có phản hồi sau
+                    </label>
+                    <input type="number" name="autoApproveDays" min="1" max="30" value="3" style="width: 80px; margin-left: 10px;"> ngày
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="notifyEmail"> 
+                        Gửi email thông báo khi cần duyệt
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu quy trình
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="previewWorkflow()">
+                        <i class="fas fa-eye"></i> Xem trước
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="approval-workflow.js"></script>
+    <script>
+        let levelCount = 2;
+
+        function editWorkflow(type) {
+            document.getElementById('modal').style.display = 'block';
+            // Load workflow data for editing
+        }
+
+        function toggleWorkflow(type) {
+            if (confirm('Bạn có chắc muốn tắt quy trình này?')) {
+                alert('Đã tắt quy trình ' + type);
+            }
+        }
+
+        function addApprovalLevel() {
+            levelCount++;
+            const container = document.getElementById('approvalLevels');
+            const div = document.createElement('div');
+            div.className = 'approval-level';
+            div.style.cssText = 'background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px; position: relative;';
+            div.innerHTML = `
+                <div style="position: absolute; top: 10px; right: 10px;">
+                    <button type="button" class="btn-danger" onclick="removeLevel(${levelCount})" style="padding: 5px 10px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                
+                <h5 style="margin: 0 0 10px 0;">Cấp ${levelCount}</h5>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tên cấp duyệt <span class="required">*</span></label>
+                        <input type="text" name="levels[${levelCount}][name]" required placeholder="VD: Pháp chế">
+                    </div>
+                    <div class="form-group">
+                        <label>Người duyệt <span class="required">*</span></label>
+                        <select name="levels[${levelCount}][approver]" required>
+                            <option value="">Chọn người duyệt...</option>
+                            <option value="role_legal">Vai trò: Legal</option>
+                            <option value="user_004">Phạm Văn D</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Điều kiện (tùy chọn)</label>
+                    <input type="text" name="levels[${levelCount}][condition]" placeholder="VD: Loại hợp đồng = Dài hạn">
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeLevel(index) {
+            if (document.querySelectorAll('.approval-level').length <= 1) {
+                alert('Phải có ít nhất 1 cấp duyệt!');
+                return;
+            }
+            if (confirm('Bạn có chắc muốn xóa cấp duyệt này?')) {
+                event.target.closest('.approval-level').remove();
+            }
+        }
+
+        function previewWorkflow() {
+            alert('Xem trước quy trình duyệt');
+        }
+
+        function saveData(event) {
+            event.preventDefault();
+            alert('Đã lưu quy trình duyệt!');
+            closeModal();
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

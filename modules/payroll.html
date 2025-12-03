@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tính lương nhân viên - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Tính lương nhân viên</h2>
+            <div>
+                <button class="btn-primary" onclick="calculateSalary()">
+                    <i class="fas fa-calculator"></i> Tính lương tháng này
+                </button>
+                <button class="btn-secondary" onclick="exportData()">
+                    <i class="fas fa-file-export"></i> Xuất Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng nhân viên</div>
+                    <div class="stat-value" id="totalEmp">0</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng lương CB</div>
+                    <div class="stat-value" id="totalBase">0đ</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="stat-icon"><i class="fas fa-gift"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Tổng thưởng</div>
+                    <div class="stat-value" id="totalBonus">0đ</div>
+                </div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                <div class="stat-info">
+                    <div class="stat-label">Trung bình/người</div>
+                    <div class="stat-value" id="avgSalary">0đ</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Tính lương theo chấm công</h4>
+            <p>Tính lương theo chấm công thường xuyên và thưởng. Bao gồm: Lương cơ bản, Phụ cấp, Thưởng, Tăng ca, Khấu trừ.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm nhân viên...">
+            <input type="month" id="filterMonth" class="filter-select" onchange="loadData()">
+            <select class="filter-select" id="filterStatus">
+                <option value="">Tất cả trạng thái</option>
+                <option value="pending">Chưa chốt</option>
+                <option value="approved">Đã chốt</option>
+                <option value="paid">Đã thanh toán</option>
+            </select>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã NV</th>
+                        <th>Họ tên</th>
+                        <th>Lương CB</th>
+                        <th>Phụ cấp</th>
+                        <th>Thưởng</th>
+                        <th>Tăng ca</th>
+                        <th>Khấu trừ</th>
+                        <th>Thực lĩnh</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div>
+                    <strong>Tổng lương phải trả:</strong>
+                    <div style="font-size: 20px; color: #3498db;" id="totalSalary">0đ</div>
+                </div>
+                <div>
+                    <strong>Đã thanh toán:</strong>
+                    <div style="font-size: 20px; color: #27ae60;" id="paidSalary">0đ</div>
+                </div>
+                <div>
+                    <strong>Còn lại:</strong>
+                    <div style="font-size: 20px; color: #f39c12;" id="remainingSalary">0đ</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="payroll.js"></script>
+</body>
+</html>

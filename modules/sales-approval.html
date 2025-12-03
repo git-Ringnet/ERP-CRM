@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xét duyệt đơn hàng - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Xét duyệt đa cấp</h2>
+            <div style="display: flex; gap: 10px;">
+                <select id="documentTypeFilter" class="filter-select" onchange="filterByDocType(this.value)">
+                    <option value="all">Tất cả loại chứng từ</option>
+                    <option value="quotation">Báo giá</option>
+                    <option value="contract">Hợp đồng</option>
+                    <option value="order">Đơn hàng</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quy trình xét duyệt đa cấp</h4>
+            <p><strong>Báo giá:</strong> Trưởng phòng → Giám đốc | <strong>Hợp đồng:</strong> Trưởng phòng → Giám đốc → Pháp chế | <strong>Đơn hàng:</strong> Trưởng phòng → Giám đốc</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('pending')">Chờ duyệt của tôi</button>
+            <button class="tab-btn" onclick="switchTab('level1')">Cấp 1 - Trưởng phòng</button>
+            <button class="tab-btn" onclick="switchTab('level2')">Cấp 2 - Giám đốc</button>
+            <button class="tab-btn" onclick="switchTab('level3')">Cấp 3 - Pháp chế</button>
+            <button class="tab-btn" onclick="switchTab('approved')">Đã duyệt</button>
+            <button class="tab-btn" onclick="switchTab('rejected')">Từ chối</button>
+        </div>
+
+        <!-- Pending Tab (Chờ duyệt của tôi) -->
+        <div id="pending-tab" class="tab-content active">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Cấp duyệt</th>
+                            <th>Người tạo</th>
+                            <th>Ngày tạo</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Level 1 Tab -->
+        <div id="level1-tab" class="tab-content">
+            <h4>Chờ duyệt Trưởng phòng</h4>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Công nợ</th>
+                            <th>Hạn mức</th>
+                            <th>Người tạo</th>
+                            <th>Ngày tạo</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="level1Body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Level 2 Tab -->
+        <div id="level2-tab" class="tab-content">
+            <h4>Chờ duyệt Giám đốc</h4>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Duyệt cấp 1</th>
+                            <th>Người tạo</th>
+                            <th>Ngày tạo</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="level2Body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Level 3 Tab (Pháp chế - chỉ cho Hợp đồng) -->
+        <div id="level3-tab" class="tab-content">
+            <h4>Chờ duyệt Pháp chế (Hợp đồng)</h4>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Số hợp đồng</th>
+                            <th>Khách hàng</th>
+                            <th>Giá trị</th>
+                            <th>Duyệt cấp 1</th>
+                            <th>Duyệt cấp 2</th>
+                            <th>Người tạo</th>
+                            <th>Ngày tạo</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="level3Body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Approved Tab -->
+        <div id="approved-tab" class="tab-content">
+            <h4>Đã duyệt</h4>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Ngày duyệt</th>
+                            <th>Người duyệt cuối</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="approvedBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rejected Tab -->
+        <div id="rejected-tab" class="tab-content">
+            <h4>Đã từ chối</h4>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Loại</th>
+                            <th>Mã chứng từ</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Lý do từ chối</th>
+                            <th>Người từ chối</th>
+                            <th>Ngày từ chối</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rejectedBody"></tbody>
+                </table>
+            </div>
+        </div>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Margin</th>
+                            <th>Người duyệt cấp 1</th>
+                            <th>Ngày duyệt cấp 1</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="level2Body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Approved Tab -->
+        <div id="approved-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Người duyệt cấp 1</th>
+                            <th>Người duyệt cấp 2</th>
+                            <th>Ngày duyệt</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="approvedBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rejected Tab -->
+        <div id="rejected-tab" class="tab-content">
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Khách hàng</th>
+                            <th>Tổng tiền</th>
+                            <th>Người từ chối</th>
+                            <th>Ngày từ chối</th>
+                            <th>Lý do</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rejectedBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Reject -->
+    <div id="rejectModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRejectModal()">&times;</span>
+            <h3>Từ chối đơn hàng</h3>
+            
+            <form id="rejectForm" onsubmit="submitReject(event)">
+                <div class="form-group">
+                    <label>Lý do từ chối <span class="required">*</span></label>
+                    <textarea name="reason" rows="4" required placeholder="Nhập lý do từ chối đơn hàng..."></textarea>
+                </div>
+
+                <input type="hidden" name="orderId">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeRejectModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary" style="background: #e74c3c;">
+                        <i class="fas fa-times-circle"></i> Xác nhận từ chối
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="sales-approval.js"></script>
+    <script>
+        if (typeof loadAllData === 'function') {
+            loadAllData();
+        }
+    </script></script>
+</body>
+</html>

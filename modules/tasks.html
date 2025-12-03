@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý công việc - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .kanban-column {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 500px;
+        }
+        .kanban-column h4 {
+            margin: 0 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .kanban-card {
+            background: white;
+            border-radius: 5px;
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: move;
+        }
+        .kanban-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .task-priority {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .priority-high { background: #fee; color: #c00; }
+        .priority-medium { background: #ffeaa7; color: #d63031; }
+        .priority-low { background: #dfe6e9; color: #2d3436; }
+    </style>
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý công việc</h2>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary" onclick="openAddModal()">
+                    <i class="fas fa-plus"></i> Tạo task
+                </button>
+                <button class="btn-secondary" onclick="toggleView()">
+                    <i class="fas fa-th-list" id="viewIcon"></i> <span id="viewText">Chế độ Kanban</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h4 style="margin: 0 0 10px 0; color: #6c757d; font-size: 14px;">Tổng task</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #3498db;">45</div>
+            </div>
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h4 style="margin: 0 0 10px 0; color: #6c757d; font-size: 14px;">Đang làm</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #f39c12;">12</div>
+            </div>
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h4 style="margin: 0 0 10px 0; color: #6c757d; font-size: 14px;">Hoàn thành</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #27ae60;">28</div>
+            </div>
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h4 style="margin: 0 0 10px 0; color: #6c757d; font-size: 14px;">Quá hạn</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #e74c3c;">5</div>
+            </div>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm task...">
+            <select class="filter-select" id="filterAssignee">
+                <option value="">Tất cả người phụ trách</option>
+                <option value="NV001">Nguyễn Văn A</option>
+                <option value="NV002">Trần Thị B</option>
+            </select>
+            <select class="filter-select" id="filterPriority">
+                <option value="">Tất cả ưu tiên</option>
+                <option value="high">Cao</option>
+                <option value="medium">Trung bình</option>
+                <option value="low">Thấp</option>
+            </select>
+            <select class="filter-select" id="filterProject">
+                <option value="">Tất cả dự án</option>
+                <option value="DA001">Dự án ABC</option>
+                <option value="DA002">Dự án XYZ</option>
+            </select>
+        </div>
+
+        <!-- Table View -->
+        <div id="tableView" class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tên task</th>
+                        <th>Người phụ trách</th>
+                        <th>Liên kết</th>
+                        <th>Deadline</th>
+                        <th>Ưu tiên</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Kanban View -->
+        <div id="kanbanView" class="kanban-board" style="display: none;">
+            <div class="kanban-column">
+                <h4 style="color: #6c757d;">Mới <span style="background: #dee2e6; padding: 2px 8px; border-radius: 10px; font-size: 12px;">8</span></h4>
+                <div id="newTasks"></div>
+            </div>
+            <div class="kanban-column">
+                <h4 style="color: #f39c12;">Đang làm <span style="background: #ffeaa7; padding: 2px 8px; border-radius: 10px; font-size: 12px;">12</span></h4>
+                <div id="inProgressTasks"></div>
+            </div>
+            <div class="kanban-column">
+                <h4 style="color: #3498db;">Review <span style="background: #dfe6e9; padding: 2px 8px; border-radius: 10px; font-size: 12px;">5</span></h4>
+                <div id="reviewTasks"></div>
+            </div>
+            <div class="kanban-column">
+                <h4 style="color: #27ae60;">Hoàn thành <span style="background: #d5f4e6; padding: 2px 8px; border-radius: 10px; font-size: 12px;">28</span></h4>
+                <div id="completedTasks"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Tạo task mới</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-group">
+                    <label>Tên task <span class="required">*</span></label>
+                    <input type="text" name="title" required placeholder="VD: Gọi điện cho khách hàng ABC">
+                </div>
+
+                <div class="form-group">
+                    <label>Mô tả chi tiết</label>
+                    <textarea name="description" rows="3" placeholder="Mô tả chi tiết công việc cần làm..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Gán cho <span class="required">*</span></label>
+                        <select name="assignee" required>
+                            <option value="">Chọn nhân viên...</option>
+                            <option value="NV001">Nguyễn Văn A</option>
+                            <option value="NV002">Trần Thị B</option>
+                            <option value="NV003">Lê Văn C</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Deadline <span class="required">*</span></label>
+                        <input type="datetime-local" name="deadline" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ưu tiên <span class="required">*</span></label>
+                        <select name="priority" required>
+                            <option value="high">Cao</option>
+                            <option value="medium">Trung bình</option>
+                            <option value="low">Thấp</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Trạng thái</label>
+                        <select name="status">
+                            <option value="new">Mới</option>
+                            <option value="in_progress">Đang làm</option>
+                            <option value="review">Review</option>
+                            <option value="completed">Hoàn thành</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Liên kết với</label>
+                    <select name="linkType" onchange="handleLinkTypeChange(this.value)">
+                        <option value="">Không liên kết</option>
+                        <option value="customer">Khách hàng</option>
+                        <option value="project">Dự án</option>
+                        <option value="order">Đơn hàng</option>
+                        <option value="quotation">Báo giá</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="linkGroup" style="display: none;">
+                    <label id="linkLabel">Chọn</label>
+                    <select name="linkId" id="linkSelect">
+                        <option value="">Chọn...</option>
+                    </select>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+                <h4 style="margin-bottom: 15px;">Checklist con</h4>
+
+                <div id="checklistItems">
+                    <div class="checklist-item" style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="checkbox" name="checklist[0][done]">
+                        <input type="text" name="checklist[0][title]" placeholder="Công việc con..." style="flex: 1;">
+                        <button type="button" class="btn-danger" onclick="removeChecklist(0)" style="padding: 5px 10px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-secondary" onclick="addChecklistItem()" style="margin-bottom: 15px;">
+                    <i class="fas fa-plus"></i> Thêm checklist
+                </button>
+
+                <div class="form-group">
+                    <label>File đính kèm</label>
+                    <input type="file" name="attachments" multiple>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="tasks.js"></script>
+    <script>
+        let isKanbanView = false;
+
+        function toggleView() {
+            isKanbanView = !isKanbanView;
+            const tableView = document.getElementById('tableView');
+            const kanbanView = document.getElementById('kanbanView');
+            const viewIcon = document.getElementById('viewIcon');
+            const viewText = document.getElementById('viewText');
+
+            if (isKanbanView) {
+                tableView.style.display = 'none';
+                kanbanView.style.display = 'grid';
+                viewIcon.className = 'fas fa-table';
+                viewText.textContent = 'Chế độ bảng';
+            } else {
+                tableView.style.display = 'block';
+                kanbanView.style.display = 'none';
+                viewIcon.className = 'fas fa-th-list';
+                viewText.textContent = 'Chế độ Kanban';
+            }
+        }
+
+        function handleLinkTypeChange(type) {
+            const linkGroup = document.getElementById('linkGroup');
+            const linkLabel = document.getElementById('linkLabel');
+            const linkSelect = document.getElementById('linkSelect');
+
+            if (type) {
+                linkGroup.style.display = 'block';
+                linkSelect.innerHTML = '<option value="">Chọn...</option>';
+
+                switch(type) {
+                    case 'customer':
+                        linkLabel.textContent = 'Chọn khách hàng';
+                        linkSelect.innerHTML += '<option value="KH001">Công ty ABC</option><option value="KH002">Công ty XYZ</option>';
+                        break;
+                    case 'project':
+                        linkLabel.textContent = 'Chọn dự án';
+                        linkSelect.innerHTML += '<option value="DA001">Dự án ABC</option><option value="DA002">Dự án XYZ</option>';
+                        break;
+                    case 'order':
+                        linkLabel.textContent = 'Chọn đơn hàng';
+                        linkSelect.innerHTML += '<option value="DH001">DH-2025-001</option><option value="DH002">DH-2025-002</option>';
+                        break;
+                    case 'quotation':
+                        linkLabel.textContent = 'Chọn báo giá';
+                        linkSelect.innerHTML += '<option value="BG001">BG-2025-001</option><option value="BG002">BG-2025-002</option>';
+                        break;
+                }
+            } else {
+                linkGroup.style.display = 'none';
+            }
+        }
+
+        let checklistCount = 1;
+        function addChecklistItem() {
+            const container = document.getElementById('checklistItems');
+            const div = document.createElement('div');
+            div.className = 'checklist-item';
+            div.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px;';
+            div.innerHTML = `
+                <input type="checkbox" name="checklist[${checklistCount}][done]">
+                <input type="text" name="checklist[${checklistCount}][title]" placeholder="Công việc con..." style="flex: 1;">
+                <button type="button" class="btn-danger" onclick="removeChecklist(${checklistCount})" style="padding: 5px 10px;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            container.appendChild(div);
+            checklistCount++;
+        }
+
+        function removeChecklist(index) {
+            event.target.closest('.checklist-item').remove();
+        }
+    </script>
+</body>
+</html>

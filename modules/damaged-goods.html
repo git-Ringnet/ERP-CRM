@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý hàng hủy, thanh lý - Mini ERP/CRM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="module-page">
+        <div class="content-header">
+            <h2>Quản lý hàng hủy, thanh lý</h2>
+            <button class="btn-primary" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Đăng ký hàng hủy/thanh lý
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h4><i class="fas fa-info-circle"></i> Quản lý hàng hủy, thanh lý</h4>
+            <p>Xử lý hàng hủy và thanh lý. Theo dõi quy trình, giá trị thiệt hại và xử lý tài chính.</p>
+        </div>
+
+        <div class="search-filter">
+            <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm...">
+            <select class="filter-select" id="filterType">
+                <option value="">Tất cả loại</option>
+                <option value="damaged">Hàng hủy</option>
+                <option value="liquidation">Thanh lý</option>
+            </select>
+            <select class="filter-select" id="filterStatus">
+                <option value="">Tất cả trạng thái</option>
+                <option value="pending">Chờ xử lý</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="completed">Đã hoàn thành</option>
+            </select>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mã phiếu</th>
+                        <th>Loại</th>
+                        <th>Sản phẩm</th>
+                        <th>Số lượng</th>
+                        <th>Giá trị thiệt hại</th>
+                        <th>Lý do</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Đăng ký hàng hủy/thanh lý</h3>
+            
+            <form id="dataForm" onsubmit="saveData(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã phiếu <span class="required">*</span></label>
+                        <input type="text" name="code" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Loại <span class="required">*</span></label>
+                        <select name="type" required>
+                            <option value="damaged">Hàng hủy</option>
+                            <option value="liquidation">Thanh lý</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sản phẩm <span class="required">*</span></label>
+                        <select name="product" required>
+                            <option value="">Chọn sản phẩm</option>
+                            <option value="Laptop Dell XPS 15">Laptop Dell XPS 15</option>
+                            <option value="Màn hình LG 27 inch">Màn hình LG 27 inch</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Số lượng <span class="required">*</span></label>
+                        <input type="number" name="quantity" required min="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Giá trị gốc (VNĐ)</label>
+                        <input type="number" name="originalValue" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Giá trị thu hồi (VNĐ)</label>
+                        <input type="number" name="recoveryValue" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Lý do <span class="required">*</span></label>
+                    <textarea name="reason" rows="3" required placeholder="VD: Hư hỏng không sửa được, hết hạn sử dụng..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày phát hiện</label>
+                        <input type="date" name="discoveryDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Người phát hiện</label>
+                        <select name="discoveredBy">
+                            <option value="">Chọn nhân viên</option>
+                            <option value="Nguyễn Văn A">Nguyễn Văn A</option>
+                            <option value="Trần Thị B">Trần Thị B</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Phương án xử lý</label>
+                    <textarea name="solution" rows="2" placeholder="Mô tả cách xử lý..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea name="note" rows="2"></textarea>
+                </div>
+
+                <input type="hidden" name="id">
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="damaged-goods.js"></script>
+</body>
+</html>
