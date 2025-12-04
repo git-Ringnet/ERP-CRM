@@ -1,0 +1,234 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use App\Services\ExportService;
+
+class EmployeeController extends Controller
+{
+    /**
+     * Display a listing of employees with search and filter functionality.
+     * Requirements: 3.1, 3.9, 3.10
+     */
+    public function index(Request $request)
+    {
+        $query = DB::table('users')->whereNotNull('employee_code');
+
+        // Search functionality (Requirement 3.9)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('employee_code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('position', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by department (Requirement 3.10)
+        if ($request->filled('department')) {
+            $query->where('department', $request->department);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $employees = $query->orderBy('created_at', 'desc')->paginate(15);
+
+        // Get unique departments for filter dropdown
+        $departments = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->whereNotNull('department')
+            ->distinct()
+            ->pluck('department');
+
+        return view('employees.index', compact('employees', 'departments'));
+    }
+
+    /**
+     * Show the form for creating a new employee.
+     * Requirements: 3.2
+     */
+    public function create()
+    {
+        return view('employees.create');
+    }
+
+    /**
+     * Store a newly created employee in storage.
+     * Requirements: 3.3, 3.4
+     */
+    public function store(Request $request)
+    {
+        // Validation (Requirement 3.4)
+        $validated = $request->validate([
+            'employee_code' => ['required', 'string', 'max:50', 'unique:users,employee_code'],
+            'name' => ['required', 'string', 'max:255'],
+            'birth_date' => ['nullable', 'date'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:20'],
+            'address' => ['nullable', 'string'],
+            'department' => ['required', 'string', 'max:100'],
+            'position' => ['required', 'string', 'max:100'],
+            'join_date' => ['nullable', 'date'],
+            'salary' => ['nullable', 'numeric', 'min:0'],
+            'id_card' => ['nullable', 'string', 'max:50'],
+            'bank_account' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'status' => ['required', 'in:active,leave,resigned'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        // Add default password for employee user account
+        $validated['password'] = bcrypt('password123'); // Default password
+
+        DB::table('users')->insert(array_merge($validated, [
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+
+        return redirect()->route('employees.index')
+            ->with('success', 'Nhân viên đã được tạo thành công.');
+    }
+
+    /**
+     * Display the specified employee.
+     * Requirements: 3.1
+     */
+    public function show($id)
+    {
+        $employee = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->where('id', $id)
+            ->first();
+
+        if (!$employee) {
+            abort(404);
+        }
+
+        return view('employees.show', compact('employee'));
+    }
+
+    /**
+     * Show the form for editing the specified employee.
+     * Requirements: 3.5
+     */
+    public function edit($id)
+    {
+        $employee = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->where('id', $id)
+            ->first();
+
+        if (!$employee) {
+            abort(404);
+        }
+
+        return view('employees.edit', compact('employee'));
+    }
+
+    /**
+     * Update the specified employee in storage.
+     * Requirements: 3.6
+     */
+    public function update(Request $request, $id)
+    {
+        $employee = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->where('id', $id)
+            ->first();
+
+        if (!$employee) {
+            abort(404);
+        }
+
+        // Validation with unique rule ignoring current record
+        $validated = $request->validate([
+            'employee_code' => ['required', 'string', 'max:50', Rule::unique('users')->ignore($id)],
+            'name' => ['required', 'string', 'max:255'],
+            'birth_date' => ['nullable', 'date'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:20'],
+            'address' => ['nullable', 'string'],
+            'department' => ['required', 'string', 'max:100'],
+            'position' => ['required', 'string', 'max:100'],
+            'join_date' => ['nullable', 'date'],
+            'salary' => ['nullable', 'numeric', 'min:0'],
+            'id_card' => ['nullable', 'string', 'max:50'],
+            'bank_account' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'status' => ['required', 'in:active,leave,resigned'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        DB::table('users')->where('id', $id)->update(array_merge($validated, [
+            'updated_at' => now(),
+        ]));
+
+        return redirect()->route('employees.index')
+            ->with('success', 'Nhân viên đã được cập nhật thành công.');
+    }
+
+    /**
+     * Remove the specified employee from storage.
+     * Requirements: 3.7, 3.8
+     */
+    public function destroy($id)
+    {
+        $employee = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->where('id', $id)
+            ->first();
+
+        if (!$employee) {
+            abort(404);
+        }
+
+        DB::table('users')->where('id', $id)->delete();
+
+        return redirect()->route('employees.index')
+            ->with('success', 'Nhân viên đã được xóa thành công.');
+    }
+
+    /**
+     * Export employees to Excel
+     * Requirements: 7.1, 7.4, 7.6, 7.7
+     */
+    public function export(Request $request, ExportService $exportService)
+    {
+        $query = DB::table('users')->whereNotNull('employee_code');
+
+        // Apply filters if present (Requirement 7.6)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('employee_code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('position', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('department')) {
+            $query->where('department', $request->department);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $employees = collect($query->get());
+
+        // Generate Excel file (Requirement 7.7)
+        $filepath = $exportService->exportEmployees($employees);
+
+        return response()->download($filepath)->deleteFileAfterSend(true);
+    }
+}
