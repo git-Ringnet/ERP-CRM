@@ -17,6 +17,10 @@ class DatabaseSeeder extends Seeder
             SupplierSeeder::class,
             EmployeeSeeder::class,
             ProductSeeder::class,
+            WarehouseSeeder::class,
+            InventorySeeder::class,
+            InventoryTransactionSeeder::class,
+            DamagedGoodSeeder::class,
         ]);
     }
 }

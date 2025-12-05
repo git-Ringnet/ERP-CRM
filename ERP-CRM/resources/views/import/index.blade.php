@@ -4,7 +4,7 @@
 @section('page-title', 'Import Dữ Liệu')
 
 @section('content')
-<div class="max-w-6xl mx-auto">
+<div>
     <!-- Header -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-2">

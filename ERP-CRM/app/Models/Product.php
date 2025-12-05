@@ -41,6 +41,14 @@ class Product extends Model
     ];
 
     /**
+     * Relationship: Product has many inventories
+     */
+    public function inventories()
+    {
+        return $this->hasMany(Inventory::class);
+    }
+
+    /**
      * Scope for searching products by name, code, or category
      * Requirements: 4.11
      */

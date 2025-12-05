@@ -72,6 +72,49 @@
                 </div>
 
                 <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Kho hàng</p>
+                    
+                    <a href="{{ route('warehouses.index') }}" class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-warehouse w-6"></i>
+                        <span class="ml-3">Quản lý kho</span>
+                    </a>
+
+                    <a href="{{ route('inventory.index') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-boxes w-6"></i>
+                        <span class="ml-3">Tồn kho</span>
+                    </a>
+
+                    <a href="{{ route('transactions.index') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transactions.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-exchange-alt w-6"></i>
+                        <span class="ml-3">Xuất nhập kho</span>
+                    </a>
+
+                    <a href="{{ route('damaged-goods.index') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-exclamation-triangle w-6"></i>
+                        <span class="ml-3">Hàng hư hỏng</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Báo cáo</p>
+                    
+                    <a href="{{ route('reports.inventory-summary') }}" class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-chart-bar w-6"></i>
+                        <span class="ml-3">Tổng hợp tồn kho</span>
+                    </a>
+
+                    <a href="{{ route('reports.transaction-report') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-chart-line w-6"></i>
+                        <span class="ml-3">Báo cáo xuất nhập</span>
+                    </a>
+
+                    <a href="{{ route('reports.damaged-goods-report') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-chart-pie w-6"></i>
+                        <span class="ml-3">Báo cáo hư hỏng</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tiện ích</p>
                     
                     <a href="{{ route('import.index') }}" class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('import.*') ? 'bg-primary text-white' : '' }}">
@@ -83,7 +126,7 @@
         </aside>
 
         <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-h-screen lg:ml-0">
+        <div class="flex-1 flex flex-col min-h-screen">
             <!-- Top Header -->
             <header class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
                 <div class="flex items-center min-w-0 flex-1">
@@ -120,7 +163,7 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 p-3 sm:p-4 lg:p-6 overflow-x-hidden">
+            <main class="flex-1 p-3 sm:p-4 lg:p-6 overflow-x-hidden min-h-0">
                 <!-- Flash Messages -->
                 @if(session('success'))
                     <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative" role="alert">
