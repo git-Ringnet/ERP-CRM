@@ -38,6 +38,8 @@ class Product extends Model
         'auto_generate_serial' => 'boolean',
         'expiry_months' => 'integer',
         'track_expiry' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**

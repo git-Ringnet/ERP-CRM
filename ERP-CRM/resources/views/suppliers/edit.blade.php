@@ -112,11 +112,11 @@
                 <div class="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
                     <div class="flex justify-between mb-1">
                         <span>Ngày tạo:</span>
-                        <span class="font-medium">{{ $supplier->created_at->format('d/m/Y H:i') }}</span>
+                        <span class="font-medium">{{ \Carbon\Carbon::parse($supplier->created_at)->format('d/m/Y H:i') }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>Cập nhật:</span>
-                        <span class="font-medium">{{ $supplier->updated_at->format('d/m/Y H:i') }}</span>
+                        <span class="font-medium">{{ \Carbon\Carbon::parse($supplier->updated_at)->format('d/m/Y H:i') }}</span>
                     </div>
                 </div>
             </div>

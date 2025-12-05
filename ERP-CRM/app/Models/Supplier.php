@@ -26,6 +26,8 @@ class Supplier extends Model
 
     protected $casts = [
         'payment_terms' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**

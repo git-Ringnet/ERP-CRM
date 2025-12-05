@@ -140,11 +140,11 @@
                 <div class="p-6 space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Ngày tạo</span>
-                        <span class="text-sm font-medium text-gray-900">{{ $supplier->created_at->format('d/m/Y H:i') }}</span>
+                        <span class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($supplier->created_at)->format('d/m/Y H:i') }}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Cập nhật lần cuối</span>
-                        <span class="text-sm font-medium text-gray-900">{{ $supplier->updated_at->format('d/m/Y H:i') }}</span>
+                        <span class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($supplier->updated_at)->format('d/m/Y H:i') }}</span>
                     </div>
                 </div>
             </div>
