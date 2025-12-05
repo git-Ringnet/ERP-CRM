@@ -79,7 +79,7 @@ Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::cla
 Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
 Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
 Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
-=======
+
 // Sales routes
 Route::resource('sales', SaleController::class);
 Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
