@@ -12,6 +12,8 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryTransactionController;
 use App\Http\Controllers\DamagedGoodController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\CostFormulaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,3 +79,14 @@ Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::cla
 Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
 Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
 Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
+=======
+// Sales routes
+Route::resource('sales', SaleController::class);
+Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
+Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
+Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
+Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
+
+// Cost Formula routes
+Route::resource('cost-formulas', CostFormulaController::class);
+Route::get('/api/cost-formulas/applicable', [CostFormulaController::class, 'getApplicableFormulas'])->name('cost-formulas.applicable');

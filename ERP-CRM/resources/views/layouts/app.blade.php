@@ -111,6 +111,16 @@
                     <a href="{{ route('reports.damaged-goods-report') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-chart-pie w-6"></i>
                         <span class="ml-3">Báo cáo hư hỏng</span>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Bán hàng</p>
+                    
+                    <a href="{{ route('sales.index') }}" class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-shopping-cart w-6"></i>
+                        <span class="ml-3">Đơn hàng bán</span>
+                    </a>
+
+                    <a href="{{ route('cost-formulas.index') }}" class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cost-formulas.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-calculator w-6"></i>
+                        <span class="ml-3">Công thức chi phí</span>
                     </a>
                 </div>
 
