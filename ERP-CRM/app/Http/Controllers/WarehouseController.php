@@ -69,11 +69,43 @@ class WarehouseController extends Controller
     /**
      * Display the specified warehouse.
      */
-    public function show(Warehouse $warehouse)
+    public function show(Request $request, Warehouse $warehouse)
     {
         $warehouse->load('manager');
         
-        return view('warehouses.show', compact('warehouse'));
+        // Get inventory items for this warehouse with search
+        $inventoryQuery = $warehouse->inventories()->with('product');
+        
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $inventoryQuery->whereHas('product', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+        
+        // Filter by stock status
+        if ($request->filled('stock_status')) {
+            if ($request->stock_status === 'low') {
+                $inventoryQuery->whereRaw('stock <= min_stock');
+            } elseif ($request->stock_status === 'out') {
+                $inventoryQuery->where('stock', '<=', 0);
+            } elseif ($request->stock_status === 'available') {
+                $inventoryQuery->whereRaw('stock > min_stock');
+            }
+        }
+        
+        $inventories = $inventoryQuery->orderBy('stock', 'asc')->paginate(15);
+        
+        // Calculate statistics
+        $stats = [
+            'total_products' => $warehouse->inventories()->count(),
+            'total_stock' => $warehouse->inventories()->sum('stock'),
+            'low_stock_count' => $warehouse->inventories()->whereRaw('stock <= min_stock')->count(),
+            'out_of_stock_count' => $warehouse->inventories()->where('stock', '<=', 0)->count(),
+        ];
+        
+        return view('warehouses.show', compact('warehouse', 'inventories', 'stats'));
     }
 
     /**

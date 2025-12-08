@@ -51,6 +51,28 @@ class Product extends Model
     }
 
     /**
+     * Get total stock across all warehouses
+     */
+    public function getTotalStockAttribute()
+    {
+        return $this->inventories()->sum('stock');
+    }
+
+    /**
+     * Get stock attribute - returns total from inventories if available
+     */
+    public function getStockAttribute($value)
+    {
+        // If accessing through relationship, calculate from inventories
+        if ($this->relationLoaded('inventories')) {
+            return $this->inventories->sum('stock');
+        }
+        
+        // Otherwise return the stored value
+        return $value ?? 0;
+    }
+
+    /**
      * Scope for searching products by name, code, or category
      * Requirements: 4.11
      */

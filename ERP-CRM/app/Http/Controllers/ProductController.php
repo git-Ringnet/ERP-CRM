@@ -15,24 +15,27 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = DB::table('products');
+        $query = DB::table('products')
+            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
+                'products.id', '=', 'inv.product_id')
+            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'));
 
         // Search functionality (Requirement 4.11)
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('category', 'like', "%{$search}%");
+                $q->where('products.code', 'like', "%{$search}%")
+                  ->orWhere('products.name', 'like', "%{$search}%")
+                  ->orWhere('products.category', 'like', "%{$search}%");
             });
         }
 
         // Filter by management_type (Requirement 4.12)
         if ($request->filled('management_type')) {
-            $query->where('management_type', $request->management_type);
+            $query->where('products.management_type', $request->management_type);
         }
 
-        $products = $query->orderBy('created_at', 'desc')->paginate(15);
+        $products = $query->orderBy('products.created_at', 'desc')->paginate(15);
 
         return view('products.index', compact('products'));
     }
@@ -91,7 +94,12 @@ class ProductController extends Controller
      */
     public function show($id)
     {
-        $product = DB::table('products')->where('id', $id)->first();
+        $product = DB::table('products')
+            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
+                'products.id', '=', 'inv.product_id')
+            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'))
+            ->where('products.id', $id)
+            ->first();
 
         if (!$product) {
             abort(404);
@@ -183,20 +191,23 @@ class ProductController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
-        $query = DB::table('products');
+        $query = DB::table('products')
+            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
+                'products.id', '=', 'inv.product_id')
+            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'));
 
         // Apply filters if present (Requirement 7.6)
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('category', 'like', "%{$search}%");
+                $q->where('products.code', 'like', "%{$search}%")
+                  ->orWhere('products.name', 'like', "%{$search}%")
+                  ->orWhere('products.category', 'like', "%{$search}%");
             });
         }
 
         if ($request->filled('management_type')) {
-            $query->where('management_type', $request->management_type);
+            $query->where('products.management_type', $request->management_type);
         }
 
         $products = collect($query->get());
