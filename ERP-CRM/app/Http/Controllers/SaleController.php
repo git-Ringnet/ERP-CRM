@@ -39,7 +39,7 @@ class SaleController extends Controller
             $query->where('type', $request->type);
         }
 
-        $sales = $query->orderBy('created_at', 'desc')->paginate(15);
+        $sales = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('sales.index', compact('sales'));
     }

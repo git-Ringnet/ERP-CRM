@@ -28,7 +28,7 @@ class SupplierController extends Controller
             });
         }
 
-        $suppliers = $query->orderBy('created_at', 'desc')->paginate(15);
+        $suppliers = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('suppliers.index', compact('suppliers'));
     }

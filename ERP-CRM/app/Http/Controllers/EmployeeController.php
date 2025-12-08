@@ -39,7 +39,7 @@ class EmployeeController extends Controller
             $query->where('status', $request->status);
         }
 
-        $employees = $query->orderBy('created_at', 'desc')->paginate(15);
+        $employees = $query->orderBy('created_at', 'desc')->paginate(10);
 
         // Get unique departments for filter dropdown
         $departments = DB::table('users')

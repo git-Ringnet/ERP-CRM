@@ -64,7 +64,7 @@ class InventoryController extends Controller
             });
         }
 
-        $inventories = $query->orderBy('updated_at', 'desc')->paginate(15);
+        $inventories = $query->orderBy('updated_at', 'desc')->paginate(10);
 
         // Get filter options
         $warehouses = Warehouse::active()->get();

@@ -34,7 +34,7 @@ class CustomerController extends Controller
             $query->where('type', $request->type);
         }
 
-        $customers = $query->orderBy('created_at', 'desc')->paginate(15);
+        $customers = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('customers.index', compact('customers'));
     }

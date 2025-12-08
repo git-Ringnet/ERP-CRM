@@ -39,7 +39,7 @@ class DamagedGoodController extends Controller
             $query->where('code', 'like', '%' . $request->search . '%');
         }
 
-        $damagedGoods = $query->latest()->paginate(15);
+        $damagedGoods = $query->latest()->paginate(10);
 
         $products = Product::orderBy('name')->get();
 

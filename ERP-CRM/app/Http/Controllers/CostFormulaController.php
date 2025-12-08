@@ -26,7 +26,7 @@ class CostFormulaController extends Controller
             $query->where('type', $request->type);
         }
 
-        $formulas = $query->orderBy('created_at', 'desc')->paginate(15);
+        $formulas = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('cost-formulas.index', compact('formulas'));
     }

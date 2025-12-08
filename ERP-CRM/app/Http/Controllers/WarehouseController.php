@@ -95,7 +95,7 @@ class WarehouseController extends Controller
             }
         }
         
-        $inventories = $inventoryQuery->orderBy('stock', 'asc')->paginate(15);
+        $inventories = $inventoryQuery->orderBy('stock', 'asc')->paginate(10);
         
         // Calculate statistics
         $stats = [

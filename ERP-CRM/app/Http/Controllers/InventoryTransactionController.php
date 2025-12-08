@@ -62,7 +62,7 @@ class InventoryTransactionController extends Controller
 
         $transactions = $query->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(10);
 
         $warehouses = Warehouse::active()->get();
 

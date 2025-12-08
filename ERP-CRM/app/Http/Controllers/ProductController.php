@@ -35,7 +35,7 @@ class ProductController extends Controller
             $query->where('products.management_type', $request->management_type);
         }
 
-        $products = $query->orderBy('products.created_at', 'desc')->paginate(15);
+        $products = $query->orderBy('products.created_at', 'desc')->paginate(10);
 
         return view('products.index', compact('products'));
     }
