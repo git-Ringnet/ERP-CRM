@@ -55,6 +55,7 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã CT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên công thức</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại chi phí</th>
@@ -67,6 +68,9 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($formulas as $formula)
                 <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                        {{ ($formulas->currentPage() - 1) * $formulas->perPage() + $loop->iteration }}
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <span class="font-medium text-gray-900">{{ $formula->code }}</span>
                     </td>
@@ -136,7 +140,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Chưa có công thức chi phí nào</p>
                         <a href="{{ route('cost-formulas.create') }}" class="text-primary hover:underline mt-2 inline-block">

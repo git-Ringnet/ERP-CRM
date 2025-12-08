@@ -63,6 +63,7 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
@@ -78,6 +79,9 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($damagedGoods as $item)
                 <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                        {{ ($damagedGoods->currentPage() - 1) * $damagedGoods->perPage() + $loop->iteration }}
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <a href="{{ route('damaged-goods.show', $item) }}" class="font-medium text-primary hover:underline">
                             {{ $item->code }}
@@ -133,7 +137,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="11" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-exclamation-triangle text-4xl mb-2"></i>
                         <p>Không có dữ liệu</p>
                     </td>

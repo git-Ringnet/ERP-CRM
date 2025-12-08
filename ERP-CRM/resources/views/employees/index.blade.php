@@ -63,6 +63,7 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã NV</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhân viên</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chức vụ</th>
@@ -76,6 +77,9 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($employees as $employee)
                 <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                        {{ ($employees->currentPage() - 1) * $employees->perPage() + $loop->iteration }}
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <span class="font-medium text-gray-900">{{ $employee->employee_code }}</span>
                     </td>
@@ -135,7 +139,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu nhân viên</p>
                     </td>

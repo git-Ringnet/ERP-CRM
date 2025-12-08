@@ -61,6 +61,7 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã đơn</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách hàng</th>
@@ -75,6 +76,9 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($sales as $sale)
                 <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                        {{ ($sales->currentPage() - 1) * $sales->perPage() + $loop->iteration }}
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <span class="font-medium text-gray-900">{{ $sale->code }}</span>
                     </td>
@@ -136,7 +140,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu đơn hàng</p>
                     </td>
