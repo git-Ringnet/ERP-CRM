@@ -5,16 +5,19 @@ namespace App\Services;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\InventoryTransactionItem;
+use App\Models\ProductItem;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
 class TransactionService
 {
     protected $inventoryService;
+    protected $productItemService;
 
-    public function __construct(InventoryService $inventoryService)
+    public function __construct(InventoryService $inventoryService, ProductItemService $productItemService)
     {
         $this->inventoryService = $inventoryService;
+        $this->productItemService = $productItemService;
     }
 
     /**
@@ -35,6 +38,7 @@ class TransactionService
 
     /**
      * Process import transaction.
+     * Requirements: 4.2, 4.3, 7.1
      */
     public function processImport(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
     {
@@ -74,6 +78,29 @@ class TransactionService
                         'cost' => $item['cost'] ?? 0,
                     ]);
                     $totalQty += $item['quantity'];
+
+                    // Create product items with SKUs (only if create_product_items flag is set or skus provided)
+                    // Requirements: 4.2, 4.3, 7.1
+                    $createProductItems = $item['create_product_items'] ?? !empty($item['skus']) ?? false;
+                    
+                    if ($createProductItems) {
+                        $skus = $item['skus'] ?? [];
+                        $priceData = [
+                            'description' => $item['description'] ?? null,
+                            'cost_usd' => $item['cost_usd'] ?? $item['cost'] ?? 0,
+                            'price_tiers' => $item['price_tiers'] ?? null,
+                            'comments' => $item['comments'] ?? null,
+                        ];
+
+                        $this->productItemService->createItemsFromImport(
+                            $item['product_id'],
+                            $item['quantity'],
+                            $skus,
+                            $priceData,
+                            $data['warehouse_id'],
+                            $transaction->id
+                        );
+                    }
                 }
                 $transaction->update(['total_qty' => $totalQty]);
             }
@@ -117,6 +144,7 @@ class TransactionService
 
     /**
      * Process export transaction.
+     * Requirements: 7.3
      */
     public function processExport(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
     {
@@ -180,7 +208,8 @@ class TransactionService
                 $transaction->update(['total_qty' => $totalQty]);
             }
 
-            // Update inventory when approving
+            // Update inventory and product items when approving
+            // Requirements: 7.3
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
                     // Update inventory - subtract stock
@@ -190,6 +219,25 @@ class TransactionService
                         $item->quantity,
                         'subtract'
                     );
+
+                    // Update product items status to 'sold'
+                    // Get product items that are in_stock for this product and warehouse
+                    $productItemIds = $item['product_item_ids'] ?? [];
+                    if (!empty($productItemIds)) {
+                        $this->productItemService->updateItemsStatus($productItemIds, ProductItem::STATUS_SOLD);
+                    } else {
+                        // If no specific items selected, update first available items
+                        $availableItems = ProductItem::where('product_id', $item->product_id)
+                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->limit($item->quantity)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        if (!empty($availableItems)) {
+                            $this->productItemService->updateItemsStatus($availableItems, ProductItem::STATUS_SOLD);
+                        }
+                    }
                 }
             }
 
@@ -204,6 +252,7 @@ class TransactionService
 
     /**
      * Process transfer transaction.
+     * Requirements: 7.3
      */
     public function processTransfer(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
     {
@@ -270,7 +319,7 @@ class TransactionService
                 $transaction->update(['total_qty' => $totalQty]);
             }
 
-            // Update inventory when approving
+            // Update inventory and product items when approving
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
                     // Get current inventory to record cost
@@ -295,6 +344,16 @@ class TransactionService
                         $item->quantity,
                         'add'
                     );
+
+                    // Update product items - change warehouse and status
+                    $productItemIds = $item['product_item_ids'] ?? [];
+                    if (!empty($productItemIds)) {
+                        ProductItem::whereIn('id', $productItemIds)
+                            ->update([
+                                'warehouse_id' => $transaction->to_warehouse_id,
+                                'status' => ProductItem::STATUS_TRANSFERRED,
+                            ]);
+                    }
 
                     // Update average cost in destination warehouse
                     if ($cost > 0) {

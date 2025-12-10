@@ -178,10 +178,9 @@ class ImportService
                     'code' => $row[0] ?? '',
                     'name' => $row[1] ?? '',
                     'unit' => $row[2] ?? '',
-                    'price' => $row[3] ?? 0,
-                    'cost' => $row[4] ?? 0,
-                    'category' => $row[5] ?? '',
-                    'management_type' => $row[6] ?? 'normal',
+                    'category' => $row[3] ?? 'A',
+                    'description' => $row[4] ?? '',
+                    'note' => $row[5] ?? '',
                 ];
             default:
                 return [];

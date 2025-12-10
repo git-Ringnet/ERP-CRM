@@ -12,6 +12,7 @@ class InventorySeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     * Updated for simplified product schema - no price column in products
      */
     public function run(): void
     {
@@ -50,12 +51,15 @@ class InventorySeeder extends Seeder
                     $expiryDate = Carbon::now()->addDays($daysUntilExpiry);
                 }
 
+                // Generate random avg_cost since price is no longer in products table
+                $avgCost = rand(100000, 50000000); // Random cost between 100k - 50M VND
+
                 Inventory::create([
                     'product_id' => $product->id,
                     'warehouse_id' => $warehouse->id,
                     'stock' => $stock,
                     'min_stock' => $minStock,
-                    'avg_cost' => $product->price * rand(60, 85) / 100, // 60-85% of selling price
+                    'avg_cost' => $avgCost,
                     'expiry_date' => $expiryDate,
                     'warranty_months' => rand(1, 10) <= 6 ? rand(6, 36) : null, // 60% have warranty
                 ]);

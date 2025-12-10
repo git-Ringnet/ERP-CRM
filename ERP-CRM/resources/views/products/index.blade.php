@@ -15,17 +15,20 @@
                            placeholder="Tìm kiếm theo mã, tên sản phẩm..." 
                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    @if(request('category'))
+                        <input type="hidden" name="category" value="{{ request('category') }}">
+                    @endif
                 </form>
             </div>
             
-            <!-- Filter by Management Type -->
+            <!-- Filter by Category (A-Z) -->
             <div class="flex items-center gap-2">
-                <select name="management_type" onchange="window.location.href='{{ route('products.index') }}?management_type='+this.value+'&search={{ request('search') }}'" 
+                <select name="category" onchange="window.location.href='{{ route('products.index') }}?category='+this.value+'&search={{ request('search') }}'" 
                         class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="">Tất cả loại quản lý</option>
-                    <option value="normal" {{ request('management_type') == 'normal' ? 'selected' : '' }}>Thường</option>
-                    <option value="serial" {{ request('management_type') == 'serial' ? 'selected' : '' }}>Serial</option>
-                    <option value="lot" {{ request('management_type') == 'lot' ? 'selected' : '' }}>Lot</option>
+                    <option value="">Tất cả danh mục</option>
+                    @foreach($categories as $cat)
+                        <option value="{{ $cat }}" {{ request('category') == $cat ? 'selected' : '' }}>{{ $cat }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
@@ -44,7 +47,8 @@
         </div>
     </div>
 
-    <!-- Table -->
+    <!-- Table - Simplified: Only basic fields -->
+    <!-- Requirements: 6.1, 6.2 -->
     <div class="overflow-x-auto">
         <table class="w-full">
             <thead class="bg-gray-50">
@@ -52,11 +56,9 @@
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã SP</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên sản phẩm</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Danh mục</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Giá bán</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Giá vốn</th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tồn kho</th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Quản lý</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                 </tr>
             </thead>
@@ -71,39 +73,19 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center">
                         @if($product->category)
-                            <div class="text-sm text-gray-500">{{ $product->category }}</div>
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {{ $product->category }}
+                            </span>
+                        @else
+                            <span class="text-gray-400">-</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $product->unit }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                        {{ number_format($product->price) }} đ
-                    </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-right">
-                        {{ number_format($product->cost) }} đ
-                    </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-center">
-                        <span class="text-sm font-semibold {{ $product->stock <= $product->min_stock ? 'text-red-600' : 'text-gray-900' }}">
-                            {{ $product->stock }}
-                        </span>
-                        @if($product->stock <= $product->min_stock)
-                            <i class="fas fa-exclamation-triangle text-red-500 ml-1" title="Dưới mức tồn kho tối thiểu"></i>
-                        @endif
-                    </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-center">
-                        @if($product->management_type == 'serial')
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                <i class="fas fa-barcode mr-1"></i>Serial
-                            </span>
-                        @elseif($product->management_type == 'lot')
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                <i class="fas fa-layer-group mr-1"></i>Lot
-                            </span>
-                        @else
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                <i class="fas fa-box mr-1"></i>Thường
-                            </span>
-                        @endif
+                    <td class="px-4 py-3 text-sm text-gray-500">
+                        {{ Str::limit($product->description, 50) }}
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
                         <div class="flex items-center justify-center gap-2">
@@ -132,7 +114,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu sản phẩm</p>
                     </td>

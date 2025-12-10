@@ -35,6 +35,7 @@ Route::resource('customers', CustomerController::class);
 Route::resource('suppliers', SupplierController::class);
 Route::resource('employees', EmployeeController::class);
 Route::resource('products', ProductController::class);
+Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
 
 // Export routes (Requirements: 7.6, 7.7)
 Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');

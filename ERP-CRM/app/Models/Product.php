@@ -5,71 +5,72 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
     use HasFactory;
 
+    /**
+     * Available category options (single letters A-Z)
+     * Requirements: 2.1
+     */
+    public const CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+    /**
+     * Simplified fillable - only basic product fields
+     * Requirements: 1.1, 1.2, 1.3
+     */
     protected $fillable = [
         'code',
         'name',
         'category',
         'unit',
-        'price',
-        'cost',
-        'stock',
-        'min_stock',
-        'max_stock',
-        'management_type',
-        'auto_generate_serial',
-        'serial_prefix',
-        'expiry_months',
-        'track_expiry',
         'description',
         'note',
     ];
 
+    /**
+     * Simplified casts
+     */
     protected $casts = [
-        'price' => 'decimal:2',
-        'cost' => 'decimal:2',
-        'stock' => 'integer',
-        'min_stock' => 'integer',
-        'max_stock' => 'integer',
-        'auto_generate_serial' => 'boolean',
-        'expiry_months' => 'integer',
-        'track_expiry' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     /**
-     * Relationship: Product has many inventories
+     * Relationship: Product has many product items
+     * Requirements: 6.4
      */
-    public function inventories()
+    public function items(): HasMany
+    {
+        return $this->hasMany(ProductItem::class);
+    }
+
+    /**
+     * Relationship: Product has many inventories (for backward compatibility)
+     */
+    public function inventories(): HasMany
     {
         return $this->hasMany(Inventory::class);
     }
 
     /**
-     * Get total stock across all warehouses
+     * Get total quantity across all items
+     * Requirements: 7.4
      */
-    public function getTotalStockAttribute()
+    public function getTotalQuantityAttribute(): int
     {
-        return $this->inventories()->sum('stock');
+        return $this->items()->sum('quantity');
     }
 
     /**
-     * Get stock attribute - returns total from inventories if available
+     * Get in-stock quantity (only items with status 'in_stock')
+     * Requirements: 7.4
      */
-    public function getStockAttribute($value)
+    public function getInStockQuantityAttribute(): int
     {
-        // If accessing through relationship, calculate from inventories
-        if ($this->relationLoaded('inventories')) {
-            return $this->inventories->sum('stock');
-        }
-        
-        // Otherwise return the stored value
-        return $value ?? 0;
+        return $this->items()->where('status', 'in_stock')->sum('quantity');
     }
 
     /**
@@ -90,15 +91,15 @@ class Product extends Model
     }
 
     /**
-     * Scope for filtering products by management type
-     * Requirements: 4.12
+     * Scope for filtering products by category letter
+     * Requirements: 2.3
      */
-    public function scopeFilterByManagementType(Builder $query, ?string $managementType): Builder
+    public function scopeFilterByCategory(Builder $query, ?string $category): Builder
     {
-        if (empty($managementType)) {
+        if (empty($category)) {
             return $query;
         }
 
-        return $query->where('management_type', $managementType);
+        return $query->where('category', strtoupper($category));
     }
 }

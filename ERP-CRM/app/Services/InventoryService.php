@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Inventory;
+use App\Models\ProductItem;
 use Illuminate\Support\Collection;
 
 class InventoryService
@@ -187,5 +188,68 @@ class InventoryService
             ->first();
 
         return $inventory ? $inventory->stock : 0;
+    }
+
+    /**
+     * Calculate stock from product_items where status is 'in_stock'
+     * Requirements: 7.4
+     *
+     * @param int $productId
+     * @param int|null $warehouseId
+     * @return int
+     */
+    public function calculateStockFromItems(int $productId, ?int $warehouseId = null): int
+    {
+        $query = ProductItem::where('product_id', $productId)
+            ->where('status', ProductItem::STATUS_IN_STOCK);
+
+        if ($warehouseId) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        return $query->sum('quantity');
+    }
+
+    /**
+     * Get stock summary for a product across all warehouses
+     * Requirements: 7.4
+     *
+     * @param int $productId
+     * @return array
+     */
+    public function getProductStockSummary(int $productId): array
+    {
+        $items = ProductItem::where('product_id', $productId)
+            ->selectRaw('warehouse_id, status, SUM(quantity) as total_quantity')
+            ->groupBy('warehouse_id', 'status')
+            ->get();
+
+        $summary = [
+            'total' => 0,
+            'in_stock' => 0,
+            'sold' => 0,
+            'damaged' => 0,
+            'transferred' => 0,
+            'by_warehouse' => [],
+        ];
+
+        foreach ($items as $item) {
+            $summary['total'] += $item->total_quantity;
+            $summary[$item->status] = ($summary[$item->status] ?? 0) + $item->total_quantity;
+
+            if ($item->warehouse_id) {
+                if (!isset($summary['by_warehouse'][$item->warehouse_id])) {
+                    $summary['by_warehouse'][$item->warehouse_id] = [
+                        'in_stock' => 0,
+                        'sold' => 0,
+                        'damaged' => 0,
+                        'transferred' => 0,
+                    ];
+                }
+                $summary['by_warehouse'][$item->warehouse_id][$item->status] = $item->total_quantity;
+            }
+        }
+
+        return $summary;
     }
 }

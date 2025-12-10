@@ -91,11 +91,10 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá vốn</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mô tả</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -105,17 +104,86 @@
                                     <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
                                     <div class="text-sm text-gray-500">{{ $item->product->code }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ number_format($item->quantity) }}</td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-2 py-1 text-sm font-semibold bg-blue-100 text-blue-800 rounded">
+                                        {{ number_format($item->quantity) }}
+                                    </span>
+                                </td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $item->unit ?? '-' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->serial_number ?? '-' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-500">{{ number_format($item->cost ?? 0) }} đ</td>
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ number_format($item->total_value) }} đ</td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->description ?? '-' }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?? '-' }}</td>
                             </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            <!-- Product Items (SKUs) Section -->
+            <!-- Requirements: 7.2 -->
+            @if($transaction->type === 'import')
+            @php
+                $productItems = \App\Models\ProductItem::where('inventory_transaction_id', $transaction->id)->get();
+            @endphp
+            @if($productItems->count() > 0)
+            <div class="border-t border-gray-200 pt-4 mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-barcode mr-2"></i>Danh sách SKU đã tạo
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập (USD)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gói giá</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($productItems as $pItem)
+                            <tr>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="font-medium {{ Str::startsWith($pItem->sku, 'NOSKU') ? 'text-gray-400 italic' : 'text-gray-900' }}">
+                                        {{ $pItem->sku }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $pItem->product->name ?? '-' }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-medium">${{ number_format($pItem->cost_usd, 2) }}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    @if($pItem->price_tiers && is_array($pItem->price_tiers))
+                                        <div class="flex flex-wrap gap-1">
+                                            @foreach($pItem->price_tiers as $tier)
+                                                <span class="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
+                                                    {{ $tier['name'] ?? 'N/A' }}: ${{ number_format($tier['price'] ?? 0, 2) }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    @switch($pItem->status)
+                                        @case('in_stock')
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Trong kho</span>
+                                            @break
+                                        @case('sold')
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Đã bán</span>
+                                            @break
+                                        @default
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{{ $pItem->status }}</span>
+                                    @endswitch
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
+            @endif
 
             <!-- Timestamps -->
             <div class="mt-6 pt-4 border-t border-gray-200">

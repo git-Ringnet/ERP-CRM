@@ -141,6 +141,28 @@ class InventoryTransactionController extends Controller
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
 
+        // Prepare existing items data for JavaScript
+        // Include SKU, cost, and price tiers from product_items
+        $existingItems = $transaction->items->map(function($item) use ($transaction) {
+            // Get product items created from this transaction
+            $productItems = \App\Models\ProductItem::where('inventory_transaction_id', $transaction->id)
+                ->where('product_id', $item->product_id)
+                ->get();
+            
+            return [
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity,
+                'unit' => $item->unit ?? '',
+                'description' => $item->description ?? '',
+                'comments' => $item->comments ?? '',
+                'cost_usd' => $productItems->first()->cost_usd ?? null,
+                'skus' => $productItems->pluck('sku')->filter(function($sku) {
+                    return !str_starts_with($sku, 'NOSKU');
+                })->values()->toArray(),
+                'price_tiers' => $productItems->first()->price_tiers ?? [],
+            ];
+        })->toArray();
+
         // Route to specific edit view based on type
         $view = match($transaction->type) {
             'import' => 'transactions.edit-import',
@@ -149,7 +171,7 @@ class InventoryTransactionController extends Controller
             default => 'transactions.edit-import',
         };
 
-        return view($view, compact('transaction', 'warehouses', 'products', 'employees'));
+        return view($view, compact('transaction', 'warehouses', 'products', 'employees', 'existingItems'));
     }
 
     /**

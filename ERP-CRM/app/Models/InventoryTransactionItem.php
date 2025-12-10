@@ -15,6 +15,8 @@ class InventoryTransactionItem extends Model
         'product_id',
         'quantity',
         'unit',
+        'description',
+        'comments',
         'serial_number',
         'cost',
     ];

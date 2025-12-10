@@ -30,7 +30,7 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
 
     /**
      * Define column headings
-     * Requirements: 7.5 - product code, name, unit, selling price, cost price, stock, management type, and category
+     * Updated for simplified product structure
      */
     public function headings(): array
     {
@@ -38,16 +38,9 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
             'Mã sản phẩm',
             'Tên sản phẩm',
             'Đơn vị',
-            'Giá bán',
-            'Giá vốn',
-            'Tồn kho',
-            'Loại quản lý',
             'Danh mục',
-            'Tồn kho tối thiểu',
-            'Tồn kho tối đa',
-            'Tự động tạo serial',
-            'Tiền tố serial',
-            'Số tháng hết hạn',
+            'Mô tả',
+            'Ghi chú',
             'Theo dõi hết hạn',
             'Mô tả',
             'Ghi chú',
@@ -63,16 +56,9 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
             $product->code ?? '',
             $product->name ?? '',
             $product->unit ?? '',
-            $product->price ?? 0,
-            $product->cost ?? 0,
-            $product->stock ?? 0,
-            $product->management_type ?? '',
             $product->category ?? '',
-            $product->min_stock ?? 0,
-            $product->max_stock ?? 0,
-            $product->auto_generate_serial ? 'Có' : 'Không',
-            $product->serial_prefix ?? '',
-            $product->expiry_months ?? '',
+            $product->description ?? '',
+            $product->note ?? '',
             $product->track_expiry ? 'Có' : 'Không',
             $product->description ?? '',
             $product->note ?? '',

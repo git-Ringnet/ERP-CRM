@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
+use App\Models\ProductItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -11,157 +13,106 @@ class ProductController extends Controller
 {
     /**
      * Display a listing of products with search and filter functionality.
-     * Requirements: 4.1, 4.11, 4.12
+     * Requirements: 1.1, 1.2, 2.3, 6.1, 6.2
      */
     public function index(Request $request)
     {
-        $query = DB::table('products')
-            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
-                'products.id', '=', 'inv.product_id')
-            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'));
+        $query = Product::query();
 
-        // Search functionality (Requirement 4.11)
+        // Search functionality
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('products.code', 'like', "%{$search}%")
-                  ->orWhere('products.name', 'like', "%{$search}%")
-                  ->orWhere('products.category', 'like', "%{$search}%");
-            });
+            $query->search($request->search);
         }
 
-        // Filter by management_type (Requirement 4.12)
-        if ($request->filled('management_type')) {
-            $query->where('products.management_type', $request->management_type);
+        // Filter by category (single letter A-Z)
+        if ($request->filled('category')) {
+            $query->filterByCategory($request->category);
         }
 
-        $products = $query->orderBy('products.created_at', 'desc')->paginate(10);
+        $products = $query->orderBy('created_at', 'desc')->paginate(10);
 
-        return view('products.index', compact('products'));
+        // Get categories for filter dropdown
+        $categories = Product::CATEGORIES;
+
+        return view('products.index', compact('products', 'categories'));
     }
 
     /**
      * Show the form for creating a new product.
-     * Requirements: 4.2
+     * Requirements: 1.3, 2.1
      */
     public function create()
     {
-        return view('products.create');
+        $categories = Product::CATEGORIES;
+        return view('products.create', compact('categories'));
     }
 
     /**
      * Store a newly created product in storage.
-     * Requirements: 4.3, 4.4, 4.5, 4.6
+     * Requirements: 1.3, 2.2
      */
     public function store(Request $request)
     {
-        // Validation (Requirement 4.6)
+        // Validation - only basic fields
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:products,code'],
             'name' => ['required', 'string', 'max:255'],
-            'category' => ['nullable', 'string', 'max:100'],
+            'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'cost' => ['required', 'numeric', 'min:0'],
-            'stock' => ['nullable', 'integer', 'min:0'],
-            'min_stock' => ['nullable', 'integer', 'min:0'],
-            'max_stock' => ['nullable', 'integer', 'min:0'],
-            'management_type' => ['required', 'in:normal,serial,lot'],
-            'auto_generate_serial' => ['nullable', 'boolean'],
-            'serial_prefix' => ['nullable', 'string', 'max:20'],
-            'expiry_months' => ['nullable', 'integer', 'min:0'],
-            'track_expiry' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
 
-        // Convert boolean fields
-        $validated['auto_generate_serial'] = $request->has('auto_generate_serial') ? 1 : 0;
-        $validated['track_expiry'] = $request->has('track_expiry') ? 1 : 0;
-
-        DB::table('products')->insert(array_merge($validated, [
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]));
+        Product::create($validated);
 
         return redirect()->route('products.index')
             ->with('success', 'Sản phẩm đã được tạo thành công.');
     }
 
     /**
-     * Display the specified product.
-     * Requirements: 4.1
+     * Display the specified product with its items.
+     * Requirements: 6.3, 6.4
      */
     public function show($id)
     {
-        $product = DB::table('products')
-            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
-                'products.id', '=', 'inv.product_id')
-            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'))
-            ->where('products.id', $id)
-            ->first();
-
-        if (!$product) {
-            abort(404);
-        }
+        $product = Product::with(['items' => function ($query) {
+            $query->orderBy('created_at', 'desc');
+        }])->findOrFail($id);
 
         return view('products.show', compact('product'));
     }
 
     /**
      * Show the form for editing the specified product.
-     * Requirements: 4.7
+     * Requirements: 1.3
      */
     public function edit($id)
     {
-        $product = DB::table('products')->where('id', $id)->first();
+        $product = Product::findOrFail($id);
+        $categories = Product::CATEGORIES;
 
-        if (!$product) {
-            abort(404);
-        }
-
-        return view('products.edit', compact('product'));
+        return view('products.edit', compact('product', 'categories'));
     }
 
     /**
      * Update the specified product in storage.
-     * Requirements: 4.8
+     * Requirements: 1.3, 2.2
      */
     public function update(Request $request, $id)
     {
-        $product = DB::table('products')->where('id', $id)->first();
-
-        if (!$product) {
-            abort(404);
-        }
+        $product = Product::findOrFail($id);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('products')->ignore($id)],
             'name' => ['required', 'string', 'max:255'],
-            'category' => ['nullable', 'string', 'max:100'],
+            'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'cost' => ['required', 'numeric', 'min:0'],
-            'stock' => ['nullable', 'integer', 'min:0'],
-            'min_stock' => ['nullable', 'integer', 'min:0'],
-            'max_stock' => ['nullable', 'integer', 'min:0'],
-            'management_type' => ['required', 'in:normal,serial,lot'],
-            'auto_generate_serial' => ['nullable', 'boolean'],
-            'serial_prefix' => ['nullable', 'string', 'max:20'],
-            'expiry_months' => ['nullable', 'integer', 'min:0'],
-            'track_expiry' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
 
-        // Convert boolean fields
-        $validated['auto_generate_serial'] = $request->has('auto_generate_serial') ? 1 : 0;
-        $validated['track_expiry'] = $request->has('track_expiry') ? 1 : 0;
-
-        DB::table('products')->where('id', $id)->update(array_merge($validated, [
-            'updated_at' => now(),
-        ]));
+        $product->update($validated);
 
         return redirect()->route('products.index')
             ->with('success', 'Sản phẩm đã được cập nhật thành công.');
@@ -169,50 +120,55 @@ class ProductController extends Controller
 
     /**
      * Remove the specified product from storage.
-     * Requirements: 4.9, 4.10
      */
     public function destroy($id)
     {
-        $product = DB::table('products')->where('id', $id)->first();
-
-        if (!$product) {
-            abort(404);
-        }
-
-        DB::table('products')->where('id', $id)->delete();
+        $product = Product::findOrFail($id);
+        $product->delete();
 
         return redirect()->route('products.index')
             ->with('success', 'Sản phẩm đã được xóa thành công.');
     }
 
     /**
+     * Get product items (API endpoint)
+     * Requirements: 6.4
+     */
+    public function items($id)
+    {
+        $product = Product::findOrFail($id);
+        $items = $product->items()
+            ->with('warehouse')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'product' => $product,
+            'items' => $items,
+            'total_quantity' => $product->total_quantity,
+            'in_stock_quantity' => $product->in_stock_quantity,
+        ]);
+    }
+
+    /**
      * Export products to Excel
-     * Requirements: 7.1, 7.5, 7.6, 7.7
      */
     public function export(Request $request, ExportService $exportService)
     {
-        $query = DB::table('products')
-            ->leftJoin(DB::raw('(SELECT product_id, SUM(stock) as total_stock FROM inventories GROUP BY product_id) as inv'), 
-                'products.id', '=', 'inv.product_id')
-            ->select('products.*', DB::raw('COALESCE(inv.total_stock, 0) as stock'));
+        $query = Product::query();
 
-        // Apply filters if present (Requirement 7.6)
+        // Apply filters if present
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('products.code', 'like', "%{$search}%")
-                  ->orWhere('products.name', 'like', "%{$search}%")
-                  ->orWhere('products.category', 'like', "%{$search}%");
-            });
+            $query->search($request->search);
         }
 
-        if ($request->filled('management_type')) {
-            $query->where('products.management_type', $request->management_type);
+        if ($request->filled('category')) {
+            $query->filterByCategory($request->category);
         }
 
-        $products = collect($query->get());
+        $products = $query->get();
 
-        // Generate Excel file (Requirement 7.7)
+        // Generate Excel file
         $filepath = $exportService->exportProducts($products);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
