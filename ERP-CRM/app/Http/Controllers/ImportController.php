@@ -145,9 +145,13 @@ class ImportController extends Controller
 
         // Prepare existing items data for JavaScript
         $existingItems = $import->items->map(function($item) use ($import) {
+            // Get product items created from this transaction
             $productItems = ProductItem::where('inventory_transaction_id', $import->id)
                 ->where('product_id', $item->product_id)
                 ->get();
+            
+            // Get first product item for cost and price tiers
+            $firstProductItem = $productItems->first();
             
             return [
                 'product_id' => $item->product_id,
@@ -155,9 +159,9 @@ class ImportController extends Controller
                 'unit' => $item->unit ?? '',
                 'description' => $item->description ?? '',
                 'comments' => $item->comments ?? '',
-                'cost_usd' => $productItems->first()->cost_usd ?? null,
+                'cost_usd' => $firstProductItem->cost_usd ?? null,
                 'skus' => $productItems->pluck('sku')->filter(fn($sku) => !str_starts_with($sku, 'NOSKU'))->values()->toArray(),
-                'price_tiers' => $productItems->first()->price_tiers ?? [],
+                'price_tiers' => $firstProductItem->price_tiers ?? [],
             ];
         })->toArray();
 

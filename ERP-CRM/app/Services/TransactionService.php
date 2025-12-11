@@ -75,7 +75,9 @@ class TransactionService
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         'serial_number' => $item['serial_number'] ?? null,
-                        'cost' => $item['cost'] ?? 0,
+                        'cost' => $item['cost'] ?? $item['cost_usd'] ?? 0,
+                        'description' => $item['description'] ?? null,
+                        'comments' => $item['comments'] ?? null,
                     ]);
                     $totalQty += $item['quantity'];
 
