@@ -94,10 +94,22 @@
                         <span class="ml-3">Tồn kho</span>
                     </a>
 
-                    <a href="{{ route('transactions.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transactions.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-exchange-alt w-6"></i>
-                        <span class="ml-3">Xuất nhập kho</span>
+                    <a href="{{ route('imports.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-arrow-down w-6 text-blue-400"></i>
+                        <span class="ml-3">Nhập kho</span>
+                    </a>
+
+                    <a href="{{ route('exports.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-arrow-up w-6 text-orange-400"></i>
+                        <span class="ml-3">Xuất kho</span>
+                    </a>
+
+                    <a href="{{ route('transfers.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-exchange-alt w-6 text-purple-400"></i>
+                        <span class="ml-3">Chuyển kho</span>
                     </a>
 
                     <a href="{{ route('damaged-goods.index') }}"
@@ -145,8 +157,8 @@
                 <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tiện ích</p>
 
-                    <a href="{{ route('import.index') }}"
-                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('import.*') ? 'bg-primary text-white' : '' }}">
+                    <a href="{{ route('excel-import.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('excel-import.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-import w-6"></i>
                         <span class="ml-3">Import dữ liệu</span>
                     </a>

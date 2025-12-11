@@ -6,13 +6,13 @@
 @section('content')
 <div class="bg-white rounded-lg shadow-sm">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Chỉnh sửa phiếu nhập: {{ $transaction->code }}</h2>
-        <a href="{{ route('transactions.show', $transaction) }}" class="text-gray-600 hover:text-gray-900">
+        <h2 class="text-lg font-semibold text-gray-900">Chỉnh sửa phiếu nhập: {{ $import->code }}</h2>
+        <a href="{{ route('imports.show', $import) }}" class="text-gray-600 hover:text-gray-900">
             <i class="fas fa-arrow-left mr-1"></i> Quay lại
         </a>
     </div>
     
-    @if($transaction->status !== 'pending')
+    @if($import->status !== 'pending')
     <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400">
         <p class="text-sm text-yellow-700">
             <i class="fas fa-exclamation-triangle mr-2"></i>
@@ -20,15 +20,14 @@
         </p>
     </div>
     @else
-    <form action="{{ route('transactions.update', $transaction) }}" method="POST" class="p-4">
+    <form action="{{ route('imports.update', $import) }}" method="POST" class="p-4">
         @csrf
         @method('PUT')
-        <input type="hidden" name="type" value="import">
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã phiếu nhập</label>
-                <input type="text" value="{{ $transaction->code }}" readonly
+                <input type="text" value="{{ $import->code }}" readonly
                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
             </div>
 
@@ -36,7 +35,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                     Ngày nhập <span class="text-red-500">*</span>
                 </label>
-                <input type="date" name="date" value="{{ old('date', $transaction->date->format('Y-m-d')) }}" required
+                <input type="date" name="date" value="{{ old('date', $import->date->format('Y-m-d')) }}" required
                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
             </div>
 
@@ -46,7 +45,7 @@
                 </label>
                 <select name="warehouse_id" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     @foreach($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" {{ $transaction->warehouse_id == $warehouse->id ? 'selected' : '' }}>
+                        <option value="{{ $warehouse->id }}" {{ $import->warehouse_id == $warehouse->id ? 'selected' : '' }}>
                             {{ $warehouse->name }}
                         </option>
                     @endforeach
@@ -58,7 +57,7 @@
                 <select name="employee_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Chọn nhân viên --</option>
                     @foreach($employees as $employee)
-                        <option value="{{ $employee->id }}" {{ $transaction->employee_id == $employee->id ? 'selected' : '' }}>
+                        <option value="{{ $employee->id }}" {{ $import->employee_id == $employee->id ? 'selected' : '' }}>
                             {{ $employee->name }}
                         </option>
                     @endforeach
@@ -67,14 +66,14 @@
 
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea name="note" rows="2" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $transaction->note) }}</textarea>
+                <textarea name="note" rows="2" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $import->note) }}</textarea>
             </div>
         </div>
 
         <div class="border-t border-gray-200 pt-4">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-lg font-semibold text-gray-900">Danh sách sản phẩm</h3>
-                <button type="button" onclick="addItem()" class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">
+                <button type="button" onclick="addItem()" class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
                     <i class="fas fa-plus mr-1"></i>Thêm sản phẩm
                 </button>
             </div>
@@ -85,11 +84,11 @@
         </div>
 
         <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-            <a href="{{ route('transactions.show', $transaction) }}" 
+            <a href="{{ route('imports.show', $import) }}" 
                class="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
                 <i class="fas fa-times mr-1"></i> Hủy
             </a>
-            <button type="submit" class="px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary-dark">
+            <button type="submit" class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600">
                 <i class="fas fa-save mr-1"></i> Cập nhật phiếu nhập
             </button>
         </div>
@@ -102,9 +101,6 @@
 let itemIndex = 0;
 const products = @json($products);
 const existingItems = @json($existingItems);
-
-// Reuse the same addItem, removeItem, addSkuField, addPriceTier functions from import.blade.php
-// (Copy the JavaScript functions from import view)
 
 function addItem(existingData = null) {
     const container = document.getElementById('itemsContainer');
@@ -165,7 +161,7 @@ function addItem(existingData = null) {
             </div>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Mô tả</label>
                 <input type="text" name="items[${itemIndex}][description]" value="${existingData ? existingData.description || '' : ''}"
@@ -219,7 +215,7 @@ function addItem(existingData = null) {
             tierDiv.className = 'price-tier-field flex gap-2';
             tierDiv.innerHTML = `
                 <input type="text" name="items[${itemIndex}][price_tiers][${idx}][name]" value="${tier.name || ''}"
-                       class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="1yr">
+                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="1yr">
                 <input type="number" name="items[${itemIndex}][price_tiers][${idx}][price]" value="${tier.price || ''}"
                        min="0" step="0.01" class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Giá USD">
                 <button type="button" onclick="this.parentElement.remove()" 
@@ -239,13 +235,13 @@ function removeItem(index) {
     if (item) item.remove();
 }
 
-function addSkuField(itemIndex) {
-    const container = document.getElementById(`skuContainer_${itemIndex}`);
+function addSkuField(itemIdx) {
+    const container = document.getElementById(`skuContainer_${itemIdx}`);
     const skuCount = container.querySelectorAll('.sku-field').length;
     const skuDiv = document.createElement('div');
     skuDiv.className = 'sku-field flex gap-2';
     skuDiv.innerHTML = `
-        <input type="text" name="items[${itemIndex}][skus][]" 
+        <input type="text" name="items[${itemIdx}][skus][]" 
                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="SKU #${skuCount + 1}">
         <button type="button" onclick="this.parentElement.remove()" 
                 class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
@@ -255,16 +251,16 @@ function addSkuField(itemIndex) {
     container.appendChild(skuDiv);
 }
 
-function addPriceTier(itemIndex) {
-    const container = document.getElementById(`priceTiersContainer_${itemIndex}`);
+function addPriceTier(itemIdx) {
+    const container = document.getElementById(`priceTiersContainer_${itemIdx}`);
     const tierCount = container.querySelectorAll('.price-tier-field').length;
     const tierDiv = document.createElement('div');
     tierDiv.className = 'price-tier-field flex gap-2';
     tierDiv.innerHTML = `
-        <input type="text" name="items[${itemIndex}][price_tiers][${tierCount}][name]" 
-               class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded" 
+        <input type="text" name="items[${itemIdx}][price_tiers][${tierCount}][name]" 
+               class="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded" 
                placeholder="1yr" value="${tierCount + 1}yr">
-        <input type="number" name="items[${itemIndex}][price_tiers][${tierCount}][price]" 
+        <input type="number" name="items[${itemIdx}][price_tiers][${tierCount}][price]" 
                min="0" step="0.01" class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" 
                placeholder="Giá USD">
         <button type="button" onclick="this.parentElement.remove()" 

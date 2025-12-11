@@ -95,9 +95,9 @@
                         <i class="fas fa-box mr-1"></i> Xem Sản phẩm
                     </a>
                     @else
-                    <a href="{{ route('transactions.index') }}" 
+                    <a href="{{ route('imports.index') }}" 
                        class="px-6 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700">
-                        <i class="fas fa-warehouse mr-1"></i> Xem Giao dịch
+                        <i class="fas fa-warehouse mr-1"></i> Xem Nhập kho
                     </a>
                     @endif
                 </div>

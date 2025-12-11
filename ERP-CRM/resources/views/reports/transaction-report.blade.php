@@ -126,7 +126,15 @@
                     @forelse($transactions as $transaction)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <a href="{{ route('transactions.show', $transaction) }}" class="text-primary hover:underline font-medium">
+                                @php
+                                    $showRoute = match($transaction->type) {
+                                        'import' => route('imports.show', $transaction),
+                                        'export' => route('exports.show', $transaction),
+                                        'transfer' => route('transfers.show', $transaction),
+                                        default => '#'
+                                    };
+                                @endphp
+                                <a href="{{ $showRoute }}" class="text-primary hover:underline font-medium">
                                     {{ $transaction->code }}
                                 </a>
                             </td>

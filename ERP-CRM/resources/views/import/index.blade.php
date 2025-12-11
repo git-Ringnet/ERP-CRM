@@ -121,7 +121,7 @@
 
                 <!-- Submit Button -->
                 <div class="flex justify-end gap-3">
-                    <a href="{{ route('transactions.index') }}" 
+                    <a href="{{ route('imports.index') }}" 
                        class="px-6 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
                         <i class="fas fa-times mr-1"></i> Hủy
                     </a>
