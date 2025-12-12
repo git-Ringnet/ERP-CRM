@@ -60,4 +60,41 @@ class Customer extends Model
 
         return $query->where('type', $type);
     }
+
+    /**
+     * Relationship with Sales
+     */
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
+    }
+
+    /**
+     * Relationship with PaymentHistory
+     */
+    public function paymentHistories()
+    {
+        return $this->hasMany(PaymentHistory::class);
+    }
+
+    /**
+     * Get total debt amount
+     */
+    public function getTotalDebtAttribute(): float
+    {
+        return $this->sales()
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->sum('debt_amount');
+    }
+
+    /**
+     * Check if customer is over debt limit
+     */
+    public function isOverDebtLimit(): bool
+    {
+        if (!$this->debt_limit || $this->debt_limit <= 0) {
+            return false;
+        }
+        return $this->total_debt > $this->debt_limit;
+    }
 }

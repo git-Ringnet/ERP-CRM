@@ -141,10 +141,28 @@
                     </a>
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Bán hàng</p>
 
+                    <a href="{{ route('price-lists.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('price-lists.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-tags w-6"></i>
+                        <span class="ml-3">Bảng giá</span>
+                    </a>
+
+                    <a href="{{ route('quotations.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-alt w-6"></i>
+                        <span class="ml-3">Báo giá</span>
+                    </a>
+
                     <a href="{{ route('sales.index') }}"
-                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-shopping-cart w-6"></i>
                         <span class="ml-3">Đơn hàng bán</span>
+                    </a>
+
+                    <a href="{{ route('customer-debts.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-invoice-dollar w-6"></i>
+                        <span class="ml-3">Công nợ khách hàng</span>
                     </a>
 
                     <a href="{{ route('cost-formulas.index') }}"
@@ -161,6 +179,22 @@
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('excel-import.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-import w-6"></i>
                         <span class="ml-3">Import dữ liệu</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hệ thống</p>
+
+                    <a href="{{ route('approval-workflows.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-project-diagram w-6"></i>
+                        <span class="ml-3">Quy trình duyệt</span>
+                    </a>
+
+                    <a href="{{ route('settings.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('settings.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-cog w-6"></i>
+                        <span class="ml-3">Cài đặt</span>
                     </a>
                 </div>
             </nav>
@@ -256,6 +290,14 @@
 
     <!-- Sidebar Toggle & Interactions Script -->
     <script>
+        // Hide loading immediately when script loads
+        (function() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+            }
+        })();
+
         document.addEventListener('DOMContentLoaded', function () {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
@@ -329,6 +371,11 @@
             window.showLoading = function () {
                 if (loadingOverlay) {
                     loadingOverlay.classList.remove('hidden');
+                    
+                    // Auto-hide after 10 seconds to prevent stuck loading
+                    setTimeout(function() {
+                        hideLoading();
+                    }, 10000);
                 }
             };
 
@@ -366,6 +413,19 @@
 
             // Hide loading on page load
             window.addEventListener('load', function () {
+                hideLoading();
+            });
+
+            // Hide loading when using browser back/forward buttons
+            window.addEventListener('pageshow', function (event) {
+                // Check if page is loaded from cache (bfcache)
+                if (event.persisted) {
+                    hideLoading();
+                }
+            });
+
+            // Hide loading on popstate (back/forward navigation)
+            window.addEventListener('popstate', function () {
                 hideLoading();
             });
 

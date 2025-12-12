@@ -124,13 +124,13 @@
                     <td class="px-4 py-3 whitespace-nowrap text-center">
                         <div class="flex items-center justify-center gap-2">
                             <a href="{{ route('cost-formulas.edit', $formula->id) }}" 
-                               class="text-yellow-600 hover:text-yellow-900" title="Sửa">
+                               class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors" title="Sửa">
                                 <i class="fas fa-edit"></i>
                             </a>
                             <form action="{{ route('cost-formulas.destroy', $formula->id) }}" method="POST" class="inline delete-form">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:text-red-900 delete-btn" 
+                                <button type="submit" class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors delete-btn" 
                                         data-name="{{ $formula->name }}" title="Xóa">
                                     <i class="fas fa-trash"></i>
                                 </button>

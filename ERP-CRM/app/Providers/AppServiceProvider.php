@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Setting;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,5 +24,10 @@ class AppServiceProvider extends ServiceProvider
         // Use custom Tailwind pagination view
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.tailwind');
         \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.simple-tailwind');
+
+        // Apply email settings from database
+        if (Schema::hasTable('settings')) {
+            Setting::applyEmailConfig();
+        }
     }
 }

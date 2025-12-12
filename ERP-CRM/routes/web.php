@@ -16,6 +16,11 @@ use App\Http\Controllers\DamagedGoodController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\CostFormulaController;
+use App\Http\Controllers\SettingController;
+use App\Http\Controllers\CustomerDebtController;
+use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\ApprovalWorkflowController;
+use App\Http\Controllers\PriceListController;
 
 /*
 |--------------------------------------------------------------------------
@@ -90,7 +95,40 @@ Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sale
 Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
 Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
 Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
+Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
 
 // Cost Formula routes
 Route::resource('cost-formulas', CostFormulaController::class);
 Route::get('/api/cost-formulas/applicable', [CostFormulaController::class, 'getApplicableFormulas'])->name('cost-formulas.applicable');
+
+// Settings routes
+Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
+Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
+
+// Customer Debt Management routes
+Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
+Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');
+Route::get('/customer-debts/aging-report', [CustomerDebtController::class, 'agingReport'])->name('customer-debts.aging-report');
+Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
+Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
+Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
+
+// Quotation routes (Báo giá)
+Route::resource('quotations', QuotationController::class);
+Route::post('/quotations/{quotation}/submit', [QuotationController::class, 'submitForApproval'])->name('quotations.submit');
+Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
+Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
+Route::post('/quotations/{quotation}/send', [QuotationController::class, 'markAsSent'])->name('quotations.send');
+Route::post('/quotations/{quotation}/response', [QuotationController::class, 'customerResponse'])->name('quotations.response');
+Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
+Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
+
+// Approval Workflow routes (Quy trình duyệt)
+Route::resource('approval-workflows', ApprovalWorkflowController::class);
+Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflows.toggle');
+
+// Price List routes (Bảng giá)
+Route::resource('price-lists', PriceListController::class);
+Route::post('/price-lists/{priceList}/toggle', [PriceListController::class, 'toggle'])->name('price-lists.toggle');
+Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::class, 'getForCustomer'])->name('price-lists.for-customer');

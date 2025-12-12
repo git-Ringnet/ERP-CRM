@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class SaleController extends Controller
@@ -146,16 +147,21 @@ class SaleController extends Controller
                 'note' => $validated['note'],
             ]);
 
-            // Create sale items
+            // Create sale items with cost price
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
+                $costPrice = $product->cost ?? 0;
+                $quantity = $item['quantity'];
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->name,
-                    'quantity' => $item['quantity'],
+                    'quantity' => $quantity,
                     'price' => $item['price'],
-                    'total' => $item['quantity'] * $item['price'],
+                    'cost_price' => $costPrice,
+                    'total' => $quantity * $item['price'],
+                    'cost_total' => $quantity * $costPrice,
                 ]);
             }
 
@@ -192,7 +198,7 @@ class SaleController extends Controller
      */
     public function show(Sale $sale)
     {
-        $sale->load('items', 'customer');
+        $sale->load(['items.product', 'customer', 'expenses']);
         return view('sales.show', compact('sale'));
     }
 
@@ -269,18 +275,23 @@ class SaleController extends Controller
             $sale->updateDebt();
             $sale->save();
 
-            // Delete old items and create new ones
+            // Delete old items and create new ones with cost price
             $sale->items()->delete();
             
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
+                $costPrice = $product->cost ?? 0;
+                $quantity = $item['quantity'];
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->name,
-                    'quantity' => $item['quantity'],
+                    'quantity' => $quantity,
                     'price' => $item['price'],
-                    'total' => $item['quantity'] * $item['price'],
+                    'cost_price' => $costPrice,
+                    'total' => $quantity * $item['price'],
+                    'cost_total' => $quantity * $costPrice,
                 ]);
             }
 
@@ -346,8 +357,7 @@ class SaleController extends Controller
         }
 
         try {
-            // TODO: Implement email sending with Mail facade
-            // Mail::to($sale->customer->email)->send(new SaleInvoice($sale));
+            Mail::to($sale->customer->email)->send(new \App\Mail\SaleInvoiceMail($sale));
             
             return back()->with('success', 'Đã gửi hóa đơn qua email đến ' . $sale->customer->email);
         } catch (\Exception $e) {
@@ -387,5 +397,44 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update sale status
+     */
+    public function updateStatus(Request $request, Sale $sale)
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
+        ]);
+
+        $oldStatus = $sale->status;
+        $newStatus = $validated['status'];
+
+        // Validate status transitions
+        $allowedTransitions = [
+            'pending' => ['approved', 'cancelled'],
+            'approved' => ['shipping', 'cancelled'],
+            'shipping' => ['completed'],
+            'completed' => [],
+            'cancelled' => [],
+        ];
+
+        if (!in_array($newStatus, $allowedTransitions[$oldStatus] ?? [])) {
+            return back()->with('error', 'Không thể chuyển trạng thái từ "' . $sale->status_label . '" sang trạng thái này.');
+        }
+
+        $sale->status = $newStatus;
+        $sale->save();
+
+        $statusLabels = [
+            'pending' => 'Chờ duyệt',
+            'approved' => 'Đã duyệt',
+            'shipping' => 'Đang giao hàng',
+            'completed' => 'Hoàn thành',
+            'cancelled' => 'Đã hủy',
+        ];
+
+        return back()->with('success', 'Đã cập nhật trạng thái đơn hàng thành "' . $statusLabels[$newStatus] . '"');
     }
 }

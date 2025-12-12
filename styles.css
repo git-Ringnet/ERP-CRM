@@ -782,3 +782,72 @@ tbody tr:hover {
     color: #7f8c8d;
     font-size: 13px;
 }
+
+
+/* Searchable Select */
+.searchable-select {
+    position: relative;
+    width: 100%;
+}
+
+.searchable-select .searchable-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: text;
+}
+
+.searchable-select .searchable-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.searchable-select .searchable-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 5px 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.searchable-select.active .searchable-dropdown {
+    display: block;
+}
+
+.searchable-select .searchable-option {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.searchable-select .searchable-option:last-child {
+    border-bottom: none;
+}
+
+.searchable-select .searchable-option:hover,
+.searchable-select .searchable-option.highlighted {
+    background: #e3f2fd;
+}
+
+.searchable-select .searchable-option.selected {
+    background: #3498db;
+    color: white;
+}
+
+.searchable-select .no-results {
+    padding: 10px 12px;
+    color: #7f8c8d;
+    font-style: italic;
+    font-size: 14px;
+}

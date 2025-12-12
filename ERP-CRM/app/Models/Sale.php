@@ -190,7 +190,15 @@ class Sale extends Model
     {
         $this->calculateTotalCost();
         $this->margin = $this->total - $this->cost;
-        $this->margin_percent = $this->total > 0 ? ($this->margin / $this->total) * 100 : 0;
+        
+        // Calculate margin percent, handle edge cases
+        if ($this->total > 0) {
+            $this->margin_percent = ($this->margin / $this->total) * 100;
+            // Cap at reasonable limits to avoid database overflow
+            $this->margin_percent = max(-999.99, min(999.99, $this->margin_percent));
+        } else {
+            $this->margin_percent = 0;
+        }
     }
 
     /**
@@ -199,6 +207,28 @@ class Sale extends Model
     public function getExpensesByType(string $type): float
     {
         return $this->expenses()->where('type', $type)->sum('amount');
+    }
+
+    /**
+     * Check if margin is negative (loss)
+     */
+    public function hasNegativeMargin(): bool
+    {
+        return $this->margin < 0;
+    }
+
+    /**
+     * Get margin status color
+     */
+    public function getMarginColorAttribute(): string
+    {
+        if ($this->margin < 0) {
+            return 'text-red-600';
+        } elseif ($this->margin_percent < 10) {
+            return 'text-yellow-600';
+        } else {
+            return 'text-green-600';
+        }
     }
 
     /**
