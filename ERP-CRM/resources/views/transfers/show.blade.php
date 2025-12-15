@@ -14,7 +14,7 @@
                     <i class="fas fa-edit mr-1"></i>Chỉnh sửa
                 </a>
                 <form action="{{ route('transfers.approve', $transfer) }}" method="POST" class="inline"
-                      onsubmit="return confirm('Bạn có chắc muốn duyệt phiếu này?')">
+                      onsubmit="return confirm('Bạn có chắc muốn duyệt phiếu này? Sau khi duyệt sẽ chuyển tồn kho.')">
                     @csrf
                     <button type="submit" class="px-3 py-1.5 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600">
                         <i class="fas fa-check mr-1"></i>Duyệt phiếu
@@ -85,24 +85,61 @@
                 <table class="w-full">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial chuyển</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($transfer->items as $item)
+                        @php
+                            // Get serials from serial_number JSON
+                            $serialsWithSku = collect();
+                            $noSkuCount = 0;
+                            
+                            if (!empty($item->serial_number)) {
+                                $productItemIds = json_decode($item->serial_number, true);
+                                if (is_array($productItemIds) && !empty($productItemIds)) {
+                                    $serialsWithSku = \App\Models\ProductItem::whereIn('id', $productItemIds)->get();
+                                }
+                            }
+                            // Calculate noSkuCount
+                            $noSkuCount = $item->quantity - $serialsWithSku->count();
+                        @endphp
                         <tr>
                             <td class="px-4 py-3">
+                                <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
+                            </td>
+                            <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
-                                <div class="text-sm text-gray-500">{{ $item->product->code }}</div>
                             </td>
                             <td class="px-4 py-3 text-center">
-                                <span class="px-2 py-1 text-sm font-semibold bg-purple-100 text-purple-800 rounded">
+                                <span class="px-3 py-1 text-sm font-bold bg-purple-100 text-purple-800 rounded-full">
                                     {{ number_format($item->quantity) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->unit ?? '-' }}</td>
+                            <td class="px-4 py-3">
+                                @if($serialsWithSku->count() > 0)
+                                    <div class="flex flex-wrap gap-1 max-w-md">
+                                        @foreach($serialsWithSku as $serial)
+                                            <span class="px-2 py-0.5 text-xs font-mono bg-blue-100 text-blue-700 rounded">
+                                                {{ $serial->sku }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                @if($noSkuCount > 0)
+                                    <span class="text-xs text-gray-500 {{ $serialsWithSku->count() > 0 ? 'mt-1 block' : '' }}">
+                                        + {{ $noSkuCount }} sản phẩm không serial
+                                    </span>
+                                @endif
+                                @if($serialsWithSku->count() === 0 && $noSkuCount === 0)
+                                    <span class="text-gray-400 text-sm">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
                         </tr>
                         @endforeach
                     </tbody>

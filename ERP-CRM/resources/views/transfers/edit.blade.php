@@ -20,7 +20,7 @@
         </p>
     </div>
     @else
-    <form action="{{ route('transfers.update', $transfer) }}" method="POST" class="p-4">
+    <form action="{{ route('transfers.update', $transfer) }}" method="POST" class="p-4" onsubmit="return validateForm()">
         @csrf
         @method('PUT')
         
@@ -51,33 +51,7 @@
                 </select>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Kho nguồn <span class="text-red-500">*</span>
-                </label>
-                <select name="warehouse_id" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-                    @foreach($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" {{ $transfer->warehouse_id == $warehouse->id ? 'selected' : '' }}>
-                            {{ $warehouse->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Kho đích <span class="text-red-500">*</span>
-                </label>
-                <select name="to_warehouse_id" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-                    @foreach($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" {{ $transfer->to_warehouse_id == $warehouse->id ? 'selected' : '' }}>
-                            {{ $warehouse->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div>
+            <div class="md:col-span-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                 <textarea name="note" rows="2" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $transfer->note) }}</textarea>
             </div>
@@ -111,7 +85,11 @@
 <script>
 let itemIndex = 0;
 const products = @json($products);
+const warehouses = @json($warehouses);
 const existingItems = @json($existingItems);
+const defaultWarehouseId = {{ $transfer->warehouse_id }};
+const defaultToWarehouseId = {{ $transfer->to_warehouse_id }};
+let stockCache = {};
 
 function addItem(existingData = null) {
     const container = document.getElementById('itemsContainer');
@@ -123,6 +101,17 @@ function addItem(existingData = null) {
         `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
     ).join('');
     
+    const selectedWarehouse = existingData?.warehouse_id || defaultWarehouseId;
+    const selectedToWarehouse = existingData?.to_warehouse_id || defaultToWarehouseId;
+    
+    const warehouseOptions = warehouses.map(w => 
+        `<option value="${w.id}" ${w.id == selectedWarehouse ? 'selected' : ''}>${w.name}</option>`
+    ).join('');
+    
+    const toWarehouseOptions = warehouses.map(w => 
+        `<option value="${w.id}" ${w.id == selectedToWarehouse ? 'selected' : ''}>${w.name}</option>`
+    ).join('');
+    
     itemDiv.innerHTML = `
         <div class="flex justify-between items-center mb-3">
             <h4 class="font-medium text-gray-700">Sản phẩm #${itemIndex + 1}</h4>
@@ -132,42 +121,427 @@ function addItem(existingData = null) {
             </button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-            <div class="md:col-span-2">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
+            <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
-                <select name="items[${itemIndex}][product_id]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                <select name="items[${itemIndex}][product_id]" required 
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                        onchange="loadStockInfo(${itemIndex})">
                     <option value="">-- Chọn sản phẩm --</option>
                     ${productOptions}
                 </select>
             </div>
-            <div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Kho nguồn *</label>
+                <select name="items[${itemIndex}][warehouse_id]" required 
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                        onchange="loadStockInfo(${itemIndex})">
+                    <option value="">-- Chọn kho --</option>
+                    ${warehouseOptions}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Kho đích *</label>
+                <select name="items[${itemIndex}][to_warehouse_id]" required 
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                    <option value="">-- Chọn kho --</option>
+                    ${toWarehouseOptions}
+                </select>
+            </div>
+            <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
-                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : ''}" 
-                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="0">
+                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
+                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                       placeholder="1" onchange="onQuantityChange(${itemIndex})">
             </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Serial</label>
-                <input type="text" name="items[${itemIndex}][serial]" value="${existingData ? existingData.serial || '' : ''}"
-                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Serial number">
-            </div>
-        </div>
-        
-        <div class="grid grid-cols-1 gap-3">
-            <div>
+            <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
                 <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
             </div>
         </div>
+        
+        <div id="stockInfo_${itemIndex}" class="mb-3 hidden">
+            <div class="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                <span class="text-xs font-medium text-gray-600"><i class="fas fa-warehouse mr-1"></i>Tồn kho nguồn:</span>
+                <span id="stockSummary_${itemIndex}" class="text-sm font-medium"></span>
+            </div>
+        </div>
+        
+        <div id="serialSection_${itemIndex}" class="hidden">
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-xs font-medium text-gray-600">
+                    <i class="fas fa-barcode mr-1"></i>Chọn Serial chuyển
+                </label>
+                <button type="button" onclick="addSerialSelect(${itemIndex})" id="addSerialBtn_${itemIndex}"
+                        class="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
+                    <i class="fas fa-plus mr-1"></i>Thêm Serial
+                </button>
+            </div>
+            <div id="serialContainer_${itemIndex}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+            <p id="serialWarning_${itemIndex}" class="text-xs mt-2 hidden"></p>
+        </div>
     `;
     
     container.appendChild(itemDiv);
+    
+    const currentIdx = itemIndex;
     itemIndex++;
+    
+    if (existingData && existingData.product_id) {
+        setTimeout(async () => {
+            await loadStockInfo(currentIdx);
+            if (existingData.product_item_ids && existingData.product_item_ids.length > 0) {
+                for (const itemId of existingData.product_item_ids) {
+                    addSerialSelectWithValue(currentIdx, itemId);
+                }
+            }
+        }, 100);
+    }
 }
 
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
     if (item) item.remove();
+}
+
+async function loadStockInfo(itemIdx) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    const stockInfoDiv = document.getElementById(`stockInfo_${itemIdx}`);
+    const stockSummary = document.getElementById(`stockSummary_${itemIdx}`);
+    const serialSection = document.getElementById(`serialSection_${itemIdx}`);
+    const serialContainer = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!warehouseId || !productId) {
+        stockInfoDiv.classList.add('hidden');
+        serialSection.classList.add('hidden');
+        return;
+    }
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    
+    if (!stockCache[cacheKey]) {
+        try {
+            const response = await fetch(`/transfers/available-items?product_id=${productId}&warehouse_id=${warehouseId}`);
+            stockCache[cacheKey] = await response.json();
+        } catch (e) {
+            stockCache[cacheKey] = { items: [], noSkuCount: 0 };
+        }
+    }
+    
+    const data = stockCache[cacheKey];
+    const serialItems = data.items || [];
+    const noSkuCount = data.noSkuCount || 0;
+    const totalStock = serialItems.length + noSkuCount;
+    
+    stockInfoDiv.classList.remove('hidden');
+    
+    if (totalStock === 0) {
+        stockSummary.innerHTML = `<span class="text-red-600">Hết hàng</span>`;
+        serialSection.classList.add('hidden');
+    } else {
+        let summaryHtml = `<span class="text-green-600">${totalStock} sản phẩm</span>`;
+        if (serialItems.length > 0) summaryHtml += ` (<span class="text-blue-600">${serialItems.length} có serial</span>`;
+        if (noSkuCount > 0) summaryHtml += serialItems.length > 0 ? `, ` : ` (`;
+        if (noSkuCount > 0) summaryHtml += `<span class="text-gray-600">${noSkuCount} không serial</span>`;
+        if (serialItems.length > 0 || noSkuCount > 0) summaryHtml += `)`;
+        stockSummary.innerHTML = summaryHtml;
+        
+        if (serialItems.length > 0) {
+            serialSection.classList.remove('hidden');
+            serialContainer.innerHTML = '';
+        } else {
+            serialSection.classList.add('hidden');
+        }
+    }
+    
+    validateQuantity(itemIdx);
+}
+
+function onQuantityChange(itemIdx) {
+    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const qty = parseInt(qtyInput.value) || 1;
+    const selects = container.querySelectorAll('.serial-select');
+    
+    while (selects.length > qty) {
+        selects[selects.length - 1].remove();
+    }
+    
+    validateQuantity(itemIdx);
+}
+
+function addSerialSelect(itemIdx) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const qty = parseInt(qtyInput.value) || 1;
+    
+    if (!warehouseId || !productId) return;
+    
+    const currentSelects = container.querySelectorAll('.serial-select').length;
+    if (currentSelects >= qty) {
+        alert(`Số lượng là ${qty}, chỉ được chọn tối đa ${qty} serial!`);
+        return;
+    }
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    
+    if (serialItems.length === 0) return;
+    
+    const selectedSerials = getSelectedSerials(itemIdx);
+    const availableSerials = serialItems.filter(item => !selectedSerials.includes(item.id.toString()));
+    
+    if (availableSerials.length === 0) {
+        alert('Đã chọn hết serial có sẵn!');
+        return;
+    }
+    
+    const selectCount = container.querySelectorAll('.serial-select').length;
+    const selectDiv = document.createElement('div');
+    selectDiv.className = 'serial-select flex gap-1';
+    
+    const options = availableSerials.map(item => `<option value="${item.id}">${item.sku}</option>`).join('');
+    
+    selectDiv.innerHTML = `
+        <select name="items[${itemIdx}][product_item_ids][]" 
+                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
+                onchange="onSerialChange(${itemIdx})">
+            <option value="">-- Chọn serial #${selectCount + 1} --</option>
+            ${options}
+        </select>
+        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
+                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(selectDiv);
+    validateQuantity(itemIdx);
+}
+
+function addSerialSelectWithValue(itemIdx, selectedItemId) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!warehouseId || !productId) return;
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    
+    if (serialItems.length === 0) return;
+    
+    const selectCount = container.querySelectorAll('.serial-select').length;
+    const selectDiv = document.createElement('div');
+    selectDiv.className = 'serial-select flex gap-1';
+    
+    const selectedSerials = getSelectedSerials(itemIdx);
+    const availableSerials = serialItems.filter(item => 
+        !selectedSerials.includes(item.id.toString()) || item.id == selectedItemId
+    );
+    
+    const options = availableSerials.map(item => 
+        `<option value="${item.id}" ${item.id == selectedItemId ? 'selected' : ''}>${item.sku}</option>`
+    ).join('');
+    
+    selectDiv.innerHTML = `
+        <select name="items[${itemIdx}][product_item_ids][]" 
+                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
+                onchange="onSerialChange(${itemIdx})">
+            <option value="">-- Chọn serial #${selectCount + 1} --</option>
+            ${options}
+        </select>
+        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
+                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(selectDiv);
+    updateSerialOptions(itemIdx);
+    validateQuantity(itemIdx);
+}
+
+function onSerialChange(itemIdx) {
+    updateSerialOptions(itemIdx);
+    validateQuantity(itemIdx);
+}
+
+function updateSerialOptions(itemIdx) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!warehouseSelect || !productSelect) return;
+    
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    
+    if (!warehouseId || !productId) return;
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    
+    const selectedSerials = getSelectedSerials(itemIdx);
+    const selects = container.querySelectorAll('select');
+    
+    selects.forEach(select => {
+        const currentValue = select.value;
+        const otherSelected = selectedSerials.filter(id => id !== currentValue);
+        
+        // Rebuild options
+        let optionsHtml = '<option value="">-- Chọn serial --</option>';
+        serialItems.forEach(item => {
+            const isSelected = item.id.toString() === currentValue;
+            const isUsed = otherSelected.includes(item.id.toString());
+            if (!isUsed || isSelected) {
+                optionsHtml += `<option value="${item.id}" ${isSelected ? 'selected' : ''}>${item.sku}</option>`;
+            }
+        });
+        select.innerHTML = optionsHtml;
+    });
+}
+
+function removeSerialSelect(btn, itemIdx) {
+    btn.parentElement.remove();
+    updateSerialOptions(itemIdx);
+    validateQuantity(itemIdx);
+}
+
+function getSelectedSerials(itemIdx) {
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const selects = container.querySelectorAll('select');
+    const selected = [];
+    selects.forEach(select => { if (select.value) selected.push(select.value); });
+    return selected;
+}
+
+function validateQuantity(itemIdx) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
+    const warningEl = document.getElementById(`serialWarning_${itemIdx}`);
+    const addBtn = document.getElementById(`addSerialBtn_${itemIdx}`);
+    
+    if (!warehouseSelect || !productSelect || !qtyInput || !warningEl) return;
+    
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    
+    if (!warehouseId || !productId) return;
+    
+    const qty = parseInt(qtyInput.value) || 1;
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    const noSkuCount = data.noSkuCount || 0;
+    const totalStock = serialItems.length + noSkuCount;
+    
+    const selectedSerials = getSelectedSerials(itemIdx);
+    const selectedCount = selectedSerials.length;
+    const remainingQty = qty - selectedCount;
+    
+    if (addBtn) {
+        if (selectedCount >= qty) {
+            addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+    
+    warningEl.classList.remove('hidden');
+    
+    if (qty > totalStock) {
+        warningEl.className = 'text-xs mt-2 text-red-600';
+        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Số lượng (${qty}) vượt quá tồn kho (${totalStock})!`;
+        qtyInput.classList.add('border-red-500');
+    } else if (remainingQty > noSkuCount && serialItems.length > 0) {
+        const needSerials = remainingQty - noSkuCount;
+        warningEl.className = 'text-xs mt-2 text-yellow-600';
+        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`;
+        qtyInput.classList.remove('border-red-500');
+    } else if (selectedCount > 0) {
+        warningEl.className = 'text-xs mt-2 text-green-600';
+        warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Đã chọn ${selectedCount} serial${remainingQty > 0 ? ', ' + remainingQty + ' không serial' : ''}, đủ số lượng`;
+        qtyInput.classList.remove('border-red-500');
+    } else if (qty <= noSkuCount) {
+        warningEl.className = 'text-xs mt-2 text-green-600';
+        warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Sẽ chuyển ${qty} sản phẩm không serial`;
+        qtyInput.classList.remove('border-red-500');
+    } else {
+        warningEl.classList.add('hidden');
+        qtyInput.classList.remove('border-red-500');
+    }
+}
+
+function validateForm() {
+    const items = document.querySelectorAll('.item-card');
+    let hasError = false;
+    let errorMessages = [];
+    
+    items.forEach((item, idx) => {
+        const itemIndex = item.dataset.index;
+        const warehouseSelect = document.querySelector(`[name="items[${itemIndex}][warehouse_id]"]`);
+        const toWarehouseSelect = document.querySelector(`[name="items[${itemIndex}][to_warehouse_id]"]`);
+        const productSelect = document.querySelector(`[name="items[${itemIndex}][product_id]"]`);
+        const qtyInput = document.querySelector(`[name="items[${itemIndex}][quantity]"]`);
+        
+        if (!warehouseSelect || !toWarehouseSelect || !productSelect || !qtyInput) return;
+        
+        const warehouseId = warehouseSelect.value;
+        const toWarehouseId = toWarehouseSelect.value;
+        const productId = productSelect.value;
+        const qty = parseInt(qtyInput.value) || 0;
+        
+        if (!warehouseId || !toWarehouseId || !productId || qty <= 0) return;
+        
+        if (warehouseId === toWarehouseId) {
+            hasError = true;
+            const productName = productSelect.options[productSelect.selectedIndex].text;
+            errorMessages.push(`Sản phẩm "${productName}": Kho nguồn và kho đích phải khác nhau`);
+            return;
+        }
+        
+        const cacheKey = `${productId}_${warehouseId}`;
+        const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+        const serialItems = data.items || [];
+        const noSkuCount = data.noSkuCount || 0;
+        const totalStock = serialItems.length + noSkuCount;
+        
+        const selectedSerials = getSelectedSerials(itemIndex);
+        const selectedCount = selectedSerials.length;
+        const remainingQty = qty - selectedCount;
+        
+        if (qty > totalStock) {
+            hasError = true;
+            const productName = productSelect.options[productSelect.selectedIndex].text;
+            errorMessages.push(`Sản phẩm "${productName}": Số lượng (${qty}) vượt quá tồn kho (${totalStock})`);
+        }
+        else if (remainingQty > noSkuCount && serialItems.length > 0) {
+            hasError = true;
+            const productName = productSelect.options[productSelect.selectedIndex].text;
+            const needSerials = remainingQty - noSkuCount;
+            errorMessages.push(`Sản phẩm "${productName}": Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`);
+        }
+    });
+    
+    if (hasError) {
+        alert('Không thể lưu phiếu chuyển:\n\n' + errorMessages.join('\n'));
+        return false;
+    }
+    
+    return true;
 }
 
 document.addEventListener('DOMContentLoaded', function() {

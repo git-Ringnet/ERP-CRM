@@ -65,6 +65,7 @@ Route::resource('exports', ExportController::class);
 Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
 
 // Transfer Module Routes (Chuyển kho) - Requirements: 3.3
+Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
 Route::resource('transfers', TransferController::class);
 Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve'])->name('transfers.approve');
 

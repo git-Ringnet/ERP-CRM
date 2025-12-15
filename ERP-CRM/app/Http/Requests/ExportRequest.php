@@ -111,6 +111,34 @@ class ExportRequest extends FormRequest
                     "Sản phẩm '{$productName}': Đã chọn {$selectedCount} serial nhưng số lượng chỉ là {$quantity}"
                 );
             }
+
+            // Check for duplicate serials within same item
+            if (count($selectedSerials) !== count(array_unique($selectedSerials))) {
+                $validator->errors()->add(
+                    "items.{$index}.product_item_ids",
+                    "Sản phẩm '{$productName}': Không được chọn serial trùng nhau"
+                );
+            }
+        }
+
+        // Check for duplicate serials across all items
+        $allSelectedSerials = [];
+        foreach ($items as $index => $item) {
+            $selectedSerials = $item['product_item_ids'] ?? [];
+            $selectedSerials = array_filter($selectedSerials, fn ($id) => !empty($id));
+            
+            foreach ($selectedSerials as $serialId) {
+                if (in_array($serialId, $allSelectedSerials)) {
+                    $product = Product::find($item['product_id'] ?? 0);
+                    $productName = $product ? $product->name : "ID: " . ($item['product_id'] ?? '?');
+                    $validator->errors()->add(
+                        "items.{$index}.product_item_ids",
+                        "Sản phẩm '{$productName}': Serial đã được chọn ở sản phẩm khác"
+                    );
+                    break;
+                }
+                $allSelectedSerials[] = $serialId;
+            }
         }
     }
 

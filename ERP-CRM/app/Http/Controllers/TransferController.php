@@ -35,7 +35,6 @@ class TransferController extends Controller
 
     /**
      * Display a listing of transfer transactions.
-     * Requirements: 3.4 - Display only transfer transactions
      */
     public function index(Request $request)
     {
@@ -43,7 +42,7 @@ class TransferController extends Controller
             ->where('type', 'transfer');
 
         if ($request->filled('warehouse_id')) {
-            $query->where(function($q) use ($request) {
+            $query->where(function ($q) use ($request) {
                 $q->where('warehouse_id', $request->warehouse_id)
                   ->orWhere('to_warehouse_id', $request->warehouse_id);
             });
@@ -88,7 +87,6 @@ class TransferController extends Controller
 
     /**
      * Store a newly created transfer.
-     * Requirements: 3.5, 3.6, 3.7
      */
     public function store(TransferRequest $request)
     {
@@ -140,12 +138,23 @@ class TransferController extends Controller
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
 
-        $existingItems = $transfer->items->map(function($item) {
+        $existingItems = $transfer->items->map(function ($item) use ($transfer) {
+            // Get selected product_item_ids from serial_number JSON
+            $productItemIds = [];
+            if (!empty($item->serial_number)) {
+                $decoded = json_decode($item->serial_number, true);
+                if (is_array($decoded)) {
+                    $productItemIds = $decoded;
+                }
+            }
+
             return [
                 'product_id' => $item->product_id,
+                'warehouse_id' => $transfer->warehouse_id,
+                'to_warehouse_id' => $transfer->to_warehouse_id,
                 'quantity' => $item->quantity,
-                'serial' => $item->serial_number ?? '',
                 'comments' => $item->comments ?? '',
+                'product_item_ids' => $productItemIds,
             ];
         })->toArray();
 
@@ -171,9 +180,13 @@ class TransferController extends Controller
 
             $transfer->items()->delete();
 
+            // Get warehouse_id from first item
+            $warehouseId = $data['items'][0]['warehouse_id'] ?? $transfer->warehouse_id;
+            $toWarehouseId = $data['items'][0]['to_warehouse_id'] ?? $transfer->to_warehouse_id;
+
             $transfer->update([
-                'warehouse_id' => $data['warehouse_id'],
-                'to_warehouse_id' => $data['to_warehouse_id'],
+                'warehouse_id' => $warehouseId,
+                'to_warehouse_id' => $toWarehouseId,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
                 'note' => $data['note'] ?? null,
@@ -181,10 +194,15 @@ class TransferController extends Controller
 
             $totalQty = 0;
             foreach ($data['items'] as $itemData) {
+                // Store selected product_item_ids as JSON (unique values only)
+                $productItemIds = $itemData['product_item_ids'] ?? [];
+                $productItemIds = array_filter($productItemIds, fn ($id) => !empty($id));
+                $productItemIds = array_unique($productItemIds);
+
                 $transfer->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
-                    'serial_number' => $itemData['serial'] ?? null,
+                    'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                     'comments' => $itemData['comments'] ?? null,
                 ]);
                 $totalQty += $itemData['quantity'];
@@ -229,7 +247,6 @@ class TransferController extends Controller
 
     /**
      * Approve a pending transfer.
-     * Requirements: 3.7 - Validate stock before approving
      */
     public function approve(InventoryTransaction $transfer)
     {
@@ -243,19 +260,8 @@ class TransferController extends Controller
         }
 
         try {
-            $this->transactionService->processTransfer([
-                'code' => $transfer->code,
-                'warehouse_id' => $transfer->warehouse_id,
-                'to_warehouse_id' => $transfer->to_warehouse_id,
-                'date' => $transfer->date->format('Y-m-d'),
-                'employee_id' => $transfer->employee_id,
-                'note' => $transfer->note,
-                'items' => $transfer->items->map(fn($item) => [
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'unit' => $item->unit,
-                ])->toArray(),
-            ], $transfer);
+            // Pass existing transaction to processTransfer for approval
+            $this->transactionService->processTransfer([], $transfer);
 
             return redirect()->route('transfers.show', $transfer)
                 ->with('success', 'Duyệt phiếu chuyển kho thành công.');
@@ -263,5 +269,36 @@ class TransferController extends Controller
             return redirect()->back()
                 ->with('error', 'Lỗi khi duyệt: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get available product items (SKUs) for transfer from source warehouse.
+     */
+    public function getAvailableItems(Request $request)
+    {
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'warehouse_id' => 'required|exists:warehouses,id',
+        ]);
+
+        // Get items with real serial (not NOSKU)
+        $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
+            ->where('warehouse_id', $request->warehouse_id)
+            ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->where('sku', 'not like', 'NOSKU%')
+            ->select('id', 'sku', 'cost_usd', 'price_tiers')
+            ->get();
+
+        // Count items without serial (NOSKU)
+        $noSkuCount = ProductItem::where('product_id', $request->product_id)
+            ->where('warehouse_id', $request->warehouse_id)
+            ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->where('sku', 'like', 'NOSKU%')
+            ->count();
+
+        return response()->json([
+            'items' => $itemsWithSerial,
+            'noSkuCount' => $noSkuCount,
+        ]);
     }
 }

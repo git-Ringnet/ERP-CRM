@@ -215,9 +215,10 @@ class TransactionService
                         ->where('warehouse_id', $itemWarehouseId)
                         ->first();
 
-                    // Store selected product_item_ids as JSON
+                    // Store selected product_item_ids as JSON (unique values only)
                     $productItemIds = $item['product_item_ids'] ?? [];
                     $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
+                    $productItemIds = array_unique($productItemIds);
 
                     InventoryTransactionItem::create([
                         'transaction_id' => $transaction->id,
@@ -246,22 +247,52 @@ class TransactionService
                         'subtract'
                     );
 
-                    // Update product items status to 'sold'
-                    // Get product items that are in_stock for this product and warehouse
-                    $productItemIds = $item['product_item_ids'] ?? [];
+                    // Parse product_item_ids from serial_number JSON
+                    $productItemIds = [];
+                    if (!empty($item->serial_number)) {
+                        $decoded = json_decode($item->serial_number, true);
+                        if (is_array($decoded)) {
+                            $productItemIds = $decoded;
+                        }
+                    }
+
+                    // Update selected product items status to 'sold'
                     if (!empty($productItemIds)) {
                         $this->productItemService->updateItemsStatus($productItemIds, ProductItem::STATUS_SOLD);
+                        $remainingQty = $item->quantity - count($productItemIds);
                     } else {
-                        // If no specific items selected, update first available items
-                        $availableItems = ProductItem::where('product_id', $item->product_id)
+                        $remainingQty = $item->quantity;
+                    }
+
+                    // For remaining quantity (not selected serials), update NOSKU items first, then others
+                    if ($remainingQty > 0) {
+                        // First try NOSKU items
+                        $noSkuItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->warehouse_id)
                             ->where('status', ProductItem::STATUS_IN_STOCK)
-                            ->limit($item->quantity)
+                            ->where('sku', 'like', 'NOSKU%')
+                            ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
-                        
-                        if (!empty($availableItems)) {
-                            $this->productItemService->updateItemsStatus($availableItems, ProductItem::STATUS_SOLD);
+
+                        if (!empty($noSkuItems)) {
+                            $this->productItemService->updateItemsStatus($noSkuItems, ProductItem::STATUS_SOLD);
+                            $remainingQty -= count($noSkuItems);
+                        }
+
+                        // If still need more, get any available items
+                        if ($remainingQty > 0) {
+                            $otherItems = ProductItem::where('product_id', $item->product_id)
+                                ->where('warehouse_id', $transaction->warehouse_id)
+                                ->where('status', ProductItem::STATUS_IN_STOCK)
+                                ->whereNotIn('id', array_merge($productItemIds, $noSkuItems))
+                                ->limit($remainingQty)
+                                ->pluck('id')
+                                ->toArray();
+
+                            if (!empty($otherItems)) {
+                                $this->productItemService->updateItemsStatus($otherItems, ProductItem::STATUS_SOLD);
+                            }
                         }
                     }
                 }
@@ -287,14 +318,20 @@ class TransactionService
         try {
             // Get transaction items for validation
             $items = $existingTransaction ? $existingTransaction->items : collect($data['items']);
-            $warehouseId = $existingTransaction ? $existingTransaction->warehouse_id : $data['warehouse_id'];
+            // Get warehouse from first item or existing transaction
+            $sourceWarehouseId = $existingTransaction
+                ? $existingTransaction->warehouse_id
+                : ($data['items'][0]['warehouse_id'] ?? $data['warehouse_id'] ?? null);
+            $destWarehouseId = $existingTransaction
+                ? $existingTransaction->to_warehouse_id
+                : ($data['items'][0]['to_warehouse_id'] ?? $data['to_warehouse_id'] ?? null);
 
             // Validate stock for all items first (only when approving)
             if ($existingTransaction) {
                 foreach ($items as $item) {
                     $productId = is_array($item) ? $item['product_id'] : $item->product_id;
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
-                    if (!$this->validateStock($productId, $warehouseId, $quantity)) {
+                    if (!$this->validateStock($productId, $sourceWarehouseId, $quantity)) {
                         throw new Exception("Insufficient stock for product ID {$productId} in source warehouse");
                     }
                 }
@@ -308,8 +345,8 @@ class TransactionService
                 $transaction = InventoryTransaction::create([
                     'code' => $data['code'] ?? $this->generateTransactionCode('transfer'),
                     'type' => 'transfer',
-                    'warehouse_id' => $data['warehouse_id'],
-                    'to_warehouse_id' => $data['to_warehouse_id'],
+                    'warehouse_id' => $sourceWarehouseId,
+                    'to_warehouse_id' => $destWarehouseId,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'total_qty' => 0,
@@ -324,20 +361,28 @@ class TransactionService
 
             // Process items (only create if new transaction)
             if (!$existingTransaction) {
+
                 foreach ($data['items'] as $item) {
                     // Get current inventory to record cost
+                    $itemWarehouseId = $item['warehouse_id'] ?? $sourceWarehouseId;
                     $inventory = Inventory::where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $data['warehouse_id'])
+                        ->where('warehouse_id', $itemWarehouseId)
                         ->first();
 
                     $cost = $inventory ? $inventory->avg_cost : 0;
+
+                    // Store selected product_item_ids as JSON (unique values only)
+                    $productItemIds = $item['product_item_ids'] ?? [];
+                    $productItemIds = array_filter($productItemIds, fn ($id) => !empty($id));
+                    $productItemIds = array_unique($productItemIds);
 
                     InventoryTransactionItem::create([
                         'transaction_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
-                        'serial_number' => $item['serial_number'] ?? null,
+                        'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
+                        'comments' => $item['comments'] ?? null,
                         'cost' => $cost,
                     ]);
                     $totalQty += $item['quantity'];
@@ -371,14 +416,40 @@ class TransactionService
                         'add'
                     );
 
-                    // Update product items - change warehouse and status
-                    $productItemIds = $item['product_item_ids'] ?? [];
+                    // Parse product_item_ids from serial_number JSON
+                    $productItemIds = [];
+                    if (!empty($item->serial_number)) {
+                        $decoded = json_decode($item->serial_number, true);
+                        if (is_array($decoded)) {
+                            $productItemIds = $decoded;
+                        }
+                    }
+
+                    // Update selected product items - change warehouse
                     if (!empty($productItemIds)) {
                         ProductItem::whereIn('id', $productItemIds)
                             ->update([
                                 'warehouse_id' => $transaction->to_warehouse_id,
-                                'status' => ProductItem::STATUS_TRANSFERRED,
                             ]);
+                    }
+
+                    // For remaining quantity (not selected serials), transfer NOSKU items
+                    $remainingQty = $item->quantity - count($productItemIds);
+                    if ($remainingQty > 0) {
+                        $noSkuItems = ProductItem::where('product_id', $item->product_id)
+                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->where('sku', 'like', 'NOSKU%')
+                            ->limit($remainingQty)
+                            ->pluck('id')
+                            ->toArray();
+
+                        if (!empty($noSkuItems)) {
+                            ProductItem::whereIn('id', $noSkuItems)
+                                ->update([
+                                    'warehouse_id' => $transaction->to_warehouse_id,
+                                ]);
+                        }
                     }
 
                     // Update average cost in destination warehouse

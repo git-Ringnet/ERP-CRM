@@ -199,9 +199,10 @@ class ExportController extends Controller
 
             $totalQty = 0;
             foreach ($data['items'] as $itemData) {
-                // Store selected product_item_ids as JSON
+                // Store selected product_item_ids as JSON (unique values only)
                 $productItemIds = $itemData['product_item_ids'] ?? [];
                 $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
+                $productItemIds = array_unique($productItemIds);
 
                 $export->items()->create([
                     'product_id' => $itemData['product_id'],

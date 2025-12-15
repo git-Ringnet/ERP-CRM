@@ -285,7 +285,7 @@ function addSerialSelect(itemIdx) {
     selectDiv.innerHTML = `
         <select name="items[${itemIdx}][product_item_ids][]" 
                 class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
-                onchange="validateQuantity(${itemIdx})">
+                onchange="onSerialChange(${itemIdx})">
             <option value="">-- Chọn serial #${selectCount + 1} --</option>
             ${options}
         </select>
@@ -298,8 +298,50 @@ function addSerialSelect(itemIdx) {
     validateQuantity(itemIdx);
 }
 
+function onSerialChange(itemIdx) {
+    updateSerialOptions(itemIdx);
+    validateQuantity(itemIdx);
+}
+
+function updateSerialOptions(itemIdx) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!warehouseSelect || !productSelect) return;
+    
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    
+    if (!warehouseId || !productId) return;
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    
+    const selectedSerials = getSelectedSerials(itemIdx);
+    const selects = container.querySelectorAll('select');
+    
+    selects.forEach(select => {
+        const currentValue = select.value;
+        const otherSelected = selectedSerials.filter(id => id !== currentValue);
+        
+        // Rebuild options
+        let optionsHtml = '<option value="">-- Chọn serial --</option>';
+        serialItems.forEach(item => {
+            const isSelected = item.id.toString() === currentValue;
+            const isUsed = otherSelected.includes(item.id.toString());
+            if (!isUsed || isSelected) {
+                optionsHtml += `<option value="${item.id}" ${isSelected ? 'selected' : ''}>${item.sku}</option>`;
+            }
+        });
+        select.innerHTML = optionsHtml;
+    });
+}
+
 function removeSerialSelect(btn, itemIdx) {
     btn.parentElement.remove();
+    updateSerialOptions(itemIdx);
     validateQuantity(itemIdx);
 }
 
