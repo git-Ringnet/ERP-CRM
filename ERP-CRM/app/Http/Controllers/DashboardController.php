@@ -68,11 +68,72 @@ class DashboardController extends Controller
         // Since stock is now tracked in product_items, we need to calculate differently
         $lowStockProducts = 0; // TODO: Implement low stock logic with new product_items structure
 
-        // Get recent activities (last 10 records from each entity)
+        // Additional inventory statistics
+        $totalWarehouses = DB::table('warehouses')->count();
+        $totalInventoryValue = DB::table('inventories')->sum(DB::raw('stock * avg_cost'));
+        $totalProductItems = DB::table('product_items')->where('status', 'in_stock')->count();
+        
+        // Transaction statistics
+        $totalTransactions = DB::table('inventory_transactions')->count();
+        $pendingTransactions = DB::table('inventory_transactions')->where('status', 'pending')->count();
+        $todayTransactions = DB::table('inventory_transactions')
+            ->whereDate('created_at', today())
+            ->count();
+        
+        // This month statistics
+        $thisMonthImports = DB::table('inventory_transactions')
+            ->where('type', 'import')
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->count();
+        $thisMonthExports = DB::table('inventory_transactions')
+            ->where('type', 'export')
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->count();
+        $thisMonthTransfers = DB::table('inventory_transactions')
+            ->where('type', 'transfer')
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->count();
+        
+        // Transaction by type for pie chart
+        $transactionsByType = [
+            'import' => DB::table('inventory_transactions')->where('type', 'import')->count(),
+            'export' => DB::table('inventory_transactions')->where('type', 'export')->count(),
+            'transfer' => DB::table('inventory_transactions')->where('type', 'transfer')->count(),
+        ];
+        
+        // Transactions last 7 days for line chart
+        $transactionsLast7Days = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $transactionsLast7Days[$date] = DB::table('inventory_transactions')
+                ->whereDate('date', $date)
+                ->count();
+        }
+        
+        // Stock by warehouse for bar chart
+        $stockByWarehouse = DB::table('inventories')
+            ->join('warehouses', 'inventories.warehouse_id', '=', 'warehouses.id')
+            ->select('warehouses.name', DB::raw('SUM(inventories.stock) as total_stock'))
+            ->groupBy('warehouses.id', 'warehouses.name')
+            ->orderBy('total_stock', 'desc')
+            ->limit(5)
+            ->get()
+            ->mapWithKeys(function ($item) {
+                return [$item->name => (int) $item->total_stock];
+            })
+            ->toArray();
+
+        // Get recent activities with pagination (5 per page)
+        $page = request()->get('activity_page', 1);
+        $perPage = 5;
+        
         $recentCustomers = DB::table('customers')
             ->select('name', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(20)
             ->get()
             ->map(function ($item) {
                 return [
@@ -85,7 +146,7 @@ class DashboardController extends Controller
         $recentSuppliers = DB::table('suppliers')
             ->select('name', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(20)
             ->get()
             ->map(function ($item) {
                 return [
@@ -99,7 +160,7 @@ class DashboardController extends Controller
             ->whereNotNull('employee_code')
             ->select('name', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(20)
             ->get()
             ->map(function ($item) {
                 return [
@@ -112,7 +173,7 @@ class DashboardController extends Controller
         $recentProducts = DB::table('products')
             ->select('name', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(20)
             ->get()
             ->map(function ($item) {
                 return [
@@ -121,16 +182,33 @@ class DashboardController extends Controller
                     'created_at' => $item->created_at
                 ];
             });
+        
+        $recentTransactions = DB::table('inventory_transactions')
+            ->select('code as name', 'type', 'created_at')
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'type' => 'transaction_' . $item->type,
+                    'name' => $item->name,
+                    'created_at' => $item->created_at
+                ];
+            });
 
         // Merge and sort all recent activities
-        $recentActivities = collect()
+        $allActivities = collect()
             ->merge($recentCustomers)
             ->merge($recentSuppliers)
             ->merge($recentEmployees)
             ->merge($recentProducts)
+            ->merge($recentTransactions)
             ->sortByDesc('created_at')
-            ->take(10)
             ->values();
+        
+        $totalActivities = $allActivities->count();
+        $totalActivityPages = ceil($totalActivities / $perPage);
+        $recentActivities = $allActivities->forPage($page, $perPage);
 
         return view('dashboard.index', compact(
             'totalCustomers',
@@ -139,13 +217,26 @@ class DashboardController extends Controller
             'totalProducts',
             'customersByType',
             'employeesByDepartment',
-            'productsByType',
             'recentActivities',
             'vipCustomers',
             'normalCustomers',
             'vipPercentage',
             'activeEmployees',
-            'lowStockProducts'
+            'totalWarehouses',
+            'totalInventoryValue',
+            'totalProductItems',
+            'totalTransactions',
+            'pendingTransactions',
+            'todayTransactions',
+            'thisMonthImports',
+            'thisMonthExports',
+            'thisMonthTransfers',
+            'transactionsByType',
+            'transactionsLast7Days',
+            'stockByWarehouse',
+            'totalActivities',
+            'totalActivityPages',
+            'page'
         ));
     }
 }

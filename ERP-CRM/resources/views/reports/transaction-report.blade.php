@@ -106,8 +106,11 @@
 
     <!-- Detailed Transactions -->
     <div class="bg-white rounded-lg shadow-sm">
-        <div class="p-4 border-b border-gray-200">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-900">Chi Tiết Giao Dịch</h3>
+            <span class="text-sm text-gray-500">
+                Hiển thị {{ $transactions->firstItem() ?? 0 }} - {{ $transactions->lastItem() ?? 0 }} / {{ $transactions->total() }} giao dịch
+            </span>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -155,7 +158,7 @@
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $transaction->date->format('d/m/Y') }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($transaction->total_qty, 2) }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $transaction->employee->name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">{{ $transaction->employee->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">
                                 @if($transaction->status === 'completed')
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{{ $transaction->status_label }}</span>
@@ -174,6 +177,13 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination -->
+        @if($transactions->hasPages())
+        <div class="p-4 border-t border-gray-200">
+            {{ $transactions->links() }}
+        </div>
+        @endif
     </div>
 </div>
 @endsection

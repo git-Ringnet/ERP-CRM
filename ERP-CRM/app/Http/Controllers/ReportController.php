@@ -96,17 +96,18 @@ class ReportController extends Controller
             $query->whereBetween('date', [$request->start_date, $request->end_date]);
         }
 
-        $transactions = $query->latest('date')->get();
+        // Get all for statistics (without pagination)
+        $allTransactions = (clone $query)->latest('date')->get();
 
         // Calculate summary statistics
-        $totalTransactions = $transactions->count();
-        $importCount = $transactions->where('type', 'import')->count();
-        $exportCount = $transactions->where('type', 'export')->count();
-        $transferCount = $transactions->where('type', 'transfer')->count();
-        $totalQuantity = $transactions->sum('total_qty');
+        $totalTransactions = $allTransactions->count();
+        $importCount = $allTransactions->where('type', 'import')->count();
+        $exportCount = $allTransactions->where('type', 'export')->count();
+        $transferCount = $allTransactions->where('type', 'transfer')->count();
+        $totalQuantity = $allTransactions->sum('total_qty');
 
         // Group by type
-        $byType = $transactions->groupBy('type')->map(function ($items, $type) {
+        $byType = $allTransactions->groupBy('type')->map(function ($items, $type) {
             return [
                 'count' => $items->count(),
                 'total_qty' => $items->sum('total_qty'),
@@ -114,7 +115,7 @@ class ReportController extends Controller
         });
 
         // Group by date (daily)
-        $byDate = $transactions->groupBy(function ($item) {
+        $byDate = $allTransactions->groupBy(function ($item) {
             return $item->date->format('Y-m-d');
         })->map(function ($items) {
             return [
@@ -122,6 +123,9 @@ class ReportController extends Controller
                 'total_qty' => $items->sum('total_qty'),
             ];
         })->sortKeys();
+
+        // Paginate transactions for detail table (10 per page)
+        $transactions = $query->latest('date')->paginate(10)->withQueryString();
 
         $warehouses = Warehouse::orderBy('name')->get();
 
