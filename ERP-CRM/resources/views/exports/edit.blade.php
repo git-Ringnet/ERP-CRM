@@ -174,7 +174,15 @@ function addItem(existingData = null) {
     itemIndex++;
     
     if (existingData && existingData.product_id) {
-        setTimeout(() => loadStockInfo(currentIdx), 100);
+        setTimeout(async () => {
+            await loadStockInfo(currentIdx);
+            // Load existing selected serials
+            if (existingData.product_item_ids && existingData.product_item_ids.length > 0) {
+                for (const itemId of existingData.product_item_ids) {
+                    addSerialSelectWithValue(currentIdx, itemId);
+                }
+            }
+        }, 100);
     }
 }
 
@@ -307,6 +315,46 @@ function addSerialSelect(itemIdx) {
 
 function removeSerialSelect(btn, itemIdx) {
     btn.parentElement.remove();
+    validateQuantity(itemIdx);
+}
+
+// Add serial select with pre-selected value (for edit mode)
+function addSerialSelectWithValue(itemIdx, selectedItemId) {
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const warehouseId = warehouseSelect.value;
+    const productId = productSelect.value;
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!warehouseId || !productId) return;
+    
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const serialItems = data.items || [];
+    
+    if (serialItems.length === 0) return;
+    
+    const selectCount = container.querySelectorAll('.serial-select').length;
+    const selectDiv = document.createElement('div');
+    selectDiv.className = 'serial-select flex gap-1';
+    
+    const options = serialItems.map(item => 
+        `<option value="${item.id}" ${item.id == selectedItemId ? 'selected' : ''}>${item.sku}</option>`
+    ).join('');
+    
+    selectDiv.innerHTML = `
+        <select name="items[${itemIdx}][product_item_ids][]" 
+                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
+                onchange="validateQuantity(${itemIdx})">
+            <option value="">-- Chọn serial #${selectCount + 1} --</option>
+            ${options}
+        </select>
+        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
+                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(selectDiv);
     validateQuantity(itemIdx);
 }
 

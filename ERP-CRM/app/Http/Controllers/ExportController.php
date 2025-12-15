@@ -147,11 +147,21 @@ class ExportController extends Controller
         $employees = User::whereNotNull('employee_code')->get();
 
         $existingItems = $export->items->map(function ($item) use ($export) {
+            // Get selected product_item_ids from serial_number JSON
+            $productItemIds = [];
+            if (!empty($item->serial_number)) {
+                $decoded = json_decode($item->serial_number, true);
+                if (is_array($decoded)) {
+                    $productItemIds = $decoded;
+                }
+            }
+
             return [
                 'product_id' => $item->product_id,
                 'warehouse_id' => $export->warehouse_id,
                 'quantity' => $item->quantity,
                 'comments' => $item->comments ?? '',
+                'product_item_ids' => $productItemIds,
             ];
         })->toArray();
 
@@ -189,9 +199,14 @@ class ExportController extends Controller
 
             $totalQty = 0;
             foreach ($data['items'] as $itemData) {
+                // Store selected product_item_ids as JSON
+                $productItemIds = $itemData['product_item_ids'] ?? [];
+                $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
+
                 $export->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
+                    'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                     'comments' => $itemData['comments'] ?? null,
                 ]);
                 $totalQty += $itemData['quantity'];

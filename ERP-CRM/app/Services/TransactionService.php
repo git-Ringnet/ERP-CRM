@@ -215,12 +215,17 @@ class TransactionService
                         ->where('warehouse_id', $itemWarehouseId)
                         ->first();
 
+                    // Store selected product_item_ids as JSON
+                    $productItemIds = $item['product_item_ids'] ?? [];
+                    $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
+
                     InventoryTransactionItem::create([
                         'transaction_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
-                        'serial_number' => $item['serial_number'] ?? null,
+                        // Store selected serial IDs as JSON
+                        'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                         'comments' => $item['comments'] ?? null,
                         'cost' => $inventory ? $inventory->avg_cost : 0,
                     ]);

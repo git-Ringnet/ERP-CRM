@@ -94,10 +94,26 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($export->items as $item)
                         @php
-                            // Get exported product items (serials) for this item
-                            $exportedSerials = $exportedItems[$item->product_id] ?? collect();
-                            $serialsWithSku = $exportedSerials->filter(fn($pi) => !Str::startsWith($pi->sku, 'NOSKU'));
-                            $noSkuCount = $exportedSerials->filter(fn($pi) => Str::startsWith($pi->sku, 'NOSKU'))->count();
+                            // Get serials: from serial_number JSON (pending) or ProductItem (completed)
+                            $serialsWithSku = collect();
+                            $noSkuCount = 0;
+                            
+                            if ($export->status === 'completed') {
+                                // Completed: get from ProductItem
+                                $exportedSerials = $exportedItems[$item->product_id] ?? collect();
+                                $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));
+                                $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU'))->count();
+                            } else {
+                                // Pending: get from serial_number JSON (stores product_item_ids)
+                                if (!empty($item->serial_number)) {
+                                    $productItemIds = json_decode($item->serial_number, true);
+                                    if (is_array($productItemIds) && !empty($productItemIds)) {
+                                        $serialsWithSku = \App\Models\ProductItem::whereIn('id', $productItemIds)->get();
+                                    }
+                                }
+                                // Calculate noSkuCount for pending
+                                $noSkuCount = $item->quantity - $serialsWithSku->count();
+                            }
                         @endphp
                         <tr>
                             <td class="px-4 py-3">
