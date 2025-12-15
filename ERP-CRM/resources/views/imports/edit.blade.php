@@ -78,9 +78,7 @@
                 </button>
             </div>
 
-            <div id="itemsContainer" class="space-y-4">
-                <!-- Pre-populated items will be added here -->
-            </div>
+            <div id="itemsContainer" class="space-y-4"></div>
         </div>
 
         <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
@@ -109,7 +107,7 @@ function addItem(existingData = null) {
     itemDiv.dataset.index = itemIndex;
     
     const productOptions = products.map(p => 
-        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.name} (${p.code})</option>`
+        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
     ).join('');
     
     itemDiv.innerHTML = `
@@ -121,112 +119,53 @@ function addItem(existingData = null) {
             </button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
+            <div class="md:col-span-5">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Mã sản phẩm *</label>
                 <select name="items[${itemIndex}][product_id]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
                     <option value="">-- Chọn sản phẩm --</option>
                     ${productOptions}
                 </select>
             </div>
-            <div>
+            <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
-                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : ''}" 
-                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="0">
+                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
+                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                       placeholder="1" onchange="updateSerialInfo(${itemIndex})">
             </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn vị</label>
-                <input type="text" name="items[${itemIndex}][unit]" value="${existingData ? existingData.unit || '' : ''}"
-                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Cái, Hộp...">
-            </div>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Giá nhập (USD)</label>
-                <input type="number" name="items[${itemIndex}][cost_usd]" value="${existingData && existingData.cost_usd ? existingData.cost_usd : ''}" 
-                       min="0" step="0.01" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="0.00">
-            </div>
-            <div>
-                <div class="flex justify-between items-center mb-2">
-                    <label class="block text-xs font-medium text-gray-600">
-                        <i class="fas fa-barcode mr-1"></i>Danh sách SKU
-                    </label>
-                    <button type="button" onclick="addSkuField(${itemIndex})" 
-                            class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
-                        <i class="fas fa-plus mr-1"></i>Thêm SKU
-                    </button>
-                </div>
-                <div id="skuContainer_${itemIndex}" class="space-y-2"></div>
-            </div>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Mô tả</label>
-                <input type="text" name="items[${itemIndex}][description]" value="${existingData ? existingData.description || '' : ''}"
-                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Mô tả...">
-            </div>
-            <div>
+            <div class="md:col-span-5">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
                 <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
             </div>
-            <div>
-                <div class="flex justify-between items-center mb-2">
-                    <label class="block text-xs font-medium text-gray-600">
-                        <i class="fas fa-tags mr-1"></i>Gói giá
-                    </label>
-                    <button type="button" onclick="addPriceTier(${itemIndex})" 
-                            class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
-                        <i class="fas fa-plus mr-1"></i>Thêm gói
-                    </button>
-                </div>
-                <div id="priceTiersContainer_${itemIndex}" class="space-y-2"></div>
+        </div>
+        
+        <div>
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-xs font-medium text-gray-600">
+                    <i class="fas fa-barcode mr-1"></i>Danh sách Serial
+                </label>
+                <button type="button" onclick="addSerialField(${itemIndex})" 
+                        class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
+                    <i class="fas fa-plus mr-1"></i>Thêm Serial
+                </button>
             </div>
+            <div id="serialContainer_${itemIndex}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            </div>
+            <p id="serialInfo_${itemIndex}" class="text-xs text-gray-500 mt-2"></p>
         </div>
     `;
     
     container.appendChild(itemDiv);
     
-    // Load existing SKUs if available
-    if (existingData && existingData.skus && existingData.skus.length > 0) {
-        existingData.skus.forEach(sku => {
-            const skuContainer = document.getElementById(`skuContainer_${itemIndex}`);
-            const skuDiv = document.createElement('div');
-            skuDiv.className = 'sku-field flex gap-2';
-            skuDiv.innerHTML = `
-                <input type="text" name="items[${itemIndex}][skus][]" value="${sku}"
-                       class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="SKU">
-                <button type="button" onclick="this.parentElement.remove()" 
-                        class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-            skuContainer.appendChild(skuDiv);
+    // Load existing serials
+    if (existingData && existingData.serials && existingData.serials.length > 0) {
+        existingData.serials.forEach(serial => {
+            addSerialFieldWithValue(itemIndex, serial);
         });
     }
     
-    // Load existing price tiers if available
-    if (existingData && existingData.price_tiers && Array.isArray(existingData.price_tiers)) {
-        existingData.price_tiers.forEach((tier, idx) => {
-            const tierContainer = document.getElementById(`priceTiersContainer_${itemIndex}`);
-            const tierDiv = document.createElement('div');
-            tierDiv.className = 'price-tier-field flex gap-2';
-            tierDiv.innerHTML = `
-                <input type="text" name="items[${itemIndex}][price_tiers][${idx}][name]" value="${tier.name || ''}"
-                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="1yr">
-                <input type="number" name="items[${itemIndex}][price_tiers][${idx}][price]" value="${tier.price || ''}"
-                       min="0" step="0.01" class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Giá USD">
-                <button type="button" onclick="this.parentElement.remove()" 
-                        class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-            tierContainer.appendChild(tierDiv);
-        });
-    }
-    
+    updateSerialInfo(itemIndex);
     itemIndex++;
 }
 
@@ -235,52 +174,64 @@ function removeItem(index) {
     if (item) item.remove();
 }
 
-function addSkuField(itemIdx) {
-    const container = document.getElementById(`skuContainer_${itemIdx}`);
-    const skuCount = container.querySelectorAll('.sku-field').length;
-    const skuDiv = document.createElement('div');
-    skuDiv.className = 'sku-field flex gap-2';
-    skuDiv.innerHTML = `
-        <input type="text" name="items[${itemIdx}][skus][]" 
-               class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="SKU #${skuCount + 1}">
-        <button type="button" onclick="this.parentElement.remove()" 
+function addSerialField(itemIdx) {
+    addSerialFieldWithValue(itemIdx, '');
+}
+
+function addSerialFieldWithValue(itemIdx, value) {
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const serialCount = container.querySelectorAll('.serial-field').length;
+    const serialDiv = document.createElement('div');
+    serialDiv.className = 'serial-field flex gap-1';
+    serialDiv.innerHTML = `
+        <input type="text" name="items[${itemIdx}][serials][]" value="${value}"
+               class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
+               placeholder="Serial #${serialCount + 1}" onchange="updateSerialInfo(${itemIdx})">
+        <button type="button" onclick="removeSerialField(this, ${itemIdx})" 
                 class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
             <i class="fas fa-times"></i>
         </button>
     `;
-    container.appendChild(skuDiv);
+    container.appendChild(serialDiv);
+    updateSerialInfo(itemIdx);
 }
 
-function addPriceTier(itemIdx) {
-    const container = document.getElementById(`priceTiersContainer_${itemIdx}`);
-    const tierCount = container.querySelectorAll('.price-tier-field').length;
-    const tierDiv = document.createElement('div');
-    tierDiv.className = 'price-tier-field flex gap-2';
-    tierDiv.innerHTML = `
-        <input type="text" name="items[${itemIdx}][price_tiers][${tierCount}][name]" 
-               class="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded" 
-               placeholder="1yr" value="${tierCount + 1}yr">
-        <input type="number" name="items[${itemIdx}][price_tiers][${tierCount}][price]" 
-               min="0" step="0.01" class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded" 
-               placeholder="Giá USD">
-        <button type="button" onclick="this.parentElement.remove()" 
-                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    container.appendChild(tierDiv);
+function removeSerialField(btn, itemIdx) {
+    btn.parentElement.remove();
+    updateSerialInfo(itemIdx);
 }
 
-// Load existing items on page load
-document.addEventListener('DOMContentLoaded', function() {
-    existingItems.forEach(item => {
-        addItem(item);
+function updateSerialInfo(itemIdx) {
+    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
+    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const infoEl = document.getElementById(`serialInfo_${itemIdx}`);
+    
+    if (!qtyInput || !container || !infoEl) return;
+    
+    const qty = parseInt(qtyInput.value) || 1;
+    const serialInputs = container.querySelectorAll('input[type="text"]');
+    let filledSerials = 0;
+    serialInputs.forEach(input => {
+        if (input.value.trim()) filledSerials++;
     });
     
-    // Add one empty item if no existing items
-    if (existingItems.length === 0) {
-        addItem();
+    const noSkuCount = Math.max(0, qty - filledSerials);
+    
+    if (filledSerials > qty) {
+        infoEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1 text-yellow-600"></i>
+            <span class="text-yellow-600">Cảnh báo: Số serial (${filledSerials}) nhiều hơn số lượng (${qty})</span>`;
+    } else if (noSkuCount > 0) {
+        infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
+            Số lượng: ${qty}, Serial: ${filledSerials} → <span class="text-blue-600">${noSkuCount} sản phẩm sẽ tạo mã tạm</span>`;
+    } else {
+        infoEl.innerHTML = `<i class="fas fa-check-circle mr-1 text-green-600"></i>
+            <span class="text-green-600">Đủ serial cho ${qty} sản phẩm</span>`;
     }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    existingItems.forEach(item => addItem(item));
+    if (existingItems.length === 0) addItem();
 });
 </script>
 @endpush

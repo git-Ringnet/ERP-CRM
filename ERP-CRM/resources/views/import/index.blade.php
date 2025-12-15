@@ -61,12 +61,12 @@
                             Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. File mẫu bao gồm hướng dẫn chi tiết và ví dụ.
                         </p>
                         <div class="flex gap-3">
-                            <a href="{{ route('import.template', 'products') }}" 
+                            <a href="{{ route('excel-import.template', 'products') }}" 
                                class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                                 <i class="fas fa-download mr-2"></i>
                                 Mẫu Sản phẩm
                             </a>
-                            <a href="{{ route('import.template', 'inventory') }}" 
+                            <a href="{{ route('excel-import.template', 'inventory') }}" 
                                class="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                                 <i class="fas fa-download mr-2"></i>
                                 Mẫu Kho hàng
@@ -77,7 +77,7 @@
             </div>
 
             <!-- File Upload Form -->
-            <form action="{{ route('import.process') }}" method="POST" enctype="multipart/form-data" id="importForm">
+            <form action="{{ route('excel-import.preview') }}" method="POST" enctype="multipart/form-data" id="importForm">
                 @csrf
                 <input type="hidden" name="type" id="importTypeInput" value="products">
 

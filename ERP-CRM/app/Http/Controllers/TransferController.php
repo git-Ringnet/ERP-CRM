@@ -144,7 +144,8 @@ class TransferController extends Controller
             return [
                 'product_id' => $item->product_id,
                 'quantity' => $item->quantity,
-                'unit' => $item->unit ?? '',
+                'serial' => $item->serial_number ?? '',
+                'comments' => $item->comments ?? '',
             ];
         })->toArray();
 
@@ -183,7 +184,8 @@ class TransferController extends Controller
                 $transfer->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
-                    'unit' => $itemData['unit'] ?? null,
+                    'serial_number' => $itemData['serial'] ?? null,
+                    'comments' => $itemData['comments'] ?? null,
                 ]);
                 $totalQty += $itemData['quantity'];
             }

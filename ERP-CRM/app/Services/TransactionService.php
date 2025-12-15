@@ -66,50 +66,61 @@ class TransactionService
 
             $totalQty = 0;
 
-            // Process items (only create if new transaction)
+            // Process items (only create transaction items if new transaction)
             if (!$existingTransaction) {
                 foreach ($data['items'] as $item) {
+                    // Support both 'serials' and 'skus' keys for compatibility
+                    $serials = $item['serials'] ?? $item['skus'] ?? [];
+                    // Filter out empty serials
+                    $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
+
                     InventoryTransactionItem::create([
                         'transaction_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
-                        'serial_number' => $item['serial_number'] ?? null,
+                        // Store serials as JSON for later use when approving
+                        'serial_number' => !empty($serials) ? json_encode($serials) : null,
                         'cost' => $item['cost'] ?? $item['cost_usd'] ?? 0,
                         'description' => $item['description'] ?? null,
                         'comments' => $item['comments'] ?? null,
                     ]);
                     $totalQty += $item['quantity'];
 
-                    // Create product items with SKUs (only if create_product_items flag is set or skus provided)
-                    // Requirements: 4.2, 4.3, 7.1
-                    $createProductItems = $item['create_product_items'] ?? !empty($item['skus']) ?? false;
-                    
-                    if ($createProductItems) {
-                        $skus = $item['skus'] ?? [];
-                        $priceData = [
-                            'description' => $item['description'] ?? null,
-                            'cost_usd' => $item['cost_usd'] ?? $item['cost'] ?? 0,
-                            'price_tiers' => $item['price_tiers'] ?? null,
-                            'comments' => $item['comments'] ?? null,
-                        ];
-
-                        $this->productItemService->createItemsFromImport(
-                            $item['product_id'],
-                            $item['quantity'],
-                            $skus,
-                            $priceData,
-                            $data['warehouse_id'],
-                            $transaction->id
-                        );
-                    }
+                    // NOTE: ProductItem will be created when transaction is APPROVED, not here
                 }
                 $transaction->update(['total_qty' => $totalQty]);
             }
 
-            // Update inventory when approving
+            // Create ProductItems and update inventory when approving
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
+                    // Parse serials from JSON stored in serial_number
+                    $serials = [];
+                    if (!empty($item->serial_number)) {
+                        $decoded = json_decode($item->serial_number, true);
+                        if (is_array($decoded)) {
+                            $serials = $decoded;
+                        } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
+                            // Single serial stored as string
+                            $serials = [$item->serial_number];
+                        }
+                    }
+
+                    // Create product items with serials
+                    $priceData = [
+                        'comments' => $item->comments ?? null,
+                    ];
+
+                    $this->productItemService->createItemsFromImport(
+                        $item->product_id,
+                        $item->quantity,
+                        $serials,
+                        $priceData,
+                        $transaction->warehouse_id,
+                        $transaction->id
+                    );
+
                     // Update inventory - add stock
                     $this->inventoryService->updateStock(
                         $item->product_id,
@@ -155,14 +166,19 @@ class TransactionService
         try {
             // Get transaction items for validation
             $items = $existingTransaction ? $existingTransaction->items : collect($data['items']);
-            $warehouseId = $existingTransaction ? $existingTransaction->warehouse_id : $data['warehouse_id'];
+
+            // Get warehouse_id from first item or existing transaction
+            $warehouseId = $existingTransaction
+                ? $existingTransaction->warehouse_id
+                : ($data['warehouse_id'] ?? $data['items'][0]['warehouse_id'] ?? null);
 
             // Validate stock for all items first (only when approving)
             if ($existingTransaction) {
                 foreach ($items as $item) {
                     $productId = is_array($item) ? $item['product_id'] : $item->product_id;
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
-                    if (!$this->validateStock($productId, $warehouseId, $quantity)) {
+                    $itemWarehouseId = is_array($item) ? ($item['warehouse_id'] ?? $warehouseId) : $warehouseId;
+                    if (!$this->validateStock($productId, $itemWarehouseId, $quantity)) {
                         throw new Exception("Insufficient stock for product ID {$productId}");
                     }
                 }
@@ -176,7 +192,7 @@ class TransactionService
                 $transaction = InventoryTransaction::create([
                     'code' => $data['code'] ?? $this->generateTransactionCode('export'),
                     'type' => 'export',
-                    'warehouse_id' => $data['warehouse_id'],
+                    'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'total_qty' => 0,
@@ -192,9 +208,11 @@ class TransactionService
             // Process items (only create if new transaction)
             if (!$existingTransaction) {
                 foreach ($data['items'] as $item) {
+                    $itemWarehouseId = $item['warehouse_id'] ?? $warehouseId;
+
                     // Get current inventory to record cost
                     $inventory = Inventory::where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $data['warehouse_id'])
+                        ->where('warehouse_id', $itemWarehouseId)
                         ->first();
 
                     InventoryTransactionItem::create([
@@ -203,6 +221,7 @@ class TransactionService
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         'serial_number' => $item['serial_number'] ?? null,
+                        'comments' => $item['comments'] ?? null,
                         'cost' => $inventory ? $inventory->avg_cost : 0,
                     ]);
                     $totalQty += $item['quantity'];

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
+use App\Models\ProductItem;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -18,27 +20,107 @@ class ExportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'warehouse_id' => 'required|exists:warehouses,id',
             'date' => 'required|date',
             'employee_id' => 'nullable|exists:users,id',
             'note' => 'nullable|string|max:1000',
-            
+
+            // Items validation - warehouse_id per item
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit' => 'nullable|string|max:20',
+            'items.*.comments' => 'nullable|string|max:500',
             'items.*.product_item_ids' => 'nullable|array',
             'items.*.product_item_ids.*' => 'nullable|exists:product_items,id',
         ];
     }
 
+    /**
+     * Configure the validator instance.
+     */
+    public function withValidator($validator)
+    {
+        $validator->after(function ($validator) {
+            $this->validateStockAndSerials($validator);
+        });
+    }
+
+    /**
+     * Validate stock availability and serial requirements
+     */
+    protected function validateStockAndSerials($validator)
+    {
+        $items = $this->input('items', []);
+
+        foreach ($items as $index => $item) {
+            $productId = $item['product_id'] ?? null;
+            $warehouseId = $item['warehouse_id'] ?? null;
+            $quantity = (int) ($item['quantity'] ?? 0);
+            $selectedSerials = $item['product_item_ids'] ?? [];
+
+            if (!$productId || !$warehouseId || $quantity <= 0) {
+                continue;
+            }
+
+            // Filter out empty values
+            $selectedSerials = array_filter($selectedSerials, fn($id) => !empty($id));
+            $selectedCount = count($selectedSerials);
+
+            // Get stock info
+            $serialItems = ProductItem::where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('status', ProductItem::STATUS_IN_STOCK)
+                ->where('quantity', '>', 0)
+                ->whereRaw("sku NOT LIKE 'NOSKU%'")
+                ->get();
+
+            $noSkuCount = ProductItem::where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where('status', ProductItem::STATUS_IN_STOCK)
+                ->where('quantity', '>', 0)
+                ->whereRaw("sku LIKE 'NOSKU%'")
+                ->count();
+
+            $totalStock = $serialItems->count() + $noSkuCount;
+            $product = Product::find($productId);
+            $productName = $product ? $product->name : "ID: {$productId}";
+
+            // Check if quantity exceeds stock
+            if ($quantity > $totalStock) {
+                $validator->errors()->add(
+                    "items.{$index}.quantity",
+                    "Sản phẩm '{$productName}': Số lượng ({$quantity}) vượt quá tồn kho ({$totalStock})"
+                );
+                continue;
+            }
+
+            // Check if need more serials
+            $remainingQty = $quantity - $selectedCount;
+            if ($remainingQty > $noSkuCount && $serialItems->count() > 0) {
+                $needSerials = $remainingQty - $noSkuCount;
+                $validator->errors()->add(
+                    "items.{$index}.product_item_ids",
+                    "Sản phẩm '{$productName}': Cần chọn thêm {$needSerials} serial (chỉ có {$noSkuCount} sản phẩm không serial)"
+                );
+            }
+
+            // Check if selected serials exceed quantity
+            if ($selectedCount > $quantity) {
+                $validator->errors()->add(
+                    "items.{$index}.product_item_ids",
+                    "Sản phẩm '{$productName}': Đã chọn {$selectedCount} serial nhưng số lượng chỉ là {$quantity}"
+                );
+            }
+        }
+    }
+
     public function messages(): array
     {
         return [
-            'warehouse_id.required' => 'Vui lòng chọn kho xuất.',
             'date.required' => 'Vui lòng chọn ngày xuất.',
             'items.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'items.*.product_id.required' => 'Vui lòng chọn sản phẩm.',
+            'items.*.warehouse_id.required' => 'Vui lòng chọn kho xuất.',
             'items.*.quantity.required' => 'Vui lòng nhập số lượng.',
             'items.*.quantity.min' => 'Số lượng phải lớn hơn 0.',
         ];

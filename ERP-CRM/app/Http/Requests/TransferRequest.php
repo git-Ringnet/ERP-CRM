@@ -24,10 +24,12 @@ class TransferRequest extends FormRequest
             'employee_id' => 'nullable|exists:users,id',
             'note' => 'nullable|string|max:1000',
             
+            // Items validation - simplified: only product, quantity, serial, comments
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit' => 'nullable|string|max:20',
+            'items.*.serial' => 'nullable|string|max:100',
+            'items.*.comments' => 'nullable|string|max:500',
             'items.*.product_item_ids' => 'nullable|array',
         ];
     }

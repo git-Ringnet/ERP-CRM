@@ -144,24 +144,23 @@ class ImportController extends Controller
         $employees = User::whereNotNull('employee_code')->get();
 
         // Prepare existing items data for JavaScript
-        $existingItems = $import->items->map(function($item) use ($import) {
-            // Get product items created from this transaction
-            $productItems = ProductItem::where('inventory_transaction_id', $import->id)
-                ->where('product_id', $item->product_id)
-                ->get();
-            
-            // Get first product item for cost and price tiers
-            $firstProductItem = $productItems->first();
-            
+        $existingItems = $import->items->map(function ($item) {
+            // Get serials from serial_number JSON field
+            $serials = [];
+            if (!empty($item->serial_number)) {
+                $decoded = json_decode($item->serial_number, true);
+                if (is_array($decoded)) {
+                    $serials = $decoded;
+                } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
+                    $serials = [$item->serial_number];
+                }
+            }
+
             return [
                 'product_id' => $item->product_id,
                 'quantity' => $item->quantity,
-                'unit' => $item->unit ?? '',
-                'description' => $item->description ?? '',
+                'serials' => $serials,
                 'comments' => $item->comments ?? '',
-                'cost_usd' => $firstProductItem->cost_usd ?? null,
-                'skus' => $productItems->pluck('sku')->filter(fn($sku) => !str_starts_with($sku, 'NOSKU'))->values()->toArray(),
-                'price_tiers' => $firstProductItem->price_tiers ?? [],
             ];
         })->toArray();
 
@@ -187,7 +186,7 @@ class ImportController extends Controller
         try {
             $data = $request->validated();
 
-            // Delete old items and product items
+            // Delete old items (ProductItem will only exist if already approved, which shouldn't happen)
             ProductItem::where('inventory_transaction_id', $import->id)->delete();
             $import->items()->delete();
 
@@ -199,36 +198,21 @@ class ImportController extends Controller
                 'note' => $data['note'] ?? null,
             ]);
 
-            // Create new items
+            // Create new items (store serials as JSON, ProductItem created on approve)
             $totalQty = 0;
             foreach ($data['items'] as $itemData) {
+                $serials = $itemData['serials'] ?? [];
+                // Filter out empty serials
+                $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
+
                 $import->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
-                    'unit' => $itemData['unit'] ?? null,
-                    'description' => $itemData['description'] ?? null,
+                    'serial_number' => !empty($serials) ? json_encode($serials) : null,
                     'comments' => $itemData['comments'] ?? null,
-                    'cost' => $itemData['cost_usd'] ?? 0,
+                    'cost' => 0,
                 ]);
                 $totalQty += $itemData['quantity'];
-
-                // Create product items
-                $skus = $itemData['skus'] ?? [];
-                $priceData = [
-                    'description' => $itemData['description'] ?? null,
-                    'cost_usd' => $itemData['cost_usd'] ?? 0,
-                    'price_tiers' => $itemData['price_tiers'] ?? null,
-                    'comments' => $itemData['comments'] ?? null,
-                ];
-
-                $this->productItemService->createItemsFromImport(
-                    $itemData['product_id'],
-                    $itemData['quantity'],
-                    $skus,
-                    $priceData,
-                    $data['warehouse_id'],
-                    $import->id
-                );
             }
 
             $import->update(['total_qty' => $totalQty]);

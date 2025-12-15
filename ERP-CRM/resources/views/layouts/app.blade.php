@@ -173,16 +173,6 @@
                 </div>
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tiện ích</p>
-
-                    <a href="{{ route('excel-import.index') }}"
-                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('excel-import.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-file-import w-6"></i>
-                        <span class="ml-3">Import dữ liệu</span>
-                    </a>
-                </div>
-
-                <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hệ thống</p>
 
                     <a href="{{ route('approval-workflows.index') }}"

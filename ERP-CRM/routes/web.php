@@ -50,10 +50,8 @@ Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->na
 Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
 Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
 
-// Excel Import routes (for importing data from Excel/CSV)
-Route::get('/excel-import', [ExcelImportController::class, 'index'])->name('excel-import.index');
+// Excel Import routes (integrated into Imports module)
 Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
-Route::post('/excel-import/preview', [ExcelImportController::class, 'preview'])->name('excel-import.preview');
 Route::post('/excel-import', [ExcelImportController::class, 'store'])->name('excel-import.store');
 
 // Import Module Routes (Nhập kho) - Requirements: 1.3

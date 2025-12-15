@@ -119,7 +119,12 @@ class ExportController extends Controller
 
         $export->load(['warehouse', 'employee', 'items.product']);
 
-        return view('exports.show', compact('export'));
+        // Get exported product items (serials) grouped by product_id
+        $exportedItems = ProductItem::where('inventory_transaction_id', $export->id)
+            ->get()
+            ->groupBy('product_id');
+
+        return view('exports.show', compact('export', 'exportedItems'));
     }
 
     /**
@@ -141,11 +146,12 @@ class ExportController extends Controller
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
 
-        $existingItems = $export->items->map(function($item) {
+        $existingItems = $export->items->map(function ($item) use ($export) {
             return [
                 'product_id' => $item->product_id,
+                'warehouse_id' => $export->warehouse_id,
                 'quantity' => $item->quantity,
-                'unit' => $item->unit ?? '',
+                'comments' => $item->comments ?? '',
             ];
         })->toArray();
 
@@ -171,8 +177,11 @@ class ExportController extends Controller
 
             $export->items()->delete();
 
+            // Get warehouse_id from first item
+            $warehouseId = $data['items'][0]['warehouse_id'] ?? $export->warehouse_id;
+
             $export->update([
-                'warehouse_id' => $data['warehouse_id'],
+                'warehouse_id' => $warehouseId,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
                 'note' => $data['note'] ?? null,
@@ -183,7 +192,7 @@ class ExportController extends Controller
                 $export->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
-                    'unit' => $itemData['unit'] ?? null,
+                    'comments' => $itemData['comments'] ?? null,
                 ]);
                 $totalQty += $itemData['quantity'];
             }
@@ -265,6 +274,7 @@ class ExportController extends Controller
     /**
      * Get available product items (SKUs) for export.
      * Requirements: 2.5
+     * Returns: items with serial (not NOSKU) and count of items without serial (NOSKU)
      */
     public function getAvailableItems(Request $request)
     {
@@ -273,12 +283,24 @@ class ExportController extends Controller
             'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        $items = ProductItem::where('product_id', $request->product_id)
+        // Get items with real serial (not NOSKU)
+        $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->where('sku', 'not like', 'NOSKU%')
             ->select('id', 'sku', 'cost_usd', 'price_tiers')
             ->get();
 
-        return response()->json($items);
+        // Count items without serial (NOSKU)
+        $noSkuCount = ProductItem::where('product_id', $request->product_id)
+            ->where('warehouse_id', $request->warehouse_id)
+            ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->where('sku', 'like', 'NOSKU%')
+            ->count();
+
+        return response()->json([
+            'items' => $itemsWithSerial,
+            'noSkuCount' => $noSkuCount,
+        ]);
     }
 }

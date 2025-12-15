@@ -28,7 +28,7 @@ class ExcelImportController extends Controller
      * Download Excel template
      * Requirements: 3.1, 6.1, 6.2
      */
-    public function downloadTemplate($type)
+    public function template($type)
     {
         try {
             $tempFile = match($type) {
@@ -48,43 +48,49 @@ class ExcelImportController extends Controller
 
     /**
      * Import data from Excel file
-     * Requirements: 3.2, 3.3, 3.6, 3.7
+     * Updated: Import sản phẩm vào kho (tạo product + product_items + tính tồn kho)
      */
-    public function import(Request $request)
+    public function store(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:products,inventory',
+            'type' => 'required|in:products',
+            'warehouse_id' => 'required|exists:warehouses,id',
             'file' => 'required|file|mimes:xlsx,xls|max:10240', // Max 10MB
         ]);
         
         try {
             $file = $request->file('file');
-            $type = $request->input('type');
+            $warehouseId = $request->input('warehouse_id');
             
             // Save file temporarily
             $path = $file->store('temp');
             $fullPath = storage_path('app/' . $path);
             
             // Process import
-            $result = match($type) {
-                'products' => $this->excelImportService->importProducts($fullPath),
-                'inventory' => $this->excelImportService->importInventory($fullPath),
-            };
+            $result = $this->excelImportService->importProducts($fullPath, $warehouseId);
             
             // Clean up temp file
             Storage::delete($path);
             
-            // Return result view
-            return view('import.result', [
-                'type' => $type,
-                'success' => $result['success'],
-                'imported' => $result['imported'],
-                'errors' => $result['errors'],
-            ]);
+            if ($result['success']) {
+                return redirect()->route('imports.index')
+                    ->with('success', $result['message']);
+            } else {
+                return redirect()->route('imports.index')
+                    ->with('error', 'Import thất bại: ' . implode(', ', $result['errors']));
+            }
             
         } catch (\Exception $e) {
-            return redirect()->back()
+            return redirect()->route('imports.index')
                 ->with('error', 'Lỗi khi import: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Preview import data (optional)
+     */
+    public function preview(Request $request)
+    {
+        return $this->store($request);
     }
 }

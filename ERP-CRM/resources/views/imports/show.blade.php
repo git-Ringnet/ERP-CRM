@@ -78,101 +78,105 @@
         </div>
         @endif
 
-        <!-- Items Table -->
+        <!-- Items Table - Grouped by Product -->
         <div class="border-t border-gray-200 pt-4">
             <h3 class="text-lg font-semibold text-gray-800 mb-3">Chi tiết sản phẩm</h3>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mô tả</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Danh sách Serial</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        @foreach($import->items as $item)
-                        <tr>
-                            <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
-                                <div class="text-sm text-gray-500">{{ $item->product->code }}</div>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="px-2 py-1 text-sm font-semibold bg-blue-100 text-blue-800 rounded">
-                                    {{ number_format($item->quantity) }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->unit ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->description ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?? '-' }}</td>
-                        </tr>
+                        @php
+                            // Group items by product
+                            $groupedItems = $import->items->groupBy('product_id');
+                        @endphp
+                        @foreach($groupedItems as $productId => $items)
+                            @php
+                                $firstItem = $items->first();
+                                $product = $firstItem->product;
+                                $totalQty = $items->sum('quantity');
+                                
+                                // Get serials: from ProductItem if approved, from serial_number JSON if pending
+                                if ($import->status === 'completed' && $productItems->count() > 0) {
+                                    // Approved: get from ProductItem
+                                    $serials = $productItems->where('product_id', $productId)->pluck('sku')->toArray();
+                                } else {
+                                    // Pending: get from serial_number JSON in transaction items
+                                    $serials = [];
+                                    foreach ($items as $item) {
+                                        if (!empty($item->serial_number)) {
+                                            $decoded = json_decode($item->serial_number, true);
+                                            if (is_array($decoded)) {
+                                                $serials = array_merge($serials, $decoded);
+                                            } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
+                                                $serials[] = $item->serial_number;
+                                            }
+                                        }
+                                    }
+                                }
+                                $comments = $items->pluck('comments')->filter()->unique()->implode(', ');
+                            @endphp
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <span class="font-mono text-sm font-medium text-blue-600">{{ $product->code }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-3 py-1 text-sm font-bold bg-blue-100 text-blue-800 rounded-full">
+                                        {{ number_format($totalQty) }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    @php
+                                        $serialCollection = collect($serials);
+                                        $realSerials = $serialCollection->filter(fn($s) => !str_starts_with($s, 'NOSKU'));
+                                        $noSkuCount = $serialCollection->filter(fn($s) => str_starts_with($s, 'NOSKU'))->count();
+                                        
+                                        // For pending: calculate how many items will be NOSKU
+                                        if ($import->status === 'pending') {
+                                            $noSkuCount = $totalQty - $realSerials->count();
+                                        }
+                                    @endphp
+                                    @if($realSerials->count() > 0)
+                                        <div class="flex flex-wrap gap-1 max-w-md">
+                                            @foreach($realSerials as $serial)
+                                                <span class="px-2 py-0.5 text-xs font-mono bg-blue-100 text-blue-700 rounded">
+                                                    {{ $serial }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                        @if($realSerials->count() > 5)
+                                            <button type="button" class="mt-1 text-xs text-blue-600 hover:text-blue-800" 
+                                                    onclick="this.previousElementSibling.classList.toggle('max-w-md'); this.textContent = this.textContent === 'Xem thêm...' ? 'Thu gọn' : 'Xem thêm...'">
+                                                Xem thêm...
+                                            </button>
+                                        @endif
+                                    @endif
+                                    @if($noSkuCount > 0)
+                                        <span class="text-xs text-gray-500 {{ $realSerials->count() > 0 ? 'mt-1 block' : '' }}">
+                                            + {{ $noSkuCount }} sản phẩm không serial
+                                        </span>
+                                    @endif
+                                    @if($realSerials->count() === 0 && $noSkuCount === 0)
+                                        <span class="text-gray-400 text-sm">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $comments ?: '-' }}</td>
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
         </div>
-
-        <!-- Product Items (SKUs) Section -->
-        @if($productItems->count() > 0)
-        <div class="border-t border-gray-200 pt-4 mt-4">
-            <h3 class="text-lg font-semibold text-gray-800 mb-3">
-                <i class="fas fa-barcode mr-2"></i>Danh sách SKU đã tạo
-            </h3>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập (USD)</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gói giá</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        @foreach($productItems as $pItem)
-                        <tr>
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <span class="font-medium {{ Str::startsWith($pItem->sku, 'NOSKU') ? 'text-gray-400 italic' : 'text-gray-900' }}">
-                                    {{ $pItem->sku }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $pItem->product->name ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-right font-medium">${{ number_format($pItem->cost_usd, 2) }}</td>
-                            <td class="px-4 py-3 text-sm">
-                                @if($pItem->price_tiers && is_array($pItem->price_tiers))
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach($pItem->price_tiers as $tier)
-                                            <span class="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
-                                                {{ $tier['name'] ?? 'N/A' }}: ${{ number_format($tier['price'] ?? 0, 2) }}
-                                            </span>
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                @switch($pItem->status)
-                                    @case('in_stock')
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Trong kho</span>
-                                        @break
-                                    @case('sold')
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Đã bán</span>
-                                        @break
-                                    @default
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{{ $pItem->status }}</span>
-                                @endswitch
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @endif
 
         <!-- Timestamps -->
         <div class="mt-6 pt-4 border-t border-gray-200">

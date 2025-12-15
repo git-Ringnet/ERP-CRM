@@ -9,6 +9,24 @@ use Illuminate\Support\Facades\DB;
 class ProductItemService
 {
     /**
+     * Check for duplicate serials before creating
+     * Returns array of duplicate serials if found
+     */
+    public function checkDuplicateSerials(int $productId, array $skus): array
+    {
+        if (empty($skus)) {
+            return [];
+        }
+
+        $existingSkus = ProductItem::where('product_id', $productId)
+            ->whereIn('sku', $skus)
+            ->pluck('sku')
+            ->toArray();
+
+        return $existingSkus;
+    }
+
+    /**
      * Create product items from import transaction
      * Requirements: 3.2, 3.3
      */
@@ -21,6 +39,15 @@ class ProductItemService
         int $transactionId
     ): array {
         $items = [];
+
+        // Check for duplicate serials first
+        $duplicates = $this->checkDuplicateSerials($productId, $skus);
+        if (!empty($duplicates)) {
+            $product = Product::find($productId);
+            $productName = $product ? $product->name : "ID: {$productId}";
+            $duplicateList = implode(', ', $duplicates);
+            throw new \Exception("Serial đã tồn tại trong hệ thống cho sản phẩm '{$productName}': {$duplicateList}");
+        }
         
         DB::transaction(function () use (
             $productId,
@@ -47,23 +74,26 @@ class ProductItemService
                         'status' => ProductItem::STATUS_IN_STOCK,
                     ]);
                 }
-            } else {
-                // Create items with auto-generated NOSKU
-                for ($i = 0; $i < $quantity; $i++) {
-                    $noSku = ProductItem::NO_SKU_PREFIX . '_' . $productId . '_' . time() . '_' . $i;
-                    $items[] = ProductItem::create([
-                        'product_id' => $productId,
-                        'warehouse_id' => $warehouseId,
-                        'inventory_transaction_id' => $transactionId,
-                        'sku' => $noSku,
-                        'quantity' => 1,
-                        'description' => $priceData['description'] ?? null,
-                        'cost_usd' => $priceData['cost_usd'] ?? 0,
-                        'price_tiers' => $priceData['price_tiers'] ?? null,
-                        'comments' => $priceData['comments'] ?? null,
-                        'status' => ProductItem::STATUS_IN_STOCK,
-                    ]);
-                }
+            }
+
+            // Create remaining items with auto-generated NOSKU
+            $remainingQty = $quantity - count($skus);
+            for ($i = 0; $i < $remainingQty; $i++) {
+                // Use microtime + random to ensure uniqueness
+                $uniqueId = substr(md5(uniqid(mt_rand(), true)), 0, 8);
+                $noSku = ProductItem::NO_SKU_PREFIX . '_' . $productId . '_' . $transactionId . '_' . $uniqueId;
+                $items[] = ProductItem::create([
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
+                    'inventory_transaction_id' => $transactionId,
+                    'sku' => $noSku,
+                    'quantity' => 1,
+                    'description' => $priceData['description'] ?? null,
+                    'cost_usd' => $priceData['cost_usd'] ?? 0,
+                    'price_tiers' => $priceData['price_tiers'] ?? null,
+                    'comments' => $priceData['comments'] ?? null,
+                    'status' => ProductItem::STATUS_IN_STOCK,
+                ]);
             }
         });
         

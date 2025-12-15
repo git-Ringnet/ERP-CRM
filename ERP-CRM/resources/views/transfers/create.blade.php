@@ -123,7 +123,7 @@ function addItem(existingData = null) {
     itemDiv.dataset.index = itemIndex;
     
     const productOptions = products.map(p => 
-        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.name} (${p.code})</option>`
+        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
     ).join('');
     
     itemDiv.innerHTML = `
@@ -135,7 +135,7 @@ function addItem(existingData = null) {
             </button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
                 <select name="items[${itemIndex}][product_id]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
@@ -145,13 +145,21 @@ function addItem(existingData = null) {
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
-                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : ''}" 
-                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="0">
+                <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
+                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="1">
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn vị</label>
-                <input type="text" name="items[${itemIndex}][unit]" value="${existingData ? existingData.unit || '' : ''}"
-                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Cái, Hộp...">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Serial</label>
+                <input type="text" name="items[${itemIndex}][serial]" value="${existingData ? existingData.serial || '' : ''}"
+                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Serial number">
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
+                <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
+                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
             </div>
         </div>
     `;
