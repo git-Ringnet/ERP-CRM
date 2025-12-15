@@ -127,13 +127,13 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá <span class="text-red-500">*</span></label>
-                                <input type="number" name="products[{{ $index }}][price]" min="0" value="{{ $item->price }}" required
+                                <input type="text" name="products[{{ $index }}][price]" min="0" value="{{ number_format((int)$item->price, 0, '.', ',') }}" required
                                        onchange="calculateRowTotal({{ $index }})"
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
-                                <input type="text" readonly value="{{ number_format($item->total) }} đ"
+                                <input type="text" readonly value="{{ number_format($item->total, 0, '.', ',') }}"
                                        class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total">
                             </div>
                             <div class="md:col-span-1 flex items-end">
@@ -155,28 +155,38 @@
 
             <!-- Totals Section -->
             <div class="border-t pt-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg ml-auto">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tổng tiền hàng</label>
-                        <input type="text" id="subtotal" readonly value="{{ number_format($sale->subtotal) }} đ"
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
+                <div class="space-y-3 max-w-md ml-auto">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Tổng tiền hàng</label>
+                        <input type="text" id="subtotal" readonly value="{{ number_format($sale->subtotal, 0, '.', ',') }}"
+                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu (%)</label>
-                        <input type="number" name="discount" id="discount" value="{{ old('discount', $sale->discount) }}" min="0" max="100"
-                               onchange="calculateTotal()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Chiết khấu (%)</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="number" name="discount" id="discount" value="{{ old('discount', $sale->discount ? (int)$sale->discount : '') }}" min="0" max="100" step="1"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0">
+                            <input type="text" id="discountAmount" readonly
+                                   class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-red-600">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
-                        <input type="number" name="vat" id="vat" value="{{ old('vat', $sale->vat) }}" min="0"
-                               onchange="calculateTotal()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Thuế GTGT (%)</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="number" name="vat" id="vat" value="{{ old('vat', $sale->vat ? (int)$sale->vat : '') }}" min="0" max="100" step="1"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0">
+                            <input type="text" id="vatAmount" readonly
+                                   class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tổng cộng</label>
-                        <input type="text" id="total" readonly value="{{ number_format($sale->total) }} đ"
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 font-bold text-lg">
+                    <div class="flex justify-between items-center pt-2 border-t">
+                        <label class="text-base font-bold text-gray-900">Tổng cộng</label>
+                        <input type="text" id="total" readonly value="{{ number_format($sale->total, 0, '.', ',') }}"
+                               class="w-48 text-right border border-gray-200 bg-primary/10 rounded-lg px-3 py-2 font-bold text-lg text-primary">
                     </div>
                 </div>
             </div>
@@ -238,7 +248,15 @@
 @push('scripts')
 <script>
 let productIndex = {{ count($sale->items) }};
+let isSubmitting = false;
 const products = @json($products);
+
+// Prevent "Leave site?" warning when submitting form
+window.addEventListener('beforeunload', function(e) {
+    if (isSubmitting) {
+        return undefined;
+    }
+});
 
 // Searchable Select Functions
 function initSearchableSelect(container, onSelect) {
@@ -333,7 +351,7 @@ function initSearchableSelect(container, onSelect) {
     });
 }
 
-// Format money input
+// Format money input (dùng dấu phẩy phân cách hàng nghìn)
 function formatMoney(value) {
     if (!value) return '';
     const num = value.toString().replace(/[^\d]/g, '');
@@ -358,8 +376,12 @@ function setupMoneyInput(input) {
     input.type = 'text';
     input.inputMode = 'numeric';
     
-    if (input.value) {
-        input.value = formatMoney(input.value);
+    // Don't re-format if already formatted (contains comma)
+    // Don't re-format if already formatted (contains comma as thousand separator)
+    if (input.value && !input.value.includes(',')) {
+        // Convert decimal to integer before formatting
+        const numValue = parseInt(parseFloat(input.value));
+        input.value = formatMoney(numValue);
     }
     
     input.addEventListener('input', function(e) {
@@ -470,7 +492,7 @@ function calculateRowTotal(index) {
         const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
         const price = unformatMoney(row.querySelector('.price-input').value);
         const total = qty * price;
-        row.querySelector('.row-total').value = formatMoney(total) + ' đ';
+        row.querySelector('.row-total').value = formatMoney(total);
     });
     calculateTotal();
 }
@@ -483,16 +505,18 @@ function calculateTotal() {
         subtotal += qty * price;
     });
     
-    const discount = parseFloat(document.getElementById('discount').value) || 0;
-    const vat = parseFloat(document.getElementById('vat').value) || 0;
+    const discount = parseInt(document.getElementById('discount').value) || 0;
+    const vat = parseInt(document.getElementById('vat').value) || 0;
     
     const discountAmount = subtotal * discount / 100;
     const afterDiscount = subtotal - discountAmount;
     const vatAmount = afterDiscount * vat / 100;
     const total = afterDiscount + vatAmount;
     
-    document.getElementById('subtotal').value = formatMoney(subtotal) + ' đ';
-    document.getElementById('total').value = formatMoney(total) + ' đ';
+    document.getElementById('subtotal').value = formatMoney(subtotal);
+    document.getElementById('discountAmount').value = discountAmount > 0 ? formatMoney(discountAmount) : '0';
+    document.getElementById('vatAmount').value = vatAmount > 0 ? formatMoney(vatAmount) : '0';
+    document.getElementById('total').value = formatMoney(total);
 }
 
 // Calculate on page load
@@ -576,6 +600,8 @@ function validateAndSubmit() {
             input.value = unformatMoney(input.value);
         });
         
+        // Set flag to prevent "Leave site?" warning
+        isSubmitting = true;
         document.getElementById('saleForm').submit();
     }
 }

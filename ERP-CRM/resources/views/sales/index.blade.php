@@ -33,13 +33,28 @@
 
             <!-- Filter by Type -->
             <div class="flex items-center gap-2">
-                <select name="type" onchange="window.location.href='{{ route('sales.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'" 
+                <select name="type" onchange="window.location.href='{{ route('sales.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}&project_id={{ request('project_id') }}'" 
                         class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Loại đơn hàng</option>
                     <option value="retail" {{ request('type') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
                     <option value="project" {{ request('type') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                 </select>
             </div>
+
+            <!-- Filter by Project -->
+            @if(isset($projects) && $projects->count() > 0)
+            <div class="flex items-center gap-2">
+                <select name="project_id" onchange="window.location.href='{{ route('sales.index') }}?project_id='+this.value+'&type={{ request('type') }}&status={{ request('status') }}&search={{ request('search') }}'" 
+                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">Tất cả dự án</option>
+                    @foreach($projects as $project)
+                    <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
+                        {{ $project->code }} - {{ Str::limit($project->name, 20) }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
         </div>
         
         <div class="flex gap-2">
@@ -56,14 +71,40 @@
         </div>
     </div>
 
+    <!-- Bulk Actions Bar -->
+    <div id="bulkActionsBar" class="hidden px-4 py-3 bg-blue-50 border-b border-blue-200">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-blue-800">
+                    Đã chọn <span id="selectedCount" class="font-bold">0</span> đơn hàng
+                </span>
+                <button type="button" onclick="clearSelection()" class="text-sm text-blue-600 hover:underline">
+                    Bỏ chọn tất cả
+                </button>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="sendBulkInvoice()" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                    <i class="fas fa-envelope mr-2"></i>
+                    Gửi hóa đơn (<span id="sendCount">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Table - Desktop View -->
     <div class="hidden md:block overflow-x-auto">
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" 
+                               class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary">
+                    </th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã đơn</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dự án</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách hàng</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng tiền</th>
@@ -75,7 +116,11 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($sales as $sale)
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 sale-row" data-sale-id="{{ $sale->id }}">
+                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <input type="checkbox" class="sale-checkbox w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                               value="{{ $sale->id }}" onchange="updateSelection()">
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                         {{ ($sales->currentPage() - 1) * $sales->perPage() + $loop->iteration }}
                     </td>
@@ -87,6 +132,15 @@
                             {{ $sale->type_label }}
                         </span>
                     </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        @if($sale->project)
+                        <a href="{{ route('projects.show', $sale->project_id) }}" class="text-purple-600 hover:underline text-sm">
+                            {{ $sale->project->code }}
+                        </a>
+                        @else
+                        <span class="text-gray-400 text-sm">-</span>
+                        @endif
+                    </td>
                     <td class="px-4 py-3">
                         <div class="text-sm font-medium text-gray-900">{{ $sale->customer_name }}</div>
                     </td>
@@ -97,20 +151,16 @@
                         {{ number_format($sale->total) }} đ
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                        @if($sale->cost > 0)
-                            <span class="font-medium {{ $sale->margin_color }}">
-                                {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
-                            </span>
-                            <div class="text-xs {{ $sale->margin_color }}">
-                                ({{ number_format($sale->margin_percent, 1) }}%)
+                        <span class="font-medium {{ $sale->margin_color }}">
+                            {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
+                        </span>
+                        <div class="text-xs {{ $sale->margin_color }}">
+                            ({{ number_format($sale->margin_percent, 1) }}%)
+                        </div>
+                        @if($sale->margin < 0)
+                            <div class="text-xs text-red-600">
+                                <i class="fas fa-exclamation-triangle"></i> Lỗ
                             </div>
-                            @if($sale->margin < 0)
-                                <div class="text-xs text-red-600">
-                                    <i class="fas fa-exclamation-triangle"></i> Lỗ
-                                </div>
-                            @endif
-                        @else
-                            <span class="text-gray-400">-</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -149,7 +199,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="12" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu đơn hàng</p>
                     </td>
@@ -212,4 +262,98 @@
     </div>
     @endif
 </div>
+
+<!-- Hidden form for bulk email -->
+<form id="bulkEmailForm" action="{{ route('sales.bulkEmail') }}" method="POST" class="hidden">
+    @csrf
+    <div id="bulkEmailInputs"></div>
+</form>
 @endsection
+
+@push('scripts')
+<script>
+let selectedSales = new Set();
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.sale-checkbox');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+        if (selectAll.checked) {
+            selectedSales.add(cb.value);
+        } else {
+            selectedSales.delete(cb.value);
+        }
+    });
+    
+    updateBulkActionsBar();
+}
+
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.sale-checkbox');
+    selectedSales.clear();
+    
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selectedSales.add(cb.value);
+        }
+    });
+    
+    // Update select all checkbox
+    const selectAll = document.getElementById('selectAll');
+    const allChecked = [...checkboxes].every(cb => cb.checked);
+    const someChecked = [...checkboxes].some(cb => cb.checked);
+    selectAll.checked = allChecked;
+    selectAll.indeterminate = someChecked && !allChecked;
+    
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulkActionsBar');
+    const count = selectedSales.size;
+    
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('sendCount').textContent = count;
+    
+    if (count > 0) {
+        bar.classList.remove('hidden');
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
+function clearSelection() {
+    selectedSales.clear();
+    document.querySelectorAll('.sale-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    document.getElementById('selectAll').indeterminate = false;
+    updateBulkActionsBar();
+}
+
+function sendBulkInvoice() {
+    if (selectedSales.size === 0) {
+        alert('Vui lòng chọn ít nhất 1 đơn hàng');
+        return;
+    }
+    
+    if (!confirm(`Bạn có chắc muốn gửi hóa đơn cho ${selectedSales.size} đơn hàng đã chọn?`)) {
+        return;
+    }
+    
+    const inputsContainer = document.getElementById('bulkEmailInputs');
+    inputsContainer.innerHTML = '';
+    
+    selectedSales.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'sale_ids[]';
+        input.value = id;
+        inputsContainer.appendChild(input);
+    });
+    
+    document.getElementById('bulkEmailForm').submit();
+}
+</script>
+@endpush

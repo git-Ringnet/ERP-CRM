@@ -159,6 +159,12 @@
                         <span class="ml-3">Đơn hàng bán</span>
                     </a>
 
+                    <a href="{{ route('projects.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-project-diagram w-6 text-purple-400"></i>
+                        <span class="ml-3">Quản lý dự án</span>
+                    </a>
+
                     <a href="{{ route('customer-debts.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-invoice-dollar w-6"></i>

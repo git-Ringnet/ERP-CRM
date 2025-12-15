@@ -13,6 +13,7 @@ class Sale extends Model
     protected $fillable = [
         'code',
         'type',
+        'project_id',
         'customer_id',
         'customer_name',
         'date',
@@ -50,6 +51,14 @@ class Sale extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Relationship with Project
+     */
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 
     /**
@@ -184,12 +193,26 @@ class Sale extends Model
     }
 
     /**
+     * Get total cost of goods sold (giá vốn hàng bán)
+     */
+    public function getCostOfGoodsSold(): float
+    {
+        return $this->items()->sum('cost_total');
+    }
+
+    /**
      * Calculate margin
+     * Margin = Doanh thu - Giá vốn hàng bán - Chi phí bán hàng
      */
     public function calculateMargin(): void
     {
         $this->calculateTotalCost();
-        $this->margin = $this->total - $this->cost;
+        
+        // Get cost of goods sold from items
+        $costOfGoodsSold = $this->getCostOfGoodsSold();
+        
+        // Margin = Total - Cost of Goods Sold - Operating Expenses
+        $this->margin = $this->total - $costOfGoodsSold - $this->cost;
         
         // Calculate margin percent, handle edge cases
         if ($this->total > 0) {

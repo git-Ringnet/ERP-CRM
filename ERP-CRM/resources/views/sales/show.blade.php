@@ -131,6 +131,17 @@
                             </span>
                         </dd>
                     </div>
+                    @if($sale->project)
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Dự án:</dt>
+                        <dd>
+                            <a href="{{ route('projects.show', $sale->project_id) }}" class="text-purple-600 hover:underline font-medium">
+                                <i class="fas fa-project-diagram mr-1"></i>
+                                {{ $sale->project->code }} - {{ $sale->project->name }}
+                            </a>
+                        </dd>
+                    </div>
+                    @endif
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Ngày tạo:</dt>
                         <dd class="text-gray-900">{{ $sale->date->format('d/m/Y') }}</dd>

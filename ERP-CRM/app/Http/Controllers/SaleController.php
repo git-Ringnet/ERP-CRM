@@ -7,6 +7,7 @@ use App\Models\SaleItem;
 use App\Models\SaleExpense;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -40,23 +41,34 @@ class SaleController extends Controller
             $query->where('type', $request->type);
         }
 
-        $sales = $query->orderBy('created_at', 'desc')->paginate(10);
+        // Filter by project
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
+        }
 
-        return view('sales.index', compact('sales'));
+        $sales = $query->with('project')->orderBy('created_at', 'desc')->paginate(10);
+        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+
+        return view('sales.index', compact('sales', 'projects'));
     }
 
     /**
      * Show the form for creating a new sale.
      */
-    public function create()
+    public function create(Request $request)
     {
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
+        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         
         // Generate sale code
         $code = $this->generateSaleCode();
         
-        return view('sales.create', compact('customers', 'products', 'code'));
+        // Pre-select project if passed from project detail page
+        $selectedProjectId = $request->get('project_id');
+        $selectedProject = $selectedProjectId ? Project::find($selectedProjectId) : null;
+        
+        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject'));
     }
 
     /**
@@ -88,9 +100,19 @@ class SaleController extends Controller
      */
     public function store(Request $request)
     {
+        // Convert price values from string to numeric (remove formatting)
+        $products = $request->input('products', []);
+        foreach ($products as $key => $product) {
+            if (isset($product['price'])) {
+                $products[$key]['price'] = is_numeric($product['price']) ? $product['price'] : preg_replace('/[^0-9]/', '', $product['price']);
+            }
+        }
+        $request->merge(['products' => $products]);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'customer_id' => ['required', 'exists:customers,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
@@ -102,10 +124,11 @@ class SaleController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'expenses' => ['nullable', 'array'],
-            'expenses.*.type' => ['required_with:expenses', 'in:shipping,marketing,commission,other'],
-            'expenses.*.description' => ['required_with:expenses', 'string'],
-            'expenses.*.amount' => ['required_with:expenses', 'numeric', 'min:0'],
+            'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
+            'expenses.*.description' => ['nullable', 'string'],
+            'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         DB::beginTransaction();
@@ -129,6 +152,7 @@ class SaleController extends Controller
             $sale = Sale::create([
                 'code' => $code,
                 'type' => $validated['type'],
+                'project_id' => $validated['project_id'] ?? null,
                 'customer_id' => $validated['customer_id'],
                 'customer_name' => $customer->name,
                 'date' => $validated['date'],
@@ -147,16 +171,20 @@ class SaleController extends Controller
                 'note' => $validated['note'],
             ]);
 
-            // Create sale items with cost price
+            // Create sale items with cost price and project
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
                 $costPrice = $product->cost ?? 0;
                 $quantity = $item['quantity'];
                 
+                // Use item-level project_id if set, otherwise use sale-level project_id
+                $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->name,
+                    'project_id' => $itemProjectId,
                     'quantity' => $quantity,
                     'price' => $item['price'],
                     'cost_price' => $costPrice,
@@ -165,13 +193,17 @@ class SaleController extends Controller
                 ]);
             }
 
-            // Create sale expenses
+            // Create sale expenses (only if type is set)
             if (!empty($validated['expenses'])) {
                 foreach ($validated['expenses'] as $expense) {
+                    // Skip empty expense rows
+                    if (empty($expense['type']) || empty($expense['amount'])) {
+                        continue;
+                    }
                     SaleExpense::create([
                         'sale_id' => $sale->id,
                         'type' => $expense['type'],
-                        'description' => $expense['description'],
+                        'description' => $expense['description'] ?? '',
                         'amount' => $expense['amount'],
                         'note' => $expense['note'] ?? null,
                     ]);
@@ -198,7 +230,7 @@ class SaleController extends Controller
      */
     public function show(Sale $sale)
     {
-        $sale->load(['items.product', 'customer', 'expenses']);
+        $sale->load(['items.product', 'customer', 'expenses', 'project']);
         return view('sales.show', compact('sale'));
     }
 
@@ -210,8 +242,9 @@ class SaleController extends Controller
         $sale->load('items');
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
+        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         
-        return view('sales.edit', compact('sale', 'customers', 'products'));
+        return view('sales.edit', compact('sale', 'customers', 'products', 'projects'));
     }
 
     /**
@@ -219,9 +252,19 @@ class SaleController extends Controller
      */
     public function update(Request $request, Sale $sale)
     {
+        // Convert price values from string to numeric (remove formatting)
+        $products = $request->input('products', []);
+        foreach ($products as $key => $product) {
+            if (isset($product['price'])) {
+                $products[$key]['price'] = is_numeric($product['price']) ? $product['price'] : preg_replace('/[^0-9]/', '', $product['price']);
+            }
+        }
+        $request->merge(['products' => $products]);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'customer_id' => ['required', 'exists:customers,id'],
             'date' => ['required', 'date'],
             'delivery_address' => ['nullable', 'string'],
@@ -235,6 +278,7 @@ class SaleController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.project_id' => ['nullable', 'exists:projects,id'],
         ]);
 
         DB::beginTransaction();
@@ -256,6 +300,7 @@ class SaleController extends Controller
             $sale->update([
                 'code' => $validated['code'],
                 'type' => $validated['type'],
+                'project_id' => $validated['project_id'] ?? null,
                 'customer_id' => $validated['customer_id'],
                 'customer_name' => $customer->name,
                 'date' => $validated['date'],
@@ -270,12 +315,7 @@ class SaleController extends Controller
                 'note' => $validated['note'],
             ]);
 
-            // Calculate margin and debt
-            $sale->calculateMargin();
-            $sale->updateDebt();
-            $sale->save();
-
-            // Delete old items and create new ones with cost price
+            // Delete old items and create new ones with cost price and project
             $sale->items()->delete();
             
             foreach ($validated['products'] as $item) {
@@ -283,10 +323,14 @@ class SaleController extends Controller
                 $costPrice = $product->cost ?? 0;
                 $quantity = $item['quantity'];
                 
+                // Use item-level project_id if set, otherwise use sale-level project_id
+                $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'product_name' => $product->name,
+                    'project_id' => $itemProjectId,
                     'quantity' => $quantity,
                     'price' => $item['price'],
                     'cost_price' => $costPrice,
@@ -294,6 +338,11 @@ class SaleController extends Controller
                     'cost_total' => $quantity * $costPrice,
                 ]);
             }
+
+            // Calculate margin and debt AFTER creating new items
+            $sale->calculateMargin();
+            $sale->updateDebt();
+            $sale->save();
 
             DB::commit();
 
@@ -363,6 +412,54 @@ class SaleController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Không thể gửi email: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Send multiple invoices via email
+     */
+    public function sendBulkEmail(Request $request)
+    {
+        $validated = $request->validate([
+            'sale_ids' => ['required', 'array', 'min:1'],
+            'sale_ids.*' => ['exists:sales,id'],
+        ]);
+
+        $sales = Sale::with(['items', 'customer'])->whereIn('id', $validated['sale_ids'])->get();
+        
+        $sent = 0;
+        $failed = 0;
+        $noEmail = 0;
+        $errors = [];
+
+        foreach ($sales as $sale) {
+            if (!$sale->customer || !$sale->customer->email) {
+                $noEmail++;
+                $errors[] = "{$sale->code}: Khách hàng không có email";
+                continue;
+            }
+
+            try {
+                Mail::to($sale->customer->email)->send(new \App\Mail\SaleInvoiceMail($sale));
+                $sent++;
+            } catch (\Exception $e) {
+                $failed++;
+                $errors[] = "{$sale->code}: " . $e->getMessage();
+            }
+        }
+
+        $message = "Đã gửi {$sent} hóa đơn thành công.";
+        if ($noEmail > 0) {
+            $message .= " {$noEmail} đơn không có email.";
+        }
+        if ($failed > 0) {
+            $message .= " {$failed} đơn gửi thất bại.";
+        }
+
+        if ($failed > 0 || $noEmail > 0) {
+            return back()->with('warning', $message)->with('bulk_errors', $errors);
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

@@ -77,9 +77,6 @@
             <a href="{{ route('customer-debts.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                 <i class="fas fa-file-excel mr-1"></i> Xuất Excel
             </a>
-            <a href="{{ route('customer-debts.aging-report') }}" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                <i class="fas fa-chart-bar mr-1"></i> Báo cáo tuổi nợ
-            </a>
         </div>
     </div>
 

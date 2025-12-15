@@ -21,6 +21,7 @@ use App\Http\Controllers\CustomerDebtController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ApprovalWorkflowController;
 use App\Http\Controllers\PriceListController;
+use App\Http\Controllers\ProjectController;
 
 /*
 |--------------------------------------------------------------------------
@@ -92,6 +93,7 @@ Route::resource('sales', SaleController::class);
 Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
 Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
 Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
+Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
 Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
 Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
 
@@ -107,7 +109,6 @@ Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->na
 // Customer Debt Management routes
 Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
 Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');
-Route::get('/customer-debts/aging-report', [CustomerDebtController::class, 'agingReport'])->name('customer-debts.aging-report');
 Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
 Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
 Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
@@ -130,3 +131,8 @@ Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowCo
 Route::resource('price-lists', PriceListController::class);
 Route::post('/price-lists/{priceList}/toggle', [PriceListController::class, 'toggle'])->name('price-lists.toggle');
 Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::class, 'getForCustomer'])->name('price-lists.for-customer');
+
+// Project routes (Quản lý dự án)
+Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
+Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
+Route::resource('projects', ProjectController::class);

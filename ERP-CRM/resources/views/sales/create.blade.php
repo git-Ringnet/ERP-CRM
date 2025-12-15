@@ -5,6 +5,23 @@
 
 @section('content')
 <div class="bg-white rounded-lg shadow-sm">
+    {{-- Show all validation errors from server --}}
+    @if ($errors->any())
+    <div class="p-4 bg-red-50 border-b border-red-200">
+        <div class="flex items-start">
+            <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-2"></i>
+            <div>
+                <p class="text-sm font-medium text-red-800">Có lỗi xảy ra:</p>
+                <ul class="mt-1 text-sm text-red-700 list-disc list-inside">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <form action="{{ route('sales.store') }}" method="POST" id="saleForm">
         @csrf
         
@@ -29,11 +46,38 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Loại đơn hàng <span class="text-red-500">*</span>
                     </label>
-                    <select name="type" required
+                    <select name="type" id="saleType" required onchange="toggleProjectSelect()"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="retail" {{ old('type') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
-                        <option value="project" {{ old('type') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
+                        <option value="retail" {{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
+                        <option value="project" {{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                     </select>
+                </div>
+            </div>
+
+            <!-- Project Selection (shown when type = project) -->
+            <div id="projectSelectWrapper" class="{{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'project' ? '' : 'hidden' }}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-project-diagram text-purple-500 mr-1"></i>
+                            Dự án
+                        </label>
+                        <select name="project_id" id="projectSelect"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">-- Chọn dự án --</option>
+                            @foreach($projects as $project)
+                                <option value="{{ $project->id }}" 
+                                    {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
+                                    {{ $project->code }} - {{ $project->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <a href="{{ route('projects.create') }}" class="text-purple-600 hover:underline">
+                                <i class="fas fa-plus mr-1"></i>Tạo dự án mới
+                            </a>
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -181,75 +225,88 @@
                 <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3 p-3 bg-gray-50 rounded-lg">
                     <div>
                         <div class="text-xs text-gray-500">Vận chuyển</div>
-                        <div class="text-sm font-medium text-blue-600" id="shippingTotal">0 đ</div>
+                        <div class="text-sm font-medium text-blue-600" id="shippingTotal">0</div>
                     </div>
                     <div>
                         <div class="text-xs text-gray-500">Marketing</div>
-                        <div class="text-sm font-medium text-orange-600" id="marketingTotal">0 đ</div>
+                        <div class="text-sm font-medium text-orange-600" id="marketingTotal">0</div>
                     </div>
                     <div>
                         <div class="text-xs text-gray-500">Hoa hồng</div>
-                        <div class="text-sm font-medium text-green-600" id="commissionTotal">0 đ</div>
+                        <div class="text-sm font-medium text-green-600" id="commissionTotal">0</div>
                     </div>
                     <div>
                         <div class="text-xs text-gray-500">Khác</div>
-                        <div class="text-sm font-medium text-gray-600" id="otherTotal">0 đ</div>
+                        <div class="text-sm font-medium text-gray-600" id="otherTotal">0</div>
                     </div>
                     <div>
                         <div class="text-xs text-gray-500">Tổng chi phí</div>
-                        <div class="text-base font-bold text-red-600" id="totalCost">0 đ</div>
+                        <div class="text-base font-bold text-red-600" id="totalCost">0</div>
                     </div>
                 </div>
             </div>
 
             <!-- Totals Section -->
+            <!-- Totals Section -->
             <div class="border-t pt-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl ml-auto">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tổng tiền hàng</label>
+                <div class="space-y-3 max-w-md ml-auto">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Tổng tiền hàng</label>
                         <input type="text" id="subtotal" readonly
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
+                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu (%)</label>
-                        <input type="number" name="discount" id="discount" value="{{ old('discount', 0) }}" min="0" max="100"
-                               onchange="calculateTotal()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Chiết khấu (%)</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="number" name="discount" id="discount" value="{{ old('discount') }}" min="0" max="100" step="1"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0">
+                            <input type="text" id="discountAmount" readonly
+                                   class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-red-600">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
-                        <input type="number" name="vat" id="vat" value="{{ old('vat', 10) }}" min="0"
-                               onchange="calculateTotal()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Thuế GTGT (%)</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="number" name="vat" id="vat" value="{{ old('vat') }}" min="0" max="100" step="1"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0">
+                            <input type="text" id="vatAmount" readonly
+                                   class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1"><strong>Tổng cộng</strong></label>
+                    <div class="flex justify-between items-center pt-2 border-t">
+                        <label class="text-base font-bold text-gray-900">Tổng cộng</label>
                         <input type="text" id="total" readonly
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 font-bold text-lg">
+                               class="w-48 text-right border border-gray-200 bg-primary/10 rounded-lg px-3 py-2 font-bold text-lg text-primary">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Lợi nhuận (Margin)</label>
-                        <input type="text" id="margin" readonly
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 font-medium margin-display">
-                        <p id="marginWarning" class="text-xs text-red-600 mt-1 hidden">
-                            <i class="fas fa-exclamation-triangle"></i> Cảnh báo: Đơn hàng bị lỗ!
-                        </p>
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Lợi nhuận (Margin)</label>
+                        <div class="text-right">
+                            <input type="text" id="margin" readonly
+                                   class="w-48 text-right border border-gray-200 rounded-lg px-3 py-2 font-medium margin-display">
+                            <p id="marginWarning" class="text-xs text-red-600 mt-1 hidden">
+                                <i class="fas fa-exclamation-triangle"></i> Cảnh báo: Đơn hàng bị lỗ!
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ lệ Margin (%)</label>
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Tỷ lệ Margin (%)</label>
                         <input type="text" id="marginPercent" readonly
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 font-medium margin-percent-display">
+                               class="w-48 text-right border border-gray-200 rounded-lg px-3 py-2 font-medium margin-percent-display">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Đã thanh toán</label>
-                        <input type="number" name="paid_amount" id="paid_amount" value="{{ old('paid_amount', 0) }}" min="0"
+                    <div class="flex justify-between items-center pt-2 border-t">
+                        <label class="text-sm font-medium text-gray-700">Đã thanh toán</label>
+                        <input type="text" name="paid_amount" id="paid_amount" value="{{ old('paid_amount', 0) }}"
                                onchange="calculateDebt()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                               class="w-48 text-right border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary paid-amount-input">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Công nợ còn lại</label>
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Công nợ còn lại</label>
                         <input type="text" id="debt" readonly
-                               class="w-full border border-gray-200 bg-red-50 rounded-lg px-3 py-2 font-medium text-red-700">
+                               class="w-48 text-right border border-gray-200 bg-red-50 rounded-lg px-3 py-2 font-medium text-red-700">
                     </div>
                 </div>
             </div>
@@ -312,7 +369,15 @@
 <script>
 let productIndex = 1;
 let expenseIndex = 1;
+let isSubmitting = false;
 const products = @json($products);
+
+// Prevent "Leave site?" warning when submitting form
+window.addEventListener('beforeunload', function(e) {
+    if (isSubmitting) {
+        return undefined;
+    }
+});
 
 // Searchable Select Functions
 function initSearchableSelect(container, onSelect) {
@@ -439,9 +504,24 @@ function initAllSearchableSelects() {
 document.addEventListener('DOMContentLoaded', function() {
     initAllSearchableSelects();
     initMoneyInputs();
+    toggleProjectSelect(); // Initialize project select visibility
 });
 
-// Format money input
+// Toggle project select visibility based on sale type
+function toggleProjectSelect() {
+    const saleType = document.getElementById('saleType').value;
+    const projectWrapper = document.getElementById('projectSelectWrapper');
+    const projectSelect = document.getElementById('projectSelect');
+    
+    if (saleType === 'project') {
+        projectWrapper.classList.remove('hidden');
+    } else {
+        projectWrapper.classList.add('hidden');
+        projectSelect.value = ''; // Clear project selection when switching to retail
+    }
+}
+
+// Format money input (dùng dấu phẩy phân cách hàng nghìn)
 function formatMoney(value) {
     if (!value) return '';
     const num = value.toString().replace(/[^\d]/g, '');
@@ -675,7 +755,7 @@ function calculateRowTotal(index) {
         const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
         const price = unformatMoney(row.querySelector('.price-input').value);
         const total = qty * price;
-        row.querySelector('.row-total').value = formatMoney(total) + ' đ';
+        row.querySelector('.row-total').value = formatMoney(total);
     });
     calculateTotal();
 }
@@ -688,16 +768,18 @@ function calculateTotal() {
         subtotal += qty * price;
     });
     
-    const discount = parseFloat(document.getElementById('discount').value) || 0;
-    const vat = parseFloat(document.getElementById('vat').value) || 0;
+    const discount = parseInt(document.getElementById('discount').value) || 0;
+    const vat = parseInt(document.getElementById('vat').value) || 0;
     
     const discountAmount = subtotal * discount / 100;
     const afterDiscount = subtotal - discountAmount;
     const vatAmount = afterDiscount * vat / 100;
     const total = afterDiscount + vatAmount;
     
-    document.getElementById('subtotal').value = formatMoney(subtotal) + ' đ';
-    document.getElementById('total').value = formatMoney(total) + ' đ';
+    document.getElementById('subtotal').value = formatMoney(subtotal);
+    document.getElementById('discountAmount').value = discountAmount > 0 ? formatMoney(discountAmount) : '0';
+    document.getElementById('vatAmount').value = vatAmount > 0 ? formatMoney(vatAmount) : '0';
+    document.getElementById('total').value = formatMoney(total);
     
     calculateMargin();
     calculateDebt();
@@ -711,7 +793,7 @@ function calculateMargin() {
     const margin = total - cost;
     const marginPercent = total > 0 ? (margin / total * 100).toFixed(2) : 0;
     
-    document.getElementById('margin').value = formatMoney(margin) + ' đ';
+    document.getElementById('margin').value = formatMoney(margin);
     document.getElementById('marginPercent').value = marginPercent + '%';
     
     // Update colors based on margin
@@ -746,7 +828,7 @@ function calculateDebt() {
     const paid = unformatMoney(document.getElementById('paid_amount').value);
     const debt = total - paid;
     
-    document.getElementById('debt').value = formatMoney(debt) + ' đ';
+    document.getElementById('debt').value = formatMoney(debt);
 }
 
 // Expense functions
@@ -816,11 +898,11 @@ function calculateExpenses() {
     
     const total = shipping + marketing + commission + other;
     
-    document.getElementById('shippingTotal').textContent = formatMoney(shipping) + ' đ';
-    document.getElementById('marketingTotal').textContent = formatMoney(marketing) + ' đ';
-    document.getElementById('commissionTotal').textContent = formatMoney(commission) + ' đ';
-    document.getElementById('otherTotal').textContent = formatMoney(other) + ' đ';
-    document.getElementById('totalCost').textContent = formatMoney(total) + ' đ';
+    document.getElementById('shippingTotal').textContent = formatMoney(shipping);
+    document.getElementById('marketingTotal').textContent = formatMoney(marketing);
+    document.getElementById('commissionTotal').textContent = formatMoney(commission);
+    document.getElementById('otherTotal').textContent = formatMoney(other);
+    document.getElementById('totalCost').textContent = formatMoney(total);
     
     calculateMargin();
 }
@@ -910,6 +992,8 @@ function validateAndSubmit() {
             paidAmount.value = unformatMoney(paidAmount.value);
         }
         
+        // Set flag to prevent "Leave site?" warning
+        isSubmitting = true;
         document.getElementById('saleForm').submit();
     }
 }

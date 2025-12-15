@@ -13,6 +13,7 @@ class SaleItem extends Model
         'sale_id',
         'product_id',
         'product_name',
+        'project_id',
         'quantity',
         'price',
         'cost_price',
@@ -61,5 +62,13 @@ class SaleItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Relationship with Project
+     */
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 }
