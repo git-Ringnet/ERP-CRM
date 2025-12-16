@@ -13,14 +13,23 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            // Base data - phải chạy trước
             CustomerSeeder::class,
             SupplierSeeder::class,
             EmployeeSeeder::class,
-            // ProductSeeder::class,
+            ProductSeeder::class,
             WarehouseSeeder::class,
-            // InventorySeeder::class,
-            // InventoryTransactionSeeder::class,
+            InventorySeeder::class,
+            InventoryTransactionSeeder::class,
             DamagedGoodSeeder::class,
+            
+            // Module Bán hàng - chạy sau khi có Customer & Product
+            PriceListSeeder::class,       // Bảng giá
+            ProjectSeeder::class,          // Quản lý dự án
+            SaleSeeder::class,             // Đơn hàng bán
+            QuotationSeeder::class,        // Báo giá
+            CostFormulaSeeder::class,      // Công thức chi phí
+            PaymentHistorySeeder::class,   // Công nợ khách hàng
         ]);
     }
 }
