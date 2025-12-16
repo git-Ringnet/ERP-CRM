@@ -19,6 +19,7 @@ class SaleItem extends Model
         'cost_price',
         'total',
         'cost_total',
+        'warranty_months',
     ];
 
     protected $casts = [
@@ -27,6 +28,7 @@ class SaleItem extends Model
         'cost_price' => 'decimal:2',
         'total' => 'decimal:2',
         'cost_total' => 'decimal:2',
+        'warranty_months' => 'integer',
     ];
 
     /**

@@ -199,6 +199,7 @@
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">SL</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá bán</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá vốn</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bảo hành</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng vốn</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Lợi nhuận</th>
@@ -212,6 +213,15 @@
                         <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->quantity) }}</td>
                         <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->price) }} đ</td>
                         <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_price) }} đ</td>
+                        <td class="px-4 py-3 text-sm text-center">
+                            @if($item->warranty_months)
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                    <i class="fas fa-shield-alt mr-1"></i>{{ $item->warranty_months }} tháng
+                                </span>
+                            @else
+                                <span class="text-gray-400">-</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">{{ number_format($item->total) }} đ</td>
                         <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_total) }} đ</td>
                         <td class="px-4 py-3 text-sm text-right font-medium {{ $item->profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
@@ -223,28 +233,28 @@
                 </tbody>
                 <tfoot class="bg-white">
                     <tr>
-                        <td colspan="5" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Tổng tiền hàng:</td>
+                        <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Tổng tiền hàng:</td>
                         <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($sale->subtotal) }} đ</td>
                     </tr>
                     <tr>
-                        <td colspan="5" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chiết khấu ({{ $sale->discount }}%):</td>
+                        <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chiết khấu ({{ $sale->discount }}%):</td>
                         <td colspan="3" class="px-4 py-3 text-sm font-semibold text-red-600 text-right">-{{ number_format($sale->subtotal * $sale->discount / 100) }} đ</td>
                     </tr>
                     <tr>
-                        <td colspan="5" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">VAT ({{ $sale->vat }}%):</td>
+                        <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">VAT ({{ $sale->vat }}%):</td>
                         <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format(($sale->subtotal - $sale->subtotal * $sale->discount / 100) * $sale->vat / 100) }} đ</td>
                     </tr>
                     <tr class="border-t-2 border-gray-300 bg-blue-50">
-                        <td colspan="5" class="px-4 py-3 text-base font-bold text-gray-900 text-right">Tổng cộng:</td>
+                        <td colspan="6" class="px-4 py-3 text-base font-bold text-gray-900 text-right">Tổng cộng:</td>
                         <td colspan="3" class="px-4 py-3 text-base font-bold text-blue-700 text-right">{{ number_format($sale->total) }} đ</td>
                     </tr>
                     @if($sale->cost > 0)
                     <tr class="bg-orange-50">
-                        <td colspan="5" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chi phí bán hàng:</td>
+                        <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chi phí bán hàng:</td>
                         <td colspan="3" class="px-4 py-3 text-sm font-semibold text-orange-700 text-right">{{ number_format($sale->cost) }} đ</td>
                     </tr>
                     <tr class="bg-green-50">
-                        <td colspan="5" class="px-4 py-3 text-sm font-bold text-gray-900 text-right">Lợi nhuận (Margin):</td>
+                        <td colspan="6" class="px-4 py-3 text-sm font-bold text-gray-900 text-right">Lợi nhuận (Margin):</td>
                         <td colspan="3" class="px-4 py-3 text-sm font-bold text-green-700 text-right">{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 2) }}%)</td>
                     </tr>
                     @endif
@@ -255,7 +265,7 @@
                     </tr>
                     <tr class="bg-red-50">
                         <td colspan="5" class="px-4 py-3 text-sm font-bold text-gray-900 text-right">Công nợ còn lại:</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-bold text-red-600 text-right">{{ number_format($sale->debt_amount) }} đ</td>
+                        <td colspan="4" class="px-4 py-3 text-sm font-bold text-red-600 text-right">{{ number_format($sale->debt_amount) }} đ</td>
                     </tr>
                     @endif
                 </tfoot>

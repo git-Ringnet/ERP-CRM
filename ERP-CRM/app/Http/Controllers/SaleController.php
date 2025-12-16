@@ -125,6 +125,7 @@ class SaleController extends Controller
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
+            'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
             'expenses.*.description' => ['nullable', 'string'],
@@ -180,6 +181,11 @@ class SaleController extends Controller
                 // Use item-level project_id if set, otherwise use sale-level project_id
                 $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
                 
+                // Get warranty: use input value if provided, otherwise use product default
+                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== '' 
+                    ? (int)$item['warranty_months'] 
+                    : $product->warranty_months;
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -190,6 +196,7 @@ class SaleController extends Controller
                     'cost_price' => $costPrice,
                     'total' => $quantity * $item['price'],
                     'cost_total' => $quantity * $costPrice,
+                    'warranty_months' => $warrantyMonths,
                 ]);
             }
 
@@ -279,6 +286,7 @@ class SaleController extends Controller
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
+            'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
         ]);
 
         DB::beginTransaction();
@@ -326,6 +334,11 @@ class SaleController extends Controller
                 // Use item-level project_id if set, otherwise use sale-level project_id
                 $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
                 
+                // Get warranty: use input value if provided, otherwise use product default
+                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== '' 
+                    ? (int)$item['warranty_months'] 
+                    : $product->warranty_months;
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -336,6 +349,7 @@ class SaleController extends Controller
                     'cost_price' => $costPrice,
                     'total' => $quantity * $item['price'],
                     'cost_total' => $quantity * $costPrice,
+                    'warranty_months' => $warrantyMonths,
                 ]);
             }
 

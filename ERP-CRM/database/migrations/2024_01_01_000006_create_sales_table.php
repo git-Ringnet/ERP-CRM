@@ -37,6 +37,7 @@ return new class extends Migration
             $table->integer('quantity')->default(1);
             $table->decimal('price', 15, 2)->default(0);
             $table->decimal('total', 15, 2)->default(0);
+            $table->integer('warranty_months')->nullable()->comment('Số tháng bảo hành');
             $table->timestamps();
         });
     }

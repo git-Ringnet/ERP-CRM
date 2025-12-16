@@ -100,7 +100,7 @@
                     @foreach($sale->items as $index => $item)
                     <div class="product-item bg-gray-50 p-3 rounded-lg">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
-                            <div class="md:col-span-5">
+                            <div class="md:col-span-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                                 <div class="searchable-select product-searchable" data-index="{{ $index }}">
                                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
@@ -112,6 +112,7 @@
                                             <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
                                                  data-value="{{ $product->id }}" 
                                                  data-price="{{ $product->price }}"
+                                                 data-warranty="{{ $product->warranty_months ?? 0 }}"
                                                  data-text="{{ $product->name }}">
                                                 {{ $product->name }}
                                             </div>
@@ -119,7 +120,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="md:col-span-2">
+                            <div class="md:col-span-1">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
                                 <input type="number" name="products[{{ $index }}][quantity]" min="1" value="{{ $item->quantity }}" required
                                        onchange="calculateRowTotal({{ $index }})"
@@ -130,6 +131,12 @@
                                 <input type="text" name="products[{{ $index }}][price]" min="0" value="{{ number_format((int)$item->price, 0, '.', ',') }}" required
                                        onchange="calculateRowTotal({{ $index }})"
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
+                                <input type="number" name="products[{{ $index }}][warranty_months]" min="0" max="120" value="{{ $item->warranty_months ?? '' }}"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
+                                       placeholder="0">
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
@@ -413,9 +420,15 @@ function initAllSearchableSelects() {
             initSearchableSelect(container, (opt) => {
                 const row = container.closest('.product-item');
                 const priceInput = row.querySelector('.price-input');
+                const warrantyInput = row.querySelector('.warranty-input');
                 if (priceInput && opt.dataset.price) {
                     priceInput.value = formatMoney(opt.dataset.price);
                     calculateRowTotal(parseInt(container.dataset.index));
+                }
+                // Auto-fill warranty from product
+                if (warrantyInput && opt.dataset.warranty) {
+                    const warrantyMonths = parseInt(opt.dataset.warranty) || 0;
+                    warrantyInput.value = warrantyMonths > 0 ? warrantyMonths : '';
                 }
             });
             container.dataset.initialized = 'true';
@@ -434,18 +447,18 @@ function addProductRow() {
     newRow.className = 'product-item bg-gray-50 p-3 rounded-lg';
     newRow.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
-            <div class="md:col-span-5">
+            <div class="md:col-span-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
                 <div class="searchable-select product-searchable" data-index="${productIndex}">
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
                     <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
-                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-text="${p.name}">${p.name}</div>`).join('')}
+                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-warranty="${p.warranty_months || 0}" data-text="${p.name}">${p.name}</div>`).join('')}
                     </div>
                 </div>
             </div>
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
                 <input type="number" name="products[${productIndex}][quantity]" min="1" value="1" required
                        onchange="calculateRowTotal(${productIndex})"
@@ -456,6 +469,12 @@ function addProductRow() {
                 <input type="number" name="products[${productIndex}][price]" min="0" required
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
+                <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value=""
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
+                       placeholder="0">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
