@@ -49,6 +49,8 @@ Route::get('/products/{product}/items', [ProductController::class, 'items'])->na
 Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');
 Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->name('suppliers.export');
 Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
+Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
+Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
 Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
 
 // Excel Import routes (integrated into Imports module)

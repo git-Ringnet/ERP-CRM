@@ -45,6 +45,12 @@
         </div>
         
         <div class="flex gap-2">
+            <!-- Import Excel Button -->
+            <button type="button" onclick="document.getElementById('importModal').classList.remove('hidden')"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-file-import mr-2"></i>
+                Import Excel
+            </button>
             <a href="{{ route('employees.export') }}?{{ http_build_query(request()->query()) }}" 
                class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors">
                 <i class="fas fa-file-excel mr-2"></i>
@@ -155,5 +161,66 @@
         {{ $employees->appends(request()->query())->links() }}
     </div>
     @endif
+</div>
+
+<!-- Import Modal -->
+<div id="importModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-lg bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-file-import mr-2 text-blue-600"></i>
+                Import Nhân viên từ Excel
+            </h3>
+            <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <form action="{{ route('employees.import') }}" method="POST" enctype="multipart/form-data">
+            @csrf
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Chọn file Excel (.xlsx, .xls)
+                </label>
+                <input type="file" name="file" accept=".xlsx,.xls" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500">Dung lượng tối đa: 10MB</p>
+            </div>
+
+            <div class="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p class="text-sm text-blue-800 mb-2">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Hướng dẫn:
+                </p>
+                <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
+                    <li>Tải file mẫu để xem định dạng chuẩn</li>
+                    <li>Các cột bắt buộc: Mã NV, Tên, Email, SĐT, Phòng ban, Chức vụ</li>
+                    <li>Nếu mã NV đã tồn tại, thông tin sẽ được cập nhật</li>
+                </ul>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <a href="{{ route('employees.import.template') }}" 
+                   class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-download mr-1"></i>
+                    Tải file mẫu
+                </a>
+                
+                <div class="flex gap-2">
+                    <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')"
+                            class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-upload mr-1"></i>
+                        Import
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 @endsection

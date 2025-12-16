@@ -264,6 +264,17 @@
                     </div>
                 @endif
 
+                @if(session('warning'))
+                    <div class="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 sm:px-4 py-3 rounded-lg relative"
+                        role="alert">
+                        <span class="block sm:inline text-sm">{{ session('warning') }}</span>
+                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
+                            onclick="this.parentElement.remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                @endif
+
                 @yield('content')
             </main>
 
