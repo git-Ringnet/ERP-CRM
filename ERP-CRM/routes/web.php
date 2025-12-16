@@ -22,6 +22,9 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ApprovalWorkflowController;
 use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\SupplierQuotationController;
+use App\Http\Controllers\PurchaseOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -139,3 +142,25 @@ Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::cla
 Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
 Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
 Route::resource('projects', ProjectController::class);
+
+// Purchase Request routes (Yêu cầu báo giá NCC)
+Route::resource('purchase-requests', PurchaseRequestController::class);
+Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
+Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
+
+// Supplier Quotation routes (Báo giá từ NCC)
+Route::resource('supplier-quotations', SupplierQuotationController::class);
+Route::post('/supplier-quotations/{supplierQuotation}/select', [SupplierQuotationController::class, 'select'])->name('supplier-quotations.select');
+Route::post('/supplier-quotations/{supplierQuotation}/reject', [SupplierQuotationController::class, 'reject'])->name('supplier-quotations.reject');
+Route::get('/supplier-quotations-compare', [SupplierQuotationController::class, 'compare'])->name('supplier-quotations.compare');
+
+// Purchase Order routes (Đơn mua hàng)
+Route::resource('purchase-orders', PurchaseOrderController::class);
+Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
+Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
+Route::post('/purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('purchase-orders.reject');
+Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
+Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirmBySupplier'])->name('purchase-orders.confirm');
+Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');

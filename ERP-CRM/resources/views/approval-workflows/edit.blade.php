@@ -71,33 +71,30 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Loại người duyệt <span class="text-red-500">*</span></label>
-                            <select name="levels[{{ $index }}][approver_type]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select name="levels[{{ $index }}][approver_type]" required onchange="toggleApproverOptions(this)" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 approver-type-select">
                                 <option value="role" {{ $level->approver_type == 'role' ? 'selected' : '' }}>Theo vai trò</option>
                                 <option value="user" {{ $level->approver_type == 'user' ? 'selected' : '' }}>Người dùng cụ thể</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Người duyệt <span class="text-red-500">*</span></label>
-                            <select name="levels[{{ $index }}][approver_value]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select name="levels[{{ $index }}][approver_value]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 approver-value-select">
                                 <option value="">Chọn...</option>
-                                <option value="manager" {{ $level->approver_value == 'manager' ? 'selected' : '' }}>Vai trò: Trưởng phòng</option>
-                                <option value="director" {{ $level->approver_value == 'director' ? 'selected' : '' }}>Vai trò: Giám đốc</option>
-                                <option value="accountant" {{ $level->approver_value == 'accountant' ? 'selected' : '' }}>Vai trò: Kế toán</option>
-                                <option value="legal" {{ $level->approver_value == 'legal' ? 'selected' : '' }}>Vai trò: Pháp chế</option>
-                                @foreach($users as $user)
-                                    <option value="user_{{ $user->id }}" {{ $level->approver_value == 'user_'.$user->id ? 'selected' : '' }}>{{ $user->name }}</option>
-                                @endforeach
+                                @if($level->approver_type == 'role')
+                                    <option value="manager" {{ $level->approver_value == 'manager' ? 'selected' : '' }}>Trưởng phòng</option>
+                                    <option value="director" {{ $level->approver_value == 'director' ? 'selected' : '' }}>Giám đốc</option>
+                                    <option value="accountant" {{ $level->approver_value == 'accountant' ? 'selected' : '' }}>Kế toán</option>
+                                    <option value="legal" {{ $level->approver_value == 'legal' ? 'selected' : '' }}>Pháp chế</option>
+                                @else
+                                    @foreach($users as $user)
+                                        <option value="user_{{ $user->id }}" {{ $level->approver_value == "user_{$user->id}" ? 'selected' : '' }}>{{ $user->name }}</option>
+                                    @endforeach
+                                @endif
                             </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Giá trị tối thiểu</label>
-                            <input type="number" name="levels[{{ $index }}][min_amount]" value="{{ $level->min_amount }}" min="0"
-                                class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                     </div>
                 </div>
                 @endforeach
-            </div>
         </div>
     </div>
 
@@ -115,10 +112,39 @@
 let levelIndex = {{ count($approvalWorkflow->levels) }};
 const users = @json($users);
 
+const roles = [
+    { value: 'manager', label: 'Trưởng phòng' },
+    { value: 'director', label: 'Giám đốc' },
+    { value: 'accountant', label: 'Kế toán' },
+    { value: 'legal', label: 'Pháp chế' }
+];
+
+function toggleApproverOptions(selectElement) {
+    const levelItem = selectElement.closest('.level-item');
+    const approverSelect = levelItem.querySelector('.approver-value-select');
+    const approverType = selectElement.value;
+    
+    // Clear current options
+    approverSelect.innerHTML = '<option value="">Chọn...</option>';
+    
+    if (approverType === 'role') {
+        roles.forEach(role => {
+            approverSelect.innerHTML += `<option value="${role.value}">${role.label}</option>`;
+        });
+    } else {
+        users.forEach(user => {
+            approverSelect.innerHTML += `<option value="user_${user.id}">${user.name}</option>`;
+        });
+    }
+}
+
 function addLevel() {
     const container = document.getElementById('levelsContainer');
     const div = document.createElement('div');
     div.className = 'level-item bg-gray-50 p-4 rounded-lg mb-4 relative';
+    
+    const roleOptions = roles.map(r => `<option value="${r.value}">${r.label}</option>`).join('');
+    
     div.innerHTML = `
         <div class="absolute top-2 right-2">
             <button type="button" onclick="removeLevel(this)" class="text-red-600 hover:text-red-800 p-1">
@@ -134,26 +160,17 @@ function addLevel() {
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại người duyệt <span class="text-red-500">*</span></label>
-                <select name="levels[${levelIndex}][approver_type]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select name="levels[${levelIndex}][approver_type]" required onchange="toggleApproverOptions(this)" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 approver-type-select">
                     <option value="role">Theo vai trò</option>
                     <option value="user">Người dùng cụ thể</option>
                 </select>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Người duyệt <span class="text-red-500">*</span></label>
-                <select name="levels[${levelIndex}][approver_value]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select name="levels[${levelIndex}][approver_value]" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 approver-value-select">
                     <option value="">Chọn...</option>
-                    <option value="manager">Vai trò: Trưởng phòng</option>
-                    <option value="director">Vai trò: Giám đốc</option>
-                    <option value="accountant">Vai trò: Kế toán</option>
-                    <option value="legal">Vai trò: Pháp chế</option>
-                    ${users.map(u => `<option value="user_${u.id}">${u.name}</option>`).join('')}
+                    ${roleOptions}
                 </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Giá trị tối thiểu</label>
-                <input type="number" name="levels[${levelIndex}][min_amount]" min="0"
-                    class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
         </div>
     `;

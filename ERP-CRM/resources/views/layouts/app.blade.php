@@ -18,6 +18,9 @@
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -139,6 +142,28 @@
                         <i class="fas fa-chart-pie w-6"></i>
                         <span class="ml-3">Báo cáo hư hỏng</span>
                     </a>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Mua hàng</p>
+
+                    <a href="{{ route('purchase-requests.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-invoice w-6 text-orange-400"></i>
+                        <span class="ml-3">Yêu cầu báo giá NCC</span>
+                    </a>
+
+                    <a href="{{ route('supplier-quotations.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-tags w-6 text-yellow-400"></i>
+                        <span class="ml-3">Báo giá NCC</span>
+                    </a>
+
+                    <a href="{{ route('purchase-orders.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-shopping-basket w-6 text-green-400"></i>
+                        <span class="ml-3">Đơn mua hàng (PO)</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Bán hàng</p>
 
                     <a href="{{ route('price-lists.index') }}"

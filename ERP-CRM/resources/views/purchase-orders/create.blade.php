@@ -1,0 +1,323 @@
+@extends('layouts.app')
+
+@section('title', 'Tạo đơn mua hàng')
+@section('page-title', 'Tạo đơn mua hàng mới')
+
+@section('content')
+<div class="bg-white rounded-lg shadow-sm">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-gray-900">
+            <i class="fas fa-shopping-cart text-purple-500 mr-2"></i>Thông tin đơn mua hàng (PO)
+        </h2>
+        <a href="{{ route('purchase-orders.index') }}" class="text-gray-600 hover:text-gray-900">
+            <i class="fas fa-arrow-left mr-1"></i> Quay lại
+        </a>
+    </div>
+    
+    <form action="{{ route('purchase-orders.store') }}" method="POST" id="orderForm" class="p-4">
+        @csrf
+        @if($quotation)
+            <input type="hidden" name="supplier_quotation_id" value="{{ $quotation->id }}">
+        @endif
+        
+        @if($quotation)
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-blue-800"><i class="fas fa-info-circle mr-2"></i> Tạo PO từ báo giá: <strong>{{ $quotation->code }}</strong> - {{ $quotation->supplier->name }}</p>
+        </div>
+        @endif
+
+        <!-- Thông tin chung -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO <span class="text-red-500">*</span></label>
+                <input type="text" name="code" value="{{ old('code', $code) }}" required readonly
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp <span class="text-red-500">*</span></label>
+                <select name="supplier_id" id="supplierSelect" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" {{ $quotation ? 'disabled' : '' }}>
+                    <option value="">Tìm và chọn nhà cung cấp...</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->id }}" {{ ($quotation && $quotation->supplier_id == $supplier->id) ? 'selected' : '' }}>{{ $supplier->code }} - {{ $supplier->name }}</option>
+                    @endforeach
+                </select>
+                @if($quotation)
+                    <input type="hidden" name="supplier_id" value="{{ $quotation->supplier_id }}">
+                @endif
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày tạo <span class="text-red-500">*</span></label>
+                <input type="date" name="order_date" value="{{ old('order_date', now()->format('Y-m-d')) }}" required
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày giao dự kiến</label>
+                <input type="date" name="expected_delivery" value="{{ old('expected_delivery', $quotation ? now()->addDays($quotation->delivery_days ?? 7)->format('Y-m-d') : '') }}"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
+                <select name="payment_terms" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    <option value="immediate">Thanh toán ngay</option>
+                    <option value="cod">COD - Thanh toán khi nhận hàng</option>
+                    <option value="net15">Net 15 - Thanh toán trong 15 ngày</option>
+                    <option value="net30" selected>Net 30 - Thanh toán trong 30 ngày</option>
+                    <option value="net45">Net 45 - Thanh toán trong 45 ngày</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ giao hàng</label>
+                <input type="text" name="delivery_address" value="{{ old('delivery_address') }}" placeholder="Địa chỉ nhận hàng"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+        </div>
+
+        <!-- Danh sách sản phẩm -->
+        <div class="border-t border-gray-200 pt-4 mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-semibold text-gray-900">Chi tiết sản phẩm</h3>
+                <button type="button" id="addItem" class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                    <i class="fas fa-plus mr-1"></i>Thêm sản phẩm
+                </button>
+            </div>
+            <div id="itemsContainer" class="space-y-3">
+                @if($quotation && $quotation->items->count() > 0)
+                    @foreach($quotation->items as $index => $item)
+                    <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="col-span-4">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
+                            <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}" required
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+                            <input type="number" name="items[{{ $index }}][quantity]" value="{{ $item->quantity }}" min="1" required
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                            <input type="number" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" min="0" required
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+                        </div>
+                        <div class="col-span-3">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                            <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly
+                                value="{{ number_format($item->quantity * $item->unit_price) }}">
+                        </div>
+                        <div class="col-span-1 flex justify-center">
+                            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
+                <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="col-span-4">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
+                        <input type="text" name="items[0][product_name]" required placeholder="Tên sản phẩm"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+                        <input type="number" name="items[0][quantity]" value="1" min="1" required
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                        <input type="number" name="items[0][unit_price]" min="0" required placeholder="0"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                        <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
+                    </div>
+                    <div class="col-span-1 flex justify-center">
+                        <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" style="display:none;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Tổng cộng -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea name="note" rows="4" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
+            </div>
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600 text-sm">Tổng tiền hàng:</span>
+                    <span id="subtotal" class="font-medium">0đ</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 text-sm">Chiết khấu (%):</span>
+                    <input type="number" name="discount_percent" value="{{ old('discount_percent', $quotation->discount_percent ?? 0) }}" min="0" max="100"
+                        class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 text-sm">Phí vận chuyển:</span>
+                    <input type="number" name="shipping_cost" value="{{ old('shipping_cost', $quotation->shipping_cost ?? 0) }}" min="0"
+                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 text-sm">Chi phí khác:</span>
+                    <input type="number" name="other_cost" value="{{ old('other_cost', 0) }}" min="0"
+                        class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 text-sm">VAT (%):</span>
+                    <input type="number" name="vat_percent" value="{{ old('vat_percent', $quotation->vat_percent ?? 10) }}" min="0"
+                        class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                </div>
+                <div class="flex justify-between pt-3 border-t">
+                    <span class="text-lg font-semibold">Tổng cộng:</span>
+                    <span id="total" class="text-lg font-bold text-blue-600">0đ</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <a href="{{ route('purchase-orders.index') }}" 
+               class="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                <i class="fas fa-times mr-1"></i> Hủy
+            </a>
+            <button type="submit" class="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                <i class="fas fa-save mr-1"></i> Lưu nháp
+            </button>
+            <button type="submit" name="submit_approval" value="1" class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                <i class="fas fa-paper-plane mr-1"></i> Lưu và gửi duyệt
+            </button>
+        </div>
+    </form>
+</div>
+
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<style>
+    .ts-wrapper.single .ts-control {
+        padding: 8px 12px;
+        border-radius: 0.5rem;
+        border-color: #d1d5db;
+        min-height: 42px;
+    }
+    .ts-dropdown {
+        border-radius: 0.5rem;
+    }
+    .ts-dropdown .option {
+        padding: 10px 12px;
+    }
+    .ts-dropdown .option.active {
+        background-color: #3b82f6;
+        color: white;
+    }
+</style>
+@endpush
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var supplierEl = document.getElementById('supplierSelect');
+    if (supplierEl && !supplierEl.disabled) {
+        new TomSelect('#supplierSelect', {
+            placeholder: 'Tìm và chọn nhà cung cấp...',
+            allowEmptyOption: true,
+            maxOptions: 100,
+            render: {
+                no_results: function() {
+                    return '<div class="no-results p-3 text-gray-500">Không tìm thấy nhà cung cấp</div>';
+                }
+            }
+        });
+    }
+    calculateTotal();
+});
+
+let itemIndex = {{ $quotation ? $quotation->items->count() : 1 }};
+
+function calculateRow(input) {
+    const row = input.closest('.item-row');
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const price = parseFloat(row.querySelector('.item-price').value) || 0;
+    row.querySelector('.item-total').value = (qty * price).toLocaleString('vi-VN');
+    calculateTotal();
+}
+
+function calculateTotal() {
+    let subtotal = 0;
+    document.querySelectorAll('.item-row').forEach(row => {
+        const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        subtotal += qty * price;
+    });
+    
+    const discount = parseFloat(document.querySelector('[name="discount_percent"]').value) || 0;
+    const shipping = parseFloat(document.querySelector('[name="shipping_cost"]').value) || 0;
+    const other = parseFloat(document.querySelector('[name="other_cost"]').value) || 0;
+    const vat = parseFloat(document.querySelector('[name="vat_percent"]').value) || 0;
+    
+    const discountAmount = subtotal * (discount / 100);
+    const afterDiscount = subtotal - discountAmount;
+    const beforeVat = afterDiscount + shipping + other;
+    const vatAmount = beforeVat * (vat / 100);
+    const total = beforeVat + vatAmount;
+    
+    document.getElementById('subtotal').textContent = subtotal.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('total').textContent = Math.round(total).toLocaleString('vi-VN') + 'đ';
+}
+
+document.getElementById('addItem').addEventListener('click', function() {
+    const container = document.getElementById('itemsContainer');
+    const newRow = document.createElement('div');
+    newRow.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200';
+    newRow.innerHTML = `
+        <div class="col-span-4">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
+            <input type="text" name="items[${itemIndex}][product_name]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+        </div>
+        <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+            <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+        </div>
+        <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+            <input type="number" name="items[${itemIndex}][unit_price]" min="0" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+        </div>
+        <div class="col-span-3">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+            <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
+        </div>
+        <div class="col-span-1 flex justify-center">
+            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200"><i class="fas fa-trash"></i></button>
+        </div>
+    `;
+    container.appendChild(newRow);
+    itemIndex++;
+    updateRemoveButtons();
+});
+
+document.getElementById('itemsContainer').addEventListener('click', function(e) {
+    if (e.target.closest('.remove-item')) {
+        e.target.closest('.item-row').remove();
+        updateRemoveButtons();
+        calculateTotal();
+    }
+});
+
+function updateRemoveButtons() {
+    const rows = document.querySelectorAll('.item-row');
+    rows.forEach(row => {
+        row.querySelector('.remove-item').style.display = rows.length > 1 ? 'flex' : 'none';
+    });
+}
+</script>
+@endpush
+@endsection
