@@ -59,6 +59,7 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'description' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
@@ -108,6 +109,7 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'description' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);

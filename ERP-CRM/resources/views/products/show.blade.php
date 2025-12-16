@@ -48,6 +48,18 @@
                             <label class="block text-sm font-medium text-gray-500">Đơn vị</label>
                             <p class="text-sm text-gray-900">{{ $product->unit }}</p>
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Bảo hành</label>
+                            <p class="text-sm text-gray-900">
+                                @if($product->warranty_months)
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                        <i class="fas fa-shield-alt mr-1"></i>{{ $product->warranty_months }} tháng
+                                    </span>
+                                @else
+                                    <span class="text-gray-400">Không có bảo hành</span>
+                                @endif
+                            </p>
+                        </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-500">Mô tả</label>
                             <p class="text-sm text-gray-900">{{ $product->description ?: '-' }}</p>

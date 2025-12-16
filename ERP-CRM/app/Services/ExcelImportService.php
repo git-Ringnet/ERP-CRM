@@ -51,6 +51,7 @@ class ExcelImportService
             ['Tên sản phẩm', 'Tên đầy đủ của sản phẩm', 'Không', 'Text'],
             ['Danh mục', 'Danh mục sản phẩm (A-Z)', 'Không', 'Chữ cái (A-Z)'],
             ['Đơn vị', 'Đơn vị tính', 'Không', 'Text (VD: Cái, Hộp)'],
+            ['Bảo hành (tháng)', 'Thời gian bảo hành mặc định', 'Không', 'Số (VD: 12, 24, 36)'],
             ['Ghi chú', 'Ghi chú thêm', 'Không', 'Text'],
         ];
         
@@ -73,26 +74,26 @@ class ExcelImportService
         $dataSheet = $spreadsheet->createSheet(1);
         $dataSheet->setTitle('Du Lieu');
         
-        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Ghi chú'];
+        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
         $dataSheet->fromArray($headers, null, 'A1');
-        $dataSheet->getStyle('A1:J1')->getFont()->setBold(true);
-        $dataSheet->getStyle('A1:J1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
-        $dataSheet->getStyle('A1:J1')->getFont()->getColor()->setRGB('FFFFFF');
+        $dataSheet->getStyle('A1:K1')->getFont()->setBold(true);
+        $dataSheet->getStyle('A1:K1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+        $dataSheet->getStyle('A1:K1')->getFont()->getColor()->setRGB('FFFFFF');
         
         // Example rows (theo format của khách hàng)
         $examples = [
-            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'Seagate IronWolf 4TB', 'A', 'Cái', 'Nhập bên Maxlink 2'],
-            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', '', '', '', ''],
-            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', ''],
-            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', '', '', '', ''],
-            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', '', '', '', ''],
-            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', '', '', '', ''],
-            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'Zyxel WAX510D Access Point', 'A', 'Cái', ''],
-            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', '', '', '', ''],
-            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', '', '', '', ''],
-            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', '', '', '', ''],
-            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', '', '', '', ''],
-            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', '', '', '', ''],
+            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
+            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', '', '', '', '', ''],
+            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
+            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', '', '', '', '', ''],
+            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', '', '', '', '', ''],
+            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', '', '', '', '', ''],
+            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
+            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', '', '', '', '', ''],
+            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', '', '', '', '', ''],
+            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', '', '', '', '', ''],
+            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', '', '', '', '', ''],
+            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', '', '', '', '', ''],
         ];
         
         $row = 2;
@@ -102,13 +103,13 @@ class ExcelImportService
         }
         
         // Auto-size columns
-        foreach (range('A', 'J') as $col) {
+        foreach (range('A', 'K') as $col) {
             $dataSheet->getColumnDimension($col)->setAutoSize(true);
         }
         
         // Add borders
         $lastRow = $row - 1;
-        $dataSheet->getStyle("A1:J{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $dataSheet->getStyle("A1:K{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
         
         $spreadsheet->setActiveSheetIndex(1);
         
@@ -263,7 +264,8 @@ class ExcelImportService
                 // 6: Tên sản phẩm
                 // 7: Danh mục
                 // 8: Đơn vị
-                // 9: Ghi chú
+                // 9: Bảo hành (tháng)
+                // 10: Ghi chú
                 
                 $productCode = trim($row[1] ?? '');
                 $quantity = $row[3] ?? 1;
@@ -272,7 +274,8 @@ class ExcelImportService
                 $productName = trim($row[6] ?? '');
                 $category = strtoupper(trim($row[7] ?? 'A'));
                 $unit = trim($row[8] ?? 'Cái');
-                $note = trim($row[9] ?? '');
+                $warrantyMonths = $row[9] ?? null;
+                $note = trim($row[10] ?? '');
                 
                 // Skip if no product code
                 if (empty($productCode)) {
@@ -292,6 +295,15 @@ class ExcelImportService
                     continue;
                 }
                 
+                // Parse warranty months (optional)
+                $warrantyMonthsValue = null;
+                if (!empty($warrantyMonths) && is_numeric($warrantyMonths)) {
+                    $warrantyMonthsValue = (int) $warrantyMonths;
+                    if ($warrantyMonthsValue < 0 || $warrantyMonthsValue > 120) {
+                        $warrantyMonthsValue = null;
+                    }
+                }
+
                 // Get or create product
                 if (!isset($productCache[$productCode])) {
                     $product = Product::where('code', $productCode)->first();
@@ -313,10 +325,16 @@ class ExcelImportService
                             'name' => $productName,
                             'category' => $category,
                             'unit' => $unit,
+                            'warranty_months' => $warrantyMonthsValue,
                             'description' => null,
                             'note' => null,
                         ]);
                         $productsCreated++;
+                    } else {
+                        // Update warranty_months if provided and product doesn't have one
+                        if ($warrantyMonthsValue !== null && empty($product->warranty_months)) {
+                            $product->update(['warranty_months' => $warrantyMonthsValue]);
+                        }
                     }
                     
                     $productCache[$productCode] = $product;

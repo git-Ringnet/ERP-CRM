@@ -32,6 +32,11 @@ return new class extends Migration
         Schema::table('products', function (Blueprint $table) {
             $table->char('category', 1)->nullable()->change();
         });
+
+        // Add warranty_months column
+        Schema::table('products', function (Blueprint $table) {
+            $table->integer('warranty_months')->nullable()->after('unit')->comment('Default warranty period in months');
+        });
     }
 
     /**
@@ -56,6 +61,11 @@ return new class extends Migration
         // Restore category column
         Schema::table('products', function (Blueprint $table) {
             $table->string('category', 100)->nullable()->change();
+        });
+
+        // Remove warranty_months column
+        Schema::table('products', function (Blueprint $table) {
+            $table->dropColumn('warranty_months');
         });
     }
 };

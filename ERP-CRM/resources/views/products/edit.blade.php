@@ -51,6 +51,13 @@
                                 <input type="text" name="unit" id="unit" value="{{ old('unit', $product->unit) }}" required placeholder="VD: Cái, Hộp, Kg..."
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                             </div>
+                            <div>
+                                <label for="warranty_months" class="block text-sm font-medium text-gray-700 mb-1">Thời gian bảo hành (tháng)</label>
+                                <input type="number" name="warranty_months" id="warranty_months" value="{{ old('warranty_months', $product->warranty_months) }}" min="0" max="120" placeholder="VD: 12, 24..."
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('warranty_months') border-red-500 @enderror">
+                                <p class="mt-1 text-xs text-gray-500">Để trống nếu không có bảo hành</p>
+                                @error('warranty_months')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
                             <div class="md:col-span-2">
                                 <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
                                 <textarea name="description" id="description" rows="3" placeholder="Mô tả chi tiết sản phẩm..."

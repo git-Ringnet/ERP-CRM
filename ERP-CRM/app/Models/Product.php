@@ -26,6 +26,7 @@ class Product extends Model
         'name',
         'category',
         'unit',
+        'warranty_months',
         'description',
         'note',
     ];
