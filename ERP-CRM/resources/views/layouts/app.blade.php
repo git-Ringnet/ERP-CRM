@@ -234,7 +234,7 @@
                         </button>
 
                         <!-- Dropdown Menu -->
-                        <div x-show="open" @click.away="open = false" x-transition
+                        <div x-show="open" x-cloak @click.away="open = false" x-transition
                              class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50 border border-gray-200">
                             @auth
                                 <div class="px-4 py-2 border-b border-gray-100">
