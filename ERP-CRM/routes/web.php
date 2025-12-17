@@ -30,119 +30,119 @@ use App\Http\Controllers\PurchaseOrderController;
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
 */
 
-// Dashboard as default page
-Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-Route::get('/dashboard', [DashboardController::class, 'index']);
+// Redirect root to dashboard
+Route::get('/', function () {
+    return redirect()->route('dashboard');
+});
 
-// Resource routes for CRUD operations
-Route::resource('customers', CustomerController::class);
-Route::resource('suppliers', SupplierController::class);
-Route::resource('employees', EmployeeController::class);
-Route::resource('products', ProductController::class);
-Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
+// All routes require authentication
+Route::middleware(['auth'])->group(function () {
+    // Dashboard
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Export routes (Requirements: 7.6, 7.7)
-Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');
-Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->name('suppliers.export');
-Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
-Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
-Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
-Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
+    // Resource routes for CRUD operations
+    Route::resource('customers', CustomerController::class);
+    Route::resource('suppliers', SupplierController::class);
+    Route::resource('employees', EmployeeController::class);
+    Route::resource('products', ProductController::class);
+    Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
 
-// Excel Import routes (integrated into Imports module)
-Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
-Route::post('/excel-import', [ExcelImportController::class, 'store'])->name('excel-import.store');
+    // Export routes
+    Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');
+    Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->name('suppliers.export');
+    Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
+    Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
+    Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
+    Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
 
-// Import Module Routes (Nhập kho) - Requirements: 1.3
-Route::resource('imports', ImportController::class);
-Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
+    // Excel Import routes
+    Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
+    Route::post('/excel-import', [ExcelImportController::class, 'store'])->name('excel-import.store');
 
-// Export Module Routes (Xuất kho) - Requirements: 2.3
-Route::get('/exports/available-items', [ExportController::class, 'getAvailableItems'])->name('exports.available-items');
-Route::resource('exports', ExportController::class);
-Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
+    // Import Module Routes (Nhập kho)
+    Route::resource('imports', ImportController::class);
+    Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
 
-// Transfer Module Routes (Chuyển kho) - Requirements: 3.3
-Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
-Route::resource('transfers', TransferController::class);
-Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve'])->name('transfers.approve');
+    // Export Module Routes (Xuất kho)
+    Route::get('/exports/available-items', [ExportController::class, 'getAvailableItems'])->name('exports.available-items');
+    Route::resource('exports', ExportController::class);
+    Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
 
-// Warehouse Module Routes
-Route::resource('warehouses', WarehouseController::class);
+    // Transfer Module Routes (Chuyển kho)
+    Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
+    Route::resource('transfers', TransferController::class);
+    Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve'])->name('transfers.approve');
 
-// Inventory Routes
-Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
-Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])->name('inventory.low-stock');
-Route::get('/inventory/expiring', [InventoryController::class, 'expiringSoon'])->name('inventory.expiring');
-Route::get('/inventory/{inventory}', [InventoryController::class, 'show'])->name('inventory.show');
+    // Warehouse Module Routes
+    Route::resource('warehouses', WarehouseController::class);
 
+    // Inventory Routes
+    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+    Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])->name('inventory.low-stock');
+    Route::get('/inventory/expiring', [InventoryController::class, 'expiringSoon'])->name('inventory.expiring');
+    Route::get('/inventory/{inventory}', [InventoryController::class, 'show'])->name('inventory.show');
 
+    // Damaged Goods Routes
+    Route::resource('damaged-goods', DamagedGoodController::class);
+    Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::class, 'updateStatus'])->name('damaged-goods.update-status');
 
-// Damaged Goods Routes
-Route::resource('damaged-goods', DamagedGoodController::class);
-Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::class, 'updateStatus'])->name('damaged-goods.update-status');
+    // Report Routes
+    Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
+    Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
+    Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
 
-// Report Routes
-Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
-Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
-Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
+    // Sales routes
+    Route::resource('sales', SaleController::class);
+    Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
+    Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
+    Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
+    Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
+    Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
+    Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
 
-// Sales routes
-Route::resource('sales', SaleController::class);
-Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
-Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
-Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
-Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
-Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
-Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
+    // Cost Formula routes
+    Route::resource('cost-formulas', CostFormulaController::class);
+    Route::get('/api/cost-formulas/applicable', [CostFormulaController::class, 'getApplicableFormulas'])->name('cost-formulas.applicable');
 
-// Cost Formula routes
-Route::resource('cost-formulas', CostFormulaController::class);
-Route::get('/api/cost-formulas/applicable', [CostFormulaController::class, 'getApplicableFormulas'])->name('cost-formulas.applicable');
+    // Settings routes
+    Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+    Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
+    Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
 
-// Settings routes
-Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
-Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
-Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
+    // Customer Debt Management routes
+    Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
+    Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');
+    Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
+    Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
+    Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
 
-// Customer Debt Management routes
-Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
-Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');
-Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
-Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
-Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
+    // Quotation routes (Báo giá)
+    Route::resource('quotations', QuotationController::class);
+    Route::post('/quotations/{quotation}/submit', [QuotationController::class, 'submitForApproval'])->name('quotations.submit');
+    Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
+    Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
+    Route::post('/quotations/{quotation}/send', [QuotationController::class, 'markAsSent'])->name('quotations.send');
+    Route::post('/quotations/{quotation}/response', [QuotationController::class, 'customerResponse'])->name('quotations.response');
+    Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
+    Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
 
-// Quotation routes (Báo giá)
-Route::resource('quotations', QuotationController::class);
-Route::post('/quotations/{quotation}/submit', [QuotationController::class, 'submitForApproval'])->name('quotations.submit');
-Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
-Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
-Route::post('/quotations/{quotation}/send', [QuotationController::class, 'markAsSent'])->name('quotations.send');
-Route::post('/quotations/{quotation}/response', [QuotationController::class, 'customerResponse'])->name('quotations.response');
-Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
-Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
+    // Approval Workflow routes
+    Route::resource('approval-workflows', ApprovalWorkflowController::class);
+    Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflows.toggle');
 
-// Approval Workflow routes (Quy trình duyệt)
-Route::resource('approval-workflows', ApprovalWorkflowController::class);
-Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflows.toggle');
+    // Price List routes
+    Route::resource('price-lists', PriceListController::class);
+    Route::post('/price-lists/{priceList}/toggle', [PriceListController::class, 'toggle'])->name('price-lists.toggle');
+    Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::class, 'getForCustomer'])->name('price-lists.for-customer');
 
-// Price List routes (Bảng giá)
-Route::resource('price-lists', PriceListController::class);
-Route::post('/price-lists/{priceList}/toggle', [PriceListController::class, 'toggle'])->name('price-lists.toggle');
-Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::class, 'getForCustomer'])->name('price-lists.for-customer');
+    // Project routes
+    Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
+    Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
+    Route::resource('projects', ProjectController::class);
 
-// Project routes (Quản lý dự án)
-Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
-Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
-Route::resource('projects', ProjectController::class);
-
+    
 // Purchase Request routes (Yêu cầu báo giá NCC)
 Route::resource('purchase-requests', PurchaseRequestController::class);
 Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
@@ -164,3 +164,7 @@ Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController
 Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
 Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
 Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
+});
+
+// Auth routes (login, logout, etc.)
+require __DIR__.'/auth.php';

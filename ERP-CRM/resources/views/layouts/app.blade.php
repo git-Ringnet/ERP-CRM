@@ -18,9 +18,6 @@
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -142,25 +139,6 @@
                         <i class="fas fa-chart-pie w-6"></i>
                         <span class="ml-3">Báo cáo hư hỏng</span>
                     </a>
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Mua hàng</p>
-
-                    <a href="{{ route('purchase-requests.index') }}"
-                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-file-invoice w-6 text-orange-400"></i>
-                        <span class="ml-3">Yêu cầu báo giá NCC</span>
-                    </a>
-
-                    <a href="{{ route('supplier-quotations.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-tags w-6 text-yellow-400"></i>
-                        <span class="ml-3">Báo giá NCC</span>
-                    </a>
-
-                    <a href="{{ route('purchase-orders.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-shopping-basket w-6 text-green-400"></i>
-                        <span class="ml-3">Đơn mua hàng (PO)</span>
-                    </a>
                 </div>
 
                 <div class="mt-4">
@@ -221,14 +199,13 @@
             </nav>
         </aside>
 
+
         <!-- Main Content -->
         <div class="flex-1 flex flex-col min-h-screen">
             <!-- Top Header -->
-            <header
-                class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+            <header class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
                 <div class="flex items-center min-w-0 flex-1">
-                    <button id="openSidebar"
-                        class="lg:hidden text-gray-600 hover:text-gray-900 mr-3 focus:outline-none">
+                    <button id="openSidebar" class="lg:hidden text-gray-600 hover:text-gray-900 mr-3 focus:outline-none">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
                     <h1 class="text-base sm:text-lg font-semibold text-gray-800 truncate">
@@ -236,30 +213,52 @@
                 </div>
 
                 <div class="flex items-center space-x-2 sm:space-x-4">
-                    <!-- Search -->
-                    <div class="hidden xl:block relative">
-                        <input type="text" placeholder="Tìm kiếm..."
-                            class="w-48 xl:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                    </div>
-
                     <!-- Notifications -->
                     <button class="relative text-gray-600 hover:text-gray-900 focus:outline-none">
                         <i class="fas fa-bell text-lg sm:text-xl"></i>
-                        <span
-                            class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
                     </button>
 
-                    <!-- User Menu -->
-                    <div class="relative">
-                        <button
-                            class="flex items-center space-x-1 sm:space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none">
+                    <!-- User Menu Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="flex items-center space-x-1 sm:space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none">
                             <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white">
                                 <i class="fas fa-user text-sm"></i>
                             </div>
-                            <span class="hidden sm:block font-medium text-sm">Admin</span>
+                            @auth
+                                <span class="hidden sm:block font-medium text-sm">{{ Auth::user()->name }}</span>
+                            @else
+                                <span class="hidden sm:block font-medium text-sm">Guest</span>
+                            @endauth
                             <i class="fas fa-chevron-down text-xs hidden sm:block"></i>
                         </button>
+
+                        <!-- Dropdown Menu -->
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50 border border-gray-200">
+                            @auth
+                                <div class="px-4 py-2 border-b border-gray-100">
+                                    <p class="text-sm font-medium text-gray-900">{{ Auth::user()->name }}</p>
+                                    <p class="text-xs text-gray-500">{{ Auth::user()->position ?? Auth::user()->email }}</p>
+                                </div>
+                                <a href="{{ route('profile.edit') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                    <i class="fas fa-user-edit mr-2"></i>
+                                    Chỉnh sửa hồ sơ
+                                </a>
+                                <form method="POST" action="{{ route('logout') }}">
+                                    @csrf
+                                    <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center">
+                                        <i class="fas fa-sign-out-alt mr-2"></i>
+                                        Đăng xuất
+                                    </button>
+                                </form>
+                            @else
+                                <a href="{{ route('login') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-sign-in-alt mr-2"></i>
+                                    Đăng nhập
+                                </a>
+                            @endauth
+                        </div>
                     </div>
                 </div>
             </header>
@@ -268,33 +267,27 @@
             <main class="flex-1 p-3 sm:p-4 lg:p-6 overflow-x-hidden min-h-0">
                 <!-- Flash Messages -->
                 @if(session('success'))
-                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative"
-                        role="alert">
+                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative" role="alert">
                         <span class="block sm:inline text-sm">{{ session('success') }}</span>
-                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
-                            onclick="this.parentElement.remove()">
+                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none" onclick="this.parentElement.remove()">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                 @endif
 
                 @if(session('error'))
-                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded-lg relative"
-                        role="alert">
+                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded-lg relative" role="alert">
                         <span class="block sm:inline text-sm">{{ session('error') }}</span>
-                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
-                            onclick="this.parentElement.remove()">
+                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none" onclick="this.parentElement.remove()">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                 @endif
 
                 @if(session('warning'))
-                    <div class="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 sm:px-4 py-3 rounded-lg relative"
-                        role="alert">
+                    <div class="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 sm:px-4 py-3 rounded-lg relative" role="alert">
                         <span class="block sm:inline text-sm">{{ session('warning') }}</span>
-                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
-                            onclick="this.parentElement.remove()">
+                        <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none" onclick="this.parentElement.remove()">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -320,16 +313,11 @@
         </div>
     </div>
 
+    <!-- Alpine.js for dropdown -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
     <!-- Sidebar Toggle & Interactions Script -->
     <script>
-        // Hide loading immediately when script loads
-        (function() {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('hidden');
-            }
-        })();
-
         document.addEventListener('DOMContentLoaded', function () {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
@@ -337,7 +325,6 @@
             const closeBtn = document.getElementById('closeSidebar');
             const loadingOverlay = document.getElementById('loadingOverlay');
 
-            // Sidebar functions
             function openSidebar() {
                 sidebar.classList.remove('-translate-x-full');
                 overlay.classList.remove('hidden');
@@ -350,145 +337,40 @@
                 document.body.style.overflow = '';
             }
 
-            if (openBtn) {
-                openBtn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    openSidebar();
-                });
-            }
+            if (openBtn) openBtn.addEventListener('click', openSidebar);
+            if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+            if (overlay) overlay.addEventListener('click', closeSidebar);
 
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function () {
-                    closeSidebar();
-                });
-            }
-
-            // Close sidebar when clicking overlay
-            if (overlay) {
-                overlay.addEventListener('click', function () {
-                    closeSidebar();
-                });
-            }
-
-            // Close sidebar on window resize to desktop
             window.addEventListener('resize', function () {
-                if (window.innerWidth >= 1024) {
-                    closeSidebar();
-                }
+                if (window.innerWidth >= 1024) closeSidebar();
             });
 
-            // Enhanced delete confirmation
             window.confirmDelete = function (form, message = 'Bạn có chắc chắn muốn xóa?') {
                 if (confirm(message)) {
-                    showLoading();
                     form.submit();
                     return true;
                 }
                 return false;
             };
 
-            // Handle delete buttons with data attributes
-            document.querySelectorAll('.delete-btn').forEach(function (btn) {
-                btn.closest('form').addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    const itemName = btn.dataset.name || 'mục này';
-                    if (confirm(`Bạn có chắc chắn muốn xóa "${itemName}"?\n\nHành động này không thể hoàn tác.`)) {
-                        showLoading();
-                        this.submit();
-                    }
-                });
-            });
-
-            // Show loading overlay
             window.showLoading = function () {
-                if (loadingOverlay) {
-                    loadingOverlay.classList.remove('hidden');
-                    
-                    // Auto-hide after 10 seconds to prevent stuck loading
-                    setTimeout(function() {
-                        hideLoading();
-                    }, 10000);
-                }
+                if (loadingOverlay) loadingOverlay.classList.remove('hidden');
             };
 
-            // Hide loading overlay
             window.hideLoading = function () {
-                if (loadingOverlay) {
-                    loadingOverlay.classList.add('hidden');
-                }
+                if (loadingOverlay) loadingOverlay.classList.add('hidden');
             };
 
-            // Show loading on form submissions (except delete forms)
-            document.querySelectorAll('form:not(.delete-form)').forEach(function (form) {
-                form.addEventListener('submit', function (e) {
-                    // Check if form has validation errors
-                    const hasErrors = form.querySelector('.text-red-600, .border-red-500');
-                    if (!hasErrors) {
-                        showLoading();
-                    }
-                });
-            });
-
-            // Show loading on navigation links (except same page)
-            document.querySelectorAll('a[href]:not([href^="#"]):not([target="_blank"])').forEach(function (link) {
-                link.addEventListener('click', function (e) {
-                    // Don't show loading for delete buttons or external links
-                    if (!this.closest('.delete-form') && !this.hasAttribute('download')) {
-                        const currentPath = window.location.pathname;
-                        const linkPath = new URL(this.href, window.location.origin).pathname;
-                        if (currentPath !== linkPath) {
-                            showLoading();
-                        }
-                    }
-                });
-            });
-
-            // Hide loading on page load
-            window.addEventListener('load', function () {
-                hideLoading();
-            });
-
-            // Hide loading when using browser back/forward buttons
-            window.addEventListener('pageshow', function (event) {
-                // Check if page is loaded from cache (bfcache)
-                if (event.persisted) {
-                    hideLoading();
-                }
-            });
-
-            // Hide loading on popstate (back/forward navigation)
-            window.addEventListener('popstate', function () {
-                hideLoading();
-            });
-
-            // Auto-dismiss flash messages after 5 seconds
             document.querySelectorAll('[role="alert"]').forEach(function (alert) {
                 setTimeout(function () {
                     alert.style.transition = 'opacity 0.5s';
                     alert.style.opacity = '0';
-                    setTimeout(function () {
-                        alert.remove();
-                    }, 500);
+                    setTimeout(function () { alert.remove(); }, 500);
                 }, 5000);
-            });
-
-            // Add smooth scroll behavior
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(this.getAttribute('href'));
-                    if (target) {
-                        target.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
-                    }
-                });
             });
         });
     </script>
 
     @stack('scripts')
 </body>
-
 </html>

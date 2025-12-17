@@ -13,6 +13,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            // Admin user - chạy đầu tiên
+            AdminUserSeeder::class,
+            
             // Base data - phải chạy trước
             CustomerSeeder::class,
             SupplierSeeder::class,
