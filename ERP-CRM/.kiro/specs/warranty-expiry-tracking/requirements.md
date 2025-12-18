@@ -2,71 +2,99 @@
 
 ## Introduction
 
-Tính năng Theo dõi Bảo hành và Hạn sử dụng cho phép quản lý thông tin bảo hành mặc định của sản phẩm và theo dõi hạn sử dụng của từng lô hàng trong kho. Hệ thống sẽ cảnh báo khi sản phẩm sắp hết hạn để người dùng có thể xử lý kịp thời.
-
-**Phạm vi:** Chỉ tập trung vào quản lý kho, không liên quan đến module bán hàng.
+Module Theo dõi bảo hành / hạn sử dụng cho phép hệ thống ERP quản lý và theo dõi thông tin bảo hành của sản phẩm đã bán cho khách hàng. Hệ thống sẽ tự động tính toán ngày hết hạn bảo hành dựa trên ngày bán và thời gian bảo hành mặc định của sản phẩm hoặc thời gian bảo hành tùy chỉnh khi bán. Module cũng cung cấp báo cáo chi tiết về tình trạng bảo hành và cảnh báo sản phẩm sắp hết hạn bảo hành.
 
 ## Glossary
 
-- **Product**: Sản phẩm trong hệ thống
-- **Product Item**: Đơn vị sản phẩm cụ thể trong kho (có SKU riêng)
-- **Warranty Period**: Thời gian bảo hành mặc định của sản phẩm (tính theo tháng)
-- **Expiry Date**: Ngày hết hạn sử dụng của sản phẩm
-- **Expiring Soon**: Sản phẩm sắp hết hạn (trong vòng 30/60/90 ngày)
+- **Warranty_System**: Hệ thống theo dõi bảo hành sản phẩm
+- **Product**: Sản phẩm trong hệ thống với thời gian bảo hành mặc định (warranty_months)
+- **ProductItem**: Đơn vị sản phẩm cụ thể với serial number
+- **Sale**: Đơn hàng bán cho khách hàng
+- **SaleItem**: Chi tiết sản phẩm trong đơn hàng bán
+- **Warranty_Start_Date**: Ngày bắt đầu bảo hành (ngày bán hàng)
+- **Warranty_End_Date**: Ngày kết thúc bảo hành
+- **Warranty_Months**: Số tháng bảo hành
+- **Warranty_Status**: Trạng thái bảo hành (active, expired, voided)
 
 ## Requirements
 
-### Requirement 1: Thông tin bảo hành mặc định trên sản phẩm
+### Requirement 1
 
-**User Story:** As a warehouse manager, I want to set default warranty period for each product, so that I can track warranty information consistently.
-
-#### Acceptance Criteria
-
-1. WHEN a user creates or edits a product THEN the system SHALL display a warranty period field (in months)
-2. WHEN a user enters warranty period THEN the system SHALL validate that the value is a positive integer or null
-3. WHEN viewing product details THEN the system SHALL display the default warranty period if configured
-4. WHERE warranty tracking is enabled for a product THEN the system SHALL allow setting warranty period from 1 to 120 months
-
-### Requirement 2: Hạn sử dụng cho Product Items
-
-**User Story:** As a warehouse staff, I want to record expiry date for each product item when importing, so that I can track which items are expiring soon.
+**User Story:** As a warehouse manager, I want to track warranty information for sold products, so that I can provide accurate warranty support to customers.
 
 #### Acceptance Criteria
 
-1. WHEN importing products into warehouse THEN the system SHALL allow entering expiry date for each product item
-2. WHEN a user enters expiry date THEN the system SHALL validate that the date is in the future
-3. WHEN viewing product item details THEN the system SHALL display the expiry date if configured
-4. WHEN listing product items THEN the system SHALL show expiry status (valid, expiring soon, expired)
+1. WHEN a product is sold THEN the Warranty_System SHALL record warranty start date as the sale date
+2. WHEN a product is sold THEN the Warranty_System SHALL calculate warranty end date based on warranty_months
+3. WHEN warranty_months is not specified at sale time THEN the Warranty_System SHALL use the default warranty_months from Product
+4. WHEN warranty_months is specified at sale time THEN the Warranty_System SHALL use the specified value instead of default
+5. WHEN viewing a sold product item THEN the Warranty_System SHALL display warranty status (active/expired)
 
-### Requirement 3: Danh sách sản phẩm sắp hết hạn
+### Requirement 2
 
-**User Story:** As a warehouse manager, I want to see a list of products expiring soon, so that I can take action before they expire.
-
-#### Acceptance Criteria
-
-1. WHEN a user accesses the expiring products page THEN the system SHALL display all product items with expiry dates within the configured warning period
-2. WHEN displaying expiring products THEN the system SHALL show product name, SKU, warehouse, expiry date, and days remaining
-3. WHEN filtering expiring products THEN the system SHALL allow filtering by warehouse, product category, and time range (30/60/90 days)
-4. WHEN sorting expiring products THEN the system SHALL default to sorting by expiry date ascending (soonest first)
-5. WHEN a product item has expired THEN the system SHALL highlight it with a different color (red)
-
-### Requirement 4: Cảnh báo trên Dashboard
-
-**User Story:** As a warehouse manager, I want to see expiry warnings on the dashboard, so that I am immediately aware of urgent items.
+**User Story:** As a sales staff, I want to specify custom warranty period when selling products, so that I can offer flexible warranty terms to customers.
 
 #### Acceptance Criteria
 
-1. WHEN loading the dashboard THEN the system SHALL display a widget showing count of expiring products
-2. WHEN products are expiring within 30 days THEN the system SHALL show an urgent warning indicator
-3. WHEN clicking on the expiry widget THEN the system SHALL navigate to the expiring products list
-4. WHEN no products are expiring soon THEN the system SHALL display a positive status message
+1. WHEN creating a sale order THEN the Warranty_System SHALL allow specifying warranty_months for each item
+2. WHEN warranty_months field is empty THEN the Warranty_System SHALL default to product's warranty_months value
+3. WHEN warranty_months is set to 0 THEN the Warranty_System SHALL treat the product as having no warranty
+4. WHEN saving sale item with warranty THEN the Warranty_System SHALL validate warranty_months is between 0 and 120
 
-### Requirement 5: Export danh sách hết hạn
+### Requirement 3
 
-**User Story:** As a warehouse manager, I want to export the expiring products list to Excel, so that I can share it with relevant teams.
+**User Story:** As a manager, I want to view a list of products with warranty information, so that I can monitor warranty status across all sold products.
 
 #### Acceptance Criteria
 
-1. WHEN a user clicks export on expiring products page THEN the system SHALL generate an Excel file
-2. WHEN exporting THEN the system SHALL include product code, name, SKU, warehouse, expiry date, days remaining, and status
-3. WHEN exporting THEN the system SHALL apply current filters to the exported data
+1. WHEN accessing warranty tracking page THEN the Warranty_System SHALL display list of sold products with warranty info
+2. WHEN displaying warranty list THEN the Warranty_System SHALL show: product code, product name, serial, customer name, sale date, warranty start, warranty end, warranty status
+3. WHEN filtering by warranty status THEN the Warranty_System SHALL return only products matching the selected status
+4. WHEN filtering by date range THEN the Warranty_System SHALL return products with warranty end date within the range
+5. WHEN searching by serial or product code THEN the Warranty_System SHALL return matching products
+
+### Requirement 4
+
+**User Story:** As a manager, I want to see products with warranty expiring soon, so that I can proactively contact customers about warranty renewal.
+
+#### Acceptance Criteria
+
+1. WHEN accessing expiring warranty page THEN the Warranty_System SHALL display products expiring within configurable days (default 30)
+2. WHEN displaying expiring list THEN the Warranty_System SHALL sort by warranty end date ascending (soonest first)
+3. WHEN a product warranty expires within 7 days THEN the Warranty_System SHALL highlight it with warning color
+4. WHEN a product warranty expires within 3 days THEN the Warranty_System SHALL highlight it with danger color
+5. WHEN clicking on a product THEN the Warranty_System SHALL show detailed warranty information
+
+### Requirement 5
+
+**User Story:** As a manager, I want to generate warranty reports, so that I can analyze warranty data and make business decisions.
+
+#### Acceptance Criteria
+
+1. WHEN generating warranty summary report THEN the Warranty_System SHALL show total products under warranty, expired, and expiring soon
+2. WHEN generating warranty report by customer THEN the Warranty_System SHALL group products by customer with warranty counts
+3. WHEN generating warranty report by product THEN the Warranty_System SHALL group by product code with warranty statistics
+4. WHEN exporting warranty report THEN the Warranty_System SHALL generate Excel file with all warranty data
+5. WHEN filtering report by date range THEN the Warranty_System SHALL include only products sold within the range
+
+### Requirement 6
+
+**User Story:** As a system administrator, I want warranty data to be automatically calculated, so that the system maintains accurate warranty information without manual intervention.
+
+#### Acceptance Criteria
+
+1. WHEN warranty_end_date is queried THEN the Warranty_System SHALL calculate it as warranty_start_date plus warranty_months
+2. WHEN warranty_status is queried THEN the Warranty_System SHALL return 'active' if current date is before warranty_end_date
+3. WHEN warranty_status is queried THEN the Warranty_System SHALL return 'expired' if current date is after warranty_end_date
+4. WHEN product has no warranty (warranty_months = 0 or null) THEN the Warranty_System SHALL return 'no_warranty' status
+
+### Requirement 7
+
+**User Story:** As a user, I want the warranty tracking interface to be intuitive and consistent with the ERP design, so that I can easily navigate and use the feature.
+
+#### Acceptance Criteria
+
+1. WHEN displaying warranty tracking page THEN the Warranty_System SHALL use the existing ERP layout and styling
+2. WHEN displaying warranty status THEN the Warranty_System SHALL use color coding (green=active, red=expired, yellow=expiring)
+3. WHEN displaying dates THEN the Warranty_System SHALL format as DD/MM/YYYY consistent with ERP
+4. WHEN paginating results THEN the Warranty_System SHALL show 20 items per page with navigation controls

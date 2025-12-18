@@ -197,6 +197,7 @@ class SaleController extends Controller
                     'total' => $quantity * $item['price'],
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
+                    'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
                 ]);
             }
 
@@ -350,6 +351,7 @@ class SaleController extends Controller
                     'total' => $quantity * $item['price'],
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
+                    'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
                 ]);
             }
 

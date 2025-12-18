@@ -139,6 +139,12 @@
                         <i class="fas fa-chart-pie w-6"></i>
                         <span class="ml-3">Báo cáo hư hỏng</span>
                     </a>
+
+                    <a href="{{ route('warranties.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-shield-alt w-6 text-green-400"></i>
+                        <span class="ml-3">Theo dõi bảo hành</span>
+                    </a>
                 </div>
 
                 <div class="mt-4">

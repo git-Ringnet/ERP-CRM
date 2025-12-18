@@ -25,6 +25,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierQuotationController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\WarrantyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -92,6 +93,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
     Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
     Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
+
+    // Warranty Tracking Routes (Theo dõi bảo hành)
+    Route::get('/warranties', [WarrantyController::class, 'index'])->name('warranties.index');
+    Route::get('/warranties/expiring', [WarrantyController::class, 'expiring'])->name('warranties.expiring');
+    Route::get('/warranties/report', [WarrantyController::class, 'report'])->name('warranties.report');
+    Route::get('/warranties/export', [WarrantyController::class, 'export'])->name('warranties.export');
+    Route::get('/warranties/{saleItem}', [WarrantyController::class, 'show'])->name('warranties.show');
 
     // Sales routes
     Route::resource('sales', SaleController::class);
