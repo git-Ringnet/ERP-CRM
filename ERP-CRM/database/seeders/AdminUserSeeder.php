@@ -15,13 +15,13 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         // Check if admin user already exists
-        $existingUser = DB::table('users')->where('email', 'admin@ringnet.vn')->first();
+        $existingUser = DB::table('users')->where('email', 'admin@erp.com')->first();
         
         if (!$existingUser) {
             DB::table('users')->insert([
                 'employee_code' => 'ADMIN001',
                 'name' => 'Administrator',
-                'email' => 'admin@ringnet.vn',
+                'email' => 'admin@erp.com',
                 'password' => Hash::make('password'),
                 'phone' => '0901234567',
                 'department' => 'IT',
@@ -32,7 +32,7 @@ class AdminUserSeeder extends Seeder
                 'updated_at' => now(),
             ]);
             
-            $this->command->info('Admin user created: admin@ringnet.vn / password');
+            $this->command->info('Admin user created: admin@erp.com / password');
         } else {
             $this->command->info('Admin user already exists.');
         }
