@@ -1,0 +1,125 @@
+========================================
+COPY PROMPT NÀY ĐỂ VIẾT TESTS
+========================================
+
+Viết tests cho module [TÊN MODULE - VD: Quản lý Nhập/Xuất kho].
+
+YÊU CẦU BẮT BUỘC:
+1. Dùng database MySQL hiện có, KHÔNG RefreshDatabase
+2. Auto-login admin (admin@erp.com) bằng firstOrCreate() trong setUp()
+3. ĐỌC migrations + models + controllers TRƯỚC KHI VIẾT
+4. Factories phải match CHÍNH XÁC database schema
+5. Dùng assertGreaterThanOrEqual() thay assertEquals() cho counts
+6. Unique codes dùng range 10000-99999
+7. Count existing: $countBefore = Model::count() trước test
+
+MODULES CẦN TEST:
+[Liệt kê các chức năng cần test, ví dụ:]
+1. Nhập kho - CRUD, validate stock, history
+2. Xuất kho - CRUD, check sufficient stock, history
+3. Chuyển kho - Transfer between warehouses
+4. Báo cáo - Summary, export Excel
+
+WORKFLOW:
+1. Liệt kê migrations → models → controllers
+2. Đề xuất test plan (chờ tôi confirm)
+3. Tạo factories → test factories
+4. Viết tests với flexible assertions
+5. Chạy tests → fix lỗi → verify 100% pass
+6. Tạo documentation
+
+BẮT ĐẦU: Liệt kê tất cả migrations liên quan và đề xuất test plan.
+
+========================================
+VÍ DỤ CỤ THỂ - MODULE BÁN HÀNG
+========================================
+
+Viết tests cho module Quản lý Bán hàng (Sales).
+
+YÊU CẦU BẮT BUỘC:
+1. Dùng database MySQL hiện có, KHÔNG RefreshDatabase
+2. Auto-login admin (admin@erp.com) bằng firstOrCreate()
+3. ĐỌC migrations + models + controllers TRƯỚC
+4. Factories match database schema
+5. assertGreaterThanOrEqual() cho counts
+6. Unique codes: 10000-99999
+7. Count existing trước test
+
+MODULES CẦN TEST:
+1. Sales - CRUD, filter by customer/date/status, search, calculate totals
+2. Sale Items - Add/remove items, update quantities, calculate line totals
+3. Invoices - Generate invoice, print PDF, send email
+4. Payments - Record payments, partial payments, payment history
+5. Reports - Sales by period, by customer, by product, export Excel
+
+WORKFLOW:
+1. Liệt kê migrations → models → controllers
+2. Đề xuất test plan
+3. Tạo factories → test
+4. Viết tests
+5. Chạy → fix → verify 100%
+6. Documentation
+
+BẮT ĐẦU: Liệt kê migrations và đề xuất test plan.
+
+========================================
+VÍ DỤ - MODULE BÁO CÁO
+========================================
+
+Viết tests cho module Báo cáo (Reports).
+
+YÊU CẦU BẮT BUỘC: [6 điểm như trên]
+
+MODULES CẦN TEST:
+1. Báo cáo Bán hàng - By date range, customer, product, revenue
+2. Báo cáo Tồn kho - Stock levels, movements, low stock alerts
+3. Báo cáo Tài chính - Revenue, profit, expenses, margins
+4. Báo cáo Khách hàng - Top customers, debt, purchase history
+5. Export - Excel, PDF, email reports
+
+WORKFLOW: [như trên]
+
+BẮT ĐẦU: Đọc ReportController, ReportService và đề xuất test plan.
+
+========================================
+COMMANDS QUAN TRỌNG
+========================================
+
+# Seed admin user TRƯỚC KHI CHẠY TESTS
+php artisan db:seed --class=AdminUserSeeder
+
+# Chạy tests
+php artisan test --filter="SalesTest"
+php artisan test --filter="Sales|Invoice|Payment"
+
+# Debug
+php artisan test --filter="test_can_create_sale" --stop-on-failure
+
+========================================
+CHECKLIST NHANH
+========================================
+
+Trước khi viết:
+☐ Đọc migrations
+☐ Đọc models (fillable, relationships)
+☐ Đọc controllers
+☐ Check unique constraints
+
+Khi viết factories:
+☐ Match database columns
+☐ Unique codes: 10000-99999
+☐ Test: Model::factory()->create()
+
+Khi viết tests:
+☐ setUp() có firstOrCreate() admin
+☐ Count existing records
+☐ assertGreaterThanOrEqual()
+☐ Tránh hardcode codes
+
+Sau khi viết:
+☐ Seed admin user
+☐ Chạy tests
+☐ Verify 100% pass
+☐ Tạo docs
+
+========================================
