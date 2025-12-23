@@ -6,8 +6,8 @@
 @section('content')
 <div class="bg-white rounded-lg shadow-sm">
     <!-- Header -->
-    <div class="p-3 sm:p-4 border-b border-gray-200 space-y-3">
-        <div class="flex flex-col sm:flex-row gap-3">
+    <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row gap-4 flex-1">
             <!-- Search -->
             <div class="relative flex-1">
                 <form action="{{ route('customers.index') }}" method="GET" class="flex">
@@ -22,7 +22,7 @@
             <div class="flex items-center">
                 <select name="type" onchange="window.location.href='{{ route('customers.index') }}?type='+this.value+'&search={{ request('search') }}'" 
                         class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="">Tất cả loại</option>
+                    <option value="">Tất cả</option>
                     <option value="normal" {{ request('type') == 'normal' ? 'selected' : '' }}>Thường</option>
                     <option value="vip" {{ request('type') == 'vip' ? 'selected' : '' }}>VIP</option>
                 </select>
@@ -30,12 +30,27 @@
         </div>
         
         <div class="flex flex-col sm:flex-row gap-2">
-            <a href="{{ route('customers.export') }}?{{ http_build_query(request()->query()) }}" 
-               class="inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
-                <i class="fas fa-file-excel mr-2"></i>
-                <span class="hidden sm:inline">Export Excel</span>
-                <span class="sm:hidden">Export</span>
-            </a>
+            <!-- Export/Import Dropdown -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" type="button"
+                        class="inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
+                    <i class="fas fa-file-excel mr-2"></i>
+                    <span class="hidden sm:inline">Xuất / Nhập</span>
+                    <span class="sm:hidden">Excel</span>
+                    <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                </button>
+                <div x-show="open" @click.away="open = false" x-cloak
+                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <a href="{{ route('customers.export') }}?{{ http_build_query(request()->query()) }}" 
+                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
+                        <i class="fas fa-download mr-2 text-green-600"></i>Export Excel
+                    </a>
+                    <button type="button" onclick="openImportModal()"
+                            class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg">
+                        <i class="fas fa-upload mr-2 text-blue-600"></i>Import Excel
+                    </button>
+                </div>
+            </div>
             <a href="{{ route('customers.create') }}" 
                class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
                 <i class="fas fa-plus mr-2"></i>
@@ -189,4 +204,175 @@
     </div>
     @endif
 </div>
+
+<!-- Import Excel Modal -->
+<div id="importModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xl font-semibold text-gray-900">
+                    <i class="fas fa-file-excel text-green-600 mr-2"></i>Import Khách hàng từ Excel
+                </h3>
+                <button type="button" onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6">
+            <!-- Template Download -->
+            <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
+                    <div class="flex-1">
+                        <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu</h4>
+                        <p class="text-sm text-blue-700 mb-3">
+                            Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. Nếu mã KH đã tồn tại, hệ thống sẽ cập nhật thông tin.
+                        </p>
+                        <a href="{{ route('customers.import.template') }}" 
+                           class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-download mr-2"></i>
+                            Tải file mẫu Excel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Form -->
+            <form action="{{ route('customers.import') }}" method="POST" enctype="multipart/form-data" id="importForm">
+                @csrf
+
+                <!-- File Upload -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Chọn file Excel <span class="text-red-500">*</span>
+                    </label>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors"
+                         id="dropZone">
+                        <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" required class="hidden">
+                        
+                        <div id="dropZoneContent">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                            <p class="text-gray-600 mb-2">
+                                Kéo thả file vào đây hoặc 
+                                <label for="fileInput" class="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                    chọn file
+                                </label>
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                Hỗ trợ: .xlsx, .xls (Tối đa 10MB)
+                            </p>
+                        </div>
+
+                        <div id="fileInfo" class="hidden">
+                            <i class="fas fa-file-excel text-4xl text-green-600 mb-3"></i>
+                            <p class="text-gray-900 font-medium" id="fileName"></p>
+                            <p class="text-sm text-gray-500" id="fileSize"></p>
+                            <button type="button" onclick="clearFile()" 
+                                    class="mt-3 text-sm text-red-600 hover:text-red-700">
+                                <i class="fas fa-times mr-1"></i>Xóa file
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeImportModal()" 
+                            class="px-6 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                        <i class="fas fa-times mr-1"></i> Hủy
+                    </button>
+                    <button type="submit" id="submitBtn" disabled
+                            class="px-6 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-upload mr-1"></i> Bắt đầu Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+function openImportModal() {
+    document.getElementById('importModal').classList.remove('hidden');
+}
+
+function closeImportModal() {
+    document.getElementById('importModal').classList.add('hidden');
+    clearFile();
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const submitBtn = document.getElementById('submitBtn');
+const dropZoneContent = document.getElementById('dropZoneContent');
+const fileInfo = document.getElementById('fileInfo');
+
+if (fileInput) {
+    fileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            displayFileInfo(this.files[0]);
+        }
+    });
+}
+
+if (dropZone) {
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('border-blue-500', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('border-blue-500', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('border-blue-500', 'bg-blue-50');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            displayFileInfo(files[0]);
+        }
+    });
+}
+
+function displayFileInfo(file) {
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    
+    dropZoneContent.classList.add('hidden');
+    fileInfo.classList.remove('hidden');
+    submitBtn.disabled = false;
+}
+
+function clearFile() {
+    fileInput.value = '';
+    dropZoneContent.classList.remove('hidden');
+    fileInfo.classList.add('hidden');
+    submitBtn.disabled = true;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+document.getElementById('importModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeImportModal();
+    }
+});
+</script>
+@endpush
 @endsection

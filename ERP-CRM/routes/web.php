@@ -52,6 +52,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Export routes
     Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');
+    Route::get('/customers/import/template', [CustomerController::class, 'importTemplate'])->name('customers.import.template');
+    Route::post('/customers/import', [CustomerController::class, 'import'])->name('customers.import');
     Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->name('suppliers.export');
     Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
     Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');

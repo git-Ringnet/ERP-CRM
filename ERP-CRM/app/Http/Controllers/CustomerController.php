@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Imports\CustomersImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Services\ExportService;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CustomerController extends Controller
 {
@@ -163,5 +165,51 @@ class CustomerController extends Controller
         $filepath = $exportService->exportCustomers($customers);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Download import template
+     */
+    public function importTemplate()
+    {
+        $tempFile = CustomersImport::generateTemplate();
+        $filename = 'customer_import_template_' . date('Y-m-d') . '.xlsx';
+
+        return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Import customers from Excel
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        try {
+            $import = new CustomersImport();
+            Excel::import($import, $request->file('file'));
+
+            $errors = $import->getErrors();
+            if (!empty($errors)) {
+                return redirect()->route('customers.index')
+                    ->with('error', 'Import thất bại: ' . implode(', ', array_slice($errors, 0, 5)));
+            }
+
+            $imported = $import->getImported();
+            $updated = $import->getUpdated();
+            $message = "Import thành công: {$imported} khách hàng mới";
+            if ($updated > 0) {
+                $message .= ", cập nhật {$updated} khách hàng";
+            }
+
+            return redirect()->route('customers.index')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            return redirect()->route('customers.index')
+                ->with('error', 'Lỗi khi import: ' . $e->getMessage());
+        }
     }
 }
