@@ -93,8 +93,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Report Routes
     Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');
+    Route::get('/reports/inventory-summary/export', [ReportController::class, 'exportInventorySummary'])->name('reports.inventory-summary.export');
     Route::get('/reports/transaction-report', [ReportController::class, 'transactionReport'])->name('reports.transaction-report');
+    Route::get('/reports/transaction-report/export', [ReportController::class, 'exportTransactionReport'])->name('reports.transaction-report.export');
     Route::get('/reports/damaged-goods-report', [ReportController::class, 'damagedGoodsReport'])->name('reports.damaged-goods-report');
+    Route::get('/reports/damaged-goods-report/export', [ReportController::class, 'exportDamagedGoodsReport'])->name('reports.damaged-goods-report.export');
 
     // Warranty Tracking Routes (Theo dõi bảo hành)
     Route::get('/warranties', [WarrantyController::class, 'index'])->name('warranties.index');

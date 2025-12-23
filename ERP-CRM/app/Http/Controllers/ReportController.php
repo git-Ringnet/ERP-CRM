@@ -7,8 +7,12 @@ use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\DamagedGood;
 use App\Models\Product;
+use App\Exports\InventorySummaryExport;
+use App\Exports\TransactionReportExport;
+use App\Exports\DamagedGoodsReportExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
@@ -219,5 +223,81 @@ class ReportController extends Controller
             'byStatus',
             'topProducts'
         ));
+    }
+
+    /**
+     * Export inventory summary to Excel
+     */
+    public function exportInventorySummary(Request $request)
+    {
+        $query = Inventory::with(['product', 'warehouse']);
+
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->warehouse_id);
+        }
+        if ($request->filled('product_id')) {
+            $query->where('product_id', $request->product_id);
+        }
+        if ($request->filled('stock_status')) {
+            if ($request->stock_status === 'low') {
+                $query->whereRaw('stock <= min_stock');
+            } elseif ($request->stock_status === 'normal') {
+                $query->whereRaw('stock > min_stock');
+            }
+        }
+
+        $inventories = $query->get();
+        $filename = 'bao-cao-ton-kho-' . date('Y-m-d') . '.xlsx';
+
+        return Excel::download(new InventorySummaryExport($inventories), $filename);
+    }
+
+    /**
+     * Export transaction report to Excel
+     */
+    public function exportTransactionReport(Request $request)
+    {
+        $query = InventoryTransaction::with(['warehouse', 'toWarehouse', 'employee']);
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        if ($request->filled('warehouse_id')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('warehouse_id', $request->warehouse_id)
+                  ->orWhere('to_warehouse_id', $request->warehouse_id);
+            });
+        }
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('date', [$request->start_date, $request->end_date]);
+        }
+
+        $transactions = $query->latest('date')->get();
+        $filename = 'bao-cao-xuat-nhap-' . date('Y-m-d') . '.xlsx';
+
+        return Excel::download(new TransactionReportExport($transactions), $filename);
+    }
+
+    /**
+     * Export damaged goods report to Excel
+     */
+    public function exportDamagedGoodsReport(Request $request)
+    {
+        $query = DamagedGood::with(['product', 'discoveredBy']);
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('discovery_date', [$request->start_date, $request->end_date]);
+        }
+
+        $damagedGoods = $query->latest('discovery_date')->get();
+        $filename = 'bao-cao-hang-hong-' . date('Y-m-d') . '.xlsx';
+
+        return Excel::download(new DamagedGoodsReportExport($damagedGoods), $filename);
     }
 }

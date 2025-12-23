@@ -7,7 +7,7 @@
 <div class="space-y-4">
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm p-4">
-        <form method="GET" action="{{ route('reports.inventory-summary') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <form method="GET" action="{{ route('reports.inventory-summary') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Kho</label>
                 <select name="warehouse_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
@@ -46,6 +46,12 @@
                     <i class="fas fa-redo mr-1"></i> Đặt lại
                 </a>
             </div>
+            <div class="flex items-end">
+                <a href="{{ route('reports.inventory-summary.export') }}?{{ http_build_query(request()->query()) }}" 
+                   class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <i class="fas fa-file-excel mr-1"></i> Export Excel
+                </a>
+            </div>
         </form>
     </div>
 
@@ -69,7 +75,26 @@
         </div>
     </div>
 
-    <!-- By Warehouse -->
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Pie Chart - By Warehouse -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Phân bổ theo Kho</h3>
+            <div class="h-64">
+                <canvas id="warehouseChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Bar Chart - Top Products -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Top 10 SP Tồn Nhiều</h3>
+            <div class="h-64">
+                <canvas id="topProductsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- By Warehouse Table -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Tồn Kho Theo Kho</h3>
@@ -147,4 +172,61 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Warehouse Pie Chart
+const warehouseData = @json($byWarehouse->values());
+const warehouseLabels = warehouseData.map(item => item.warehouse?.name || 'N/A');
+const warehouseValues = warehouseData.map(item => item.total_value);
+const warehouseColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+
+new Chart(document.getElementById('warehouseChart'), {
+    type: 'doughnut',
+    data: {
+        labels: warehouseLabels,
+        datasets: [{
+            data: warehouseValues,
+            backgroundColor: warehouseColors.slice(0, warehouseLabels.length),
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'right' }
+        }
+    }
+});
+
+// Top Products Bar Chart
+const inventories = @json($inventories->sortByDesc('stock')->take(10)->values());
+const productLabels = inventories.map(item => item.product?.name?.substring(0, 20) || 'N/A');
+const productStocks = inventories.map(item => item.stock);
+
+new Chart(document.getElementById('topProductsChart'), {
+    type: 'bar',
+    data: {
+        labels: productLabels,
+        datasets: [{
+            label: 'Số lượng tồn',
+            data: productStocks,
+            backgroundColor: '#3B82F6',
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            x: { beginAtZero: true }
+        }
+    }
+});
+</script>
+@endpush
 @endsection

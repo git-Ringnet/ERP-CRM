@@ -7,7 +7,7 @@
 <div class="space-y-4">
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm p-4">
-        <form method="GET" action="{{ route('reports.damaged-goods-report') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form method="GET" action="{{ route('reports.damaged-goods-report') }}" class="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại</label>
                 <select name="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
@@ -44,6 +44,12 @@
                     <i class="fas fa-redo mr-1"></i> Đặt lại
                 </a>
             </div>
+            <div class="flex items-end">
+                <a href="{{ route('reports.damaged-goods-report.export') }}?{{ http_build_query(request()->query()) }}" 
+                   class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <i class="fas fa-file-excel mr-1"></i> Export Excel
+                </a>
+            </div>
         </form>
     </div>
 
@@ -68,7 +74,26 @@
         </div>
     </div>
 
-    <!-- By Type -->
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Doughnut Chart - By Type -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Phân loại theo Loại</h3>
+            <div class="h-64">
+                <canvas id="typeChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Bar Chart - Top Products -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Top SP Tổn Thất Cao</h3>
+            <div class="h-64">
+                <canvas id="topProductsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- By Type Table -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Thống Kê Theo Loại</h3>
@@ -103,7 +128,7 @@
         </div>
     </div>
 
-    <!-- By Status -->
+    <!-- By Status Table -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Thống Kê Theo Trạng Thái</h3>
@@ -158,7 +183,7 @@
                 <tbody class="divide-y divide-gray-200">
                     @forelse($topProducts as $item)
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item['product']->name }}</td>
+                            <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item['product']->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($item['count']) }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($item['total_quantity'], 2) }}</td>
                             <td class="px-4 py-3 text-sm text-red-600 font-medium">{{ number_format($item['total_loss'], 0) }}đ</td>
@@ -173,4 +198,60 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Type Doughnut Chart
+const byType = @json($byType);
+const typeLabels = Object.keys(byType).map(t => t === 'damaged' ? 'Hàng hư hỏng' : 'Thanh lý');
+const typeLosses = Object.values(byType).map(d => d.loss);
+
+new Chart(document.getElementById('typeChart'), {
+    type: 'doughnut',
+    data: {
+        labels: typeLabels,
+        datasets: [{
+            data: typeLosses,
+            backgroundColor: ['#EF4444', '#F59E0B'],
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'right' }
+        }
+    }
+});
+
+// Top Products Bar Chart
+const topProducts = @json($topProducts->values());
+const productLabels = topProducts.map(item => item.product?.name?.substring(0, 15) || 'N/A');
+const productLosses = topProducts.map(item => item.total_loss);
+
+new Chart(document.getElementById('topProductsChart'), {
+    type: 'bar',
+    data: {
+        labels: productLabels,
+        datasets: [{
+            label: 'Tổn thất (đ)',
+            data: productLosses,
+            backgroundColor: '#EF4444',
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            x: { beginAtZero: true }
+        }
+    }
+});
+</script>
+@endpush
 @endsection
