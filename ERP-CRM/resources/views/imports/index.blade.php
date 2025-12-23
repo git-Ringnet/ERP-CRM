@@ -171,7 +171,10 @@
                     <div class="flex-1">
                         <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu</h4>
                         <p class="text-sm text-blue-700 mb-3">
-                            Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. Hệ thống sẽ tự động tạo sản phẩm mới nếu chưa tồn tại và nhập vào kho.
+                            Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. Hệ thống sẽ tự động tạo sản phẩm mới nếu chưa tồn tại và nhập vào kho theo cột "Kho" trong file.
+                        </p>
+                        <p class="text-sm text-blue-700 mb-3">
+                            <strong>Lưu ý:</strong> Cột "Kho" có thể nhập <strong>mã kho</strong> (VD: WH0001) hoặc <strong>tên kho</strong> (VD: Kho Chính HCM).
                         </p>
                         <a href="{{ route('excel-import.template', 'products') }}" 
                            class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -186,19 +189,6 @@
             <form action="{{ route('excel-import.store') }}" method="POST" enctype="multipart/form-data" id="importForm">
                 @csrf
                 <input type="hidden" name="type" value="products">
-                
-                <!-- Warehouse Selection -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Kho nhập <span class="text-red-500">*</span>
-                    </label>
-                    <select name="warehouse_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">-- Chọn kho --</option>
-                        @foreach($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
 
                 <!-- File Upload -->
                 <div class="mb-6">

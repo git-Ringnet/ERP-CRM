@@ -27,8 +27,8 @@ class ExcelImportService
     /**
      * Generate Product Excel template
      * Requirements: 6.1, 6.3, 6.5
-     * Updated: New format per customer request
-     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Ghi chú
+     * Updated: New format with warehouse column - import directly to warehouse from Excel
+     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Kho | Tên sản phẩm | Danh mục | Đơn vị | Bảo hành (tháng) | Ghi chú
      */
     public function generateProductTemplate(): string
     {
@@ -48,6 +48,7 @@ class ExcelImportService
             ['Slg. Chi tiết', 'Số lượng chi tiết (luôn = 1 vì mỗi dòng là 1 serial)', 'Có', 'Số (mặc định: 1)'],
             ['Số Serial', 'Số serial của sản phẩm', 'Có', 'Text (VD: S252L14100502)'],
             ['Ngày nhập kho', 'Ngày nhập kho', 'Có', 'Ngày (DD/MM/YYYY hoặc YYYY-MM-DD)'],
+            ['Kho', 'Mã kho hoặc tên kho (phải tồn tại trong hệ thống)', 'Có', 'Text (VD: WH0001 hoặc Kho Chính HCM)'],
             ['Tên sản phẩm', 'Tên đầy đủ của sản phẩm', 'Không', 'Text'],
             ['Danh mục', 'Danh mục sản phẩm (A-Z)', 'Không', 'Chữ cái (A-Z)'],
             ['Đơn vị', 'Đơn vị tính', 'Không', 'Text (VD: Cái, Hộp)'],
@@ -65,6 +66,22 @@ class ExcelImportService
         $instructionsSheet->getStyle('A3:D3')->getFont()->setBold(true);
         $instructionsSheet->getStyle('A3:D3')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
         
+        // Add warehouse list
+        $row += 2;
+        $instructionsSheet->setCellValue('A' . $row, 'Danh sách kho hiện có:');
+        $instructionsSheet->getStyle('A' . $row)->getFont()->setBold(true);
+        $row++;
+        
+        $warehouses = Warehouse::active()->get(['code', 'name']);
+        $instructionsSheet->fromArray(['Mã kho', 'Tên kho'], null, 'A' . $row);
+        $instructionsSheet->getStyle('A' . $row . ':B' . $row)->getFont()->setBold(true);
+        $row++;
+        
+        foreach ($warehouses as $wh) {
+            $instructionsSheet->fromArray([$wh->code, $wh->name], null, 'A' . $row);
+            $row++;
+        }
+        
         // Auto-size columns for instructions
         foreach (range('A', 'D') as $col) {
             $instructionsSheet->getColumnDimension($col)->setAutoSize(true);
@@ -74,26 +91,26 @@ class ExcelImportService
         $dataSheet = $spreadsheet->createSheet(1);
         $dataSheet->setTitle('Du Lieu');
         
-        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
+        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Kho', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
         $dataSheet->fromArray($headers, null, 'A1');
-        $dataSheet->getStyle('A1:K1')->getFont()->setBold(true);
-        $dataSheet->getStyle('A1:K1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
-        $dataSheet->getStyle('A1:K1')->getFont()->getColor()->setRGB('FFFFFF');
+        $dataSheet->getStyle('A1:L1')->getFont()->setBold(true);
+        $dataSheet->getStyle('A1:L1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+        $dataSheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
         
-        // Example rows (theo format của khách hàng)
+        // Example rows (theo format mới với cột Kho)
         $examples = [
-            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
-            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', '', '', '', '', ''],
-            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
-            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', '', '', '', '', ''],
-            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', '', '', '', '', ''],
-            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', '', '', '', '', ''],
-            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
-            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', '', '', '', '', ''],
-            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', '', '', '', '', ''],
-            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', '', '', '', '', ''],
-            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', '', '', '', '', ''],
-            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', '', '', '', '', ''],
+            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'WH0001', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
+            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', 'WH0001', '', '', '', '', ''],
+            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Kho Hà Nội', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
+            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', 'Kho Hà Nội', '', '', '', '', ''],
+            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', 'WH0002', '', '', '', '', ''],
+            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', 'WH0002', '', '', '', '', ''],
+            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'WH0001', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
+            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', 'WH0001', '', '', '', '', ''],
+            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', 'Kho Đà Nẵng', '', '', '', '', ''],
+            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', 'Kho Đà Nẵng', '', '', '', '', ''],
+            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', 'WH0003', '', '', '', '', ''],
+            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', 'WH0003', '', '', '', '', ''],
         ];
         
         $row = 2;
@@ -103,13 +120,13 @@ class ExcelImportService
         }
         
         // Auto-size columns
-        foreach (range('A', 'K') as $col) {
+        foreach (range('A', 'L') as $col) {
             $dataSheet->getColumnDimension($col)->setAutoSize(true);
         }
         
         // Add borders
         $lastRow = $row - 1;
-        $dataSheet->getStyle("A1:K{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $dataSheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
         
         $spreadsheet->setActiveSheetIndex(1);
         
@@ -215,8 +232,8 @@ class ExcelImportService
 
     /**
      * Import products from Excel file and create inventory
-     * Updated: Import sản phẩm + nhập kho (tạo product_items + tính tồn kho)
-     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Tên sản phẩm | Danh mục | Đơn vị | Ghi chú
+     * Updated: Import sản phẩm + nhập kho với cột Kho trong Excel (mã kho hoặc tên kho)
+     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Kho | Tên sản phẩm | Danh mục | Đơn vị | Bảo hành (tháng) | Ghi chú
      */
     public function importProducts($filePath, $warehouseId = null): array
     {
@@ -231,19 +248,24 @@ class ExcelImportService
         $itemsImported = 0;
         $errors = [];
         $productCache = []; // Cache products to avoid repeated queries
+        $warehouseCache = []; // Cache warehouses to avoid repeated queries
         
-        // Validate warehouse
-        $warehouse = null;
+        // Pre-load all active warehouses for lookup
+        $allWarehouses = Warehouse::active()->get();
+        foreach ($allWarehouses as $wh) {
+            $warehouseCache[strtolower($wh->code)] = $wh;
+            $warehouseCache[strtolower($wh->name)] = $wh;
+        }
+        
+        // Fallback warehouse if provided (for backward compatibility)
+        $fallbackWarehouse = null;
         if ($warehouseId) {
-            $warehouse = Warehouse::find($warehouseId);
-            if (!$warehouse) {
-                return ['success' => false, 'imported' => 0, 'errors' => ['Kho không tồn tại']];
-            }
+            $fallbackWarehouse = Warehouse::find($warehouseId);
         }
         
         DB::beginTransaction();
         try {
-            // Group items by date for creating import transactions
+            // Group items by date and warehouse for creating import transactions
             $groupedItems = [];
             
             foreach ($rows as $index => $row) {
@@ -254,28 +276,30 @@ class ExcelImportService
                     continue;
                 }
                 
-                // Column mapping:
+                // Column mapping (updated with Kho column):
                 // 0: STT (ignored)
                 // 1: Part Number / FRU (product code)
                 // 2: Tổng Slg kho vật lý (ignored - for reference only)
                 // 3: Slg. Chi tiết (quantity - usually 1)
                 // 4: Số Serial
                 // 5: Ngày nhập kho
-                // 6: Tên sản phẩm
-                // 7: Danh mục
-                // 8: Đơn vị
-                // 9: Bảo hành (tháng)
-                // 10: Ghi chú
+                // 6: Kho (mã kho hoặc tên kho)
+                // 7: Tên sản phẩm
+                // 8: Danh mục
+                // 9: Đơn vị
+                // 10: Bảo hành (tháng)
+                // 11: Ghi chú
                 
                 $productCode = trim($row[1] ?? '');
                 $quantity = $row[3] ?? 1;
                 $serial = trim($row[4] ?? '');
                 $dateRaw = $row[5] ?? date('Y-m-d');
-                $productName = trim($row[6] ?? '');
-                $category = strtoupper(trim($row[7] ?? 'A'));
-                $unit = trim($row[8] ?? 'Cái');
-                $warrantyMonths = $row[9] ?? null;
-                $note = trim($row[10] ?? '');
+                $warehouseInput = trim($row[6] ?? '');
+                $productName = trim($row[7] ?? '');
+                $category = strtoupper(trim($row[8] ?? 'A'));
+                $unit = trim($row[9] ?? 'Cái');
+                $warrantyMonths = $row[10] ?? null;
+                $note = trim($row[11] ?? '');
                 
                 // Skip if no product code
                 if (empty($productCode)) {
@@ -292,6 +316,23 @@ class ExcelImportService
                 $importDate = $this->parseDate($dateRaw);
                 if (!$importDate) {
                     $errors[] = "Dòng {$rowNumber}: Ngày nhập kho không hợp lệ '{$dateRaw}'";
+                    continue;
+                }
+                
+                // Validate warehouse (from Excel column or fallback)
+                $warehouse = null;
+                if (!empty($warehouseInput)) {
+                    $warehouseKey = strtolower($warehouseInput);
+                    if (isset($warehouseCache[$warehouseKey])) {
+                        $warehouse = $warehouseCache[$warehouseKey];
+                    } else {
+                        $errors[] = "Dòng {$rowNumber}: Kho '{$warehouseInput}' không tồn tại (nhập mã kho hoặc tên kho)";
+                        continue;
+                    }
+                } elseif ($fallbackWarehouse) {
+                    $warehouse = $fallbackWarehouse;
+                } else {
+                    $errors[] = "Dòng {$rowNumber}: Thiếu thông tin kho";
                     continue;
                 }
                 
@@ -345,12 +386,17 @@ class ExcelImportService
                 // Validate quantity
                 $quantity = is_numeric($quantity) && $quantity > 0 ? (int)$quantity : 1;
                 
-                // Group by date
-                if (!isset($groupedItems[$importDate])) {
-                    $groupedItems[$importDate] = [];
+                // Group by date AND warehouse
+                $groupKey = $importDate . '_' . $warehouse->id;
+                if (!isset($groupedItems[$groupKey])) {
+                    $groupedItems[$groupKey] = [
+                        'date' => $importDate,
+                        'warehouse_id' => $warehouse->id,
+                        'items' => [],
+                    ];
                 }
                 
-                $groupedItems[$importDate][] = [
+                $groupedItems[$groupKey]['items'][] = [
                     'product_id' => $product->id,
                     'product_code' => $productCode,
                     'quantity' => $quantity,
@@ -370,8 +416,8 @@ class ExcelImportService
             $duplicatesInFile = [];
             $duplicatesInDb = [];
 
-            foreach ($groupedItems as $date => $items) {
-                foreach ($items as $item) {
+            foreach ($groupedItems as $groupKey => $group) {
+                foreach ($group['items'] as $item) {
                     $key = "{$item['product_id']}:{$item['serial']}";
                     
                     // Check duplicate within file
@@ -385,8 +431,8 @@ class ExcelImportService
 
             // Check duplicates in database (batch check for performance)
             $serialsByProduct = [];
-            foreach ($groupedItems as $date => $items) {
-                foreach ($items as $item) {
+            foreach ($groupedItems as $groupKey => $group) {
+                foreach ($group['items'] as $item) {
                     if (!isset($serialsByProduct[$item['product_id']])) {
                         $serialsByProduct[$item['product_id']] = [
                             'serials' => [],
@@ -416,28 +462,48 @@ class ExcelImportService
                 return ['success' => false, 'imported' => 0, 'errors' => $allDuplicateErrors];
             }
             
-            // Create import transactions for each date
-            foreach ($groupedItems as $date => $items) {
+            // Create import transactions for each date + warehouse combination
+            foreach ($groupedItems as $groupKey => $group) {
                 $transactionData = [
                     'type' => 'import',
-                    'warehouse_id' => $warehouse->id,
-                    'date' => $date,
+                    'warehouse_id' => $group['warehouse_id'],
+                    'date' => $group['date'],
                     'note' => 'Import từ Excel',
                     'items' => [],
                 ];
                 
-                foreach ($items as $item) {
+                // Group items by product_id to merge serials
+                $productItems = [];
+                foreach ($group['items'] as $item) {
+                    $productId = $item['product_id'];
+                    if (!isset($productItems[$productId])) {
+                        $productItems[$productId] = [
+                            'product_id' => $productId,
+                            'quantity' => 0,
+                            'skus' => [],
+                            'comments' => [],
+                        ];
+                    }
+                    $productItems[$productId]['quantity'] += $item['quantity'];
+                    $productItems[$productId]['skus'][] = $item['serial'];
+                    if (!empty($item['note'])) {
+                        $productItems[$productId]['comments'][] = $item['note'];
+                    }
+                    $itemsImported++;
+                }
+                
+                // Build transaction items from grouped products
+                foreach ($productItems as $productItem) {
                     $transactionData['items'][] = [
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'skus' => [$item['serial']],
+                        'product_id' => $productItem['product_id'],
+                        'quantity' => $productItem['quantity'],
+                        'skus' => $productItem['skus'],
                         'cost_usd' => 0,
                         'price_tiers' => [],
                         'description' => null,
-                        'comments' => $item['note'] ?: null,
+                        'comments' => !empty($productItem['comments']) ? implode('; ', array_unique($productItem['comments'])) : null,
                         'create_product_items' => true,
                     ];
-                    $itemsImported++;
                 }
                 
                 $this->transactionService->processImport($transactionData);

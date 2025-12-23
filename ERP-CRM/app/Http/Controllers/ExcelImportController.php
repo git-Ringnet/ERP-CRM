@@ -48,25 +48,26 @@ class ExcelImportController extends Controller
 
     /**
      * Import data from Excel file
-     * Updated: Import sản phẩm vào kho (tạo product + product_items + tính tồn kho)
+     * Updated: Import sản phẩm vào kho với cột Kho trong Excel (mã kho hoặc tên kho)
+     * Không cần chọn kho trước - kho được xác định từ file Excel
      */
     public function store(Request $request)
     {
         $request->validate([
             'type' => 'required|in:products',
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id', // Optional fallback warehouse
             'file' => 'required|file|mimes:xlsx,xls|max:10240', // Max 10MB
         ]);
         
         try {
             $file = $request->file('file');
-            $warehouseId = $request->input('warehouse_id');
+            $warehouseId = $request->input('warehouse_id'); // Optional fallback
             
             // Save file temporarily
             $path = $file->store('temp');
             $fullPath = storage_path('app/' . $path);
             
-            // Process import
+            // Process import (warehouse is read from Excel column)
             $result = $this->excelImportService->importProducts($fullPath, $warehouseId);
             
             // Clean up temp file

@@ -20,10 +20,10 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
             SupplierSeeder::class,
             EmployeeSeeder::class,
-            ProductSeeder::class,
+            // ProductSeeder::class,
             WarehouseSeeder::class,
             InventorySeeder::class,
-            InventoryTransactionSeeder::class,
+            // InventoryTransactionSeeder::class,
             DamagedGoodSeeder::class,
             
             // Module Bán hàng - chạy sau khi có Customer & Product
