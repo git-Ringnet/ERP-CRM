@@ -48,10 +48,6 @@
                     <label class="text-sm text-gray-500">Mã phiếu</label>
                     <p class="font-medium text-gray-900">{{ $export->code }}</p>
                 </div>
-                <div>
-                    <label class="text-sm text-gray-500">Kho xuất</label>
-                    <p class="font-medium text-gray-900">{{ $export->warehouse->name }}</p>
-                </div>
                 @if($export->project)
                 <div>
                     <label class="text-sm text-gray-500">Dự án</label>
@@ -91,81 +87,138 @@
         </div>
         @endif
 
-        <!-- Items Table -->
+        <!-- Items Table - Grouped by Warehouse -->
         <div class="border-t border-gray-200 pt-4">
             <h3 class="text-lg font-semibold text-gray-800 mb-3">Chi tiết sản phẩm</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial đã xuất</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        @foreach($export->items as $item)
-                        @php
-                            // Get serials: from serial_number JSON (pending) or ProductItem (completed)
-                            $serialsWithSku = collect();
-                            $noSkuCount = 0;
-                            
-                            if ($export->status === 'completed') {
-                                // Completed: get from ProductItem
-                                $exportedSerials = $exportedItems[$item->product_id] ?? collect();
-                                $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));
-                                $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU'))->count();
-                            } else {
-                                // Pending: get from serial_number JSON (stores product_item_ids)
-                                if (!empty($item->serial_number)) {
-                                    $productItemIds = json_decode($item->serial_number, true);
-                                    if (is_array($productItemIds) && !empty($productItemIds)) {
-                                        $serialsWithSku = \App\Models\ProductItem::whereIn('id', $productItemIds)->get();
-                                    }
+            
+            @php
+                // Group items by warehouse_id
+                // Note: warehouse_id is stored in transaction, but items can be from different warehouses
+                // We need to get warehouse from ProductItem for each item
+                $itemsByWarehouse = collect();
+                
+                foreach($export->items as $item) {
+                    // Get warehouse from first serial or use transaction warehouse as fallback
+                    $warehouseId = $export->warehouse_id;
+                    $warehouseName = $export->warehouse->name ?? 'N/A';
+                    
+                    // Try to get warehouse from serials
+                    if ($export->status === 'completed') {
+                        $firstSerial = ($exportedItems[$item->product_id] ?? collect())->first();
+                        if ($firstSerial) {
+                            $warehouseId = $firstSerial->warehouse_id;
+                            $warehouseName = $firstSerial->warehouse->name ?? $warehouseName;
+                        }
+                    } else {
+                        // For pending, get from serial_number JSON
+                        if (!empty($item->serial_number)) {
+                            $productItemIds = json_decode($item->serial_number, true);
+                            if (is_array($productItemIds) && !empty($productItemIds)) {
+                                $firstSerial = \App\Models\ProductItem::find($productItemIds[0]);
+                                if ($firstSerial) {
+                                    $warehouseId = $firstSerial->warehouse_id;
+                                    $warehouseName = $firstSerial->warehouse->name ?? $warehouseName;
                                 }
-                                // Calculate noSkuCount for pending
-                                $noSkuCount = $item->quantity - $serialsWithSku->count();
                             }
-                        @endphp
-                        <tr>
-                            <td class="px-4 py-3">
-                                <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
-                            </td>
-                            <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="px-3 py-1 text-sm font-bold bg-orange-100 text-orange-800 rounded-full">
-                                    {{ number_format($item->quantity) }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3">
-                                @if($serialsWithSku->count() > 0)
-                                    <div class="flex flex-wrap gap-1 max-w-md">
-                                        @foreach($serialsWithSku as $serial)
-                                            <span class="px-2 py-0.5 text-xs font-mono bg-blue-100 text-blue-700 rounded">
-                                                {{ $serial->sku }}
-                                            </span>
-                                        @endforeach
-                                    </div>
-                                @endif
-                                @if($noSkuCount > 0)
-                                    <span class="text-xs text-gray-500 {{ $serialsWithSku->count() > 0 ? 'mt-1 block' : '' }}">
-                                        + {{ $noSkuCount }} sản phẩm không serial
+                        }
+                    }
+                    
+                    if (!isset($itemsByWarehouse[$warehouseId])) {
+                        $itemsByWarehouse[$warehouseId] = [
+                            'name' => $warehouseName,
+                            'items' => collect()
+                        ];
+                    }
+                    
+                    $itemsByWarehouse[$warehouseId]['items']->push($item);
+                }
+            @endphp
+            
+            @foreach($itemsByWarehouse as $warehouseId => $warehouseData)
+            <div class="mb-6 {{ !$loop->last ? 'pb-6 border-b border-gray-200' : '' }}">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-16">STT</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho xuất</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial đã xuất</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @php $stt = 1; @endphp
+                            @foreach($warehouseData['items'] as $item)
+                            @php
+                                // Get serials: from serial_number JSON (pending) or ProductItem (completed)
+                                $serialsWithSku = collect();
+                                $noSkuCount = 0;
+                                
+                                if ($export->status === 'completed') {
+                                    // Completed: get from ProductItem
+                                    $exportedSerials = $exportedItems[$item->product_id] ?? collect();
+                                    $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));
+                                    $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU'))->count();
+                                } else {
+                                    // Pending: get from serial_number JSON (stores product_item_ids)
+                                    if (!empty($item->serial_number)) {
+                                        $productItemIds = json_decode($item->serial_number, true);
+                                        if (is_array($productItemIds) && !empty($productItemIds)) {
+                                            $serialsWithSku = \App\Models\ProductItem::whereIn('id', $productItemIds)->get();
+                                        }
+                                    }
+                                    // Calculate noSkuCount for pending
+                                    $noSkuCount = $item->quantity - $serialsWithSku->count();
+                                }
+                            @endphp
+                            <tr>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="text-sm font-medium text-gray-600">{{ $stt++ }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-sm font-medium text-gray-700">{{ $warehouseData['name'] }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-3 py-1 text-sm font-bold bg-orange-100 text-orange-800 rounded-full">
+                                        {{ number_format($item->quantity) }}
                                     </span>
-                                @endif
-                                @if($serialsWithSku->count() === 0 && $noSkuCount === 0)
-                                    <span class="text-gray-400 text-sm">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                                </td>
+                                <td class="px-4 py-3">
+                                    @if($serialsWithSku->count() > 0)
+                                        <div class="flex flex-wrap gap-1 max-w-md">
+                                            @foreach($serialsWithSku as $serial)
+                                                <span class="px-2 py-0.5 text-xs font-mono bg-blue-100 text-blue-700 rounded">
+                                                    {{ $serial->sku }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                    @if($noSkuCount > 0)
+                                        <span class="text-xs text-gray-500 {{ $serialsWithSku->count() > 0 ? 'mt-1 block' : '' }}">
+                                            + {{ $noSkuCount }} sản phẩm không serial
+                                        </span>
+                                    @endif
+                                    @if($serialsWithSku->count() === 0 && $noSkuCount === 0)
+                                        <span class="text-gray-400 text-sm">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            @endforeach
         </div>
 
         <!-- Timestamps -->

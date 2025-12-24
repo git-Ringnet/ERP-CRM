@@ -72,7 +72,6 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho xuất</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
@@ -89,7 +88,6 @@
                             {{ $export->code }}
                         </a>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ $export->warehouse->name ?? '-' }}</td>
                     <td class="px-4 py-3 text-sm">
                         @if($export->project)
                             <a href="{{ route('projects.show', $export->project) }}" class="text-blue-600 hover:text-blue-800 hover:underline">
@@ -146,7 +144,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Chưa có phiếu xuất kho nào.</p>
                     </td>
