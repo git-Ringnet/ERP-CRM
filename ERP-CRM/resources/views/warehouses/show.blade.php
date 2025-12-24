@@ -205,8 +205,6 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên sản phẩm</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tồn kho</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tồn tối thiểu</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Giá vốn TB</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                     </tr>
@@ -231,12 +229,6 @@
                             <span class="font-medium {{ $inventory->stock <= 0 ? 'text-red-600' : ($inventory->stock <= $inventory->min_stock ? 'text-yellow-600' : 'text-gray-900') }}">
                                 {{ number_format($inventory->stock) }}
                             </span>
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
-                            {{ number_format($inventory->min_stock) }}
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {{ number_format($inventory->avg_cost) }} đ
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             @if($inventory->stock <= 0)

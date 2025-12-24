@@ -56,21 +56,9 @@
                             {{ number_format($inventory->stock) }}
                         </p>
                     </div>
-                    <div>
-                        <label class="text-sm text-gray-500">Tồn kho tối thiểu</label>
-                        <p class="font-medium text-gray-900">{{ number_format($inventory->min_stock) }}</p>
-                    </div>
                 </div>
                 
                 <div class="space-y-3">
-                    <div>
-                        <label class="text-sm text-gray-500">Giá vốn trung bình</label>
-                        <p class="font-medium text-gray-900">{{ number_format($inventory->avg_cost) }} đ</p>
-                    </div>
-                    <div>
-                        <label class="text-sm text-gray-500">Tổng giá trị tồn kho</label>
-                        <p class="text-xl font-bold text-blue-600">{{ number_format($inventory->total_value) }} đ</p>
-                    </div>
                     <div>
                         <label class="text-sm text-gray-500">Hạn sử dụng</label>
                         <p class="font-medium {{ $inventory->is_expiring_soon ? 'text-orange-600' : 'text-gray-900' }}">
