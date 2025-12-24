@@ -117,6 +117,11 @@
                                 <i class="fas fa-times-circle mr-1"></i>Đã nghỉ việc
                             </span>
                         @endif
+                        @if($employee->is_locked)
+                            <span class="block mt-1 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                <i class="fas fa-lock mr-1"></i>Tài khoản bị khóa
+                            </span>
+                        @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
                         <div class="flex items-center justify-center gap-2">
@@ -130,6 +135,14 @@
                                title="Sửa">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            <form action="{{ route('employees.toggle-lock', $employee->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button type="submit" 
+                                        class="p-2 {{ $employee->is_locked ? 'text-green-600 bg-green-50 hover:bg-green-100 hover:text-green-700' : 'text-orange-600 bg-orange-50 hover:bg-orange-100 hover:text-orange-700' }} rounded-lg transition-colors" 
+                                        title="{{ $employee->is_locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản' }}">
+                                    <i class="fas fa-{{ $employee->is_locked ? 'unlock' : 'lock' }}"></i>
+                                </button>
+                            </form>
                             <form action="{{ route('employees.destroy', $employee->id) }}" method="POST" class="inline"
                                   onsubmit="return confirmDelete(this, 'Bạn có chắc chắn muốn xóa nhân viên {{ $employee->name }}?')">
                                 @csrf

@@ -76,6 +76,7 @@ class EmployeeController extends Controller
             'birth_date' => ['nullable', 'date'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
+            'password' => ['required', 'string', 'min:8'],
             'address' => ['nullable', 'string'],
             'department' => ['required', 'string', 'max:100'],
             'position' => ['required', 'string', 'max:100'],
@@ -88,8 +89,8 @@ class EmployeeController extends Controller
             'note' => ['nullable', 'string'],
         ]);
 
-        // Add default password for employee user account
-        $validated['password'] = bcrypt('password123'); // Default password
+        // Hash password
+        $validated['password'] = bcrypt($validated['password']);
 
         DB::table('users')->insert(array_merge($validated, [
             'created_at' => now(),
@@ -158,6 +159,7 @@ class EmployeeController extends Controller
             'birth_date' => ['nullable', 'date'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
+            'password' => ['nullable', 'string', 'min:8'],
             'address' => ['nullable', 'string'],
             'department' => ['required', 'string', 'max:100'],
             'position' => ['required', 'string', 'max:100'],
@@ -169,6 +171,13 @@ class EmployeeController extends Controller
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
         ]);
+
+        // Only update password if provided
+        if (!empty($validated['password'])) {
+            $validated['password'] = bcrypt($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
 
         DB::table('users')->where('id', $id)->update(array_merge($validated, [
             'updated_at' => now(),
@@ -306,5 +315,35 @@ class EmployeeController extends Controller
             return redirect()->route('employees.index')
                 ->with('error', 'Lỗi khi import: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Toggle lock/unlock employee account
+     */
+    public function toggleLock($id)
+    {
+        $employee = DB::table('users')
+            ->whereNotNull('employee_code')
+            ->where('id', $id)
+            ->first();
+
+        if (!$employee) {
+            return redirect()->route('employees.index')
+                ->with('error', 'Không tìm thấy nhân viên.');
+        }
+
+        $newLockStatus = !$employee->is_locked;
+        
+        DB::table('users')->where('id', $id)->update([
+            'is_locked' => $newLockStatus,
+            'updated_at' => now(),
+        ]);
+
+        $message = $newLockStatus 
+            ? "Đã khóa tài khoản nhân viên {$employee->name}." 
+            : "Đã mở khóa tài khoản nhân viên {$employee->name}.";
+
+        return redirect()->route('employees.index')
+            ->with('success', $message);
     }
 }

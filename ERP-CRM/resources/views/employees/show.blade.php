@@ -198,6 +198,18 @@
                 </div>
                 <div class="p-6 space-y-3">
                     <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Trạng thái tài khoản</span>
+                        @if($employee->is_locked)
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                <i class="fas fa-lock mr-1"></i>Đã khóa
+                            </span>
+                        @else
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-unlock mr-1"></i>Đang mở
+                            </span>
+                        @endif
+                    </div>
+                    <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Ngày tạo</span>
                         <span class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($employee->created_at)->format('d/m/Y H:i') }}</span>
                     </div>
@@ -212,10 +224,18 @@
             <div class="bg-white rounded-lg shadow-sm p-6">
                 <h3 class="text-sm font-semibold text-gray-700 mb-4">Thao tác nhanh</h3>
                 <div class="space-y-2">
-                    <a href="{{ route('employees.edit', $employee->id) }}" 
+                    <!-- <a href="{{ route('employees.edit', $employee->id) }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                         <i class="fas fa-edit mr-2"></i>Chỉnh sửa
-                    </a>
+                    </a> -->
+                    <form action="{{ route('employees.toggle-lock', $employee->id) }}" method="POST" class="w-full">
+                        @csrf
+                        <button type="submit" 
+                                class="w-full inline-flex items-center justify-center px-4 py-2 {{ $employee->is_locked ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700' }} text-white rounded-lg transition-colors">
+                            <i class="fas fa-{{ $employee->is_locked ? 'unlock' : 'lock' }} mr-2"></i>
+                            {{ $employee->is_locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản' }}
+                        </button>
+                    </form>
                     <a href="{{ route('employees.index') }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                         <i class="fas fa-list mr-2"></i>Danh sách

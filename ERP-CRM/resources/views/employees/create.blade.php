@@ -47,6 +47,13 @@
                                 @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div>
+                                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu <span class="text-red-500">*</span></label>
+                                <input type="password" name="password" id="password" required placeholder="Nhập mật khẩu"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('password') border-red-500 @enderror">
+                                @error('password')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                <p class="mt-1 text-xs text-gray-500">Mật khẩu để đăng nhập hệ thống (tối thiểu 8 ký tự)</p>
+                            </div>
+                            <div>
                                 <label for="birth_date" class="block text-sm font-medium text-gray-700 mb-1">Ngày sinh</label>
                                 <input type="date" name="birth_date" id="birth_date" value="{{ old('birth_date') }}"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">

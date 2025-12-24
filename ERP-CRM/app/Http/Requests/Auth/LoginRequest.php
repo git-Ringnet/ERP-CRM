@@ -49,6 +49,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Check if account is locked
+        if (Auth::user()->is_locked) {
+            Auth::logout();
+            
+            throw ValidationException::withMessages([
+                'email' => 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

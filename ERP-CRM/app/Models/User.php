@@ -34,6 +34,7 @@ class User extends Authenticatable
         'bank_account',
         'bank_name',
         'status',
+        'is_locked',
         'note',
         'avatar',
     ];
