@@ -39,12 +39,17 @@ class ExportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'employee', 'items'])
+        $query = InventoryTransaction::with(['warehouse', 'employee', 'items', 'project'])
             ->where('type', 'export'); // Filter only exports
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->warehouse_id);
+        }
+
+        // Filter by project
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
         }
 
         // Filter by status
@@ -70,8 +75,9 @@ class ExportController extends Controller
             ->paginate(15);
 
         $warehouses = Warehouse::active()->get();
+        $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress', 'completed'])->orderBy('name')->get();
 
-        return view('exports.index', compact('exports', 'warehouses'));
+        return view('exports.index', compact('exports', 'warehouses', 'projects'));
     }
 
     /**
@@ -82,9 +88,10 @@ class ExportController extends Controller
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
+        $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         $code = InventoryTransaction::generateCode('export');
 
-        return view('exports.create', compact('warehouses', 'products', 'employees', 'code'));
+        return view('exports.create', compact('warehouses', 'products', 'employees', 'projects', 'code'));
     }
 
     /**
@@ -117,7 +124,7 @@ class ExportController extends Controller
             abort(404);
         }
 
-        $export->load(['warehouse', 'employee', 'items.product']);
+        $export->load(['warehouse', 'employee', 'items.product', 'project']);
 
         // Get exported product items (serials) grouped by product_id
         $exportedItems = ProductItem::where('inventory_transaction_id', $export->id)

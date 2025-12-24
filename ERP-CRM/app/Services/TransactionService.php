@@ -195,6 +195,7 @@ class TransactionService
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
+                    'project_id' => $data['project_id'] ?? null,
                     'total_qty' => 0,
                     'reference_type' => $data['reference_type'] ?? null,
                     'reference_id' => $data['reference_id'] ?? null,
@@ -256,9 +257,12 @@ class TransactionService
                         }
                     }
 
-                    // Update selected product items status to 'sold'
+                    // Update selected product items status to 'sold' and link to transaction
                     if (!empty($productItemIds)) {
-                        $this->productItemService->updateItemsStatus($productItemIds, ProductItem::STATUS_SOLD);
+                        ProductItem::whereIn('id', $productItemIds)->update([
+                            'status' => ProductItem::STATUS_SOLD,
+                            'inventory_transaction_id' => $transaction->id,
+                        ]);
                         $remainingQty = $item->quantity - count($productItemIds);
                     } else {
                         $remainingQty = $item->quantity;
@@ -276,7 +280,10 @@ class TransactionService
                             ->toArray();
 
                         if (!empty($noSkuItems)) {
-                            $this->productItemService->updateItemsStatus($noSkuItems, ProductItem::STATUS_SOLD);
+                            ProductItem::whereIn('id', $noSkuItems)->update([
+                                'status' => ProductItem::STATUS_SOLD,
+                                'inventory_transaction_id' => $transaction->id,
+                            ]);
                             $remainingQty -= count($noSkuItems);
                         }
 
@@ -291,7 +298,10 @@ class TransactionService
                                 ->toArray();
 
                             if (!empty($otherItems)) {
-                                $this->productItemService->updateItemsStatus($otherItems, ProductItem::STATUS_SOLD);
+                                ProductItem::whereIn('id', $otherItems)->update([
+                                    'status' => ProductItem::STATUS_SOLD,
+                                    'inventory_transaction_id' => $transaction->id,
+                                ]);
                             }
                         }
                     }

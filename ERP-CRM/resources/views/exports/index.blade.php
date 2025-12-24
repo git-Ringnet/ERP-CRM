@@ -18,7 +18,7 @@
     </div>
 
     <div class="p-4 border-b border-gray-200 bg-gray-50">
-        <form action="{{ route('exports.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form action="{{ route('exports.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
                 <input type="text" name="search" value="{{ request('search') }}" 
                        placeholder="Tìm theo mã phiếu..." 
@@ -35,6 +35,16 @@
                 </select>
             </div>
             <div>
+                <select name="project_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    <option value="">-- Tất cả dự án --</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
+                            {{ $project->code }} - {{ $project->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
                 <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Tất cả trạng thái --</option>
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
@@ -43,10 +53,12 @@
             </div>
             <div>
                 <input type="date" name="date_from" value="{{ request('date_from') }}" 
+                       placeholder="Từ ngày"
                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
             </div>
             <div class="flex gap-2">
                 <input type="date" name="date_to" value="{{ request('date_to') }}" 
+                       placeholder="Đến ngày"
                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
                     <i class="fas fa-search"></i>
@@ -61,6 +73,7 @@
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho xuất</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
@@ -77,6 +90,16 @@
                         </a>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600">{{ $export->warehouse->name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        @if($export->project)
+                            <a href="{{ route('projects.show', $export->project) }}" class="text-blue-600 hover:text-blue-800 hover:underline">
+                                {{ $export->project->code }}
+                            </a>
+                            <div class="text-xs text-gray-500">{{ Str::limit($export->project->name, 30) }}</div>
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
+                    </td>
                     <td class="px-4 py-3 text-sm text-gray-600">{{ $export->date->format('d/m/Y') }}</td>
                     <td class="px-4 py-3 text-center">
                         <span class="px-2 py-1 text-sm font-semibold bg-orange-100 text-orange-800 rounded">
@@ -123,7 +146,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Chưa có phiếu xuất kho nào.</p>
                     </td>

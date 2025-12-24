@@ -106,7 +106,7 @@ class ProjectController extends Controller
      */
     public function show(Project $project)
     {
-        $project->load(['customer', 'manager', 'sales.items', 'saleItems.sale']);
+        $project->load(['customer', 'manager', 'sales.items', 'saleItems.sale', 'exports.warehouse']);
         
         // Get sales statistics
         $salesStats = [
@@ -125,7 +125,20 @@ class ProjectController extends Controller
             ->limit(10)
             ->get();
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales'));
+        // Get export statistics
+        $exportStats = [
+            'total_exports' => $project->exports()->count(),
+            'total_export_value' => $project->total_export_value,
+        ];
+
+        // Get recent exports for this project
+        $recentExports = $project->exports()
+            ->with(['warehouse', 'items.product'])
+            ->orderBy('date', 'desc')
+            ->limit(10)
+            ->get();
+
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'exportStats', 'recentExports'));
     }
 
     /**

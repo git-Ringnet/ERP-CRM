@@ -64,6 +64,15 @@ class Project extends Model
     }
 
     /**
+     * Relationship with Exports (Inventory Transactions)
+     */
+    public function exports()
+    {
+        return $this->hasMany(InventoryTransaction::class, 'project_id')
+                    ->where('type', 'export');
+    }
+
+    /**
      * Get status label
      */
     public function getStatusLabelAttribute(): string
@@ -134,6 +143,21 @@ class Project extends Model
     public function getTotalDebtAttribute(): float
     {
         return $this->sales()->sum('debt_amount');
+    }
+
+    /**
+     * Get total export value (vật tư đã xuất)
+     */
+    public function getTotalExportValueAttribute(): float
+    {
+        return $this->exports()
+            ->with('items')
+            ->get()
+            ->sum(function ($export) {
+                return $export->items->sum(function ($item) {
+                    return $item->quantity * $item->cost_usd * 25000; // Convert USD to VND
+                });
+            });
     }
 
     /**

@@ -44,7 +44,20 @@
                 </select>
             </div>
 
-            <div class="md:col-span-3">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Dự án</label>
+                <select name="project_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    <option value="">-- Không chọn dự án --</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" {{ old('project_id') == $project->id ? 'selected' : '' }}>
+                            {{ $project->code }} - {{ $project->name }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Chọn dự án nếu xuất kho cho dự án cụ thể</p>
+            </div>
+
+            <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                 <textarea name="note" rows="2" 
                           class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>

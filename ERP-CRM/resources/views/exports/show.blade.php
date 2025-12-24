@@ -52,6 +52,20 @@
                     <label class="text-sm text-gray-500">Kho xuất</label>
                     <p class="font-medium text-gray-900">{{ $export->warehouse->name }}</p>
                 </div>
+                @if($export->project)
+                <div>
+                    <label class="text-sm text-gray-500">Dự án</label>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('projects.show', $export->project) }}" 
+                           class="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                            {{ $export->project->code }} - {{ $export->project->name }}
+                        </a>
+                    </div>
+                    @if($export->project->customer_name)
+                        <p class="text-xs text-gray-500 mt-1">Khách hàng: {{ $export->project->customer_name }}</p>
+                    @endif
+                </div>
+                @endif
             </div>
             
             <div class="space-y-3">

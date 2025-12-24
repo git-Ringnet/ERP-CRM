@@ -16,6 +16,7 @@ class InventoryTransaction extends Model
         'type',
         'warehouse_id',
         'to_warehouse_id',
+        'project_id',
         'date',
         'employee_id',
         'total_qty',
@@ -53,6 +54,14 @@ class InventoryTransaction extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'employee_id');
+    }
+
+    /**
+     * Get the project for this transaction.
+     */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     /**
