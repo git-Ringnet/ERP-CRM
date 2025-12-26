@@ -50,7 +50,7 @@
             <a href="{{ route('warranties.expiring') }}" class="px-4 py-2 bg-warning text-white rounded-lg hover:bg-yellow-600 text-sm">
                 <i class="fas fa-clock mr-1"></i> Sắp hết hạn
             </a>
-            <a href="{{ route('warranties.report') }}" class="px-4 py-2 bg-info text-white rounded-lg hover:bg-cyan-600 text-sm">
+            <a href="{{ route('warranties.report') }}" class="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 text-sm">
                 <i class="fas fa-chart-bar mr-1"></i> Báo cáo
             </a>
         </div>
