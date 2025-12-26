@@ -111,21 +111,14 @@
                                    class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200" title="Chỉnh sửa">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <form action="{{ route('imports.approve', $import) }}" method="POST" class="inline"
-                                      onsubmit="return confirm('Bạn có chắc muốn duyệt phiếu này?')">
-                                    @csrf
-                                    <button type="submit" class="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200" title="Duyệt">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
-                                <form action="{{ route('imports.destroy', $import) }}" method="POST" class="inline"
-                                      onsubmit="return confirm('Bạn có chắc muốn xóa phiếu này?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Xóa">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                                <button onclick="confirmApprove('{{ route('imports.approve', $import) }}', 'phiếu nhập kho')" 
+                                        class="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200" title="Duyệt">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="confirmReject('{{ route('imports.reject', $import) }}', 'phiếu nhập kho')" 
+                                        class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Từ chối">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             @endif
                         </div>
                     </td>

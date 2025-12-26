@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Services\TransactionService;
 use App\Services\ProductItemService;
 use App\Services\InventoryService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 /**
@@ -22,15 +23,18 @@ class ExportController extends Controller
     protected TransactionService $transactionService;
     protected ProductItemService $productItemService;
     protected InventoryService $inventoryService;
+    protected NotificationService $notificationService;
 
     public function __construct(
         TransactionService $transactionService,
         ProductItemService $productItemService,
-        InventoryService $inventoryService
+        InventoryService $inventoryService,
+        NotificationService $notificationService
     ) {
         $this->transactionService = $transactionService;
         $this->productItemService = $productItemService;
         $this->inventoryService = $inventoryService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -105,6 +109,14 @@ class ExportController extends Controller
             $data['type'] = 'export';
 
             $export = $this->transactionService->processExport($data);
+
+            // Tạo thông báo cho tất cả users (trừ người tạo)
+            $recipientIds = User::where('id', '!=', $export->employee_id)
+                ->pluck('id')
+                ->toArray();
+            if (!empty($recipientIds)) {
+                $this->notificationService->notifyExportCreated($export, $recipientIds);
+            }
 
             return redirect()->route('exports.show', $export)
                 ->with('success', 'Tạo phiếu xuất kho thành công.');
@@ -268,8 +280,10 @@ class ExportController extends Controller
         }
 
         if ($export->status !== 'pending') {
-            return redirect()->route('exports.show', $export)
-                ->with('error', 'Chỉ có thể duyệt phiếu đang chờ xử lý.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể duyệt phiếu đang chờ xử lý.'
+            ], 400);
         }
 
         try {
@@ -286,11 +300,63 @@ class ExportController extends Controller
                 ])->toArray(),
             ], $export);
 
-            return redirect()->route('exports.show', $export)
-                ->with('success', 'Duyệt phiếu xuất kho thành công.');
+            // Tạo thông báo cho người tạo phiếu
+            if ($export->employee_id) {
+                $this->notificationService->notifyDocumentApproved($export, 'export', $export->employee_id);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Phiếu xuất đã được duyệt'
+            ]);
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Lỗi khi duyệt: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi duyệt: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject a pending export.
+     */
+    public function reject(Request $request, InventoryTransaction $export)
+    {
+        if ($export->type !== 'export') {
+            abort(404);
+        }
+
+        if ($export->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể từ chối phiếu đang chờ xử lý.'
+            ], 400);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|min:5',
+        ]);
+
+        try {
+            $export->update([
+                'status' => 'rejected',
+                'note' => ($export->note ? $export->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
+            ]);
+
+            // Tạo thông báo cho người tạo phiếu
+            if ($export->employee_id) {
+                $this->notificationService->notifyDocumentRejected($export, 'export', $export->employee_id, $request->reason);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Phiếu xuất đã bị từ chối'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi từ chối: ' . $e->getMessage()
+            ], 500);
         }
     }
 

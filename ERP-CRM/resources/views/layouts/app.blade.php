@@ -18,6 +18,9 @@
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -283,11 +286,68 @@
                 </div>
 
                 <div class="flex items-center space-x-2 sm:space-x-4">
-                    <!-- Notifications -->
-                    <button class="relative text-gray-600 hover:text-gray-900 focus:outline-none">
-                        <i class="fas fa-bell text-lg sm:text-xl"></i>
-                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
-                    </button>
+                    <!-- Notification Bell -->
+                    <div class="relative" x-data="notificationBell()" x-init="init()">
+                        <!-- Bell Icon with Badge -->
+                        <button @click="toggleDropdown()" class="relative text-gray-600 hover:text-gray-900 focus:outline-none">
+                            <i class="fas fa-bell text-lg sm:text-xl"></i>
+                            <span x-show="unreadCount > 0" 
+                                  x-text="unreadCount > 99 ? '99+' : unreadCount"
+                                  class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold">
+                            </span>
+                        </button>
+
+                        <!-- Dropdown -->
+                        <div x-show="isOpen" 
+                             x-cloak
+                             @click.away="isOpen = false"
+                             x-transition
+                             class="absolute right-0 mt-2 w-96 bg-white shadow-lg rounded-lg z-50 border border-gray-200">
+                            <!-- Header -->
+                            <div class="flex justify-between items-center p-4 border-b">
+                                <h3 class="font-semibold text-gray-800">Thông báo</h3>
+                                <button @click="markAllAsRead()" 
+                                        :disabled="unreadCount === 0"
+                                        :class="unreadCount === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'"
+                                        class="text-sm">
+                                    Đánh dấu tất cả đã đọc
+                                </button>
+                            </div>
+
+                            <!-- Notification List -->
+                            <div class="max-h-96 overflow-y-auto">
+                                <template x-if="notifications.length === 0">
+                                    <div class="p-8 text-center text-gray-500">
+                                        <i class="fas fa-bell-slash text-4xl mb-2"></i>
+                                        <p>Không có thông báo</p>
+                                    </div>
+                                </template>
+                                
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <a :href="notification.link" 
+                                       @click="markAsRead(notification.id)"
+                                       :class="!notification.is_read ? 'bg-blue-50' : ''"
+                                       class="block p-4 border-b hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-start">
+                                            <i :class="getIconClass(notification)" class="mt-1 mr-3 text-lg"></i>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="font-semibold text-sm text-gray-800" x-text="notification.title"></p>
+                                                <p class="text-sm text-gray-600 mt-1" x-text="notification.message"></p>
+                                                <p class="text-xs text-gray-400 mt-1" x-text="formatTime(notification.created_at)"></p>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </template>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="p-3 text-center border-t bg-gray-50">
+                                <a href="{{ route('notifications.index') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                    Xem tất cả thông báo
+                                </a>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- User Menu Dropdown -->
                     <div class="relative" x-data="{ open: false }">
@@ -477,6 +537,12 @@
             });
         });
     </script>
+
+    <!-- Notification Bell Script -->
+    <script src="{{ asset('js/notification-bell.js') }}"></script>
+
+    <!-- SweetAlert Helpers -->
+    <script src="{{ asset('js/sweetalert-helpers.js') }}"></script>
 
     @stack('scripts')
 </body>

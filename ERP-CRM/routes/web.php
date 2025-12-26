@@ -29,6 +29,7 @@ use App\Http\Controllers\WarrantyController;
 use App\Http\Controllers\PurchasePricingController;
 use App\Http\Controllers\ShippingAllocationController;
 use App\Http\Controllers\PurchaseReportController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -71,16 +72,19 @@ Route::middleware(['auth'])->group(function () {
     // Import Module Routes (Nhập kho)
     Route::resource('imports', ImportController::class);
     Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
+    Route::post('/imports/{import}/reject', [ImportController::class, 'reject'])->name('imports.reject');
 
     // Export Module Routes (Xuất kho)
     Route::get('/exports/available-items', [ExportController::class, 'getAvailableItems'])->name('exports.available-items');
     Route::resource('exports', ExportController::class);
     Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
+    Route::post('/exports/{export}/reject', [ExportController::class, 'reject'])->name('exports.reject');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
     Route::resource('transfers', TransferController::class);
     Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve'])->name('transfers.approve');
+    Route::post('/transfers/{transfer}/reject', [TransferController::class, 'reject'])->name('transfers.reject');
 
     // Warehouse Module Routes
     Route::resource('warehouses', WarehouseController::class);
@@ -206,6 +210,13 @@ Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\S
 Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
 Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
 Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
+
+    // Notification routes (Thông báo)
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
+    Route::get('/notifications/recent', [NotificationController::class, 'recent'])->name('notifications.recent');
+    Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-as-read');
+    Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-as-read');
 });
 
 // Auth routes (login, logout, etc.)

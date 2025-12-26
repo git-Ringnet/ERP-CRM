@@ -13,14 +13,14 @@
                    class="px-3 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
                     <i class="fas fa-edit mr-1"></i>Chỉnh sửa
                 </a>
-                <form action="{{ route('imports.approve', $import) }}" method="POST" class="inline"
-                      onsubmit="return confirm('Bạn có chắc muốn duyệt phiếu này? Sau khi duyệt sẽ không thể chỉnh sửa.')">
-                    @csrf
-                    <button type="submit" 
-                            class="px-3 py-1.5 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600 transition-colors">
-                        <i class="fas fa-check mr-1"></i>Duyệt phiếu
-                    </button>
-                </form>
+                <button onclick="confirmApprove('{{ route('imports.approve', $import) }}', 'phiếu nhập kho')"
+                        class="px-3 py-1.5 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600 transition-colors">
+                    <i class="fas fa-check mr-1"></i>Duyệt phiếu
+                </button>
+                <button onclick="confirmReject('{{ route('imports.reject', $import) }}', 'phiếu nhập kho')"
+                        class="px-3 py-1.5 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors">
+                    <i class="fas fa-times mr-1"></i>Từ chối
+                </button>
             @endif
             <a href="{{ route('imports.index') }}" 
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">

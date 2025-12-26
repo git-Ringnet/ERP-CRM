@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\TransactionService;
 use App\Services\ProductItemService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 /**
@@ -20,13 +21,16 @@ class ImportController extends Controller
 {
     protected TransactionService $transactionService;
     protected ProductItemService $productItemService;
+    protected NotificationService $notificationService;
 
     public function __construct(
         TransactionService $transactionService,
-        ProductItemService $productItemService
+        ProductItemService $productItemService,
+        NotificationService $notificationService
     ) {
         $this->transactionService = $transactionService;
         $this->productItemService = $productItemService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -94,6 +98,14 @@ class ImportController extends Controller
             $data['type'] = 'import';
 
             $import = $this->transactionService->processImport($data);
+
+            // Tạo thông báo cho tất cả users (trừ người tạo)
+            $recipientIds = User::where('id', '!=', $import->employee_id)
+                ->pluck('id')
+                ->toArray();
+            if (!empty($recipientIds)) {
+                $this->notificationService->notifyImportCreated($import, $recipientIds);
+            }
 
             return redirect()->route('imports.show', $import)
                 ->with('success', 'Tạo phiếu nhập kho thành công.');
@@ -267,8 +279,10 @@ class ImportController extends Controller
 
         // Only allow approving pending imports
         if ($import->status !== 'pending') {
-            return redirect()->route('imports.show', $import)
-                ->with('error', 'Chỉ có thể duyệt phiếu đang chờ xử lý.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể duyệt phiếu đang chờ xử lý.'
+            ], 400);
         }
 
         try {
@@ -286,11 +300,65 @@ class ImportController extends Controller
                 ])->toArray(),
             ], $import);
 
-            return redirect()->route('imports.show', $import)
-                ->with('success', 'Duyệt phiếu nhập kho thành công.');
+            // Tạo thông báo cho người tạo phiếu
+            if ($import->employee_id) {
+                $this->notificationService->notifyDocumentApproved($import, 'import', $import->employee_id);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Phiếu nhập đã được duyệt'
+            ]);
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Lỗi khi duyệt: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi duyệt: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject a pending import.
+     */
+    public function reject(Request $request, InventoryTransaction $import)
+    {
+        // Ensure it's an import transaction
+        if ($import->type !== 'import') {
+            abort(404);
+        }
+
+        // Only allow rejecting pending imports
+        if ($import->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể từ chối phiếu đang chờ xử lý.'
+            ], 400);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|min:5',
+        ]);
+
+        try {
+            $import->update([
+                'status' => 'rejected',
+                'note' => ($import->note ? $import->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
+            ]);
+
+            // Tạo thông báo cho người tạo phiếu
+            if ($import->employee_id) {
+                $this->notificationService->notifyDocumentRejected($import, 'import', $import->employee_id, $request->reason);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Phiếu nhập đã bị từ chối'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi từ chối: ' . $e->getMessage()
+            ], 500);
         }
     }
 }
