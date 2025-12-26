@@ -44,6 +44,8 @@ class EmployeesImport implements ToCollection, WithHeadingRow
             'email' => ['email', 'e_mail'],
             // Số điện thoại
             'so_dien_thoai' => ['so_dien_thoai', 'sodienthoai', 'sdt', 'dien_thoai', 'dienthoai'],
+            // Mật khẩu
+            'mat_khau' => ['mat_khau', 'matkhau', 'password', 'pass'],
             // Trạng thái
             'trang_thai' => ['trang_thai', 'trangthai'],
             // Ngày vào làm
@@ -170,12 +172,25 @@ class EmployeesImport implements ToCollection, WithHeadingRow
                 ->first();
 
             if ($existing) {
+                // Update existing employee
+                // Only update password if provided in Excel
+                if (!empty($data['mat_khau']) && strlen(trim($data['mat_khau'])) >= 8) {
+                    $employeeData['password'] = bcrypt(trim($data['mat_khau']));
+                }
+                
                 DB::table('users')
                     ->where('id', $existing->id)
                     ->update($employeeData);
                 $this->updated++;
             } else {
-                $employeeData['password'] = bcrypt('password123');
+                // Create new employee
+                // Use password from Excel or default
+                if (!empty($data['mat_khau']) && strlen(trim($data['mat_khau'])) >= 8) {
+                    $employeeData['password'] = bcrypt(trim($data['mat_khau']));
+                } else {
+                    $employeeData['password'] = bcrypt('password123');
+                }
+                
                 $employeeData['created_at'] = now();
                 DB::table('users')->insert($employeeData);
                 $this->imported++;

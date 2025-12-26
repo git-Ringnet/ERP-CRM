@@ -258,6 +258,7 @@ class EmployeeController extends Controller
                 'department' => 'Kinh doanh',
                 'email' => 'nguyenvana@company.com',
                 'phone' => '0901234567',
+                'password' => 'password123',
                 'status' => 'Đang làm việc',
                 'join_date' => '2024-01-15',
                 'salary' => 15000000,

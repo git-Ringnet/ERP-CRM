@@ -41,6 +41,7 @@ class EmployeesExport implements FromCollection, WithHeadings, WithMapping
             'Phòng ban',
             'Email',
             'Số điện thoại',
+            'Mật khẩu',
             'Trạng thái',
             'Ngày vào làm',
             'Lương',
@@ -65,6 +66,7 @@ class EmployeesExport implements FromCollection, WithHeadings, WithMapping
             $employee->department ?? '',
             $employee->email ?? '',
             $employee->phone ?? '',
+            '', // Password - để trống khi export (không export password thật)
             $employee->status ?? '',
             $employee->join_date ?? '',
             $employee->salary ?? 0,
