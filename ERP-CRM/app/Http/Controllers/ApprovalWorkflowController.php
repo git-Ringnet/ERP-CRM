@@ -12,7 +12,9 @@ class ApprovalWorkflowController extends Controller
 {
     public function index()
     {
-        $workflows = ApprovalWorkflow::with('levels')->get();
+        $workflows = ApprovalWorkflow::with('levels')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
         return view('approval-workflows.index', compact('workflows'));
     }
 

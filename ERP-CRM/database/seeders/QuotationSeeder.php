@@ -14,6 +14,11 @@ class QuotationSeeder extends Seeder
         $customers = DB::table('customers')->get();
         $products = DB::table('products')->get();
         $users = DB::table('users')->first();
+
+        if ($customers->isEmpty() || $products->isEmpty()) {
+            $this->command->warn('Cần có khách hàng và sản phẩm trước.');
+            return;
+        }
         
         // discount và vat là % (decimal 5,2)
         $quotations = [
@@ -37,16 +42,20 @@ class QuotationSeeder extends Seeder
             $quotation['updated_at'] = $now;
             $quotationId = DB::table('quotations')->insertGetId($quotation);
             
-            foreach ($products->random(rand(2, 4)) as $product) {
-                $qty = rand(1, 15);
-                $price = $prices[$product->code] ?? 1000000;
-                DB::table('quotation_items')->insert([
-                    'quotation_id' => $quotationId, 'product_id' => $product->id,
-                    'product_name' => $product->name, 'product_code' => $product->code,
-                    'quantity' => $qty, 'price' => $price, 'total' => $qty * $price,
-                    'note' => $qty >= 5 ? 'Áp dụng giá sỉ đặc biệt' : null,
-                    'created_at' => $now, 'updated_at' => $now,
-                ]);
+            // Chỉ thêm items nếu có sản phẩm
+            if ($products->count() >= 2) {
+                $randomCount = min(rand(2, 4), $products->count());
+                foreach ($products->random($randomCount) as $product) {
+                    $qty = rand(1, 15);
+                    $price = $prices[$product->code] ?? 1000000;
+                    DB::table('quotation_items')->insert([
+                        'quotation_id' => $quotationId, 'product_id' => $product->id,
+                        'product_name' => $product->name, 'product_code' => $product->code,
+                        'quantity' => $qty, 'price' => $price, 'total' => $qty * $price,
+                        'note' => $qty >= 5 ? 'Áp dụng giá sỉ đặc biệt' : null,
+                        'created_at' => $now, 'updated_at' => $now,
+                    ]);
+                }
             }
         }
     }

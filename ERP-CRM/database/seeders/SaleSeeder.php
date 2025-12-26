@@ -14,6 +14,11 @@ class SaleSeeder extends Seeder
         $customers = DB::table('customers')->get();
         $products = DB::table('products')->get();
         $projects = DB::table('projects')->get();
+
+        if ($customers->isEmpty() || $products->isEmpty()) {
+            $this->command->warn('Cần có khách hàng và sản phẩm trước. Chạy CustomerSeeder và ProductSeeder trước.');
+            return;
+        }
         
         // discount và vat là % (decimal 5,2), không phải số tiền
         $sales = [
@@ -45,15 +50,19 @@ class SaleSeeder extends Seeder
             $sale['updated_at'] = $now;
             $saleId = DB::table('sales')->insertGetId($sale);
             
-            foreach ($products->random(rand(2, 4)) as $product) {
-                $qty = rand(1, 8);
-                $p = $prices[$product->code] ?? ['sell' => 1000000, 'cost' => 700000];
-                DB::table('sale_items')->insert([
-                    'sale_id' => $saleId, 'product_id' => $product->id, 'product_name' => $product->name,
-                    'project_id' => $sale['project_id'], 'quantity' => $qty, 'price' => $p['sell'],
-                    'cost_price' => $p['cost'], 'total' => $qty * $p['sell'], 'cost_total' => $qty * $p['cost'],
-                    'created_at' => $now, 'updated_at' => $now,
-                ]);
+            // Chỉ thêm items nếu có sản phẩm
+            if ($products->count() >= 2) {
+                $randomCount = min(rand(2, 4), $products->count());
+                foreach ($products->random($randomCount) as $product) {
+                    $qty = rand(1, 8);
+                    $p = $prices[$product->code] ?? ['sell' => 1000000, 'cost' => 700000];
+                    DB::table('sale_items')->insert([
+                        'sale_id' => $saleId, 'product_id' => $product->id, 'product_name' => $product->name,
+                        'project_id' => $sale['project_id'], 'quantity' => $qty, 'price' => $p['sell'],
+                        'cost_price' => $p['cost'], 'total' => $qty * $p['sell'], 'cost_total' => $qty * $p['cost'],
+                        'created_at' => $now, 'updated_at' => $now,
+                    ]);
+                }
             }
             
             if ($sale['type'] === 'project') {

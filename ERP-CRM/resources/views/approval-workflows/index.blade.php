@@ -78,5 +78,11 @@
         </div>
         @endforelse
     </div>
+
+    @if($workflows->hasPages())
+    <div class="px-4 py-3 border-t border-gray-200">
+        {{ $workflows->links() }}
+    </div>
+    @endif
 </div>
 @endsection

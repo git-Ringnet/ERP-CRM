@@ -8,9 +8,11 @@ use App\Models\SupplierQuotation;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
+use App\Mail\PurchaseOrderMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class PurchaseOrderController extends Controller
 {
@@ -278,13 +280,28 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Đơn hàng chưa được duyệt!');
         }
 
-        // TODO: Gửi email cho NCC
-        $purchaseOrder->update([
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
+        $purchaseOrder->load(['supplier', 'items']);
+        $supplierEmail = $purchaseOrder->supplier->email;
 
-        return back()->with('success', 'Đã gửi đơn mua hàng cho nhà cung cấp!');
+        if (empty($supplierEmail)) {
+            return back()->with('error', 'Nhà cung cấp chưa có email! Vui lòng cập nhật thông tin NCC.');
+        }
+
+        try {
+            Mail::to($supplierEmail)->send(new PurchaseOrderMail($purchaseOrder));
+
+            $purchaseOrder->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            Log::info("PO {$purchaseOrder->code} sent to {$supplierEmail}");
+
+            return back()->with('success', "Đã gửi đơn mua hàng đến {$purchaseOrder->supplier->name} ({$supplierEmail})!");
+        } catch (\Exception $e) {
+            Log::error("Failed to send PO {$purchaseOrder->code}: " . $e->getMessage());
+            return back()->with('error', 'Gửi email thất bại: ' . $e->getMessage());
+        }
     }
 
     public function confirmBySupplier(PurchaseOrder $purchaseOrder)

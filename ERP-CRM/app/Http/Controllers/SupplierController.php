@@ -60,6 +60,13 @@ class SupplierController extends Controller
             'contact_person' => ['nullable', 'string', 'max:255'],
             'payment_terms' => ['nullable', 'integer', 'min:0'],
             'product_type' => ['nullable', 'string', 'max:255'],
+            'base_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'volume_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'volume_threshold' => ['nullable', 'integer', 'min:0'],
+            'early_payment_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'early_payment_days' => ['nullable', 'integer', 'min:0'],
+            'special_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'special_discount_condition' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
 
@@ -126,6 +133,13 @@ class SupplierController extends Controller
             'contact_person' => ['nullable', 'string', 'max:255'],
             'payment_terms' => ['nullable', 'integer', 'min:0'],
             'product_type' => ['nullable', 'string', 'max:255'],
+            'base_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'volume_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'volume_threshold' => ['nullable', 'integer', 'min:0'],
+            'early_payment_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'early_payment_days' => ['nullable', 'integer', 'min:0'],
+            'special_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'special_discount_condition' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
         ]);
 

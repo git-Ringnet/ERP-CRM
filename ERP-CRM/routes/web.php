@@ -26,6 +26,9 @@ use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierQuotationController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\WarrantyController;
+use App\Http\Controllers\PurchasePricingController;
+use App\Http\Controllers\ShippingAllocationController;
+use App\Http\Controllers\PurchaseReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -178,6 +181,31 @@ Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController
 Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
 Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
 Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
+
+// Purchase Pricing routes (Giá nhập, giá kho)
+Route::resource('purchase-pricings', PurchasePricingController::class);
+Route::post('/purchase-pricings/recalculate', [PurchasePricingController::class, 'recalculate'])->name('purchase-pricings.recalculate');
+
+// Shipping Allocation routes (Phân bổ chi phí vận chuyển)
+Route::resource('shipping-allocations', ShippingAllocationController::class);
+Route::post('/shipping-allocations/{shippingAllocation}/approve', [ShippingAllocationController::class, 'approve'])->name('shipping-allocations.approve');
+Route::post('/shipping-allocations/{shippingAllocation}/complete', [ShippingAllocationController::class, 'complete'])->name('shipping-allocations.complete');
+
+// Purchase Reports routes (Báo cáo mua hàng nâng cao)
+Route::get('/purchase-reports', [PurchaseReportController::class, 'index'])->name('purchase-reports.index');
+Route::get('/purchase-reports/export', [PurchaseReportController::class, 'export'])->name('purchase-reports.export');
+
+// Supplier Price List routes (Bảng giá nhà cung cấp - Import Excel)
+Route::get('/supplier-price-lists', [\App\Http\Controllers\SupplierPriceListController::class, 'index'])->name('supplier-price-lists.index');
+Route::get('/supplier-price-lists/import', [\App\Http\Controllers\SupplierPriceListController::class, 'showImportForm'])->name('supplier-price-lists.import');
+Route::post('/supplier-price-lists/analyze', [\App\Http\Controllers\SupplierPriceListController::class, 'analyzeFile'])->name('supplier-price-lists.analyze');
+Route::post('/supplier-price-lists/sheet-data', [\App\Http\Controllers\SupplierPriceListController::class, 'getSheetData'])->name('supplier-price-lists.sheet-data');
+Route::post('/supplier-price-lists/auto-detect', [\App\Http\Controllers\SupplierPriceListController::class, 'autoDetectMapping'])->name('supplier-price-lists.auto-detect');
+Route::post('/supplier-price-lists/do-import', [\App\Http\Controllers\SupplierPriceListController::class, 'import'])->name('supplier-price-lists.do-import');
+Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
+Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
+Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
+Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
 });
 
 // Auth routes (login, logout, etc.)

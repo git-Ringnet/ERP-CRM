@@ -20,10 +20,10 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
             SupplierSeeder::class,
             EmployeeSeeder::class,
-            // ProductSeeder::class,
+            ProductSeeder::class,          // Bật lại ProductSeeder
             WarehouseSeeder::class,
             InventorySeeder::class,
-            // InventoryTransactionSeeder::class,
+            InventoryTransactionSeeder::class,
             DamagedGoodSeeder::class,
             
             // Module Bán hàng - chạy sau khi có Customer & Product
@@ -33,6 +33,14 @@ class DatabaseSeeder extends Seeder
             QuotationSeeder::class,        // Báo giá
             CostFormulaSeeder::class,      // Công thức chi phí
             PaymentHistorySeeder::class,   // Công nợ khách hàng
+            
+            // Module Mua hàng
+            PurchaseRequestSeeder::class,  // Yêu cầu đặt hàng
+            SupplierQuotationSeeder::class, // Báo giá NCC
+            PurchaseOrderSeeder::class,    // Đơn mua hàng
+            
+            // Module Quy trình
+            ApprovalWorkflowSeeder::class, // Quy trình duyệt
         ]);
     }
 }

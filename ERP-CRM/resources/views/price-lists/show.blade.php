@@ -78,16 +78,16 @@
                     <h3 class="text-lg font-semibold">Chi tiết giá sản phẩm ({{ $priceList->items->count() }} sản phẩm)</h3>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200 table-fixed">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá gốc</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá bán</th>
-                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL tối thiểu</th>
-                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">CK (%)</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá cuối</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style="width: 5%;">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" style="width: 30%;">Sản phẩm</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" style="width: 15%;">Giá gốc</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" style="width: 15%;">Giá bán</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase" style="width: 10%;">SL tối thiểu</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase" style="width: 10%;">CK (%)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" style="width: 15%;">Giá cuối</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">

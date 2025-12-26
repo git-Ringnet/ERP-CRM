@@ -89,14 +89,14 @@
         </div>
 
         <div class="overflow-x-auto">
-                <table class="min-w-full">
+                <table class="min-w-full table-fixed">
                     <thead>
                         <tr class="bg-gray-50">
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Sản phẩm</th>
-                            <th class="px-4 py-2 text-right text-sm font-medium text-gray-600 w-32">Giá bán</th>
-                            <th class="px-4 py-2 text-center text-sm font-medium text-gray-600 w-24">SL tối thiểu</th>
-                            <th class="px-4 py-2 text-center text-sm font-medium text-gray-600 w-24">CK (%)</th>
-                            <th class="px-4 py-2 w-16"></th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" style="width: 40%;">Sản phẩm</th>
+                            <th class="px-4 py-2 text-right text-sm font-medium text-gray-600" style="width: 20%;">Giá bán</th>
+                            <th class="px-4 py-2 text-center text-sm font-medium text-gray-600" style="width: 15%;">SL tối thiểu</th>
+                            <th class="px-4 py-2 text-center text-sm font-medium text-gray-600" style="width: 15%;">CK (%)</th>
+                            <th class="px-4 py-2 text-center" style="width: 10%;"></th>
                         </tr>
                     </thead>
                     <tbody id="productRows">

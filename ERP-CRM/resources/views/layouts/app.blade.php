@@ -208,8 +208,54 @@
                     </a>
                 </div>
 
-                <div class="mt-4 mb-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Hệ thống</p>
+                <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Mua hàng</p>
+
+                    <a href="{{ route('supplier-price-lists.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-price-lists.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-excel w-6 text-green-400"></i>
+                        <span class="ml-3">Bảng giá NCC</span>
+                    </a>
+
+                    <a href="{{ route('purchase-requests.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-clipboard-list w-6"></i>
+                        <span class="ml-3">Yêu cầu báo giá</span>
+                    </a>
+
+                    <a href="{{ route('supplier-quotations.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-invoice w-6"></i>
+                        <span class="ml-3">Báo giá NCC</span>
+                    </a>
+
+                    <a href="{{ route('purchase-orders.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-file-contract w-6 text-blue-400"></i>
+                        <span class="ml-3">Đơn mua hàng (PO)</span>
+                    </a>
+
+                    <a href="{{ route('purchase-pricings.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-pricings.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-money-bill w-6 text-green-400"></i>
+                        <span class="ml-3">Giá nhập, giá kho</span>
+                    </a>
+
+                    <a href="{{ route('shipping-allocations.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                        <span class="ml-3">Phân bổ CP vận chuyển</span>
+                    </a>
+
+                    <a href="{{ route('purchase-reports.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-reports.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-chart-pie w-6 text-purple-400"></i>
+                        <span class="ml-3">Báo cáo mua hàng</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hệ thống</p>
 
                     <a href="{{ route('approval-workflows.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
