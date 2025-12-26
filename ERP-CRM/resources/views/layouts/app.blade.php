@@ -21,6 +21,22 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+    <style>
+        /* Sidebar collapsed state - hide text, show only icons */
+        .sidebar-collapsed .sidebar-text {
+            display: none;
+        }
+        .sidebar-collapsed nav a,
+        .sidebar-collapsed nav div {
+            justify-content: center;
+        }
+        .sidebar-collapsed #sidebarHeader {
+            justify-content: center;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+    </style>
+
     @stack('styles')
 </head>
 
@@ -31,175 +47,180 @@
     <div class="min-h-screen flex">
         <!-- Sidebar -->
         <aside id="sidebar"
-            class="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-white transform -translate-x-full lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-300 ease-in-out overflow-y-auto">
+            class="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-white transform -translate-x-full lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 ease-in-out overflow-y-auto lg:w-64">
             <!-- Logo -->
-            <div class="flex items-center justify-between h-16 px-4 bg-secondary flex-shrink-0">
-                <a href="{{ url('/') }}" class="flex items-center space-x-2">
+            <div id="sidebarHeader" class="flex items-center justify-between h-16 px-4 bg-secondary flex-shrink-0">
+                <a href="{{ url('/') }}" class="flex items-center space-x-2 sidebar-text">
                     <i class="fas fa-cube text-primary text-2xl"></i>
-                    <span class="text-xl font-bold">Mini ERP</span>
+                    <span class="text-xl font-bold whitespace-nowrap">Mini ERP</span>
                 </a>
-                <button id="closeSidebar" class="lg:hidden text-white hover:text-gray-300 focus:outline-none">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+                <div class="flex items-center space-x-2">
+                    <button id="toggleSidebar" class="text-white hover:text-gray-300 focus:outline-none flex-shrink-0">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <button id="closeSidebar" class="lg:hidden text-white hover:text-gray-300 focus:outline-none">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Navigation -->
             <nav class="mt-4 px-2">
                 <a href="{{ route('dashboard') }}"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-primary text-white' : '' }}">
-                    <i class="fas fa-tachometer-alt w-6"></i>
-                    <span class="ml-3">Dashboard</span>
+                    <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
+                    <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
                 </a>
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Master Data</p>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Master Data</p>
 
                     <a href="{{ route('customers.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customers.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-users w-6"></i>
-                        <span class="ml-3">Khách hàng</span>
+                        <i class="fas fa-users w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Khách hàng</span>
                     </a>
 
                     <a href="{{ route('suppliers.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-truck w-6"></i>
-                        <span class="ml-3">Nhà cung cấp</span>
+                        <i class="fas fa-truck w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhà cung cấp</span>
                     </a>
 
                     <a href="{{ route('employees.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employees.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-user-tie w-6"></i>
-                        <span class="ml-3">Nhân viên</span>
+                        <i class="fas fa-user-tie w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhân viên</span>
                     </a>
 
                     <a href="{{ route('products.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('products.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-box w-6"></i>
-                        <span class="ml-3">Sản phẩm</span>
+                        <i class="fas fa-box w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Sản phẩm</span>
                     </a>
                 </div>
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Kho hàng</p>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Kho hàng</p>
 
                     <a href="{{ route('warehouses.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-warehouse w-6"></i>
-                        <span class="ml-3">Quản lý kho</span>
+                        <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
                     </a>
 
                     <a href="{{ route('inventory.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-boxes w-6"></i>
-                        <span class="ml-3">Tồn kho</span>
+                        <i class="fas fa-boxes w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
                     </a>
 
                     <a href="{{ route('imports.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-arrow-down w-6 text-blue-400"></i>
-                        <span class="ml-3">Nhập kho</span>
+                        <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
                     </a>
 
                     <a href="{{ route('exports.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-arrow-up w-6 text-orange-400"></i>
-                        <span class="ml-3">Xuất kho</span>
+                        <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
                     </a>
 
                     <a href="{{ route('transfers.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-exchange-alt w-6 text-purple-400"></i>
-                        <span class="ml-3">Chuyển kho</span>
+                        <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
                     </a>
 
                     <a href="{{ route('damaged-goods.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-exclamation-triangle w-6"></i>
-                        <span class="ml-3">Hàng hư hỏng</span>
+                        <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
                     </a>
                 </div>
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Báo cáo</p>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Báo cáo</p>
 
                     <a href="{{ route('reports.inventory-summary') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-bar w-6"></i>
-                        <span class="ml-3">Tổng hợp tồn kho</span>
+                        <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Tổng hợp tồn kho</span>
                     </a>
 
                     <a href="{{ route('reports.transaction-report') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-line w-6"></i>
-                        <span class="ml-3">Báo cáo xuất nhập</span>
+                        <i class="fas fa-chart-line w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo xuất nhập</span>
                     </a>
 
                     <a href="{{ route('reports.damaged-goods-report') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-pie w-6"></i>
-                        <span class="ml-3">Báo cáo hư hỏng</span>
+                        <i class="fas fa-chart-pie w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo hư hỏng</span>
                     </a>
 
                     <a href="{{ route('warranties.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-shield-alt w-6 text-green-400"></i>
-                        <span class="ml-3">Theo dõi bảo hành</span>
+                        <i class="fas fa-shield-alt w-6 text-green-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi bảo hành</span>
                     </a>
                 </div>
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Bán hàng</p>
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Bán hàng</p>
 
                     <a href="{{ route('price-lists.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('price-lists.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-tags w-6"></i>
-                        <span class="ml-3">Bảng giá</span>
+                        <i class="fas fa-tags w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Bảng giá</span>
                     </a>
 
                     <a href="{{ route('quotations.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-file-alt w-6"></i>
-                        <span class="ml-3">Báo giá</span>
+                        <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
                     </a>
 
                     <a href="{{ route('sales.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-shopping-cart w-6"></i>
-                        <span class="ml-3">Đơn hàng bán</span>
+                        <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
                     </a>
 
                     <a href="{{ route('projects.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-project-diagram w-6 text-purple-400"></i>
-                        <span class="ml-3">Quản lý dự án</span>
+                        <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý dự án</span>
                     </a>
 
                     <a href="{{ route('customer-debts.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-file-invoice-dollar w-6"></i>
-                        <span class="ml-3">Công nợ khách hàng</span>
+                        <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
                     </a>
 
                     <a href="{{ route('cost-formulas.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cost-formulas.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-calculator w-6"></i>
-                        <span class="ml-3">Công thức chi phí</span>
+                        <i class="fas fa-calculator w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Công thức chi phí</span>
                     </a>
                 </div>
 
-                <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hệ thống</p>
+                <div class="mt-4 mb-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Hệ thống</p>
 
                     <a href="{{ route('approval-workflows.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-project-diagram w-6"></i>
-                        <span class="ml-3">Quy trình duyệt</span>
+                        <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
                     </a>
 
                     <a href="{{ route('settings.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('settings.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-cog w-6"></i>
-                        <span class="ml-3">Cài đặt</span>
+                        <i class="fas fa-cog w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Cài đặt</span>
                     </a>
                 </div>
             </nav>
@@ -211,9 +232,6 @@
             <!-- Top Header -->
             <header class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
                 <div class="flex items-center min-w-0 flex-1">
-                    <button id="openSidebar" class="lg:hidden text-gray-600 hover:text-gray-900 mr-3 focus:outline-none">
-                        <i class="fas fa-bars text-xl"></i>
-                    </button>
                     <h1 class="text-base sm:text-lg font-semibold text-gray-800 truncate">
                         @yield('page-title', 'Dashboard')</h1>
                 </div>
@@ -327,14 +345,34 @@
         document.addEventListener('DOMContentLoaded', function () {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            const openBtn = document.getElementById('openSidebar');
+            const toggleBtn = document.getElementById('toggleSidebar');
             const closeBtn = document.getElementById('closeSidebar');
             const loadingOverlay = document.getElementById('loadingOverlay');
 
-            function openSidebar() {
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-                document.body.style.overflow = 'hidden';
+            // Check saved state
+            const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            
+            function toggleSidebar() {
+                const isLargeScreen = window.innerWidth >= 1024;
+                
+                if (isLargeScreen) {
+                    // Desktop: collapse to icon-only or expand
+                    const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+                    if (isCollapsed) {
+                        sidebar.classList.remove('sidebar-collapsed', 'lg:w-16');
+                        sidebar.classList.add('lg:w-64');
+                        localStorage.setItem('sidebarCollapsed', 'false');
+                    } else {
+                        sidebar.classList.remove('lg:w-64');
+                        sidebar.classList.add('sidebar-collapsed', 'lg:w-16');
+                        localStorage.setItem('sidebarCollapsed', 'true');
+                    }
+                } else {
+                    // Mobile: open sidebar
+                    sidebar.classList.remove('-translate-x-full');
+                    overlay.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                }
             }
 
             function closeSidebar() {
@@ -343,12 +381,29 @@
                 document.body.style.overflow = '';
             }
 
-            if (openBtn) openBtn.addEventListener('click', openSidebar);
+            // Apply saved state on load
+            if (sidebarCollapsed && window.innerWidth >= 1024) {
+                sidebar.classList.remove('lg:w-64');
+                sidebar.classList.add('sidebar-collapsed', 'lg:w-16');
+            }
+
+            if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
             if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
             if (overlay) overlay.addEventListener('click', closeSidebar);
 
             window.addEventListener('resize', function () {
-                if (window.innerWidth >= 1024) closeSidebar();
+                if (window.innerWidth >= 1024) {
+                    closeSidebar();
+                    // Restore desktop state
+                    const collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                    if (collapsed) {
+                        sidebar.classList.remove('lg:w-64');
+                        sidebar.classList.add('sidebar-collapsed', 'lg:w-16');
+                    } else {
+                        sidebar.classList.remove('sidebar-collapsed', 'lg:w-16');
+                        sidebar.classList.add('lg:w-64');
+                    }
+                }
             });
 
             window.confirmDelete = function (form, message = 'Bạn có chắc chắn muốn xóa?') {
