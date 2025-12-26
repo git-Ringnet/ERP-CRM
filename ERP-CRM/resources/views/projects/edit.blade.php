@@ -4,7 +4,7 @@
 @section('page-title', 'Sửa dự án: ' . $project->code)
 
 @section('content')
-<div class="max-w-4xl mx-auto">
+<div class="mx-auto">
     <div class="bg-white rounded-lg shadow-sm p-6">
         <form action="{{ route('projects.update', $project->id) }}" method="POST">
             @csrf

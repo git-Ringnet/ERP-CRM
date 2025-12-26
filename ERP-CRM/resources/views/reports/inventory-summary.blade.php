@@ -139,8 +139,6 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tồn kho</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tồn tối thiểu</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá vốn TB</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá trị</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                     </tr>
@@ -151,8 +149,6 @@
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $inventory->product->name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $inventory->warehouse->name }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->stock, 2) }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->min_stock, 2) }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->avg_cost, 0) }}đ</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ number_format($inventory->stock * $inventory->avg_cost, 0) }}đ</td>
                             <td class="px-4 py-3">
                                 @if($inventory->stock <= $inventory->min_stock)
@@ -164,7 +160,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-500">Không có dữ liệu</td>
                         </tr>
                     @endforelse
                 </tbody>

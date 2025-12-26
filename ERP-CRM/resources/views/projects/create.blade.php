@@ -4,7 +4,7 @@
 @section('page-title', 'Thêm dự án mới')
 
 @section('content')
-<div class="max-w-4xl mx-auto">
+<div class="mx-auto">
     <div class="bg-white rounded-lg shadow-sm p-6">
         <form action="{{ route('projects.store') }}" method="POST">
             @csrf
