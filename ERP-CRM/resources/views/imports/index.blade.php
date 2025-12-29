@@ -12,9 +12,13 @@
                 <i class="fas fa-arrow-down text-blue-500 mr-2"></i>Danh sách phiếu nhập kho
             </h2>
             <div class="flex gap-2">
+                <a href="{{ route('imports.export', request()->query()) }}" 
+                   class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
+                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                </a>
                 <button type="button" onclick="openImportModal()" 
                         class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                    <i class="fas fa-file-excel mr-2"></i>Import từ Excel
+                    <i class="fas fa-file-import mr-2"></i>Import từ Excel
                 </button>
                 <a href="{{ route('imports.create') }}" 
                    class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">

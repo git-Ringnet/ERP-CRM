@@ -367,4 +367,13 @@ class TransferController extends Controller
             'noSkuCount' => $noSkuCount,
         ]);
     }
+
+    /**
+     * Export transfers to Excel
+     */
+    public function exportToExcel(Request $request)
+    {
+        $filters = $request->only(['from_warehouse_id', 'to_warehouse_id', 'status', 'date_from', 'date_to']);
+        return \Excel::download(new \App\Exports\TransfersExport($filters), 'phieu-chuyen-kho-' . date('Y-m-d') . '.xlsx');
+    }
 }

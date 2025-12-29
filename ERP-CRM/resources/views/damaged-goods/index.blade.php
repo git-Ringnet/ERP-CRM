@@ -7,20 +7,22 @@
 <div class="bg-white rounded-lg shadow-sm">
     <!-- Header -->
     <div class="p-3 sm:p-4 border-b border-gray-200 space-y-3">
-        <div class="flex flex-col sm:flex-row gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
             <!-- Search -->
-            <div class="relative flex-1">
+            <div class="relative">
                 <form action="{{ route('damaged-goods.index') }}" method="GET" class="flex">
                     <input type="text" name="search" value="{{ request('search') }}" 
                            placeholder="Tìm kiếm mã báo cáo..." 
                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="hidden" name="type" value="{{ request('type') }}">
+                    <input type="hidden" name="status" value="{{ request('status') }}">
                 </form>
             </div>
             
             <!-- Filter by Type -->
             <select name="type" onchange="window.location.href='{{ route('damaged-goods.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'" 
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Tất cả loại</option>
                 <option value="damaged" {{ request('type') == 'damaged' ? 'selected' : '' }}>Hàng hư hỏng</option>
                 <option value="liquidation" {{ request('type') == 'liquidation' ? 'selected' : '' }}>Thanh lý</option>
@@ -28,21 +30,25 @@
 
             <!-- Filter by Status -->
             <select name="status" onchange="window.location.href='{{ route('damaged-goods.index') }}?status='+this.value+'&type={{ request('type') }}&search={{ request('search') }}'" 
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Tất cả trạng thái</option>
                 <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ duyệt</option>
                 <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
                 <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Từ chối</option>
                 <option value="processed" {{ request('status') == 'processed' ? 'selected' : '' }}>Đã xử lý</option>
             </select>
-        </div>
-        
-        <div class="flex justify-end">
-            <a href="{{ route('damaged-goods.create') }}" 
-               class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
-                <i class="fas fa-plus mr-2"></i>
-                <span>Tạo Báo Cáo</span>
-            </a>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-2">
+                <a href="{{ route('damaged-goods.export', request()->query()) }}" 
+                   class="inline-flex items-center justify-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm">
+                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                </a>
+                <a href="{{ route('damaged-goods.create') }}" 
+                   class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
+                    <i class="fas fa-plus mr-2"></i>Tạo Báo Cáo
+                </a>
+            </div>
         </div>
     </div>
 

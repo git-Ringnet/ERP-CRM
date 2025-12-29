@@ -73,31 +73,37 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('imports', ImportController::class);
     Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
     Route::post('/imports/{import}/reject', [ImportController::class, 'reject'])->name('imports.reject');
+    Route::get('/imports-export', [ImportController::class, 'export'])->name('imports.export');
 
     // Export Module Routes (Xuất kho)
     Route::get('/exports/available-items', [ExportController::class, 'getAvailableItems'])->name('exports.available-items');
     Route::resource('exports', ExportController::class);
     Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
     Route::post('/exports/{export}/reject', [ExportController::class, 'reject'])->name('exports.reject');
+    Route::get('/exports-export', [ExportController::class, 'exportToExcel'])->name('exports.export');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
     Route::resource('transfers', TransferController::class);
     Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve'])->name('transfers.approve');
     Route::post('/transfers/{transfer}/reject', [TransferController::class, 'reject'])->name('transfers.reject');
+    Route::get('/transfers-export', [TransferController::class, 'exportToExcel'])->name('transfers.export');
 
     // Warehouse Module Routes
     Route::resource('warehouses', WarehouseController::class);
+    Route::get('/warehouses-export', [WarehouseController::class, 'export'])->name('warehouses.export');
 
     // Inventory Routes
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])->name('inventory.low-stock');
     Route::get('/inventory/expiring', [InventoryController::class, 'expiringSoon'])->name('inventory.expiring');
+    Route::get('/inventory-export', [InventoryController::class, 'export'])->name('inventory.export');
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show'])->name('inventory.show');
 
     // Damaged Goods Routes
     Route::resource('damaged-goods', DamagedGoodController::class);
     Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::class, 'updateStatus'])->name('damaged-goods.update-status');
+    Route::get('/damaged-goods-export', [DamagedGoodController::class, 'export'])->name('damaged-goods.export');
 
     // Report Routes
     Route::get('/reports/inventory-summary', [ReportController::class, 'inventorySummary'])->name('reports.inventory-summary');

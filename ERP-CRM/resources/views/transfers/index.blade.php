@@ -10,10 +10,16 @@
             <h2 class="text-lg font-semibold text-gray-800">
                 <i class="fas fa-exchange-alt text-purple-500 mr-2"></i>Danh sách phiếu chuyển kho
             </h2>
-            <a href="{{ route('transfers.create') }}" 
-               class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                <i class="fas fa-plus mr-2"></i>Tạo phiếu chuyển
-            </a>
+            <div class="flex gap-2">
+                <a href="{{ route('transfers.export', request()->query()) }}" 
+                   class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
+                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                </a>
+                <a href="{{ route('transfers.create') }}" 
+                   class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Tạo phiếu chuyển
+                </a>
+            </div>
         </div>
     </div>
 

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\DamagedGoodsExport;
 use App\Http\Requests\DamagedGoodRequest;
 use App\Models\DamagedGood;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DamagedGoodController extends Controller
 {
@@ -123,5 +125,15 @@ class DamagedGoodController extends Controller
         return redirect()
             ->route('damaged-goods.show', $damagedGood)
             ->with('success', 'Đã cập nhật trạng thái thành công');
+    }
+
+    public function export(Request $request)
+    {
+        $filters = $request->only(['type', 'status', 'start_date', 'end_date', 'product_id', 'search']);
+        
+        return Excel::download(
+            new DamagedGoodsExport($filters),
+            'hang-hu-hong-thanh-ly-' . now()->format('Y-m-d') . '.xlsx'
+        );
     }
 }

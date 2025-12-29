@@ -392,4 +392,13 @@ class ExportController extends Controller
             'noSkuCount' => $noSkuCount,
         ]);
     }
+
+    /**
+     * Export exports to Excel
+     */
+    public function exportToExcel(Request $request)
+    {
+        $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
+        return \Excel::download(new \App\Exports\ExportsExport($filters), 'phieu-xuat-kho-' . date('Y-m-d') . '.xlsx');
+    }
 }

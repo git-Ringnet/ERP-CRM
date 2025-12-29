@@ -51,6 +51,10 @@
         </div>
         
         <div class="flex gap-2">
+            <a href="{{ route('inventory.export', request()->query()) }}" 
+               class="inline-flex items-center justify-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm">
+                <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+            </a>
             <a href="{{ route('inventory.low-stock') }}" 
                class="inline-flex items-center justify-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm">
                 <i class="fas fa-exclamation-triangle mr-2"></i>

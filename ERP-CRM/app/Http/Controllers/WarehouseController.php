@@ -149,4 +149,12 @@ class WarehouseController extends Controller
         return redirect()->route('warehouses.index')
             ->with('success', 'Xóa kho thành công.');
     }
+
+    /**
+     * Export warehouses to Excel
+     */
+    public function export()
+    {
+        return \Excel::download(new \App\Exports\WarehousesExport(), 'danh-sach-kho-' . date('Y-m-d') . '.xlsx');
+    }
 }

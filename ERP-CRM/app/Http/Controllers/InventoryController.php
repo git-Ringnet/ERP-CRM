@@ -102,4 +102,13 @@ class InventoryController extends Controller
 
         return view('inventory.expiring', compact('inventories'));
     }
+
+    /**
+     * Export inventory to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['warehouse_id', 'product_id']);
+        return \Excel::download(new \App\Exports\InventoryExport($filters), 'ton-kho-' . date('Y-m-d') . '.xlsx');
+    }
 }

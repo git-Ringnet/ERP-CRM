@@ -361,4 +361,13 @@ class ImportController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Export imports to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
+        return \Excel::download(new \App\Exports\ImportsExport($filters), 'phieu-nhap-kho-' . date('Y-m-d') . '.xlsx');
+    }
 }
