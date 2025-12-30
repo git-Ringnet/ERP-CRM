@@ -5,6 +5,44 @@
 
 @section('content')
 <div class="space-y-6">
+    <!-- Filter Section -->
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+        <form action="{{ route('dashboard') }}" method="GET" class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">Lọc theo:</label>
+                <select name="filter" id="filterType" onchange="handleFilterChange()" 
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="today" {{ $filterType == 'today' ? 'selected' : '' }}>Hôm nay</option>
+                    <option value="week" {{ $filterType == 'week' ? 'selected' : '' }}>Tuần này</option>
+                    <option value="month" {{ $filterType == 'month' ? 'selected' : '' }}>Tháng này</option>
+                    <option value="quarter" {{ $filterType == 'quarter' ? 'selected' : '' }}>Quý này</option>
+                    <option value="year" {{ $filterType == 'year' ? 'selected' : '' }}>Năm nay</option>
+                    <option value="custom" {{ $filterType == 'custom' ? 'selected' : '' }}>Tùy chọn</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600">Từ ngày</label>
+                <input type="date" name="date_from" id="dateFrom" value="{{ request('date_from', $startDate->format('Y-m-d')) }}" 
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600">Đến ngày</label>
+                <input type="date" name="date_to" id="dateTo" value="{{ request('date_to', $endDate->format('Y-m-d')) }}" 
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            
+            <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
+                <i class="fas fa-filter mr-1"></i> Lọc
+            </button>
+            
+            <a href="{{ route('dashboard') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm">
+                <i class="fas fa-redo mr-1"></i> Đặt lại
+            </a>
+        </form>
+    </div>
+
     <!-- Summary Cards - 4 cards only -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Products Card -->
@@ -64,15 +102,15 @@
         </div>
     </div>
 
-    <!-- Monthly Stats -->
+    <!-- Period Stats -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center">
             <div class="bg-green-100 rounded-full p-3 mr-3">
                 <i class="fas fa-arrow-down text-green-600"></i>
             </div>
             <div>
-                <p class="text-xs text-gray-500">Nhập tháng này</p>
-                <p class="text-xl font-bold text-green-600">{{ $thisMonthImports }}</p>
+                <p class="text-xs text-gray-500">Nhập kho</p>
+                <p class="text-xl font-bold text-green-600">{{ $periodImports }}</p>
             </div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center">
@@ -80,8 +118,8 @@
                 <i class="fas fa-arrow-up text-red-600"></i>
             </div>
             <div>
-                <p class="text-xs text-gray-500">Xuất tháng này</p>
-                <p class="text-xl font-bold text-red-600">{{ $thisMonthExports }}</p>
+                <p class="text-xs text-gray-500">Xuất kho</p>
+                <p class="text-xl font-bold text-red-600">{{ $periodExports }}</p>
             </div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center">
@@ -89,8 +127,8 @@
                 <i class="fas fa-exchange-alt text-purple-600"></i>
             </div>
             <div>
-                <p class="text-xs text-gray-500">Chuyển tháng này</p>
-                <p class="text-xl font-bold text-purple-600">{{ $thisMonthTransfers }}</p>
+                <p class="text-xs text-gray-500">Chuyển kho</p>
+                <p class="text-xl font-bold text-purple-600">{{ $periodTransfers }}</p>
             </div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex items-center">
@@ -124,10 +162,10 @@
 
     <!-- Charts Section Row 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Transactions Last 7 Days - Line Chart -->
+        <!-- Transactions Line Chart -->
         <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-800">Giao dịch 7 ngày qua</h2>
+                <h2 class="text-lg font-semibold text-gray-800">Giao dịch theo thời gian</h2>
                 <i class="fas fa-chart-line text-blue-500"></i>
             </div>
             <div class="relative" style="height: 280px;">
@@ -327,14 +365,76 @@
 
 @push('scripts')
 <script>
+// Handle filter type change - update date inputs
+function handleFilterChange() {
+    const filterType = document.getElementById('filterType').value;
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+    const today = new Date();
+    
+    let startDate, endDate;
+    
+    switch(filterType) {
+        case 'today':
+            startDate = endDate = today;
+            break;
+        case 'week':
+            const dayOfWeek = today.getDay();
+            const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() + diffToMonday);
+            endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            break;
+        case 'month':
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            break;
+        case 'quarter':
+            const quarter = Math.floor(today.getMonth() / 3);
+            startDate = new Date(today.getFullYear(), quarter * 3, 1);
+            endDate = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+            break;
+        case 'year':
+            startDate = new Date(today.getFullYear(), 0, 1);
+            endDate = new Date(today.getFullYear(), 11, 31);
+            break;
+        case 'custom':
+            // Keep current values for custom
+            return;
+    }
+    
+    dateFrom.value = formatDate(startDate);
+    dateTo.value = formatDate(endDate);
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// When date inputs change, switch to custom filter
+document.getElementById('dateFrom')?.addEventListener('change', function() {
+    document.getElementById('filterType').value = 'custom';
+});
+document.getElementById('dateTo')?.addEventListener('change', function() {
+    document.getElementById('filterType').value = 'custom';
+});
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Transactions Line Chart - Last 7 Days
+    // Transactions Line Chart
     const transactionsLineCtx = document.getElementById('transactionsLineChart');
     if (transactionsLineCtx) {
-        const transactionsData = @json($transactionsLast7Days);
-        const labels = Object.keys(transactionsData).map(date => {
-            const d = new Date(date);
-            return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+        const transactionsData = @json($transactionsChart);
+        const labels = Object.keys(transactionsData).map(label => {
+            // Check if it's a date format (YYYY-MM-DD)
+            if (label.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const d = new Date(label);
+                return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+            }
+            return label;
         });
         const data = Object.values(transactionsData);
         
