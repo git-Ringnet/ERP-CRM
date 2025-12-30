@@ -59,11 +59,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/customers/import/template', [CustomerController::class, 'importTemplate'])->name('customers.import.template');
     Route::post('/customers/import', [CustomerController::class, 'import'])->name('customers.import');
     Route::get('/suppliers/export/excel', [SupplierController::class, 'export'])->name('suppliers.export');
+    Route::get('/suppliers/import/template', [SupplierController::class, 'importTemplate'])->name('suppliers.import.template');
+    Route::post('/suppliers/import', [SupplierController::class, 'import'])->name('suppliers.import');
     Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
     Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
     Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
     Route::post('/employees/{employee}/toggle-lock', [EmployeeController::class, 'toggleLock'])->name('employees.toggle-lock');
     Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
+    Route::get('/products/import/template', [ProductController::class, 'importTemplate'])->name('products.import.template');
+    Route::post('/products/import', [ProductController::class, 'import'])->name('products.import');
 
     // Excel Import routes
     Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
@@ -146,6 +150,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
 
     // Quotation routes (Báo giá)
+    Route::get('/quotations/export/excel', [QuotationController::class, 'export'])->name('quotations.export');
     Route::resource('quotations', QuotationController::class);
     Route::post('/quotations/{quotation}/submit', [QuotationController::class, 'submitForApproval'])->name('quotations.submit');
     Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
@@ -160,12 +165,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/approval-workflows/{approvalWorkflow}/toggle', [ApprovalWorkflowController::class, 'toggle'])->name('approval-workflows.toggle');
 
     // Price List routes
+    Route::get('/price-lists/export/excel', [PriceListController::class, 'export'])->name('price-lists.export');
     Route::resource('price-lists', PriceListController::class);
     Route::post('/price-lists/{priceList}/toggle', [PriceListController::class, 'toggle'])->name('price-lists.toggle');
     Route::get('/api/price-lists/for-customer/{customer}', [PriceListController::class, 'getForCustomer'])->name('price-lists.for-customer');
 
     // Project routes
     Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
+    Route::get('/projects/export/excel', [ProjectController::class, 'export'])->name('projects.export');
     Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
     Route::resource('projects', ProjectController::class);
 
@@ -182,6 +189,7 @@ Route::post('/supplier-quotations/{supplierQuotation}/reject', [SupplierQuotatio
 Route::get('/supplier-quotations-compare', [SupplierQuotationController::class, 'compare'])->name('supplier-quotations.compare');
 
 // Purchase Order routes (Đơn mua hàng)
+Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
 Route::resource('purchase-orders', PurchaseOrderController::class);
 Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
 Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');

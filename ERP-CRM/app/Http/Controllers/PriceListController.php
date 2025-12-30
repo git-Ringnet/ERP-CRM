@@ -6,9 +6,11 @@ use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\Customer;
+use App\Exports\PriceListsExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PriceListController extends Controller
 {
@@ -221,5 +223,16 @@ class PriceListController extends Controller
         $priceList->load('items.product');
 
         return response()->json($priceList);
+    }
+
+    /**
+     * Export price lists to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['search', 'type', 'status']);
+        $filename = 'bang-gia-' . date('Y-m-d') . '.xlsx';
+        
+        return Excel::download(new PriceListsExport($filters), $filename);
     }
 }

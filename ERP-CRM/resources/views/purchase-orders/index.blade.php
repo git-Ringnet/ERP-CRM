@@ -37,6 +37,9 @@
             <a href="{{ route('supplier-quotations.index') }}" class="inline-flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50">
                 <i class="fas fa-tags mr-2"></i> Báo giá NCC
             </a>
+            <a href="{{ route('purchase-orders.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">
+                <i class="fas fa-file-excel mr-2"></i> Xuất Excel
+            </a>
             <a href="{{ route('purchase-orders.create') }}" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
                 <i class="fas fa-plus mr-2"></i> Tạo PO
             </a>

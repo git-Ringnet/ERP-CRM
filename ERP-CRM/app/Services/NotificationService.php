@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Notification;
 use App\Models\InventoryTransaction;
+use App\Models\DamagedGood;
 
 class NotificationService
 {
@@ -193,5 +194,95 @@ class NotificationService
             'color' => $color,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Tạo thông báo khi báo cáo hàng hư hỏng được tạo
+     */
+    public function notifyDamagedGoodCreated(DamagedGood $damagedGood, array $recipientUserIds): void
+    {
+        $typeLabels = [
+            'damaged' => 'hư hỏng',
+            'expired' => 'hết hạn',
+            'liquidation' => 'thanh lý',
+        ];
+        
+        $typeLabel = $typeLabels[$damagedGood->type] ?? $damagedGood->type;
+        $title = 'Báo cáo hàng ' . $typeLabel . ' mới';
+        $creatorName = $damagedGood->discoveredBy ? $damagedGood->discoveredBy->name : 'Người dùng';
+        $productName = $damagedGood->product ? $damagedGood->product->name : 'Sản phẩm';
+        $message = "Báo cáo #{$damagedGood->code} - {$productName} ({$damagedGood->quantity} SP) được tạo bởi {$creatorName}";
+        $link = route('damaged-goods.show', $damagedGood->id);
+        
+        foreach ($recipientUserIds as $userId) {
+            $this->createNotification(
+                $userId,
+                'damaged_good_created',
+                $title,
+                $message,
+                $link,
+                'exclamation-triangle',
+                'yellow',
+                [
+                    'document_id' => $damagedGood->id,
+                    'document_type' => 'damaged_good',
+                    'document_code' => $damagedGood->code,
+                ]
+            );
+        }
+    }
+
+    /**
+     * Tạo thông báo khi báo cáo hàng hư hỏng được duyệt
+     */
+    public function notifyDamagedGoodApproved(DamagedGood $damagedGood, int $creatorUserId): void
+    {
+        $title = 'Báo cáo hàng hư hỏng đã được duyệt';
+        $message = "Báo cáo #{$damagedGood->code} của bạn đã được duyệt";
+        $link = route('damaged-goods.show', $damagedGood->id);
+        
+        $this->createNotification(
+            $creatorUserId,
+            'damaged_good_approved',
+            $title,
+            $message,
+            $link,
+            'check',
+            'green',
+            [
+                'document_id' => $damagedGood->id,
+                'document_type' => 'damaged_good',
+                'document_code' => $damagedGood->code,
+            ]
+        );
+    }
+
+    /**
+     * Tạo thông báo khi báo cáo hàng hư hỏng bị từ chối
+     */
+    public function notifyDamagedGoodRejected(DamagedGood $damagedGood, int $creatorUserId, string $reason = ''): void
+    {
+        $title = 'Báo cáo hàng hư hỏng bị từ chối';
+        $message = "Báo cáo #{$damagedGood->code} của bạn đã bị từ chối";
+        if ($reason) {
+            $message .= ". Lý do: {$reason}";
+        }
+        $link = route('damaged-goods.show', $damagedGood->id);
+        
+        $this->createNotification(
+            $creatorUserId,
+            'damaged_good_rejected',
+            $title,
+            $message,
+            $link,
+            'times',
+            'red',
+            [
+                'document_id' => $damagedGood->id,
+                'document_type' => 'damaged_good',
+                'document_code' => $damagedGood->code,
+                'reason' => $reason,
+            ]
+        );
     }
 }

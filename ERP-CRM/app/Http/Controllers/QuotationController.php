@@ -10,9 +10,11 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalHistory;
+use App\Exports\QuotationsExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class QuotationController extends Controller
 {
@@ -540,5 +542,16 @@ class QuotationController extends Controller
     {
         $quotation->load('items', 'customer');
         return view('quotations.print', compact('quotation'));
+    }
+
+    /**
+     * Export quotations to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['search', 'status']);
+        $filename = 'bao-gia-' . date('Y-m-d') . '.xlsx';
+        
+        return Excel::download(new QuotationsExport($filters), $filename);
     }
 }

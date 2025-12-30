@@ -21,7 +21,7 @@
             <!-- Filter by Status -->
             <div class="flex items-center gap-2">
                 <select name="status" onchange="window.location.href='{{ route('sales.index') }}?status='+this.value+'&type={{ request('type') }}&search={{ request('search') }}'" 
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả trạng thái</option>
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ duyệt</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
@@ -34,7 +34,7 @@
             <!-- Filter by Type -->
             <div class="flex items-center gap-2">
                 <select name="type" onchange="window.location.href='{{ route('sales.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}&project_id={{ request('project_id') }}'" 
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        class="border border-gray-300 rounded-lg px-5 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Loại đơn hàng</option>
                     <option value="retail" {{ request('type') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
                     <option value="project" {{ request('type') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
@@ -59,7 +59,7 @@
         
         <div class="flex gap-2">
             <a href="{{ route('sales.export') }}?{{ http_build_query(request()->query()) }}" 
-               class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors">
+               class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
                 <i class="fas fa-file-excel mr-2"></i>
                 Xuất Excel
             </a>

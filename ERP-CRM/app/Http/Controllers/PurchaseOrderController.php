@@ -9,10 +9,12 @@ use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
 use App\Mail\PurchaseOrderMail;
+use App\Exports\PurchaseOrdersExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseOrderController extends Controller
 {
@@ -351,5 +353,16 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder->load(['supplier', 'items']);
         return view('purchase-orders.print', compact('purchaseOrder'));
+    }
+
+    /**
+     * Export purchase orders to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['search', 'status', 'supplier_id']);
+        $filename = 'don-mua-hang-' . date('Y-m-d') . '.xlsx';
+        
+        return Excel::download(new PurchaseOrdersExport($filters), $filename);
     }
 }

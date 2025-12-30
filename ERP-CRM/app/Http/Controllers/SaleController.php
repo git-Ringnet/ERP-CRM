@@ -8,10 +8,12 @@ use App\Models\SaleExpense;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Project;
+use App\Exports\SalesExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SaleController extends Controller
 {
@@ -394,8 +396,10 @@ class SaleController extends Controller
      */
     public function export(Request $request)
     {
-        // TODO: Implement export functionality
-        return back()->with('info', 'Chức năng xuất Excel đang được phát triển.');
+        $filters = $request->only(['search', 'status', 'type', 'project_id']);
+        $filename = 'don-hang-ban-' . date('Y-m-d') . '.xlsx';
+        
+        return Excel::download(new SalesExport($filters), $filename);
     }
 
     /**

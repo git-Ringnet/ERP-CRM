@@ -12,6 +12,10 @@
                class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                 <i class="fas fa-plus mr-2"></i> Thêm dự án
             </a>
+            <a href="{{ route('projects.export', request()->query()) }}" 
+               class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
+                <i class="fas fa-file-excel mr-2"></i> Xuất Excel
+            </a>
             <a href="{{ route('projects.report') }}" 
                class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
                 <i class="fas fa-chart-bar mr-2"></i> Báo cáo

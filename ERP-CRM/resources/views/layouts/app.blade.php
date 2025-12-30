@@ -429,7 +429,7 @@
             <!-- Footer -->
             <footer class="bg-white border-t border-gray-200 py-3 sm:py-4 px-4 sm:px-6 flex-shrink-0">
                 <div class="text-center text-gray-500 text-xs sm:text-sm">
-                    &copy; {{ date('Y') }} Mini ERP. All rights reserved.
+                    &copy; {{ date('Y') }} Mini ERP. Created by Ringnet.
                 </div>
             </footer>
         </div>

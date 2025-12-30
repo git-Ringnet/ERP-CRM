@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Customer;
 use App\Models\User;
+use App\Exports\ProjectsExport;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProjectController extends Controller
 {
@@ -224,6 +226,17 @@ class ProjectController extends Controller
             ->get(['id', 'code', 'name', 'customer_name']);
 
         return response()->json($projects);
+    }
+
+    /**
+     * Export projects to Excel
+     */
+    public function export(Request $request)
+    {
+        $filters = $request->only(['search', 'status', 'customer_id']);
+        $filename = 'du-an-' . date('Y-m-d') . '.xlsx';
+        
+        return Excel::download(new ProjectsExport($filters), $filename);
     }
 
     /**

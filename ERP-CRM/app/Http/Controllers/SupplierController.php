@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Services\ExportService;
+use App\Imports\SuppliersImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SupplierController extends Controller
 {
@@ -194,5 +196,37 @@ class SupplierController extends Controller
         $filepath = $exportService->exportSuppliers($suppliers);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Download import template
+     */
+    public function importTemplate()
+    {
+        $filepath = SuppliersImport::generateTemplate();
+        return response()->download($filepath, 'mau-import-nha-cung-cap.xlsx')->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Import suppliers from Excel
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $import = new SuppliersImport();
+        Excel::import($import, $request->file('file'));
+
+        $errors = $import->getErrors();
+        if (!empty($errors)) {
+            return back()->with('error', implode('<br>', $errors));
+        }
+
+        $imported = $import->getImported();
+        $updated = $import->getUpdated();
+
+        return back()->with('success', "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}");
     }
 }

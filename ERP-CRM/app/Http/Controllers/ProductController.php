@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductItem;
+use App\Imports\ProductsImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Services\ExportService;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -174,5 +176,37 @@ class ProductController extends Controller
         $filepath = $exportService->exportProducts($products);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Download import template
+     */
+    public function importTemplate()
+    {
+        $filepath = ProductsImport::generateTemplate();
+        return response()->download($filepath, 'mau-import-san-pham.xlsx')->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Import products from Excel
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $import = new ProductsImport();
+        Excel::import($import, $request->file('file'));
+
+        $errors = $import->getErrors();
+        if (!empty($errors)) {
+            return back()->with('error', implode('<br>', $errors));
+        }
+
+        $imported = $import->getImported();
+        $updated = $import->getUpdated();
+
+        return back()->with('success', "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}");
     }
 }

@@ -7,6 +7,7 @@ use App\Http\Requests\DamagedGoodRequest;
 use App\Models\DamagedGood;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -66,6 +67,16 @@ class DamagedGoodController extends Controller
 
         $damagedGood->save();
 
+        // Gửi thông báo cho tất cả users (trừ người tạo)
+        $currentUserId = auth()->id();
+        $recipientIds = User::where('id', '!=', $currentUserId)->pluck('id')->toArray();
+        
+        if (!empty($recipientIds)) {
+            $damagedGood->load(['product', 'discoveredBy']);
+            $notificationService = new NotificationService();
+            $notificationService->notifyDamagedGoodCreated($damagedGood, $recipientIds);
+        }
+
         return redirect()
             ->route('damaged-goods.show', $damagedGood)
             ->with('success', 'Đã tạo báo cáo hàng hư hỏng/thanh lý thành công');
@@ -117,10 +128,25 @@ class DamagedGoodController extends Controller
             'solution' => 'nullable|string|max:1000',
         ]);
 
+        $oldStatus = $damagedGood->status;
+        $newStatus = $request->status;
+
         $damagedGood->update([
-            'status' => $request->status,
+            'status' => $newStatus,
             'solution' => $request->solution,
         ]);
+
+        // Gửi thông báo cho người tạo báo cáo khi duyệt/từ chối
+        if ($damagedGood->discovered_by && $oldStatus !== $newStatus) {
+            $notificationService = new NotificationService();
+            
+            if ($newStatus === 'approved') {
+                $notificationService->notifyDamagedGoodApproved($damagedGood, $damagedGood->discovered_by);
+            } elseif ($newStatus === 'rejected') {
+                $reason = $request->solution ?? '';
+                $notificationService->notifyDamagedGoodRejected($damagedGood, $damagedGood->discovered_by, $reason);
+            }
+        }
 
         return redirect()
             ->route('damaged-goods.show', $damagedGood)
