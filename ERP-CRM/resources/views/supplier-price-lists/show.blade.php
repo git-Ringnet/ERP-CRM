@@ -62,48 +62,51 @@
             <span class="font-medium text-sm">{{ number_format($items->total()) }} sản phẩm</span>
         </div>
         <div class="overflow-x-auto max-h-[60vh]">
-            <table class="w-full text-xs table-fixed">
+            <table class="w-full text-sm table-fixed">
                 <thead class="bg-gray-50 sticky top-0">
                     <tr>
-                        <th class="px-2 py-2 text-left font-medium text-gray-500" style="width: 120px;">SKU</th>
-                        <th class="px-2 py-2 text-left font-medium text-gray-500" style="width: 220px;">Tên sản phẩm</th>
-                        <th class="px-2 py-2 text-left font-medium text-gray-500" style="width: 100px;">Danh mục</th>
-                        <th class="px-2 py-2 text-right font-medium text-gray-500" style="width: 90px;">Giá</th>
-                        <th class="px-2 py-2 text-right font-medium text-gray-500" style="width: 80px;">1yr</th>
-                        <th class="px-2 py-2 text-right font-medium text-gray-500" style="width: 80px;">3yr</th>
-                        <th class="px-2 py-2 text-right font-medium text-gray-500" style="width: 80px;">5yr</th>
-                        <th class="px-2 py-2 text-left font-medium text-gray-500" style="width: 90px;">Sheet</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 130px;">SKU</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 240px;">Tên sản phẩm</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 110px;">Danh mục</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 110px;">Giá (VND)</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 100px;">1yr (VND)</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 100px;">3yr (VND)</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 100px;">5yr (VND)</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 100px;">Sheet</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
+                    @php
+                        $exchangeRate = $supplierPriceList->exchange_rate ?? 1;
+                    @endphp
                     @forelse($items as $item)
                     <tr class="hover:bg-gray-50">
-                        <td class="px-2 py-2 font-mono text-blue-600" title="{{ $item->sku }}">
+                        <td class="px-3 py-2 font-mono text-blue-600" title="{{ $item->sku }}">
                             <div class="truncate">{{ $item->sku }}</div>
                         </td>
-                        <td class="px-2 py-2">
-                            <div class="font-medium truncate" title="{{ $item->product_name }}">{{ Str::limit($item->product_name, 35) }}</div>
+                        <td class="px-3 py-2">
+                            <div class="font-medium truncate" title="{{ $item->product_name }}">{{ Str::limit($item->product_name, 40) }}</div>
                             @if($item->description)
-                                <div class="text-gray-400 truncate text-[10px]" title="{{ $item->description }}">{{ Str::limit($item->description, 45) }}</div>
+                                <div class="text-gray-400 truncate text-xs" title="{{ $item->description }}">{{ Str::limit($item->description, 50) }}</div>
                             @endif
                         </td>
-                        <td class="px-2 py-2 text-gray-600" title="{{ $item->category }}">
-                            <div class="line-clamp-2 text-[10px]">{{ $item->category ?? '-' }}</div>
+                        <td class="px-3 py-2 text-gray-600" title="{{ $item->category }}">
+                            <div class="line-clamp-2 text-xs">{{ $item->category ?? '-' }}</div>
                         </td>
-                        <td class="px-2 py-2 text-right font-medium whitespace-nowrap">
-                            {{ $item->list_price ? number_format($item->list_price, 0) : '-' }}
+                        <td class="px-3 py-2 text-right font-medium whitespace-nowrap">
+                            {{ $item->list_price ? number_format($item->list_price * $exchangeRate, 0) : '-' }}
                         </td>
-                        <td class="px-2 py-2 text-right text-gray-600 whitespace-nowrap">
-                            {{ $item->price_1yr ? number_format($item->price_1yr, 0) : '-' }}
+                        <td class="px-3 py-2 text-right text-gray-600 whitespace-nowrap">
+                            {{ $item->price_1yr ? number_format($item->price_1yr * $exchangeRate, 0) : '-' }}
                         </td>
-                        <td class="px-2 py-2 text-right text-gray-600 whitespace-nowrap">
-                            {{ $item->price_3yr ? number_format($item->price_3yr, 0) : '-' }}
+                        <td class="px-3 py-2 text-right text-gray-600 whitespace-nowrap">
+                            {{ $item->price_3yr ? number_format($item->price_3yr * $exchangeRate, 0) : '-' }}
                         </td>
-                        <td class="px-2 py-2 text-right text-gray-600 whitespace-nowrap">
-                            {{ $item->price_5yr ? number_format($item->price_5yr, 0) : '-' }}
+                        <td class="px-3 py-2 text-right text-gray-600 whitespace-nowrap">
+                            {{ $item->price_5yr ? number_format($item->price_5yr * $exchangeRate, 0) : '-' }}
                         </td>
-                        <td class="px-2 py-2 text-gray-400" title="{{ $item->source_sheet }}">
-                            <div class="truncate text-[10px]">{{ $item->source_sheet }}</div>
+                        <td class="px-3 py-2 text-gray-400" title="{{ $item->source_sheet }}">
+                            <div class="truncate text-xs">{{ $item->source_sheet }}</div>
                         </td>
                     </tr>
                     @empty
