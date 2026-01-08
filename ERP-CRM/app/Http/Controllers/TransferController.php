@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TransferRequest;
-use App\Models\InventoryTransaction;
+use App\Models\Transfer;
+use App\Models\TransferItem;
 use App\Models\Product;
 use App\Models\ProductItem;
 use App\Models\User;
@@ -42,12 +43,11 @@ class TransferController extends Controller
      */
     public function index(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'toWarehouse', 'employee', 'items'])
-            ->where('type', 'transfer');
+        $query = Transfer::with(['fromWarehouse', 'toWarehouse', 'employee', 'items']);
 
         if ($request->filled('warehouse_id')) {
             $query->where(function ($q) use ($request) {
-                $q->where('warehouse_id', $request->warehouse_id)
+                $q->where('from_warehouse_id', $request->warehouse_id)
                   ->orWhere('to_warehouse_id', $request->warehouse_id);
             });
         }
@@ -84,7 +84,7 @@ class TransferController extends Controller
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
-        $code = InventoryTransaction::generateCode('transfer');
+        $code = Transfer::generateCode();
 
         return view('transfers.create', compact('warehouses', 'products', 'employees', 'code'));
     }
@@ -96,7 +96,6 @@ class TransferController extends Controller
     {
         try {
             $data = $request->validated();
-            $data['type'] = 'transfer';
 
             $transfer = $this->transactionService->processTransfer($data);
 
@@ -120,13 +119,9 @@ class TransferController extends Controller
     /**
      * Display the specified transfer.
      */
-    public function show(InventoryTransaction $transfer)
+    public function show(Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
-        $transfer->load(['warehouse', 'toWarehouse', 'employee', 'items.product']);
+        $transfer->load(['fromWarehouse', 'toWarehouse', 'employee', 'items.product']);
 
         return view('transfers.show', compact('transfer'));
     }
@@ -134,12 +129,8 @@ class TransferController extends Controller
     /**
      * Show the form for editing the specified transfer.
      */
-    public function edit(InventoryTransaction $transfer)
+    public function edit(Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
         if ($transfer->status !== 'pending') {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -162,7 +153,7 @@ class TransferController extends Controller
 
             return [
                 'product_id' => $item->product_id,
-                'warehouse_id' => $transfer->warehouse_id,
+                'warehouse_id' => $transfer->from_warehouse_id,
                 'to_warehouse_id' => $transfer->to_warehouse_id,
                 'quantity' => $item->quantity,
                 'comments' => $item->comments ?? '',
@@ -176,12 +167,8 @@ class TransferController extends Controller
     /**
      * Update the specified transfer.
      */
-    public function update(TransferRequest $request, InventoryTransaction $transfer)
+    public function update(TransferRequest $request, Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
         if ($transfer->status !== 'pending') {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -193,11 +180,11 @@ class TransferController extends Controller
             $transfer->items()->delete();
 
             // Get warehouse_id from first item
-            $warehouseId = $data['items'][0]['warehouse_id'] ?? $transfer->warehouse_id;
+            $fromWarehouseId = $data['items'][0]['warehouse_id'] ?? $transfer->from_warehouse_id;
             $toWarehouseId = $data['items'][0]['to_warehouse_id'] ?? $transfer->to_warehouse_id;
 
             $transfer->update([
-                'warehouse_id' => $warehouseId,
+                'from_warehouse_id' => $fromWarehouseId,
                 'to_warehouse_id' => $toWarehouseId,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
@@ -234,12 +221,8 @@ class TransferController extends Controller
     /**
      * Remove the specified transfer.
      */
-    public function destroy(InventoryTransaction $transfer)
+    public function destroy(Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
         if ($transfer->status !== 'pending') {
             return redirect()->route('transfers.index')
                 ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý.');
@@ -260,12 +243,8 @@ class TransferController extends Controller
     /**
      * Approve a pending transfer.
      */
-    public function approve(InventoryTransaction $transfer)
+    public function approve(Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
         if ($transfer->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -297,12 +276,8 @@ class TransferController extends Controller
     /**
      * Reject a pending transfer.
      */
-    public function reject(Request $request, InventoryTransaction $transfer)
+    public function reject(Request $request, Transfer $transfer)
     {
-        if ($transfer->type !== 'transfer') {
-            abort(404);
-        }
-
         if ($transfer->status !== 'pending') {
             return response()->json([
                 'success' => false,

@@ -3,8 +3,12 @@
 namespace App\Services;
 
 use App\Models\Inventory;
-use App\Models\InventoryTransaction;
-use App\Models\InventoryTransactionItem;
+use App\Models\Import;
+use App\Models\ImportItem;
+use App\Models\Export;
+use App\Models\ExportItem;
+use App\Models\Transfer;
+use App\Models\TransferItem;
 use App\Models\ProductItem;
 use Illuminate\Support\Facades\DB;
 use Exception;
@@ -21,14 +25,6 @@ class TransactionService
     }
 
     /**
-     * Generate unique transaction code.
-     */
-    public function generateTransactionCode(string $type): string
-    {
-        return InventoryTransaction::generateCode($type);
-    }
-
-    /**
      * Validate if sufficient stock exists for export.
      */
     public function validateStock(int $productId, int $warehouseId, int $quantity): bool
@@ -40,7 +36,7 @@ class TransactionService
      * Process import transaction.
      * Requirements: 4.2, 4.3, 7.1
      */
-    public function processImport(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
+    public function processImport(array $data, ?Import $existingTransaction = null): Import
     {
         DB::beginTransaction();
 
@@ -50,9 +46,8 @@ class TransactionService
                 $transaction = $existingTransaction;
                 $transaction->update(['status' => 'completed']);
             } else {
-                $transaction = InventoryTransaction::create([
-                    'code' => $data['code'] ?? $this->generateTransactionCode('import'),
-                    'type' => 'import',
+                $transaction = Import::create([
+                    'code' => $data['code'] ?? Import::generateCode(),
                     'warehouse_id' => $data['warehouse_id'],
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
@@ -74,20 +69,17 @@ class TransactionService
                     // Filter out empty serials
                     $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
 
-                    InventoryTransactionItem::create([
-                        'transaction_id' => $transaction->id,
+                    ImportItem::create([
+                        'import_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         // Store serials as JSON for later use when approving
                         'serial_number' => !empty($serials) ? json_encode($serials) : null,
                         'cost' => $item['cost'] ?? $item['cost_usd'] ?? 0,
-                        'description' => $item['description'] ?? null,
                         'comments' => $item['comments'] ?? null,
                     ]);
                     $totalQty += $item['quantity'];
-
-                    // NOTE: ProductItem will be created when transaction is APPROVED, not here
                 }
                 $transaction->update(['total_qty' => $totalQty]);
             }
@@ -159,7 +151,7 @@ class TransactionService
      * Process export transaction.
      * Requirements: 7.3
      */
-    public function processExport(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
+    public function processExport(array $data, ?Export $existingTransaction = null): Export
     {
         DB::beginTransaction();
 
@@ -189,9 +181,8 @@ class TransactionService
                 $transaction = $existingTransaction;
                 $transaction->update(['status' => 'completed']);
             } else {
-                $transaction = InventoryTransaction::create([
-                    'code' => $data['code'] ?? $this->generateTransactionCode('export'),
-                    'type' => 'export',
+                $transaction = Export::create([
+                    'code' => $data['code'] ?? Export::generateCode(),
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
@@ -221,15 +212,14 @@ class TransactionService
                     $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
                     $productItemIds = array_unique($productItemIds);
 
-                    InventoryTransactionItem::create([
-                        'transaction_id' => $transaction->id,
+                    ExportItem::create([
+                        'export_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         // Store selected serial IDs as JSON
                         'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                         'comments' => $item['comments'] ?? null,
-                        'cost' => $inventory ? $inventory->avg_cost : 0,
                     ]);
                     $totalQty += $item['quantity'];
                 }
@@ -261,7 +251,7 @@ class TransactionService
                     if (!empty($productItemIds)) {
                         ProductItem::whereIn('id', $productItemIds)->update([
                             'status' => ProductItem::STATUS_SOLD,
-                            'inventory_transaction_id' => $transaction->id,
+                            'export_id' => $transaction->id,
                         ]);
                         $remainingQty = $item->quantity - count($productItemIds);
                     } else {
@@ -282,7 +272,7 @@ class TransactionService
                         if (!empty($noSkuItems)) {
                             ProductItem::whereIn('id', $noSkuItems)->update([
                                 'status' => ProductItem::STATUS_SOLD,
-                                'inventory_transaction_id' => $transaction->id,
+                                'export_id' => $transaction->id,
                             ]);
                             $remainingQty -= count($noSkuItems);
                         }
@@ -300,7 +290,7 @@ class TransactionService
                             if (!empty($otherItems)) {
                                 ProductItem::whereIn('id', $otherItems)->update([
                                     'status' => ProductItem::STATUS_SOLD,
-                                    'inventory_transaction_id' => $transaction->id,
+                                    'export_id' => $transaction->id,
                                 ]);
                             }
                         }
@@ -321,7 +311,7 @@ class TransactionService
      * Process transfer transaction.
      * Requirements: 7.3
      */
-    public function processTransfer(array $data, ?InventoryTransaction $existingTransaction = null): InventoryTransaction
+    public function processTransfer(array $data, ?Transfer $existingTransaction = null): Transfer
     {
         DB::beginTransaction();
 
@@ -330,8 +320,8 @@ class TransactionService
             $items = $existingTransaction ? $existingTransaction->items : collect($data['items']);
             // Get warehouse from first item or existing transaction
             $sourceWarehouseId = $existingTransaction
-                ? $existingTransaction->warehouse_id
-                : ($data['items'][0]['warehouse_id'] ?? $data['warehouse_id'] ?? null);
+                ? $existingTransaction->from_warehouse_id
+                : ($data['items'][0]['warehouse_id'] ?? $data['from_warehouse_id'] ?? null);
             $destWarehouseId = $existingTransaction
                 ? $existingTransaction->to_warehouse_id
                 : ($data['items'][0]['to_warehouse_id'] ?? $data['to_warehouse_id'] ?? null);
@@ -352,16 +342,13 @@ class TransactionService
                 $transaction = $existingTransaction;
                 $transaction->update(['status' => 'completed']);
             } else {
-                $transaction = InventoryTransaction::create([
-                    'code' => $data['code'] ?? $this->generateTransactionCode('transfer'),
-                    'type' => 'transfer',
-                    'warehouse_id' => $sourceWarehouseId,
+                $transaction = Transfer::create([
+                    'code' => $data['code'] ?? Transfer::generateCode(),
+                    'from_warehouse_id' => $sourceWarehouseId,
                     'to_warehouse_id' => $destWarehouseId,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'total_qty' => 0,
-                    'reference_type' => $data['reference_type'] ?? null,
-                    'reference_id' => $data['reference_id'] ?? null,
                     'note' => $data['note'] ?? null,
                     'status' => 'pending',
                 ]);
@@ -371,7 +358,6 @@ class TransactionService
 
             // Process items (only create if new transaction)
             if (!$existingTransaction) {
-
                 foreach ($data['items'] as $item) {
                     // Get current inventory to record cost
                     $itemWarehouseId = $item['warehouse_id'] ?? $sourceWarehouseId;
@@ -386,14 +372,13 @@ class TransactionService
                     $productItemIds = array_filter($productItemIds, fn ($id) => !empty($id));
                     $productItemIds = array_unique($productItemIds);
 
-                    InventoryTransactionItem::create([
-                        'transaction_id' => $transaction->id,
+                    TransferItem::create([
+                        'transfer_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                         'comments' => $item['comments'] ?? null,
-                        'cost' => $cost,
                     ]);
                     $totalQty += $item['quantity'];
                 }
@@ -405,7 +390,7 @@ class TransactionService
                 foreach ($transaction->items as $item) {
                     // Get current inventory to record cost
                     $inventory = Inventory::where('product_id', $item->product_id)
-                        ->where('warehouse_id', $transaction->warehouse_id)
+                        ->where('warehouse_id', $transaction->from_warehouse_id)
                         ->first();
 
                     $cost = $inventory ? $inventory->avg_cost : 0;
@@ -413,7 +398,7 @@ class TransactionService
                     // Update source warehouse - subtract stock
                     $this->inventoryService->updateStock(
                         $item->product_id,
-                        $transaction->warehouse_id,
+                        $transaction->from_warehouse_id,
                         $item->quantity,
                         'subtract'
                     );
@@ -447,7 +432,7 @@ class TransactionService
                     $remainingQty = $item->quantity - count($productItemIds);
                     if ($remainingQty > 0) {
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
-                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('warehouse_id', $transaction->from_warehouse_id)
                             ->where('status', ProductItem::STATUS_IN_STOCK)
                             ->where('sku', 'like', 'NOSKU%')
                             ->limit($remainingQty)
@@ -481,7 +466,7 @@ class TransactionService
 
             DB::commit();
 
-            return $transaction->fresh(['items.product', 'warehouse', 'toWarehouse', 'employee']);
+            return $transaction->fresh(['items.product', 'fromWarehouse', 'toWarehouse', 'employee']);
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;

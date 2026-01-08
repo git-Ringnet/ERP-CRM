@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\InventoryTransaction;
+use App\Models\Transfer;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -20,13 +20,12 @@ class TransfersExport implements FromCollection, WithHeadings, WithMapping, With
 
     public function collection()
     {
-        $query = InventoryTransaction::with(['warehouse', 'toWarehouse', 'employee'])
-            ->where('type', 'transfer')
+        $query = Transfer::with(['fromWarehouse', 'toWarehouse', 'employee'])
             ->orderBy('date', 'desc');
 
         // Apply filters
         if (!empty($this->filters['from_warehouse_id'])) {
-            $query->where('warehouse_id', $this->filters['from_warehouse_id']);
+            $query->where('from_warehouse_id', $this->filters['from_warehouse_id']);
         }
         if (!empty($this->filters['to_warehouse_id'])) {
             $query->where('to_warehouse_id', $this->filters['to_warehouse_id']);
@@ -69,7 +68,7 @@ class TransfersExport implements FromCollection, WithHeadings, WithMapping, With
         return [
             $transfer->code,
             $transfer->date->format('d/m/Y'),
-            $transfer->warehouse->name ?? '',
+            $transfer->fromWarehouse->name ?? '',
             $transfer->toWarehouse->name ?? '',
             $transfer->employee->name ?? '',
             $transfer->total_qty,

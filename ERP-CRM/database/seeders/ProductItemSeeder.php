@@ -33,7 +33,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => 'New Product: Call for Availability',
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
             [
@@ -49,7 +50,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => null,
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
             [
@@ -63,7 +65,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => 'Auto-generated NO_SKU',
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
         ];
@@ -85,7 +88,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => null,
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
             [
@@ -101,7 +105,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => null,
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'sold',
             ],
         ];
@@ -117,7 +122,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => null,
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
             [
@@ -129,7 +135,8 @@ class ProductItemSeeder extends Seeder
                 'quantity' => 1,
                 'comments' => null,
                 'warehouse_id' => 1,
-                'inventory_transaction_id' => null,
+                'import_id' => null,
+                'export_id' => null,
                 'status' => 'in_stock',
             ],
         ];

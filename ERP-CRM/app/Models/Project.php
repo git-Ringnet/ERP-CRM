@@ -64,12 +64,11 @@ class Project extends Model
     }
 
     /**
-     * Relationship with Exports (Inventory Transactions)
+     * Relationship with Exports
      */
     public function exports()
     {
-        return $this->hasMany(InventoryTransaction::class, 'project_id')
-                    ->where('type', 'export');
+        return $this->hasMany(Export::class, 'project_id');
     }
 
     /**

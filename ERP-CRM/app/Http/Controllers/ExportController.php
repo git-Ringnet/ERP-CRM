@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ExportRequest;
-use App\Models\InventoryTransaction;
+use App\Models\Export;
+use App\Models\ExportItem;
 use App\Models\Product;
 use App\Models\ProductItem;
 use App\Models\User;
@@ -43,8 +44,7 @@ class ExportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'employee', 'items', 'project'])
-            ->where('type', 'export'); // Filter only exports
+        $query = Export::with(['warehouse', 'employee', 'items', 'project']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -93,7 +93,7 @@ class ExportController extends Controller
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
-        $code = InventoryTransaction::generateCode('export');
+        $code = Export::generateCode();
 
         return view('exports.create', compact('warehouses', 'products', 'employees', 'projects', 'code'));
     }
@@ -106,7 +106,6 @@ class ExportController extends Controller
     {
         try {
             $data = $request->validated();
-            $data['type'] = 'export';
 
             $export = $this->transactionService->processExport($data);
 
@@ -130,16 +129,12 @@ class ExportController extends Controller
     /**
      * Display the specified export.
      */
-    public function show(InventoryTransaction $export)
+    public function show(Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         $export->load(['warehouse', 'employee', 'items.product', 'project']);
 
         // Get exported product items (serials) grouped by product_id
-        $exportedItems = ProductItem::where('inventory_transaction_id', $export->id)
+        $exportedItems = ProductItem::where('export_id', $export->id)
             ->get()
             ->groupBy('product_id');
 
@@ -149,12 +144,8 @@ class ExportController extends Controller
     /**
      * Show the form for editing the specified export.
      */
-    public function edit(InventoryTransaction $export)
+    public function edit(Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         if ($export->status !== 'pending') {
             return redirect()->route('exports.show', $export)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -190,12 +181,8 @@ class ExportController extends Controller
     /**
      * Update the specified export.
      */
-    public function update(ExportRequest $request, InventoryTransaction $export)
+    public function update(ExportRequest $request, Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         if ($export->status !== 'pending') {
             return redirect()->route('exports.show', $export)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -246,12 +233,8 @@ class ExportController extends Controller
     /**
      * Remove the specified export.
      */
-    public function destroy(InventoryTransaction $export)
+    public function destroy(Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         if ($export->status !== 'pending') {
             return redirect()->route('exports.index')
                 ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý.');
@@ -273,12 +256,8 @@ class ExportController extends Controller
      * Approve a pending export.
      * Requirements: 2.7 - Validate stock before approving
      */
-    public function approve(InventoryTransaction $export)
+    public function approve(Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         if ($export->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -320,12 +299,8 @@ class ExportController extends Controller
     /**
      * Reject a pending export.
      */
-    public function reject(Request $request, InventoryTransaction $export)
+    public function reject(Request $request, Export $export)
     {
-        if ($export->type !== 'export') {
-            abort(404);
-        }
-
         if ($export->status !== 'pending') {
             return response()->json([
                 'success' => false,

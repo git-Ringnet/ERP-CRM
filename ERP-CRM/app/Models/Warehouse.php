@@ -51,11 +51,35 @@ class Warehouse extends Model
     }
 
     /**
-     * Get the transactions for this warehouse.
+     * Get the imports for this warehouse.
      */
-    public function transactions(): HasMany
+    public function imports(): HasMany
     {
-        return $this->hasMany(InventoryTransaction::class);
+        return $this->hasMany(Import::class);
+    }
+
+    /**
+     * Get the exports for this warehouse.
+     */
+    public function exports(): HasMany
+    {
+        return $this->hasMany(Export::class);
+    }
+
+    /**
+     * Get the transfers from this warehouse.
+     */
+    public function transfersFrom(): HasMany
+    {
+        return $this->hasMany(Transfer::class, 'from_warehouse_id');
+    }
+
+    /**
+     * Get the transfers to this warehouse.
+     */
+    public function transfersTo(): HasMany
+    {
+        return $this->hasMany(Transfer::class, 'to_warehouse_id');
     }
 
     /**

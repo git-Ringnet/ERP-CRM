@@ -44,7 +44,8 @@ class ProductItemFactory extends Factory
             'quantity' => 1,
             'comments' => fake()->optional()->sentence(),
             'warehouse_id' => null,
-            'inventory_transaction_id' => null,
+            'import_id' => null,
+            'export_id' => null,
             'status' => ProductItem::STATUS_IN_STOCK,
         ];
     }

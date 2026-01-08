@@ -2,8 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\InventoryTransaction;
-use App\Models\InventoryTransactionItem;
+use App\Models\Import;
+use App\Models\Export;
+use App\Models\Transfer;
 use App\Models\Warehouse;
 use App\Models\Product;
 use App\Models\User;
@@ -96,6 +97,7 @@ class InventoryTransactionSeeder extends Seeder
                     'product_id' => $product->id,
                     'quantity' => $quantity,
                     'unit' => $product->unit,
+                    'warehouse_id' => $warehouse->id,
                 ];
             }
 
@@ -154,6 +156,8 @@ class InventoryTransactionSeeder extends Seeder
                         'product_id' => $product->id,
                         'quantity' => $quantity,
                         'unit' => $product->unit,
+                        'warehouse_id' => $fromWarehouse->id,
+                        'to_warehouse_id' => $toWarehouse->id,
                     ];
                 }
 
@@ -163,7 +167,7 @@ class InventoryTransactionSeeder extends Seeder
 
                 try {
                     $transactionService->processTransfer([
-                        'warehouse_id' => $fromWarehouse->id,
+                        'from_warehouse_id' => $fromWarehouse->id,
                         'to_warehouse_id' => $toWarehouse->id,
                         'employee_id' => $employee->id,
                         'date' => $date,

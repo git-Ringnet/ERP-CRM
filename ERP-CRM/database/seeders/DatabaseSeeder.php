@@ -23,7 +23,10 @@ class DatabaseSeeder extends Seeder
             ProductSeeder::class,          // Bật lại ProductSeeder
             WarehouseSeeder::class,
             InventorySeeder::class,
-            InventoryTransactionSeeder::class,
+            // New separate seeders for imports, exports, transfers
+            ImportSeeder::class,
+            ExportSeeder::class,
+            TransferSeeder::class,
             DamagedGoodSeeder::class,
             
             // Module Bán hàng - chạy sau khi có Customer & Product

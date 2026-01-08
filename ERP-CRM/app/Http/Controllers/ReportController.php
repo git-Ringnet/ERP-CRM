@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Warehouse;
 use App\Models\Inventory;
-use App\Models\InventoryTransaction;
+use App\Models\Import;
+use App\Models\Export;
+use App\Models\Transfer;
 use App\Models\DamagedGood;
 use App\Models\Product;
 use App\Exports\InventorySummaryExport;
@@ -80,47 +82,99 @@ class ReportController extends Controller
 
     public function transactionReport(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'toWarehouse', 'employee', 'items.product']);
+        // Build queries for each transaction type
+        $importsQuery = Import::with(['warehouse', 'employee', 'items.product'])
+            ->select('id', 'code', 'warehouse_id', 'date', 'employee_id', 'total_qty', 'status', 'note', 'created_at')
+            ->selectRaw("'import' as type, NULL as to_warehouse_id");
+        
+        $exportsQuery = Export::with(['warehouse', 'employee', 'items.product'])
+            ->select('id', 'code', 'warehouse_id', 'date', 'employee_id', 'total_qty', 'status', 'note', 'created_at')
+            ->selectRaw("'export' as type, NULL as to_warehouse_id");
+        
+        $transfersQuery = Transfer::with(['fromWarehouse', 'toWarehouse', 'employee', 'items.product'])
+            ->select('id', 'code', 'from_warehouse_id as warehouse_id', 'date', 'employee_id', 'total_qty', 'status', 'note', 'created_at', 'to_warehouse_id')
+            ->selectRaw("'transfer' as type");
 
         // Filter by type
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
+            if ($request->type === 'import') {
+                $exportsQuery = null;
+                $transfersQuery = null;
+            } elseif ($request->type === 'export') {
+                $importsQuery = null;
+                $transfersQuery = null;
+            } elseif ($request->type === 'transfer') {
+                $importsQuery = null;
+                $exportsQuery = null;
+            }
         }
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('warehouse_id', $request->warehouse_id)
-                  ->orWhere('to_warehouse_id', $request->warehouse_id);
-            });
+            if ($importsQuery) {
+                $importsQuery->where('warehouse_id', $request->warehouse_id);
+            }
+            if ($exportsQuery) {
+                $exportsQuery->where('warehouse_id', $request->warehouse_id);
+            }
+            if ($transfersQuery) {
+                $transfersQuery->where(function ($q) use ($request) {
+                    $q->where('from_warehouse_id', $request->warehouse_id)
+                      ->orWhere('to_warehouse_id', $request->warehouse_id);
+                });
+            }
         }
 
         // Filter by date range
         if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->whereBetween('date', [$request->start_date, $request->end_date]);
+            if ($importsQuery) {
+                $importsQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
+            if ($exportsQuery) {
+                $exportsQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
+            if ($transfersQuery) {
+                $transfersQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
         }
 
-        // Get all for statistics (without pagination)
-        $allTransactions = (clone $query)->latest('date')->get();
+        // Get all transactions from each table
+        $imports = $importsQuery ? $importsQuery->get()->map(function ($item) {
+            $item->type = 'import';
+            return $item;
+        }) : collect();
+        
+        $exports = $exportsQuery ? $exportsQuery->get()->map(function ($item) {
+            $item->type = 'export';
+            return $item;
+        }) : collect();
+        
+        $transfers = $transfersQuery ? $transfersQuery->get()->map(function ($item) {
+            $item->type = 'transfer';
+            $item->warehouse = $item->fromWarehouse;
+            return $item;
+        }) : collect();
+
+        // Merge and sort all transactions
+        $allTransactions = $imports->concat($exports)->concat($transfers)->sortByDesc('date');
 
         // Calculate summary statistics
         $totalTransactions = $allTransactions->count();
-        $importCount = $allTransactions->where('type', 'import')->count();
-        $exportCount = $allTransactions->where('type', 'export')->count();
-        $transferCount = $allTransactions->where('type', 'transfer')->count();
+        $importCount = $imports->count();
+        $exportCount = $exports->count();
+        $transferCount = $transfers->count();
         $totalQuantity = $allTransactions->sum('total_qty');
 
         // Group by type
-        $byType = $allTransactions->groupBy('type')->map(function ($items, $type) {
-            return [
-                'count' => $items->count(),
-                'total_qty' => $items->sum('total_qty'),
-            ];
-        });
+        $byType = collect([
+            'import' => ['count' => $importCount, 'total_qty' => $imports->sum('total_qty')],
+            'export' => ['count' => $exportCount, 'total_qty' => $exports->sum('total_qty')],
+            'transfer' => ['count' => $transferCount, 'total_qty' => $transfers->sum('total_qty')],
+        ]);
 
         // Group by date (daily)
         $byDate = $allTransactions->groupBy(function ($item) {
-            return $item->date->format('Y-m-d');
+            return $item->date instanceof \Carbon\Carbon ? $item->date->format('Y-m-d') : $item->date;
         })->map(function ($items) {
             return [
                 'count' => $items->count(),
@@ -128,8 +182,16 @@ class ReportController extends Controller
             ];
         })->sortKeys();
 
-        // Paginate transactions for detail table (10 per page)
-        $transactions = $query->latest('date')->paginate(10)->withQueryString();
+        // Paginate transactions for detail table
+        $page = $request->get('page', 1);
+        $perPage = 10;
+        $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
+            $allTransactions->forPage($page, $perPage),
+            $allTransactions->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         $warehouses = Warehouse::orderBy('name')->get();
 
@@ -257,22 +319,72 @@ class ReportController extends Controller
      */
     public function exportTransactionReport(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'toWarehouse', 'employee']);
+        // Build queries for each transaction type
+        $importsQuery = Import::with(['warehouse', 'employee']);
+        $exportsQuery = Export::with(['warehouse', 'employee']);
+        $transfersQuery = Transfer::with(['fromWarehouse', 'toWarehouse', 'employee']);
 
+        // Filter by type
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-        if ($request->filled('warehouse_id')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('warehouse_id', $request->warehouse_id)
-                  ->orWhere('to_warehouse_id', $request->warehouse_id);
-            });
-        }
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->whereBetween('date', [$request->start_date, $request->end_date]);
+            if ($request->type === 'import') {
+                $exportsQuery = null;
+                $transfersQuery = null;
+            } elseif ($request->type === 'export') {
+                $importsQuery = null;
+                $transfersQuery = null;
+            } elseif ($request->type === 'transfer') {
+                $importsQuery = null;
+                $exportsQuery = null;
+            }
         }
 
-        $transactions = $query->latest('date')->get();
+        // Filter by warehouse
+        if ($request->filled('warehouse_id')) {
+            if ($importsQuery) {
+                $importsQuery->where('warehouse_id', $request->warehouse_id);
+            }
+            if ($exportsQuery) {
+                $exportsQuery->where('warehouse_id', $request->warehouse_id);
+            }
+            if ($transfersQuery) {
+                $transfersQuery->where(function ($q) use ($request) {
+                    $q->where('from_warehouse_id', $request->warehouse_id)
+                      ->orWhere('to_warehouse_id', $request->warehouse_id);
+                });
+            }
+        }
+
+        // Filter by date range
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            if ($importsQuery) {
+                $importsQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
+            if ($exportsQuery) {
+                $exportsQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
+            if ($transfersQuery) {
+                $transfersQuery->whereBetween('date', [$request->start_date, $request->end_date]);
+            }
+        }
+
+        // Get all transactions
+        $imports = $importsQuery ? $importsQuery->get()->map(function ($item) {
+            $item->type = 'import';
+            return $item;
+        }) : collect();
+        
+        $exports = $exportsQuery ? $exportsQuery->get()->map(function ($item) {
+            $item->type = 'export';
+            return $item;
+        }) : collect();
+        
+        $transfers = $transfersQuery ? $transfersQuery->get()->map(function ($item) {
+            $item->type = 'transfer';
+            $item->warehouse = $item->fromWarehouse;
+            return $item;
+        }) : collect();
+
+        $transactions = $imports->concat($exports)->concat($transfers)->sortByDesc('date');
         $filename = 'bao-cao-xuat-nhap-' . date('Y-m-d') . '.xlsx';
 
         return Excel::download(new TransactionReportExport($transactions), $filename);

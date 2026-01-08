@@ -60,7 +60,7 @@ class DashboardController extends Controller
             })
             ->toArray();
 
-        // Get product distribution by category (replaced management_type)
+        // Get product distribution by category
         $productsByType = DB::table('products')
             ->select('category', DB::raw('count(*) as total'))
             ->groupBy('category')
@@ -80,60 +80,65 @@ class DashboardController extends Controller
             ->where('status', 'active')
             ->count();
             
-        // Low stock products - count products with low total quantity
-        // Since stock is now tracked in product_items, we need to calculate differently
-        $lowStockProducts = 0; // TODO: Implement low stock logic with new product_items structure
+        // Low stock products
+        $lowStockProducts = 0;
 
         // Additional inventory statistics
         $totalWarehouses = DB::table('warehouses')->count();
         $totalInventoryValue = DB::table('inventories')->sum(DB::raw('stock * avg_cost'));
         $totalProductItems = DB::table('product_items')->where('status', 'in_stock')->count();
         
-        // Transaction statistics (filtered by date range)
-        $totalTransactions = DB::table('inventory_transactions')
+        // Transaction statistics from 3 separate tables (filtered by date range)
+        $importsCount = DB::table('imports')
             ->whereBetween('date', [$startDate, $endDate])
             ->count();
-        $pendingTransactions = DB::table('inventory_transactions')
+        $exportsCount = DB::table('exports')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->count();
+        $transfersCount = DB::table('transfers')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->count();
+        
+        $totalTransactions = $importsCount + $exportsCount + $transfersCount;
+        
+        $pendingTransactions = DB::table('imports')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'pending')
+            ->count()
+            + DB::table('exports')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'pending')
+            ->count()
+            + DB::table('transfers')
             ->whereBetween('date', [$startDate, $endDate])
             ->where('status', 'pending')
             ->count();
-        $todayTransactions = DB::table('inventory_transactions')
+            
+        $todayTransactions = DB::table('imports')
+            ->whereDate('created_at', today())
+            ->count()
+            + DB::table('exports')
+            ->whereDate('created_at', today())
+            ->count()
+            + DB::table('transfers')
             ->whereDate('created_at', today())
             ->count();
         
         // Period statistics (filtered)
-        $periodImports = DB::table('inventory_transactions')
-            ->where('type', 'import')
-            ->whereBetween('date', [$startDate, $endDate])
-            ->count();
-        $periodExports = DB::table('inventory_transactions')
-            ->where('type', 'export')
-            ->whereBetween('date', [$startDate, $endDate])
-            ->count();
-        $periodTransfers = DB::table('inventory_transactions')
-            ->where('type', 'transfer')
-            ->whereBetween('date', [$startDate, $endDate])
-            ->count();
+        $periodImports = $importsCount;
+        $periodExports = $exportsCount;
+        $periodTransfers = $transfersCount;
         
         // Transaction by type for pie chart (filtered)
         $transactionsByType = [
-            'import' => DB::table('inventory_transactions')
-                ->where('type', 'import')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->count(),
-            'export' => DB::table('inventory_transactions')
-                ->where('type', 'export')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->count(),
-            'transfer' => DB::table('inventory_transactions')
-                ->where('type', 'transfer')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->count(),
+            'import' => $importsCount,
+            'export' => $exportsCount,
+            'transfer' => $transfersCount,
         ];
         
         // Transactions for line chart (based on date range)
         $transactionsChart = $this->getTransactionsChartData($startDate, $endDate);
-        
+
         // Stock by warehouse for bar chart
         $stockByWarehouse = DB::table('inventories')
             ->join('warehouses', 'inventories.warehouse_id', '=', 'warehouses.id')
@@ -204,14 +209,44 @@ class DashboardController extends Controller
                 ];
             });
         
-        $recentTransactions = DB::table('inventory_transactions')
-            ->select('code as name', 'type', 'created_at')
+        // Recent transactions from 3 separate tables
+        $recentImports = DB::table('imports')
+            ->select('code as name', 'created_at')
+            ->selectRaw("'import' as type")
             ->orderBy('created_at', 'desc')
             ->limit(20)
             ->get()
             ->map(function ($item) {
                 return [
-                    'type' => 'transaction_' . $item->type,
+                    'type' => 'transaction_import',
+                    'name' => $item->name,
+                    'created_at' => $item->created_at
+                ];
+            });
+            
+        $recentExports = DB::table('exports')
+            ->select('code as name', 'created_at')
+            ->selectRaw("'export' as type")
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'type' => 'transaction_export',
+                    'name' => $item->name,
+                    'created_at' => $item->created_at
+                ];
+            });
+            
+        $recentTransfers = DB::table('transfers')
+            ->select('code as name', 'created_at')
+            ->selectRaw("'transfer' as type")
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'type' => 'transaction_transfer',
                     'name' => $item->name,
                     'created_at' => $item->created_at
                 ];
@@ -223,7 +258,9 @@ class DashboardController extends Controller
             ->merge($recentSuppliers)
             ->merge($recentEmployees)
             ->merge($recentProducts)
-            ->merge($recentTransactions)
+            ->merge($recentImports)
+            ->merge($recentExports)
+            ->merge($recentTransfers)
             ->sortByDesc('created_at')
             ->values();
         
@@ -263,7 +300,7 @@ class DashboardController extends Controller
             'endDate'
         ));
     }
-    
+
     /**
      * Get date range based on filter type
      */
@@ -312,6 +349,7 @@ class DashboardController extends Controller
     
     /**
      * Get transactions chart data based on date range
+     * Query from 3 separate tables: imports, exports, transfers
      */
     private function getTransactionsChartData($startDate, $endDate)
     {
@@ -322,17 +360,19 @@ class DashboardController extends Controller
             // Show daily data
             for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
                 $dateStr = $date->format('Y-m-d');
-                $data[$dateStr] = DB::table('inventory_transactions')
-                    ->whereDate('date', $dateStr)
-                    ->count();
+                $count = DB::table('imports')->whereDate('date', $dateStr)->count()
+                    + DB::table('exports')->whereDate('date', $dateStr)->count()
+                    + DB::table('transfers')->whereDate('date', $dateStr)->count();
+                $data[$dateStr] = $count;
             }
         } elseif ($diffDays <= 31) {
             // Show daily data for up to 31 days
             for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
                 $dateStr = $date->format('Y-m-d');
-                $data[$dateStr] = DB::table('inventory_transactions')
-                    ->whereDate('date', $dateStr)
-                    ->count();
+                $count = DB::table('imports')->whereDate('date', $dateStr)->count()
+                    + DB::table('exports')->whereDate('date', $dateStr)->count()
+                    + DB::table('transfers')->whereDate('date', $dateStr)->count();
+                $data[$dateStr] = $count;
             }
         } elseif ($diffDays <= 90) {
             // Show weekly data
@@ -341,9 +381,16 @@ class DashboardController extends Controller
                 if ($weekEnd > $endDate) $weekEnd = $endDate->copy();
                 
                 $label = 'T' . $date->weekOfYear;
-                $data[$label] = DB::table('inventory_transactions')
+                $count = DB::table('imports')
+                    ->whereBetween('date', [$date->format('Y-m-d'), $weekEnd->format('Y-m-d')])
+                    ->count()
+                    + DB::table('exports')
+                    ->whereBetween('date', [$date->format('Y-m-d'), $weekEnd->format('Y-m-d')])
+                    ->count()
+                    + DB::table('transfers')
                     ->whereBetween('date', [$date->format('Y-m-d'), $weekEnd->format('Y-m-d')])
                     ->count();
+                $data[$label] = $count;
             }
         } else {
             // Show monthly data
@@ -352,9 +399,16 @@ class DashboardController extends Controller
                 if ($monthEnd > $endDate) $monthEnd = $endDate->copy();
                 
                 $label = 'T' . $date->month . '/' . $date->format('y');
-                $data[$label] = DB::table('inventory_transactions')
+                $count = DB::table('imports')
+                    ->whereBetween('date', [$date->format('Y-m-d'), $monthEnd->format('Y-m-d')])
+                    ->count()
+                    + DB::table('exports')
+                    ->whereBetween('date', [$date->format('Y-m-d'), $monthEnd->format('Y-m-d')])
+                    ->count()
+                    + DB::table('transfers')
                     ->whereBetween('date', [$date->format('Y-m-d'), $monthEnd->format('Y-m-d')])
                     ->count();
+                $data[$label] = $count;
             }
         }
         

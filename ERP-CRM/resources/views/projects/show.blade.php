@@ -254,7 +254,7 @@
                                                 $noSkuCount = 0;
                                                 
                                                 if ($export->status === 'completed') {
-                                                    $exportedSerials = \App\Models\ProductItem::where('inventory_transaction_id', $export->id)
+                                                    $exportedSerials = \App\Models\ProductItem::where('export_id', $export->id)
                                                         ->where('product_id', $item->product_id)
                                                         ->get();
                                                     $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));

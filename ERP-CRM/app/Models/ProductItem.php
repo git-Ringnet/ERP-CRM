@@ -39,7 +39,8 @@ class ProductItem extends Model
         'quantity',
         'comments',
         'warehouse_id',
-        'inventory_transaction_id',
+        'import_id',
+        'export_id',
         'status',
     ];
 
@@ -72,12 +73,20 @@ class ProductItem extends Model
     }
 
     /**
-     * Relationship: ProductItem belongs to InventoryTransaction
+     * Relationship: ProductItem belongs to Import
      * Requirements: 7.1
      */
-    public function inventoryTransaction(): BelongsTo
+    public function import(): BelongsTo
     {
-        return $this->belongsTo(InventoryTransaction::class);
+        return $this->belongsTo(Import::class);
+    }
+
+    /**
+     * Relationship: ProductItem belongs to Export
+     */
+    public function export(): BelongsTo
+    {
+        return $this->belongsTo(Export::class);
     }
 
     /**

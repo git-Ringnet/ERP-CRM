@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Notification;
-use App\Models\InventoryTransaction;
+use App\Models\Import;
+use App\Models\Export;
+use App\Models\Transfer;
 use App\Models\DamagedGood;
 
 class NotificationService
@@ -11,7 +13,7 @@ class NotificationService
     /**
      * Tạo thông báo khi phiếu nhập kho được tạo
      */
-    public function notifyImportCreated(InventoryTransaction $import, array $recipientUserIds): void
+    public function notifyImportCreated(Import $import, array $recipientUserIds): void
     {
         $title = 'Phiếu nhập kho mới';
         $creatorName = $import->employee ? $import->employee->name : 'Người dùng';
@@ -39,7 +41,7 @@ class NotificationService
     /**
      * Tạo thông báo khi phiếu xuất kho được tạo
      */
-    public function notifyExportCreated(InventoryTransaction $export, array $recipientUserIds): void
+    public function notifyExportCreated(Export $export, array $recipientUserIds): void
     {
         $title = 'Phiếu xuất kho mới';
         $creatorName = $export->employee ? $export->employee->name : 'Người dùng';
@@ -67,7 +69,7 @@ class NotificationService
     /**
      * Tạo thông báo khi phiếu chuyển kho được tạo
      */
-    public function notifyTransferCreated(InventoryTransaction $transfer, array $recipientUserIds): void
+    public function notifyTransferCreated(Transfer $transfer, array $recipientUserIds): void
     {
         $title = 'Phiếu chuyển kho mới';
         $creatorName = $transfer->employee ? $transfer->employee->name : 'Người dùng';
@@ -94,8 +96,9 @@ class NotificationService
 
     /**
      * Tạo thông báo khi phiếu được duyệt
+     * Accepts Import, Export, or Transfer model
      */
-    public function notifyDocumentApproved(InventoryTransaction $document, string $documentType, int $creatorUserId): void
+    public function notifyDocumentApproved(Import|Export|Transfer $document, string $documentType, int $creatorUserId): void
     {
         $typeLabels = [
             'import' => 'nhập kho',
@@ -133,8 +136,9 @@ class NotificationService
 
     /**
      * Tạo thông báo khi phiếu bị từ chối
+     * Accepts Import, Export, or Transfer model
      */
-    public function notifyDocumentRejected(InventoryTransaction $document, string $documentType, int $creatorUserId, string $reason): void
+    public function notifyDocumentRejected(Import|Export|Transfer $document, string $documentType, int $creatorUserId, string $reason): void
     {
         $typeLabels = [
             'import' => 'nhập kho',

@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ImportRequest;
-use App\Models\InventoryTransaction;
+use App\Models\Import;
+use App\Models\ImportItem;
 use App\Models\Product;
 use App\Models\ProductItem;
 use App\Models\User;
@@ -39,8 +40,7 @@ class ImportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = InventoryTransaction::with(['warehouse', 'employee', 'items'])
-            ->where('type', 'import'); // Filter only imports
+        $query = Import::with(['warehouse', 'employee', 'items']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -82,7 +82,7 @@ class ImportController extends Controller
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
-        $code = InventoryTransaction::generateCode('import');
+        $code = Import::generateCode();
 
         return view('imports.create', compact('warehouses', 'products', 'employees', 'code'));
     }
@@ -95,7 +95,6 @@ class ImportController extends Controller
     {
         try {
             $data = $request->validated();
-            $data['type'] = 'import';
 
             $import = $this->transactionService->processImport($data);
 
@@ -119,17 +118,12 @@ class ImportController extends Controller
     /**
      * Display the specified import.
      */
-    public function show(InventoryTransaction $import)
+    public function show(Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         $import->load(['warehouse', 'employee', 'items.product']);
         
         // Get product items created from this import
-        $productItems = ProductItem::where('inventory_transaction_id', $import->id)->get();
+        $productItems = ProductItem::where('import_id', $import->id)->get();
 
         return view('imports.show', compact('import', 'productItems'));
     }
@@ -137,13 +131,8 @@ class ImportController extends Controller
     /**
      * Show the form for editing the specified import.
      */
-    public function edit(InventoryTransaction $import)
+    public function edit(Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         // Only allow editing pending imports
         if ($import->status !== 'pending') {
             return redirect()->route('imports.show', $import)
@@ -182,13 +171,8 @@ class ImportController extends Controller
     /**
      * Update the specified import.
      */
-    public function update(ImportRequest $request, InventoryTransaction $import)
+    public function update(ImportRequest $request, Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         // Only allow updating pending imports
         if ($import->status !== 'pending') {
             return redirect()->route('imports.show', $import)
@@ -199,7 +183,7 @@ class ImportController extends Controller
             $data = $request->validated();
 
             // Delete old items (ProductItem will only exist if already approved, which shouldn't happen)
-            ProductItem::where('inventory_transaction_id', $import->id)->delete();
+            ProductItem::where('import_id', $import->id)->delete();
             $import->items()->delete();
 
             // Update import
@@ -241,13 +225,8 @@ class ImportController extends Controller
     /**
      * Remove the specified import.
      */
-    public function destroy(InventoryTransaction $import)
+    public function destroy(Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         // Only allow deleting pending imports
         if ($import->status !== 'pending') {
             return redirect()->route('imports.index')
@@ -255,7 +234,7 @@ class ImportController extends Controller
         }
 
         try {
-            ProductItem::where('inventory_transaction_id', $import->id)->delete();
+            ProductItem::where('import_id', $import->id)->delete();
             $import->items()->delete();
             $import->delete();
 
@@ -270,13 +249,8 @@ class ImportController extends Controller
     /**
      * Approve a pending import.
      */
-    public function approve(InventoryTransaction $import)
+    public function approve(Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         // Only allow approving pending imports
         if ($import->status !== 'pending') {
             return response()->json([
@@ -320,13 +294,8 @@ class ImportController extends Controller
     /**
      * Reject a pending import.
      */
-    public function reject(Request $request, InventoryTransaction $import)
+    public function reject(Request $request, Import $import)
     {
-        // Ensure it's an import transaction
-        if ($import->type !== 'import') {
-            abort(404);
-        }
-
         // Only allow rejecting pending imports
         if ($import->status !== 'pending') {
             return response()->json([

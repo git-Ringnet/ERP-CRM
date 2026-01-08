@@ -36,7 +36,7 @@ class ProductItemService
         array $skus,
         array $priceData,
         int $warehouseId,
-        int $transactionId
+        int $importId
     ): array {
         $items = [];
 
@@ -55,7 +55,7 @@ class ProductItemService
             $skus,
             $priceData,
             $warehouseId,
-            $transactionId,
+            $importId,
             &$items
         ) {
             // If SKUs provided, create one item per SKU
@@ -64,7 +64,7 @@ class ProductItemService
                     $items[] = ProductItem::create([
                         'product_id' => $productId,
                         'warehouse_id' => $warehouseId,
-                        'inventory_transaction_id' => $transactionId,
+                        'import_id' => $importId,
                         'sku' => $sku,
                         'quantity' => 1,
                         'description' => $priceData['description'] ?? null,
@@ -81,11 +81,11 @@ class ProductItemService
             for ($i = 0; $i < $remainingQty; $i++) {
                 // Use microtime + random to ensure uniqueness
                 $uniqueId = substr(md5(uniqid(mt_rand(), true)), 0, 8);
-                $noSku = ProductItem::NO_SKU_PREFIX . '_' . $productId . '_' . $transactionId . '_' . $uniqueId;
+                $noSku = ProductItem::NO_SKU_PREFIX . '_' . $productId . '_' . $importId . '_' . $uniqueId;
                 $items[] = ProductItem::create([
                     'product_id' => $productId,
                     'warehouse_id' => $warehouseId,
-                    'inventory_transaction_id' => $transactionId,
+                    'import_id' => $importId,
                     'sku' => $noSku,
                     'quantity' => 1,
                     'description' => $priceData['description'] ?? null,

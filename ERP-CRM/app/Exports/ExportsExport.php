@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\InventoryTransaction;
+use App\Models\Export;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -20,8 +20,7 @@ class ExportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
     public function collection()
     {
-        $query = InventoryTransaction::with(['warehouse', 'employee', 'project'])
-            ->where('type', 'export')
+        $query = Export::with(['warehouse', 'employee', 'project'])
             ->orderBy('date', 'desc');
 
         // Apply filters

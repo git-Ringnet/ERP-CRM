@@ -6,32 +6,29 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class InventoryTransactionItem extends Model
+class TransferItem extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'transaction_id',
+        'transfer_id',
         'product_id',
         'quantity',
         'unit',
-        'description',
-        'comments',
         'serial_number',
-        'cost',
+        'comments',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
-        'cost' => 'decimal:2',
     ];
 
     /**
-     * Get the transaction for this item.
+     * Get the transfer that owns this item.
      */
-    public function transaction(): BelongsTo
+    public function transfer(): BelongsTo
     {
-        return $this->belongsTo(InventoryTransaction::class, 'transaction_id');
+        return $this->belongsTo(Transfer::class);
     }
 
     /**
@@ -40,13 +37,5 @@ class InventoryTransactionItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
-    }
-
-    /**
-     * Get total value of this item.
-     */
-    public function getTotalValueAttribute(): float
-    {
-        return $this->quantity * ($this->cost ?? 0);
     }
 }
