@@ -176,54 +176,54 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
     Route::resource('projects', ProjectController::class);
 
-    
-// Purchase Request routes (Yêu cầu báo giá NCC)
-Route::resource('purchase-requests', PurchaseRequestController::class);
-Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
-Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
 
-// Supplier Quotation routes (Báo giá từ NCC)
-Route::resource('supplier-quotations', SupplierQuotationController::class);
-Route::post('/supplier-quotations/{supplierQuotation}/select', [SupplierQuotationController::class, 'select'])->name('supplier-quotations.select');
-Route::post('/supplier-quotations/{supplierQuotation}/reject', [SupplierQuotationController::class, 'reject'])->name('supplier-quotations.reject');
-Route::get('/supplier-quotations-compare', [SupplierQuotationController::class, 'compare'])->name('supplier-quotations.compare');
+    // Purchase Request routes (Yêu cầu báo giá NCC)
+    Route::resource('purchase-requests', PurchaseRequestController::class);
+    Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
+    Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
 
-// Purchase Order routes (Đơn mua hàng)
-Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
-Route::resource('purchase-orders', PurchaseOrderController::class);
-Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
-Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
-Route::post('/purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('purchase-orders.reject');
-Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
-Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirmBySupplier'])->name('purchase-orders.confirm');
-Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
-Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
-Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
+    // Supplier Quotation routes (Báo giá từ NCC)
+    Route::resource('supplier-quotations', SupplierQuotationController::class);
+    Route::post('/supplier-quotations/{supplierQuotation}/select', [SupplierQuotationController::class, 'select'])->name('supplier-quotations.select');
+    Route::post('/supplier-quotations/{supplierQuotation}/reject', [SupplierQuotationController::class, 'reject'])->name('supplier-quotations.reject');
+    Route::get('/supplier-quotations-compare', [SupplierQuotationController::class, 'compare'])->name('supplier-quotations.compare');
 
-// Purchase Pricing routes (Giá nhập, giá kho)
-Route::resource('purchase-pricings', PurchasePricingController::class);
-Route::post('/purchase-pricings/recalculate', [PurchasePricingController::class, 'recalculate'])->name('purchase-pricings.recalculate');
+    // Purchase Order routes (Đơn mua hàng)
+    Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
+    Route::resource('purchase-orders', PurchaseOrderController::class);
+    Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
+    Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
+    Route::post('/purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('purchase-orders.reject');
+    Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
+    Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirmBySupplier'])->name('purchase-orders.confirm');
+    Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+    Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+    Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
 
-// Shipping Allocation routes (Phân bổ chi phí vận chuyển)
-Route::resource('shipping-allocations', ShippingAllocationController::class);
-Route::post('/shipping-allocations/{shippingAllocation}/approve', [ShippingAllocationController::class, 'approve'])->name('shipping-allocations.approve');
-Route::post('/shipping-allocations/{shippingAllocation}/complete', [ShippingAllocationController::class, 'complete'])->name('shipping-allocations.complete');
+    // Purchase Pricing routes (Giá nhập, giá kho)
+    Route::resource('purchase-pricings', PurchasePricingController::class);
+    Route::post('/purchase-pricings/recalculate', [PurchasePricingController::class, 'recalculate'])->name('purchase-pricings.recalculate');
 
-// Purchase Reports routes (Báo cáo mua hàng nâng cao)
-Route::get('/purchase-reports', [PurchaseReportController::class, 'index'])->name('purchase-reports.index');
-Route::get('/purchase-reports/export', [PurchaseReportController::class, 'export'])->name('purchase-reports.export');
+    // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
+    Route::resource('shipping-allocations', ShippingAllocationController::class);
+    Route::post('/shipping-allocations/{shippingAllocation}/approve', [ShippingAllocationController::class, 'approve'])->name('shipping-allocations.approve');
+    Route::post('/shipping-allocations/{shippingAllocation}/complete', [ShippingAllocationController::class, 'complete'])->name('shipping-allocations.complete');
 
-// Supplier Price List routes (Bảng giá nhà cung cấp - Import Excel)
-Route::get('/supplier-price-lists', [\App\Http\Controllers\SupplierPriceListController::class, 'index'])->name('supplier-price-lists.index');
-Route::get('/supplier-price-lists/import', [\App\Http\Controllers\SupplierPriceListController::class, 'showImportForm'])->name('supplier-price-lists.import');
-Route::post('/supplier-price-lists/analyze', [\App\Http\Controllers\SupplierPriceListController::class, 'analyzeFile'])->name('supplier-price-lists.analyze');
-Route::post('/supplier-price-lists/sheet-data', [\App\Http\Controllers\SupplierPriceListController::class, 'getSheetData'])->name('supplier-price-lists.sheet-data');
-Route::post('/supplier-price-lists/auto-detect', [\App\Http\Controllers\SupplierPriceListController::class, 'autoDetectMapping'])->name('supplier-price-lists.auto-detect');
-Route::post('/supplier-price-lists/do-import', [\App\Http\Controllers\SupplierPriceListController::class, 'import'])->name('supplier-price-lists.do-import');
-Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
-Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
-Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
-Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
+    // Purchase Reports routes (Báo cáo mua hàng nâng cao)
+    Route::get('/purchase-reports', [PurchaseReportController::class, 'index'])->name('purchase-reports.index');
+    Route::get('/purchase-reports/export', [PurchaseReportController::class, 'export'])->name('purchase-reports.export');
+
+    // Supplier Price List routes (Bảng giá nhà cung cấp - Import Excel)
+    Route::get('/supplier-price-lists', [\App\Http\Controllers\SupplierPriceListController::class, 'index'])->name('supplier-price-lists.index');
+    Route::get('/supplier-price-lists/import', [\App\Http\Controllers\SupplierPriceListController::class, 'showImportForm'])->name('supplier-price-lists.import');
+    Route::post('/supplier-price-lists/analyze', [\App\Http\Controllers\SupplierPriceListController::class, 'analyzeFile'])->name('supplier-price-lists.analyze');
+    Route::post('/supplier-price-lists/sheet-data', [\App\Http\Controllers\SupplierPriceListController::class, 'getSheetData'])->name('supplier-price-lists.sheet-data');
+    Route::post('/supplier-price-lists/auto-detect', [\App\Http\Controllers\SupplierPriceListController::class, 'autoDetectMapping'])->name('supplier-price-lists.auto-detect');
+    Route::post('/supplier-price-lists/do-import', [\App\Http\Controllers\SupplierPriceListController::class, 'import'])->name('supplier-price-lists.do-import');
+    Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
+    Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
+    Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
+    Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
 
     // Notification routes (Thông báo)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -234,4 +234,4 @@ Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPr
 });
 
 // Auth routes (login, logout, etc.)
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

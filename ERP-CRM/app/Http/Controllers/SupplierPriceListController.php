@@ -54,6 +54,11 @@ class SupplierPriceListController extends Controller
                 'description' => ['Description', 'Mô tả', 'Desc'],
                 'price' => ['Price', 'Giá', 'Unit Price', 'List Price', 'Đơn giá'],
                 'category' => ['Category', 'Danh mục', 'Type', 'Loại'],
+                'price_1yr' => ['1yr Contract', '1 Year', '1Yr', 'Replace DD by 12', 'Replaces DD by 12', '1 Năm'],
+                'price_2yr' => ['2yr Contract', '2 Year', '2Yr', 'Replace DD by 24', 'Replaces DD by 24', '2 Năm'],
+                'price_3yr' => ['3yr Contract', '3 Year', '3Yr', 'Replace DD by 36', 'Replaces DD by 36', '3 Năm'],
+                'price_4yr' => ['4yr Contract', '4 Year', '4Yr', 'Replace DD by 48', 'Replaces DD by 48', '4 Năm'],
+                'price_5yr' => ['5yr Contract', '5 Year', '5Yr', 'Replace DD by 60', 'Replaces DD by 60', '5 Năm'],
             ],
         ],
     ];
@@ -241,29 +246,16 @@ class SupplierPriceListController extends Controller
 
         $supplierType = $request->supplier_type ?? 'default';
         $preset = $this->supplierPresets[$supplierType] ?? $this->supplierPresets['default'];
-        $headers = collect($request->headers);
 
-        $mapping = [];
-
-        foreach ($preset['columnPatterns'] as $field => $patterns) {
-            foreach ($patterns as $pattern) {
-                $found = $headers->first(function ($header) use ($pattern) {
-                    if (!is_array($header) || !isset($header['name'])) {
-                        return false;
-                    }
-                    $headerName = strtolower(trim($header['name'] ?? ''));
-                    $patternLower = strtolower($pattern);
-                    return $headerName === $patternLower ||
-                        str_contains($headerName, $patternLower) ||
-                        str_contains($patternLower, $headerName);
-                });
-
-                if ($found && isset($found['index'])) {
-                    $mapping[$field] = $found['index'];
-                    break;
-                }
+        // Convert headers from [{index: 0, name: 'A'}, ...] to [0 => 'A', ...]
+        $fileHeaders = [];
+        foreach ($request->headers as $header) {
+            if (isset($header['index'])) {
+                $fileHeaders[$header['index']] = $header['name'] ?? '';
             }
         }
+
+        $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset);
 
         return response()->json([
             'success' => true,
@@ -406,8 +398,21 @@ class SupplierPriceListController extends Controller
 
                 // Tự động detect mapping nếu không có mapping được gửi lên hoặc mapping rỗng
                 $mapping = $sheetConfig['mapping'] ?? [];
+
+                // Luôn chạy auto-detect để tìm các cột có thể bị thiếu trong mapping gửi lên (ví dụ: các cột contract)
+                $detectedMapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset);
+
+                // Nếu mapping rỗng (không gửi từ UI), dùng full detected
                 if (empty($mapping) || !isset($mapping['sku']) || $mapping['sku'] === '') {
-                    $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset);
+                    $mapping = $detectedMapping;
+                } else {
+                    // Nếu đã có mapping từ UI, fill thêm các cột thiếu từ detected
+                    foreach ($detectedMapping as $field => $index) {
+                        if (!isset($mapping[$field]) || $mapping[$field] === '') {
+                            $mapping[$field] = $index;
+                            Log::debug("Added missing field '{$field}' to mapping from auto-detect (column {$index})");
+                        }
+                    }
                 }
 
                 // Kiểm tra cấu trúc sheet có hợp lệ không
@@ -575,14 +580,14 @@ class SupplierPriceListController extends Controller
             'list'
         ];
 
-        // Thử dòng được suggest trước
-        $rowsToCheck = [$suggestedRow];
+        $bestRow = null;
+        $maxMatches = 0;
 
-        // Thêm các dòng từ 1-25 (Fortinet có thể có header ở dòng cao hơn)
-        for ($i = 1; $i <= 25; $i++) {
-            if (!in_array($i, $rowsToCheck)) {
-                $rowsToCheck[] = $i;
-            }
+        // Quét 50 dòng đầu để tìm dòng header tốt nhất
+        // Fortinet có thể có nhiều dòng text ở trên
+        $rowsToCheck = range(1, 50);
+        if ($suggestedRow > 0 && !in_array($suggestedRow, $rowsToCheck)) {
+            array_unshift($rowsToCheck, $suggestedRow);
         }
 
         foreach ($rowsToCheck as $row) {
@@ -590,38 +595,57 @@ class SupplierPriceListController extends Controller
             $nonEmptyCount = 0;
 
             foreach (range('A', $highestColumn) as $col) {
-                $value = strtolower(trim($worksheet->getCell($col . $row)->getValue() ?? ''));
-                $rowValues[] = $value;
-                if (!empty($value)) {
+                // Đọc cell, clean ký tự xuống dòng
+                $cellVal = $worksheet->getCell($col . $row)->getValue();
+                // Clean basic
+                $val = strtolower(trim((string) $cellVal));
+                $val = preg_replace('/_x000d_|\r\n|\r|\n/i', ' ', $val);
+                $val = preg_replace('/\s+/', ' ', $val);
+                $val = trim($val);
+
+                $rowValues[] = $val;
+                if (!empty($val)) {
                     $nonEmptyCount++;
                 }
             }
 
-            // Cần ít nhất 3 cột có giá trị
-            if ($nonEmptyCount < 3) {
+            // Cần ít nhất 2 cột có giá trị
+            if ($nonEmptyCount < 2) {
                 continue;
             }
 
             // Kiểm tra xem có chứa từ khóa header không
             $keywordMatches = 0;
             foreach ($rowValues as $value) {
+                // Dùng logic clean aggressive để match keyword
+                $cleanValue = preg_replace('/[^a-z0-9]/', '', $value);
+
                 foreach ($headerKeywords as $keyword) {
-                    if (str_contains($value, $keyword)) {
+                    $cleanKeyword = preg_replace('/[^a-z0-9]/', '', strtolower($keyword));
+                    if (str_contains($cleanValue, $cleanKeyword)) {
                         $keywordMatches++;
+                        // Mỗi cell chỉ count 1 keyword để tránh duplicate match
                         break;
                     }
                 }
             }
 
-            // Nếu có ít nhất 2 từ khóa match, đây là header row
-            if ($keywordMatches >= 2) {
-                Log::debug("Found header at row {$row} with {$keywordMatches} keyword matches", ['rowValues' => array_filter($rowValues)]);
-                return $row;
+            // Nếu dòng này có nhiều match hơn dòng trước -> update best row
+            // Ưu tiên dòng có nhiều match nhất
+            if ($keywordMatches > $maxMatches) {
+                $maxMatches = $keywordMatches;
+                $bestRow = $row;
             }
         }
 
+        // Nếu tìm thấy dòng có >= 2 match -> Return
+        if ($maxMatches >= 2) {
+            Log::debug("Found best header at row {$bestRow} with {$maxMatches} matches");
+            return $bestRow;
+        }
+
         // Log thêm thông tin debug khi không tìm thấy header
-        Log::debug("Could not find header row - checked rows 1-25", [
+        Log::debug("Could not find header row - checked rows 1-50", [
             'sheetName' => $worksheet->getTitle(),
             'highestColumn' => $highestColumn
         ]);
@@ -647,19 +671,30 @@ class SupplierPriceListController extends Controller
                     if (empty($headerName))
                         continue;
 
-                    // Normalize header: loại bỏ Excel line breaks, _x000d_, và whitespace thừa
-                    $normalizedHeader = strtolower($headerName);
-                    $normalizedHeader = preg_replace('/_x000d_|\r\n|\r|\n/i', ' ', $normalizedHeader);
-                    $normalizedHeader = preg_replace('/\s+/', ' ', $normalizedHeader);
-                    $normalizedHeader = trim($normalizedHeader);
+                    // Normalize header: Chỉ giữ lại chữ cái và số để so sánh (Aggressive cleaning)
+                    $cleanHeader = preg_replace('/[^a-z0-9]/', '', strtolower($headerName));
+                    $cleanPattern = preg_replace('/[^a-z0-9]/', '', strtolower($pattern));
 
-                    // Match chính xác hoặc header chứa pattern (không ngược lại)
-                    $isMatch = $normalizedHeader === $patternLower ||
-                        str_contains($normalizedHeader, $patternLower);
+                    // Match chính xác hoặc header chứa pattern
+                    $isMatch = $cleanHeader === $cleanPattern ||
+                        str_contains($cleanHeader, $cleanPattern);
+
+                    // LOG DEBUG CHI TIẾT
+                    if ($field === 'price_1yr') {
+                        Log::debug("Checking price_1yr: Header='{$cleanHeader}' vs Pattern='{$cleanPattern}' -> Match=" . ($isMatch ? 'YES' : 'NO'));
+                    }
+
+                    // Enhancement: Specific exclusion for 'price' field to avoid matching Contract columns
+                    if ($field === 'price' && $isMatch) {
+                        $rawHeader = strtolower($headerName);
+                        if (str_contains($rawHeader, 'year') || str_contains($rawHeader, 'yr') || str_contains($rawHeader, 'contract')) {
+                            $isMatch = false;
+                        }
+                    }
 
                     if ($isMatch) {
                         $mapping[$field] = $index;
-                        Log::debug("Mapped field '{$field}' to column {$index} (header: {$normalizedHeader}, pattern: {$patternLower})");
+                        Log::debug("Mapped field '{$field}' to column {$index} (match: '{$cleanPattern}' inside '{$cleanHeader}')");
                         break 2;
                     }
                 }
