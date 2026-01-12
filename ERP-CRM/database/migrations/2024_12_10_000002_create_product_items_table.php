@@ -22,8 +22,8 @@ return new class extends Migration
             $table->integer('quantity')->default(1);
             $table->text('comments')->nullable();
             $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->onDelete('set null');
-            $table->foreignId('import_id')->nullable()->constrained('imports')->onDelete('set null');
-            $table->foreignId('export_id')->nullable()->constrained('exports')->onDelete('set null');
+            $table->unsignedBigInteger('import_id')->nullable();
+            $table->unsignedBigInteger('export_id')->nullable();
             $table->enum('status', ['in_stock', 'sold', 'damaged', 'transferred'])->default('in_stock');
             $table->timestamps();
 
@@ -34,6 +34,8 @@ return new class extends Migration
             $table->index('status');
             $table->index('warehouse_id');
             $table->index('sku');
+            $table->index('import_id');
+            $table->index('export_id');
         });
     }
 
