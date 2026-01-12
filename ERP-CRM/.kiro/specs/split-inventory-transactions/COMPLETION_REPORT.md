@@ -91,34 +91,50 @@ Dự án tách bảng `inventory_transactions` thành 3 bảng riêng biệt (`i
 ### Database Changes
 - **Bảng mới tạo**: 6 (imports, exports, transfers + 3 items tables)
 - **Bảng đã xóa**: 2 (inventory_transactions, inventory_transaction_items)
-- **Migrations**: 8 files
+- **Migrations mới**: 7 files (6 create tables + 1 drop old tables)
+- **Migrations cũ đã xóa**: 5 files
 
 ### Code Changes
 - **Models mới**: 6 files
 - **Models đã xóa**: 2 files
 - **Controllers cập nhật**: 3 files
 - **Services cập nhật**: 2 files
+- **Services đã xóa**: 3 files (không sử dụng)
 - **Seeders mới**: 3 files
+- **Seeders đã xóa**: 1 file
 - **Views cập nhật**: 1 file
 - **Factories cập nhật**: 1 file
+- **Requests đã xóa**: 1 file
+- **Backup files đã xóa**: 1 file
 
 ---
 
 ## 🔍 Kiểm Tra Hoàn Chỉnh
 
 ### ✅ Không còn references đến models cũ
-- ❌ Không tìm thấy `InventoryTransaction` trong app/
-- ❌ Không tìm thấy `InventoryTransactionItem` trong app/
-- ❌ Không tìm thấy `inventory_transaction_id` trong app/ và resources/
+- ✅ Không tìm thấy `InventoryTransaction` trong app/
+- ✅ Không tìm thấy `InventoryTransactionItem` trong app/
+- ✅ Không tìm thấy `inventory_transaction_id` trong app/ và resources/
+- ✅ Tất cả files không sử dụng đã được xóa
+- ✅ Tất cả migrations cũ đã được xóa
 
-### ✅ Files không sử dụng (có thể xóa sau)
-Các file sau vẫn reference `InventoryTransaction` nhưng **KHÔNG được sử dụng** trong hệ thống:
-- `app/Services/ExcelImportService.php` (không được gọi)
-- `app/Services/TransactionExporter.php` (không được gọi)
-- `app/Services/TransactionImporter.php` (không được gọi)
-- `app/Http/Requests/InventoryTransactionRequest.php` (không được sử dụng)
+### ✅ Files không sử dụng (đã xóa)
+Các file sau đã được xóa vì không được sử dụng trong hệ thống:
+- ✅ `app/Services/ExcelImportService.php` (đã xóa)
+- ✅ `app/Services/TransactionExporter.php` (đã xóa)
+- ✅ `app/Services/TransactionImporter.php` (đã xóa)
+- ✅ `app/Http/Requests/InventoryTransactionRequest.php` (đã xóa)
+- ✅ `app/Http/Controllers/_backup/InventoryTransactionController.php.bak` (đã xóa)
 
-**Khuyến nghị**: Có thể xóa hoặc refactor các file này sau nếu cần.
+### ✅ Migrations cũ (đã xóa)
+- ✅ `2024_01_01_000007_create_inventory_transactions_table.php` (đã xóa)
+- ✅ `2024_01_01_000008_create_inventory_transaction_items_table.php` (đã xóa)
+- ✅ `2024_12_10_000003_add_description_comments_to_transaction_items.php` (đã xóa)
+- ✅ `2025_12_24_074548_add_project_id_to_inventory_transactions_table.php` (đã xóa)
+- ✅ `2026_01_07_040000_add_import_export_id_to_product_items_table.php` (đã xóa - không cần vì product_items đã có import_id/export_id từ đầu)
+
+### ✅ Seeders cũ (đã xóa)
+- ✅ `database/seeders/InventoryTransactionSeeder.php` (đã xóa)
 
 ### ✅ ProductItem Model
 - Đã có `import_id` và `export_id` columns
