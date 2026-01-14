@@ -14,7 +14,7 @@
         </a>
     </div>
     
-    <form action="{{ route('imports.store') }}" method="POST" class="p-4">
+    <form action="{{ route('imports.store') }}" method="POST" class="p-4" id="importForm">
         @csrf
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -36,24 +36,6 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Kho nhập <span class="text-red-500">*</span>
-                </label>
-                <select name="warehouse_id" required 
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg @error('warehouse_id') border-red-500 @enderror">
-                    <option value="">-- Chọn kho --</option>
-                    @foreach($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" {{ old('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                            {{ $warehouse->name }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('warehouse_id')
-                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                @enderror
-            </div>
-
-            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nhân viên nhập</label>
                 <select name="employee_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Chọn nhân viên --</option>
@@ -65,16 +47,35 @@
                 </select>
             </div>
 
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Nhà cung cấp <span class="text-red-500">*</span>
+                </label>
+                <select name="supplier_id" required id="supplierSelect"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg @error('supplier_id') border-red-500 @enderror">
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
+                            {{ $supplier->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('supplier_id')
+                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú phiếu</label>
-                <textarea name="note" rows="2" 
-                          class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea name="note" rows="1" 
+                          class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" 
+                          placeholder="Nhập ghi chú về phiếu nhập kho (nếu có)">{{ old('note') }}</textarea>
             </div>
         </div>
 
         <div class="border-t border-gray-200 pt-4">
             <div class="flex justify-between items-center mb-3">
-                <h3 class="text-lg font-semibold text-gray-900">Danh sách sản phẩm nhập</h3>
+                <h3 class="text-lg font-semibold text-gray-900">Danh sách nhập kho</h3>
                 <button type="button" onclick="addItem()" 
                         class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
                     <i class="fas fa-plus mr-1"></i>Thêm sản phẩm
@@ -83,6 +84,32 @@
 
             <div id="itemsContainer" class="space-y-4">
                 <!-- Items will be added here -->
+            </div>
+        </div>
+
+        <!-- Bảng tổng hợp sản phẩm đã thêm -->
+        <div class="border-t border-gray-200 pt-4 mt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Tổng hợp sản phẩm đã thêm</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" id="summaryTable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã - Tên sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="summaryBody">
+                        <tr id="emptyRow">
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                                Chưa có sản phẩm nào được thêm
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -98,10 +125,12 @@
     </form>
 </div>
 
+
 @push('scripts')
 <script>
 let itemIndex = 0;
 const products = @json($products);
+const warehouses = @json($warehouses);
 
 function addItem(existingData = null) {
     const container = document.getElementById('itemsContainer');
@@ -110,7 +139,11 @@ function addItem(existingData = null) {
     itemDiv.dataset.index = itemIndex;
     
     const productOptions = products.map(p => 
-        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
+        `<option value="${p.id}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
+    ).join('');
+    
+    const warehouseOptions = warehouses.map(w => 
+        `<option value="${w.id}" ${existingData && existingData.warehouse_id == w.id ? 'selected' : ''}>${w.name}</option>`
     ).join('');
     
     itemDiv.innerHTML = `
@@ -122,93 +155,88 @@ function addItem(existingData = null) {
             </button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
-            <div class="md:col-span-5">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Mã sản phẩm / Part Number *</label>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
                 <select name="items[${itemIndex}][product_id]" required 
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                        class="product-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                        onchange="updateSummary()">
                     <option value="">-- Chọn sản phẩm --</option>
                     ${productOptions}
                 </select>
             </div>
-            <div class="md:col-span-2">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Kho nhập *</label>
+                <select name="items[${itemIndex}][warehouse_id]" required 
+                        class="warehouse-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                        onchange="updateSummary()">
+                    <option value="">-- Chọn kho nhập --</option>
+                    ${warehouseOptions}
+                </select>
+            </div>
+            <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
                 <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
-                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                       placeholder="1" onchange="updateSerialInfo(${itemIndex})">
-            </div>
-            <div class="md:col-span-5">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
-                <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
-                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
+                       required min="1" step="1" class="quantity-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                       placeholder="1" onchange="updateSerialInfo(${itemIndex}); updateSummary();">
             </div>
         </div>
         
-        <div>
-            <div class="flex justify-between items-center mb-2">
-                <label class="block text-xs font-medium text-gray-600">
-                    <i class="fas fa-barcode mr-1"></i>Danh sách Serial 
-                    <span class="text-gray-400">(mỗi serial = 1 sản phẩm, phần còn lại sẽ tự tạo mã tạm)</span>
-                </label>
-                <button type="button" onclick="addSerialField(${itemIndex})" 
-                        class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
-                    <i class="fas fa-plus mr-1"></i>Thêm Serial
-                </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Danh sách Serial</label>
+                <textarea name="items[${itemIndex}][serial_list]" rows="2"
+                          class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
+                          placeholder="Nhập danh sách số serial, mỗi số serial trên một dòng hoặc ngăn cách bằng dấu phẩy"
+                          onchange="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? existingData.serials.join(', ') : ''}</textarea>
+                <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789</p>
             </div>
-            <div id="serialContainer_${itemIndex}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                <!-- Serial fields will be added here -->
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
+                <textarea name="items[${itemIndex}][comments]" rows="2"
+                          class="comments-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                          placeholder="Ghi chú cho sản phẩm này (tùy chọn)"
+                          onchange="updateSummary()">${existingData ? existingData.comments || '' : ''}</textarea>
             </div>
-            <p id="serialInfo_${itemIndex}" class="text-xs text-gray-500 mt-2">
-                <i class="fas fa-info-circle mr-1"></i>Số lượng: 1, Serial đã nhập: 0 → 1 sản phẩm sẽ được tạo mã tạm (NOSKU)
-            </p>
         </div>
+        
+        <p id="serialInfo_${itemIndex}" class="text-xs text-gray-500">
+            <i class="fas fa-info-circle mr-1"></i>Số lượng: 1, Serial đã nhập: 0 → 1 sản phẩm sẽ được tạo mã tạm (NOSKU)
+        </p>
     `;
     
     container.appendChild(itemDiv);
     itemIndex++;
+    updateSummary();
 }
 
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
-    if (item) item.remove();
-}
-
-function addSerialField(itemIdx) {
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
-    const serialCount = container.querySelectorAll('.serial-field').length;
-    const serialDiv = document.createElement('div');
-    serialDiv.className = 'serial-field flex gap-1';
-    serialDiv.innerHTML = `
-        <input type="text" name="items[${itemIdx}][serials][]" 
-               class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
-               placeholder="Serial #${serialCount + 1}" onchange="updateSerialInfo(${itemIdx})">
-        <button type="button" onclick="removeSerialField(this, ${itemIdx})" 
-                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    container.appendChild(serialDiv);
-    updateSerialInfo(itemIdx);
-}
-
-function removeSerialField(btn, itemIdx) {
-    btn.parentElement.remove();
-    updateSerialInfo(itemIdx);
+    if (item) {
+        item.remove();
+        updateSummary();
+    }
 }
 
 function updateSerialInfo(itemIdx) {
-    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
+    const itemCard = document.querySelector(`[data-index="${itemIdx}"]`);
+    if (!itemCard) return;
+    
+    const qtyInput = itemCard.querySelector('.quantity-input');
+    const serialTextarea = itemCard.querySelector('.serial-textarea');
     const infoEl = document.getElementById(`serialInfo_${itemIdx}`);
     
-    if (!qtyInput || !container || !infoEl) return;
+    if (!qtyInput || !serialTextarea || !infoEl) return;
     
     const qty = parseInt(qtyInput.value) || 1;
-    const serialInputs = container.querySelectorAll('input[type="text"]');
+    const serialText = serialTextarea.value.trim();
     let filledSerials = 0;
-    serialInputs.forEach(input => {
-        if (input.value.trim()) filledSerials++;
-    });
+    
+    if (serialText) {
+        // Split by newline or comma
+        const serials = serialText.split(/[\n,]/).map(s => s.trim()).filter(s => s);
+        filledSerials = serials.length;
+    }
     
     const noSkuCount = Math.max(0, qty - filledSerials);
     
@@ -221,6 +249,58 @@ function updateSerialInfo(itemIdx) {
     } else {
         infoEl.innerHTML = `<i class="fas fa-check-circle mr-1 text-green-600"></i>
             <span class="text-green-600">Đủ serial cho ${qty} sản phẩm</span>`;
+    }
+}
+
+function updateSummary() {
+    const summaryBody = document.getElementById('summaryBody');
+    const emptyRow = document.getElementById('emptyRow');
+    const itemCards = document.querySelectorAll('.item-card');
+    
+    // Clear existing rows except empty row
+    summaryBody.querySelectorAll('tr:not(#emptyRow)').forEach(row => row.remove());
+    
+    let hasValidItems = false;
+    let stt = 1;
+    
+    itemCards.forEach((card, idx) => {
+        const productSelect = card.querySelector('.product-select');
+        const warehouseSelect = card.querySelector('.warehouse-select');
+        const qtyInput = card.querySelector('.quantity-input');
+        const commentsTextarea = card.querySelector('.comments-textarea');
+        
+        if (!productSelect || !productSelect.value) return;
+        
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const productCode = selectedOption.dataset.code || '';
+        const productName = selectedOption.dataset.name || '';
+        const productUnit = selectedOption.dataset.unit || 'Cái';
+        
+        const warehouseName = warehouseSelect && warehouseSelect.value 
+            ? warehouseSelect.options[warehouseSelect.selectedIndex].text 
+            : '<span class="text-red-500">Chưa chọn</span>';
+        
+        const qty = qtyInput ? qtyInput.value : 1;
+        const comments = commentsTextarea ? commentsTextarea.value : '';
+        
+        hasValidItems = true;
+        
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        row.innerHTML = `
+            <td class="px-4 py-3 text-sm text-gray-900">${stt}</td>
+            <td class="px-4 py-3 text-sm text-gray-900">${productCode} - ${productName}</td>
+            <td class="px-4 py-3 text-sm text-gray-900">${warehouseName}</td>
+            <td class="px-4 py-3 text-sm text-gray-900">${productUnit}</td>
+            <td class="px-4 py-3 text-sm text-gray-900 font-medium">${qty}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${comments || '-'}</td>
+        `;
+        summaryBody.appendChild(row);
+        stt++;
+    });
+    
+    if (emptyRow) {
+        emptyRow.style.display = hasValidItems ? 'none' : '';
     }
 }
 

@@ -49,10 +49,16 @@
                     <label class="text-sm text-gray-500">Mã phiếu</label>
                     <p class="font-medium text-gray-900">{{ $import->code }}</p>
                 </div>
+                @if($import->supplier)
                 <div>
-                    <label class="text-sm text-gray-500">Kho nhập</label>
-                    <p class="font-medium text-gray-900">{{ $import->warehouse->name }}</p>
+                    <label class="text-sm text-gray-500">Nhà cung cấp</label>
+                    <p class="font-medium text-gray-900">
+                        <a href="{{ route('suppliers.show', $import->supplier) }}" class="text-blue-600 hover:underline">
+                            {{ $import->supplier->name }}
+                        </a>
+                    </p>
                 </div>
+                @endif
             </div>
             
             <div class="space-y-3">
@@ -87,41 +93,35 @@
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Danh sách Serial</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        @php
-                            // Group items by product
-                            $groupedItems = $import->items->groupBy('product_id');
-                        @endphp
-                        @foreach($groupedItems as $productId => $items)
+                        @foreach($import->items as $item)
                             @php
-                                $firstItem = $items->first();
-                                $product = $firstItem->product;
-                                $totalQty = $items->sum('quantity');
+                                $product = $item->product;
                                 
                                 // Get serials: from ProductItem if approved, from serial_number JSON if pending
                                 if ($import->status === 'completed' && $productItems->count() > 0) {
-                                    // Approved: get from ProductItem
-                                    $serials = $productItems->where('product_id', $productId)->pluck('sku')->toArray();
+                                    // Approved: get from ProductItem for this specific item
+                                    $serials = $productItems->where('product_id', $item->product_id)
+                                        ->where('warehouse_id', $item->warehouse_id ?? $import->warehouse_id)
+                                        ->pluck('sku')->toArray();
                                 } else {
-                                    // Pending: get from serial_number JSON in transaction items
+                                    // Pending: get from serial_number JSON
                                     $serials = [];
-                                    foreach ($items as $item) {
-                                        if (!empty($item->serial_number)) {
-                                            $decoded = json_decode($item->serial_number, true);
-                                            if (is_array($decoded)) {
-                                                $serials = array_merge($serials, $decoded);
-                                            } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
-                                                $serials[] = $item->serial_number;
-                                            }
+                                    if (!empty($item->serial_number)) {
+                                        $decoded = json_decode($item->serial_number, true);
+                                        if (is_array($decoded)) {
+                                            $serials = $decoded;
+                                        } elseif (is_string($item->serial_number) && !empty(trim($item->serial_number))) {
+                                            $serials = [$item->serial_number];
                                         }
                                     }
                                 }
-                                $comments = $items->pluck('comments')->filter()->unique()->implode(', ');
                             @endphp
                             <tr>
                                 <td class="px-4 py-3">
@@ -130,9 +130,12 @@
                                 <td class="px-4 py-3">
                                     <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
                                 </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-sm text-gray-900">{{ $item->warehouse?->name ?? ($import->warehouse?->name ?? '-') }}</span>
+                                </td>
                                 <td class="px-4 py-3 text-center">
                                     <span class="px-3 py-1 text-sm font-bold bg-blue-100 text-blue-800 rounded-full">
-                                        {{ number_format($totalQty) }}
+                                        {{ number_format($item->quantity) }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3">
@@ -143,7 +146,7 @@
                                         
                                         // For pending: calculate how many items will be NOSKU
                                         if ($import->status === 'pending') {
-                                            $noSkuCount = $totalQty - $realSerials->count();
+                                            $noSkuCount = $item->quantity - $realSerials->count();
                                         }
                                     @endphp
                                     @if($realSerials->count() > 0)
@@ -170,7 +173,7 @@
                                         <span class="text-gray-400 text-sm">-</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-500">{{ $comments ?: '-' }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>

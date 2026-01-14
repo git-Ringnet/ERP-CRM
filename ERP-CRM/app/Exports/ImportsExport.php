@@ -20,12 +20,15 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
     public function collection()
     {
-        $query = Import::with(['warehouse', 'employee'])
+        $query = Import::with(['warehouse', 'supplier', 'employee'])
             ->orderBy('date', 'desc');
 
         // Apply filters
         if (!empty($this->filters['warehouse_id'])) {
             $query->where('warehouse_id', $this->filters['warehouse_id']);
+        }
+        if (!empty($this->filters['supplier_id'])) {
+            $query->where('supplier_id', $this->filters['supplier_id']);
         }
         if (!empty($this->filters['status'])) {
             $query->where('status', $this->filters['status']);
@@ -45,6 +48,7 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
         return [
             'Mã phiếu',
             'Ngày nhập',
+            'Nhà cung cấp',
             'Kho',
             'Nhân viên',
             'Tổng số lượng',
@@ -64,7 +68,8 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
         return [
             $import->code,
             $import->date->format('d/m/Y'),
-            $import->warehouse->name ?? '',
+            $import->supplier->name ?? '',
+            $import->warehouse->name ?? 'Nhiều kho',
             $import->employee->name ?? '',
             $import->total_qty,
             $statusLabels[$import->status] ?? $import->status,

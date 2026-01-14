@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Supplier extends Model
 {
@@ -39,6 +40,28 @@ class Supplier extends Model
     public function purchasePricings(): HasMany
     {
         return $this->hasMany(PurchasePricing::class);
+    }
+
+    public function supplierQuotations(): HasMany
+    {
+        return $this->hasMany(SupplierQuotation::class);
+    }
+
+    public function supplierPriceLists(): HasMany
+    {
+        return $this->hasMany(SupplierPriceList::class);
+    }
+
+    public function imports(): HasMany
+    {
+        return $this->hasMany(Import::class);
+    }
+
+    public function purchaseRequests(): BelongsToMany
+    {
+        return $this->belongsToMany(PurchaseRequest::class, 'purchase_request_suppliers')
+            ->withPivot('sent_at')
+            ->withTimestamps();
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder

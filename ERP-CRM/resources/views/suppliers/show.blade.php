@@ -30,6 +30,26 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main Content -->
         <div class="lg:col-span-2 space-y-6">
+            <!-- Thống kê tổng quan -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
+                    <div class="text-sm text-gray-500 mb-1">Đơn mua hàng</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ $stats['total_purchase_orders'] }}</div>
+                </div>
+                <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-green-500">
+                    <div class="text-sm text-gray-500 mb-1">Báo giá</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ $stats['total_quotations'] }}</div>
+                </div>
+                <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-purple-500">
+                    <div class="text-sm text-gray-500 mb-1">Bảng giá</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ $stats['total_price_lists'] }}</div>
+                </div>
+                <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-orange-500">
+                    <div class="text-sm text-gray-500 mb-1">Phiếu nhập</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ $stats['total_imports'] }}</div>
+                </div>
+            </div>
+
             <!-- Thông tin cơ bản -->
             <div class="bg-white rounded-lg shadow-sm">
                 <div class="px-6 py-4 border-b border-gray-200">
@@ -108,6 +128,207 @@
                 </div>
                 <div class="p-6">
                     <p class="text-gray-700 whitespace-pre-line">{{ $supplier->note }}</p>
+                </div>
+            </div>
+            @endif
+
+            <!-- Đơn mua hàng gần đây -->
+            @if($supplier->purchaseOrders->count() > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-shopping-cart mr-2 text-primary"></i>Đơn mua hàng gần đây
+                    </h2>
+                    <span class="text-sm text-gray-500">{{ $stats['total_purchase_orders'] }} đơn</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã đơn</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($supplier->purchaseOrders as $po)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{{ route('purchase-orders.show', $po->id) }}" class="text-primary hover:underline font-medium">
+                                        {{ $po->code }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $po->order_date->format('d/m/Y') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ number_format($po->total, 0, ',', '.') }} đ
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ $po->status_label }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
+
+            <!-- Phiếu nhập kho gần đây -->
+            @if($supplier->imports->count() > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-box mr-2 text-primary"></i>Phiếu nhập kho gần đây
+                    </h2>
+                    <span class="text-sm text-gray-500">{{ $stats['total_imports'] }} phiếu</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày nhập</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($supplier->imports as $import)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{{ route('imports.show', $import->id) }}" class="text-primary hover:underline font-medium">
+                                        {{ $import->code }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $import->date->format('d/m/Y') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $import->warehouse->name ?? 'N/A' }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ number_format($import->total_qty) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                        @if($import->status === 'completed') bg-green-100 text-green-800
+                                        @elseif($import->status === 'pending') bg-yellow-100 text-yellow-800
+                                        @else bg-gray-100 text-gray-800
+                                        @endif">
+                                        {{ $import->status_label }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
+
+            <!-- Báo giá gần đây -->
+            @if($supplier->supplierQuotations->count() > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-file-invoice mr-2 text-primary"></i>Báo giá gần đây
+                    </h2>
+                    <span class="text-sm text-gray-500">{{ $stats['total_quotations'] }} báo giá</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã báo giá</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày báo giá</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hiệu lực đến</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($supplier->supplierQuotations as $quotation)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{{ route('supplier-quotations.show', $quotation->id) }}" class="text-primary hover:underline font-medium">
+                                        {{ $quotation->code }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $quotation->quotation_date->format('d/m/Y') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $quotation->valid_until->format('d/m/Y') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ number_format($quotation->total, 0, ',', '.') }} đ
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                        @if($quotation->status === 'selected') bg-green-100 text-green-800
+                                        @elseif($quotation->status === 'pending') bg-yellow-100 text-yellow-800
+                                        @else bg-red-100 text-red-800
+                                        @endif">
+                                        {{ $quotation->status_label }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
+
+            <!-- Bảng giá -->
+            @if($supplier->supplierPriceLists->count() > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-list-alt mr-2 text-primary"></i>Bảng giá
+                    </h2>
+                    <span class="text-sm text-gray-500">{{ $stats['total_price_lists'] }} bảng giá</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã bảng giá</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hiệu lực</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach($supplier->supplierPriceLists as $priceList)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{{ route('supplier-price-lists.show', $priceList->id) }}" class="text-primary hover:underline font-medium">
+                                        {{ $priceList->code }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-900">
+                                    {{ $priceList->name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $priceList->effective_date ? $priceList->effective_date->format('d/m/Y') : 'N/A' }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                        {{ $priceList->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                        {{ $priceList->is_active ? 'Đang dùng' : 'Không dùng' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
             @endif

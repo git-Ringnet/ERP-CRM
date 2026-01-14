@@ -13,6 +13,7 @@ class ImportItem extends Model
     protected $fillable = [
         'import_id',
         'product_id',
+        'warehouse_id',
         'quantity',
         'unit',
         'serial_number',
@@ -39,5 +40,13 @@ class ImportItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Get the warehouse for this item.
+     */
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 }

@@ -40,7 +40,7 @@ class ImportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Import::with(['warehouse', 'employee', 'items']);
+        $query = Import::with(['warehouse', 'supplier', 'employee', 'items']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -82,9 +82,10 @@ class ImportController extends Controller
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
+        $suppliers = \App\Models\Supplier::orderBy('name')->get();
         $code = Import::generateCode();
 
-        return view('imports.create', compact('warehouses', 'products', 'employees', 'code'));
+        return view('imports.create', compact('warehouses', 'products', 'employees', 'suppliers', 'code'));
     }
 
     /**
@@ -139,10 +140,11 @@ class ImportController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
         }
 
-        $import->load(['items.product']);
+        $import->load(['items.product', 'items.warehouse']);
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
+        $suppliers = \App\Models\Supplier::orderBy('name')->get();
 
         // Prepare existing items data for JavaScript
         $existingItems = $import->items->map(function ($item) {
@@ -159,13 +161,14 @@ class ImportController extends Controller
 
             return [
                 'product_id' => $item->product_id,
+                'warehouse_id' => $item->warehouse_id,
                 'quantity' => $item->quantity,
                 'serials' => $serials,
                 'comments' => $item->comments ?? '',
             ];
         })->toArray();
 
-        return view('imports.edit', compact('import', 'warehouses', 'products', 'employees', 'existingItems'));
+        return view('imports.edit', compact('import', 'warehouses', 'products', 'employees', 'suppliers', 'existingItems'));
     }
 
     /**
@@ -188,7 +191,7 @@ class ImportController extends Controller
 
             // Update import
             $import->update([
-                'warehouse_id' => $data['warehouse_id'],
+                'supplier_id' => $data['supplier_id'] ?? null,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
                 'note' => $data['note'] ?? null,
@@ -197,12 +200,19 @@ class ImportController extends Controller
             // Create new items (store serials as JSON, ProductItem created on approve)
             $totalQty = 0;
             foreach ($data['items'] as $itemData) {
+                // Get serials from array or from serial_list textarea
                 $serials = $itemData['serials'] ?? [];
+                if (empty($serials) && !empty($itemData['serial_list'])) {
+                    // Parse serial_list (newline or comma separated)
+                    $serials = preg_split('/[\n,]+/', $itemData['serial_list']);
+                    $serials = array_map('trim', $serials);
+                }
                 // Filter out empty serials
                 $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
 
                 $import->items()->create([
                     'product_id' => $itemData['product_id'],
+                    'warehouse_id' => $itemData['warehouse_id'] ?? null,
                     'quantity' => $itemData['quantity'],
                     'serial_number' => !empty($serials) ? json_encode($serials) : null,
                     'comments' => $itemData['comments'] ?? null,

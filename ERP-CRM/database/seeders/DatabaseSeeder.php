@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
             // SupplierSeeder::class,
             // EmployeeSeeder::class,
             // ProductSeeder::class,          // Bật lại ProductSeeder
-            // WarehouseSeeder::class,
+            WarehouseSeeder::class,
             // InventorySeeder::class,
             // // New separate seeders for imports, exports, transfers
             // ImportSeeder::class,

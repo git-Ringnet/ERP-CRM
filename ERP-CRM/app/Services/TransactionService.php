@@ -48,7 +48,8 @@ class TransactionService
             } else {
                 $transaction = Import::create([
                     'code' => $data['code'] ?? Import::generateCode(),
-                    'warehouse_id' => $data['warehouse_id'],
+                    'warehouse_id' => $data['warehouse_id'] ?? null,
+                    'supplier_id' => $data['supplier_id'] ?? null,
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'total_qty' => 0,
@@ -66,12 +67,20 @@ class TransactionService
                 foreach ($data['items'] as $item) {
                     // Support both 'serials' and 'skus' keys for compatibility
                     $serials = $item['serials'] ?? $item['skus'] ?? [];
+                    
+                    // Parse serial_list if provided (textarea input)
+                    if (empty($serials) && !empty($item['serial_list'])) {
+                        $serials = preg_split('/[\n,]+/', $item['serial_list']);
+                        $serials = array_map('trim', $serials);
+                    }
+                    
                     // Filter out empty serials
                     $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
 
                     ImportItem::create([
                         'import_id' => $transaction->id,
                         'product_id' => $item['product_id'],
+                        'warehouse_id' => $item['warehouse_id'] ?? null,
                         'quantity' => $item['quantity'],
                         'unit' => $item['unit'] ?? null,
                         // Store serials as JSON for later use when approving
@@ -87,6 +96,13 @@ class TransactionService
             // Create ProductItems and update inventory when approving
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
+                    // Use item's warehouse_id if available, otherwise use transaction's warehouse_id
+                    $warehouseId = $item->warehouse_id ?? $transaction->warehouse_id;
+                    
+                    if (!$warehouseId) {
+                        throw new Exception("Không tìm thấy kho nhập cho sản phẩm {$item->product->name}");
+                    }
+                    
                     // Parse serials from JSON stored in serial_number
                     $serials = [];
                     if (!empty($item->serial_number)) {
@@ -109,14 +125,14 @@ class TransactionService
                         $item->quantity,
                         $serials,
                         $priceData,
-                        $transaction->warehouse_id,
+                        $warehouseId,
                         $transaction->id
                     );
 
                     // Update inventory - add stock
                     $this->inventoryService->updateStock(
                         $item->product_id,
-                        $transaction->warehouse_id,
+                        $warehouseId,
                         $item->quantity,
                         'add'
                     );
@@ -125,13 +141,13 @@ class TransactionService
                     if ($item->cost > 0) {
                         $avgCost = $this->inventoryService->calculateAverageCost(
                             $item->product_id,
-                            $transaction->warehouse_id,
+                            $warehouseId,
                             $item->cost,
                             $item->quantity
                         );
                         $this->inventoryService->updateAverageCost(
                             $item->product_id,
-                            $transaction->warehouse_id,
+                            $warehouseId,
                             $avgCost
                         );
                     }
@@ -140,7 +156,7 @@ class TransactionService
 
             DB::commit();
 
-            return $transaction->fresh(['items.product', 'warehouse', 'employee']);
+            return $transaction->fresh(['items.product', 'items.warehouse', 'warehouse', 'employee', 'supplier']);
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;

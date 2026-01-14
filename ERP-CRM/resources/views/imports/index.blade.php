@@ -73,6 +73,7 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhà cung cấp</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày nhập</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
@@ -89,7 +90,16 @@
                             {{ $import->code }}
                         </a>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ $import->warehouse->name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">
+                        @if($import->supplier)
+                            <a href="{{ route('suppliers.show', $import->supplier) }}" class="text-blue-600 hover:underline">
+                                {{ $import->supplier->name }}
+                            </a>
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ $import->warehouse->name ?? 'Nhiều kho' }}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">{{ $import->date->format('d/m/Y') }}</td>
                     <td class="px-4 py-3 text-center">
                         <span class="px-2 py-1 text-sm font-semibold bg-blue-100 text-blue-800 rounded">
@@ -129,7 +139,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Chưa có phiếu nhập kho nào.</p>
                     </td>

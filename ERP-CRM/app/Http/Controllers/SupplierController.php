@@ -87,13 +87,23 @@ class SupplierController extends Controller
      */
     public function show($id)
     {
-        $supplier = DB::table('suppliers')->where('id', $id)->first();
+        $supplier = \App\Models\Supplier::with([
+            'purchaseOrders' => fn($q) => $q->latest()->limit(10),
+            'supplierQuotations' => fn($q) => $q->latest()->limit(10),
+            'supplierPriceLists' => fn($q) => $q->latest()->limit(10),
+            'imports' => fn($q) => $q->latest()->limit(10),
+        ])->findOrFail($id);
 
-        if (!$supplier) {
-            abort(404);
-        }
+        // Statistics
+        $stats = [
+            'total_purchase_orders' => $supplier->purchaseOrders()->count(),
+            'total_quotations' => $supplier->supplierQuotations()->count(),
+            'total_price_lists' => $supplier->supplierPriceLists()->count(),
+            'total_imports' => $supplier->imports()->count(),
+            'total_purchase_value' => $supplier->purchaseOrders()->sum('total'),
+        ];
 
-        return view('suppliers.show', compact('supplier'));
+        return view('suppliers.show', compact('supplier', 'stats'));
     }
 
     /**

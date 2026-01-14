@@ -14,6 +14,7 @@ class Import extends Model
     protected $fillable = [
         'code',
         'warehouse_id',
+        'supplier_id',
         'date',
         'employee_id',
         'total_qty',
@@ -35,6 +36,14 @@ class Import extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * Get the supplier for this import.
+     */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     /**

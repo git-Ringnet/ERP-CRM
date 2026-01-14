@@ -26,18 +26,22 @@ class ImportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'supplier_id' => 'required|exists:suppliers,id',
             'date' => 'required|date',
             'employee_id' => 'nullable|exists:users,id',
             'note' => 'nullable|string|max:1000',
+            'reference_code' => 'nullable|string|max:100',
             
             // Items validation
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.comments' => 'nullable|string|max:500',
             
-            // Support for multiple serials
+            // Support for serial list (textarea)
+            'items.*.serial_list' => 'nullable|string',
+            // Support for multiple serials (array)
             'items.*.serials' => 'nullable|array',
             'items.*.serials.*' => 'nullable|string|max:100',
         ];
@@ -65,14 +69,20 @@ class ImportRequest extends FormRequest
 
         foreach ($items as $index => $item) {
             $productId = $item['product_id'] ?? null;
+            
+            // Get serials from array or from serial_list textarea
             $serials = $item['serials'] ?? [];
+            if (empty($serials) && !empty($item['serial_list'])) {
+                // Parse serial_list (newline or comma separated)
+                $serials = preg_split('/[\n,]+/', $item['serial_list']);
+            }
             
             if (empty($productId) || empty($serials)) {
                 continue;
             }
 
             // Filter out empty serials
-            $serials = array_filter($serials, fn($s) => !empty(trim($s)));
+            $serials = array_filter(array_map('trim', $serials), fn($s) => !empty($s));
             
             foreach ($serials as $serial) {
                 $serial = trim($serial);
@@ -126,14 +136,16 @@ class ImportRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'warehouse_id.required' => 'Vui lòng chọn kho nhập.',
-            'warehouse_id.exists' => 'Kho không tồn tại.',
+            'supplier_id.required' => 'Vui lòng chọn nhà cung cấp.',
+            'supplier_id.exists' => 'Nhà cung cấp không tồn tại.',
             'date.required' => 'Vui lòng chọn ngày nhập.',
             'date.date' => 'Ngày nhập không hợp lệ.',
             'items.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'items.min' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'items.*.product_id.required' => 'Vui lòng chọn sản phẩm.',
             'items.*.product_id.exists' => 'Sản phẩm không tồn tại.',
+            'items.*.warehouse_id.required' => 'Vui lòng chọn kho nhập.',
+            'items.*.warehouse_id.exists' => 'Kho không tồn tại.',
             'items.*.quantity.required' => 'Vui lòng nhập số lượng.',
             'items.*.quantity.integer' => 'Số lượng phải là số nguyên.',
             'items.*.quantity.min' => 'Số lượng phải lớn hơn 0.',
@@ -146,11 +158,12 @@ class ImportRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'warehouse_id' => 'kho nhập',
+            'supplier_id' => 'nhà cung cấp',
             'date' => 'ngày nhập',
             'employee_id' => 'nhân viên',
             'note' => 'ghi chú',
             'items.*.product_id' => 'sản phẩm',
+            'items.*.warehouse_id' => 'kho nhập',
             'items.*.quantity' => 'số lượng',
             'items.*.serial' => 'serial',
             'items.*.comments' => 'ghi chú',

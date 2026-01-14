@@ -15,7 +15,8 @@ return new class extends Migration
         Schema::create('imports', function (Blueprint $table) {
             $table->id();
             $table->string('code', 20)->unique();
-            $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
+            $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
+            $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->nullOnDelete();
             $table->date('date');
             $table->foreignId('employee_id')->nullable()->constrained('users')->nullOnDelete();
             $table->integer('total_qty')->default(0)->comment('Tổng số lượng');

@@ -28,7 +28,7 @@ class ExcelImportService
      * Generate Product Excel template
      * Requirements: 6.1, 6.3, 6.5
      * Updated: New format with warehouse column - import directly to warehouse from Excel
-     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Kho | Tên sản phẩm | Danh mục | Đơn vị | Bảo hành (tháng) | Ghi chú
+     * Columns: STT | Part Number / FRU | Tổng Slg kho vật lý | Slg. Chi tiết | Số Serial | Ngày nhập kho | Kho | Nhà cung cấp | Tên sản phẩm | Danh mục | Đơn vị | Bảo hành (tháng) | Ghi chú
      */
     public function generateProductTemplate(): string
     {
@@ -36,25 +36,25 @@ class ExcelImportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Sản Phẩm');
 
-        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Kho', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
+        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Kho', 'Nhà cung cấp', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:L1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
-        $sheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:M1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:M1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A1:M1')->getFont()->getColor()->setRGB('FFFFFF');
 
         $examples = [
-            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'WH0001', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
-            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', 'WH0001', '', '', '', '', ''],
-            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Kho Hà Nội', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
-            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', 'Kho Hà Nội', '', '', '', '', ''],
-            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', 'WH0002', '', '', '', '', ''],
-            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', 'WH0002', '', '', '', '', ''],
-            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'WH0001', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
-            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', 'WH0001', '', '', '', '', ''],
-            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', 'Kho Đà Nẵng', '', '', '', '', ''],
-            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', 'Kho Đà Nẵng', '', '', '', '', ''],
-            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', 'WH0003', '', '', '', '', ''],
-            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', 'WH0003', '', '', '', '', ''],
+            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
+            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', '', '', '', '', ''],
+            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
+            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', '', '', '', '', ''],
+            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', ''],
+            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', ''],
+            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'WH0001', 'Zyxel Vietnam', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
+            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', 'WH0001', 'Zyxel Vietnam', '', '', '', '', ''],
+            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', ''],
+            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', ''],
+            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', ''],
+            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', ''],
         ];
 
         $row = 2;
@@ -63,12 +63,12 @@ class ExcelImportService
             $row++;
         }
 
-        foreach (range('A', 'L') as $col) {
+        foreach (range('A', 'M') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $sheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $sheet->getStyle("A1:M{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'product_template_') . '.xlsx';
         $writer = new Xlsx($spreadsheet);
@@ -141,16 +141,25 @@ class ExcelImportService
         $headers = array_shift($rows);
         
         $productsCreated = 0;
+        $suppliersCreated = 0;
         $itemsImported = 0;
         $errors = [];
         $productCache = []; // Cache products to avoid repeated queries
         $warehouseCache = []; // Cache warehouses to avoid repeated queries
+        $supplierCache = []; // Cache suppliers to avoid repeated queries
         
         // Pre-load all active warehouses for lookup
         $allWarehouses = Warehouse::active()->get();
         foreach ($allWarehouses as $wh) {
             $warehouseCache[strtolower($wh->code)] = $wh;
             $warehouseCache[strtolower($wh->name)] = $wh;
+        }
+        
+        // Pre-load all suppliers for lookup
+        $allSuppliers = \App\Models\Supplier::all();
+        foreach ($allSuppliers as $sup) {
+            $supplierCache[strtolower($sup->code ?? '')] = $sup;
+            $supplierCache[strtolower($sup->name)] = $sup;
         }
         
         // Fallback warehouse if provided (for backward compatibility)
@@ -172,7 +181,7 @@ class ExcelImportService
                     continue;
                 }
                 
-                // Column mapping (updated with Kho column):
+                // Column mapping (updated with Nhà cung cấp column):
                 // 0: STT (ignored)
                 // 1: Part Number / FRU (product code)
                 // 2: Tổng Slg kho vật lý (ignored - for reference only)
@@ -180,22 +189,24 @@ class ExcelImportService
                 // 4: Số Serial
                 // 5: Ngày nhập kho
                 // 6: Kho (mã kho hoặc tên kho)
-                // 7: Tên sản phẩm
-                // 8: Danh mục
-                // 9: Đơn vị
-                // 10: Bảo hành (tháng)
-                // 11: Ghi chú
+                // 7: Nhà cung cấp (tên hoặc mã nhà cung cấp)
+                // 8: Tên sản phẩm
+                // 9: Danh mục
+                // 10: Đơn vị
+                // 11: Bảo hành (tháng)
+                // 12: Ghi chú
                 
                 $productCode = trim($row[1] ?? '');
                 $quantity = $row[3] ?? 1;
                 $serial = trim($row[4] ?? '');
                 $dateRaw = $row[5] ?? date('Y-m-d');
                 $warehouseInput = trim($row[6] ?? '');
-                $productName = trim($row[7] ?? '');
-                $category = strtoupper(trim($row[8] ?? 'A'));
-                $unit = trim($row[9] ?? 'Cái');
-                $warrantyMonths = $row[10] ?? null;
-                $note = trim($row[11] ?? '');
+                $supplierInput = trim($row[7] ?? '');
+                $productName = trim($row[8] ?? '');
+                $category = strtoupper(trim($row[9] ?? 'A'));
+                $unit = trim($row[10] ?? 'Cái');
+                $warrantyMonths = $row[11] ?? null;
+                $note = trim($row[12] ?? '');
                 
                 // Skip if no product code
                 if (empty($productCode)) {
@@ -230,6 +241,26 @@ class ExcelImportService
                 } else {
                     $errors[] = "Dòng {$rowNumber}: Thiếu thông tin kho";
                     continue;
+                }
+                
+                // Validate supplier (optional, auto-create if not exists)
+                $supplier = null;
+                if (!empty($supplierInput)) {
+                    $supplierKey = strtolower($supplierInput);
+                    if (isset($supplierCache[$supplierKey])) {
+                        $supplier = $supplierCache[$supplierKey];
+                    } else {
+                        // Auto-create supplier if not exists
+                        $supplier = \App\Models\Supplier::create([
+                            'code' => 'SUP' . str_pad(\App\Models\Supplier::count() + 1, 4, '0', STR_PAD_LEFT),
+                            'name' => $supplierInput,
+                            'email' => '',
+                            'phone' => '',
+                        ]);
+                        $supplierCache[$supplierKey] = $supplier;
+                        $supplierCache[strtolower($supplier->code)] = $supplier;
+                        $suppliersCreated++;
+                    }
                 }
                 
                 // Parse warranty months (optional)
@@ -282,12 +313,13 @@ class ExcelImportService
                 // Validate quantity
                 $quantity = is_numeric($quantity) && $quantity > 0 ? (int)$quantity : 1;
                 
-                // Group by date AND warehouse
-                $groupKey = $importDate . '_' . $warehouse->id;
+                // Group by date AND warehouse AND supplier
+                $groupKey = $importDate . '_' . $warehouse->id . '_' . ($supplier ? $supplier->id : '0');
                 if (!isset($groupedItems[$groupKey])) {
                     $groupedItems[$groupKey] = [
                         'date' => $importDate,
                         'warehouse_id' => $warehouse->id,
+                        'supplier_id' => $supplier ? $supplier->id : null,
                         'items' => [],
                     ];
                 }
@@ -358,11 +390,11 @@ class ExcelImportService
                 return ['success' => false, 'imported' => 0, 'errors' => $allDuplicateErrors];
             }
             
-            // Create import transactions for each date + warehouse combination
+            // Create import transactions for each date + warehouse + supplier combination
             foreach ($groupedItems as $groupKey => $group) {
                 $transactionData = [
-                    'type' => 'import',
                     'warehouse_id' => $group['warehouse_id'],
+                    'supplier_id' => $group['supplier_id'],
                     'date' => $group['date'],
                     'note' => 'Import từ Excel',
                     'items' => [],
@@ -392,13 +424,11 @@ class ExcelImportService
                 foreach ($productItems as $productItem) {
                     $transactionData['items'][] = [
                         'product_id' => $productItem['product_id'],
+                        'warehouse_id' => $group['warehouse_id'],
                         'quantity' => $productItem['quantity'],
-                        'skus' => $productItem['skus'],
-                        'cost_usd' => 0,
-                        'price_tiers' => [],
-                        'description' => null,
+                        'serials' => $productItem['skus'],
+                        'cost' => 0,
                         'comments' => !empty($productItem['comments']) ? implode('; ', array_unique($productItem['comments'])) : null,
-                        'create_product_items' => true,
                     ];
                 }
                 
@@ -411,11 +441,15 @@ class ExcelImportService
             if ($productsCreated > 0) {
                 $message .= " (tạo mới {$productsCreated} mã sản phẩm)";
             }
+            if ($suppliersCreated > 0) {
+                $message .= " (tạo mới {$suppliersCreated} nhà cung cấp)";
+            }
             
             return [
                 'success' => true, 
                 'imported' => $itemsImported,
                 'products_created' => $productsCreated,
+                'suppliers_created' => $suppliersCreated,
                 'errors' => [],
                 'message' => $message
             ];

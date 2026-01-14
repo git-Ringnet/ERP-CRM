@@ -16,6 +16,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('import_id')->constrained('imports')->cascadeOnDelete();
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
+            $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
             $table->integer('quantity');
             $table->string('unit', 20)->nullable();
             $table->text('serial_number')->nullable()->comment('JSON array of serials');
