@@ -6,58 +6,86 @@
 @section('content')
 <div class="bg-white rounded-lg shadow-sm">
     <!-- Header -->
-    <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div class="flex flex-col sm:flex-row gap-4 flex-1">
-            <!-- Search -->
-            <div class="relative flex-1">
-                <form action="{{ route('customers.index') }}" method="GET" class="flex">
+    <div class="p-4 border-b border-gray-200">
+        <form action="{{ route('customers.index') }}" method="GET">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                <!-- Search -->
+                <div class="relative lg:col-span-2">
                     <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Tìm kiếm..." 
-                           class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                           placeholder="Tìm kiếm theo mã, tên, email, SĐT..." 
+                           class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                     <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                </form>
-            </div>
-            
-            <!-- Filter by Type -->
-            <div class="flex items-center">
-                <select name="type" onchange="window.location.href='{{ route('customers.index') }}?type='+this.value+'&search={{ request('search') }}'" 
-                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="">Tất cả</option>
+                </div>
+                
+                <!-- Filter by Type -->
+                <select name="type" 
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">Tất cả loại</option>
                     <option value="normal" {{ request('type') == 'normal' ? 'selected' : '' }}>Thường</option>
                     <option value="vip" {{ request('type') == 'vip' ? 'selected' : '' }}>VIP</option>
                 </select>
+
+                <!-- Filter by Debt Limit -->
+                <select name="has_debt_limit" 
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">Hạn mức nợ</option>
+                    <option value="yes" {{ request('has_debt_limit') == 'yes' ? 'selected' : '' }}>Có hạn mức</option>
+                    <option value="no" {{ request('has_debt_limit') == 'no' ? 'selected' : '' }}>Không hạn mức</option>
+                </select>
             </div>
-        </div>
-        
-        <div class="flex flex-col sm:flex-row gap-2">
-            <!-- Export/Import Dropdown -->
-            <div class="relative" x-data="{ open: false }">
-                <button @click="open = !open" type="button"
-                        class="inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
-                    <i class="fas fa-file-excel mr-2"></i>
-                    <span class="hidden sm:inline">Xuất / Nhập</span>
-                    <span class="sm:hidden">Excel</span>
-                    <i class="fas fa-chevron-down ml-2 text-xs"></i>
-                </button>
-                <div x-show="open" @click.away="open = false" x-cloak
-                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <a href="{{ route('customers.export') }}?{{ http_build_query(request()->query()) }}" 
-                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
-                        <i class="fas fa-download mr-2 text-green-600"></i>Export Excel
-                    </a>
-                    <button type="button" onclick="openImportModal()"
-                            class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg">
-                        <i class="fas fa-upload mr-2 text-blue-600"></i>Import Excel
+
+            <div class="flex flex-wrap items-end gap-3">
+                <!-- Date From -->
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                    <input type="date" name="date_from" value="{{ request('date_from') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Date To -->
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                    <input type="date" name="date_to" value="{{ request('date_to') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex gap-2">
+                    <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm whitespace-nowrap">
+                        <i class="fas fa-filter mr-1"></i>Lọc
                     </button>
+                    <a href="{{ route('customers.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm whitespace-nowrap">
+                        <i class="fas fa-redo mr-1"></i>Đặt lại
+                    </a>
+                </div>
+
+                <!-- Export/Import & Add buttons -->
+                <div class="flex gap-2 ml-auto">
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" type="button"
+                                class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm whitespace-nowrap">
+                            <i class="fas fa-file-excel mr-2"></i>Excel
+                            <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-cloak
+                             class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                            <a href="{{ route('customers.export') }}?{{ http_build_query(request()->query()) }}" 
+                               class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
+                                <i class="fas fa-download mr-2 text-green-600"></i>Export Excel
+                            </a>
+                            <button type="button" onclick="openImportModal()"
+                                    class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg">
+                                <i class="fas fa-upload mr-2 text-blue-600"></i>Import Excel
+                            </button>
+                        </div>
+                    </div>
+                    <a href="{{ route('customers.create') }}" 
+                       class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm whitespace-nowrap">
+                        <i class="fas fa-plus mr-2"></i>Thêm
+                    </a>
                 </div>
             </div>
-            <a href="{{ route('customers.create') }}" 
-               class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
-                <i class="fas fa-plus mr-2"></i>
-                <span class="hidden sm:inline">Thêm khách hàng</span>
-                <span class="sm:hidden">Thêm</span>
-            </a>
-        </div>
+        </form>
     </div>
 
     <!-- Table - Desktop View -->
@@ -72,6 +100,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điện thoại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn mức nợ</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                 </tr>
             </thead>
@@ -106,6 +135,9 @@
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {{ number_format($customer->debt_limit) }} đ
                     </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {{ $customer->created_at->format('d/m/Y') }}
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
                         <div class="flex items-center justify-center gap-2">
                             <a href="{{ route('customers.show', $customer->id) }}" 
@@ -132,7 +164,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu khách hàng</p>
                     </td>
@@ -168,6 +200,7 @@
                     <div><i class="fas fa-user w-4"></i> {{ $customer->contact_person }}</div>
                 @endif
                 <div><i class="fas fa-money-bill w-4"></i> {{ number_format($customer->debt_limit) }} đ</div>
+                <div><i class="fas fa-calendar w-4"></i> {{ $customer->created_at->format('d/m/Y') }}</div>
             </div>
             <div class="flex gap-2">
                 <a href="{{ route('customers.show', $customer->id) }}" 

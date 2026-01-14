@@ -134,61 +134,21 @@ class CustomersImport implements ToCollection, WithHeadingRow
     public static function generateTemplate(): string
     {
         $spreadsheet = new Spreadsheet();
-
-        // Instructions Sheet
-        $instructionsSheet = $spreadsheet->createSheet(0);
-        $instructionsSheet->setTitle('Huong Dan');
-        $instructionsSheet->setCellValue('A1', 'Hướng Dẫn Import Khách Hàng');
-        $instructionsSheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-
-        $instructions = [
-            ['Cột', 'Mô tả', 'Bắt buộc', 'Định dạng'],
-            ['Mã KH', 'Mã khách hàng (duy nhất)', 'Có', 'Text (VD: KH001)'],
-            ['Tên khách hàng', 'Tên đầy đủ của khách hàng', 'Có', 'Text'],
-            ['Email', 'Địa chỉ email', 'Không', 'Email hợp lệ'],
-            ['Điện thoại', 'Số điện thoại', 'Không', 'Text'],
-            ['Địa chỉ', 'Địa chỉ khách hàng', 'Không', 'Text'],
-            ['Loại', 'Loại khách hàng', 'Không', 'VIP hoặc Thường (mặc định: Thường)'],
-            ['Mã số thuế', 'Mã số thuế doanh nghiệp', 'Không', 'Text'],
-            ['Website', 'Website của khách hàng', 'Không', 'URL'],
-            ['Người liên hệ', 'Tên người liên hệ', 'Không', 'Text'],
-            ['Hạn mức nợ', 'Hạn mức công nợ tối đa', 'Không', 'Số (VD: 500000000)'],
-            ['Số ngày nợ', 'Số ngày cho phép nợ', 'Không', 'Số (VD: 30)'],
-            ['Ghi chú', 'Ghi chú thêm', 'Không', 'Text'],
-        ];
-
-        $row = 3;
-        foreach ($instructions as $instruction) {
-            $instructionsSheet->fromArray($instruction, null, 'A' . $row);
-            $row++;
-        }
-
-        $instructionsSheet->getStyle('A3:D3')->getFont()->setBold(true);
-        $instructionsSheet->getStyle('A3:D3')->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-            ->getStartColor()->setRGB('E0E0E0');
-
-        foreach (range('A', 'D') as $col) {
-            $instructionsSheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        // Data Sheet
-        $dataSheet = $spreadsheet->createSheet(1);
-        $dataSheet->setTitle('Du Lieu');
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Khách Hàng');
 
         $headers = [
             'Mã KH', 'Tên khách hàng', 'Email', 'Điện thoại', 'Địa chỉ',
             'Loại', 'Mã số thuế', 'Website', 'Người liên hệ',
             'Hạn mức nợ', 'Số ngày nợ', 'Ghi chú'
         ];
-        $dataSheet->fromArray($headers, null, 'A1');
-        $dataSheet->getStyle('A1:L1')->getFont()->setBold(true);
-        $dataSheet->getStyle('A1:L1')->getFill()
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:L1')->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setRGB('4472C4');
-        $dataSheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
 
-        // Example rows
         $examples = [
             ['KH001', 'Công ty TNHH ABC', 'contact@abc.com.vn', '0901234567', '123 Nguyễn Văn Linh, Q7, TP.HCM', 'VIP', '0123456789', 'https://abc.com.vn', 'Nguyễn Văn A', 500000000, 30, 'Khách hàng lớn'],
             ['KH002', 'Công ty CP XYZ', 'info@xyz.vn', '0912345678', '456 Phạm Văn Đồng, Cầu Giấy, Hà Nội', 'VIP', '9876543210', 'https://xyz.vn', 'Trần Thị B', 300000000, 45, ''],
@@ -197,19 +157,17 @@ class CustomersImport implements ToCollection, WithHeadingRow
 
         $row = 2;
         foreach ($examples as $example) {
-            $dataSheet->fromArray($example, null, 'A' . $row);
+            $sheet->fromArray($example, null, 'A' . $row);
             $row++;
         }
 
         foreach (range('A', 'L') as $col) {
-            $dataSheet->getColumnDimension($col)->setAutoSize(true);
+            $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $dataSheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()
+        $sheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-
-        $spreadsheet->setActiveSheetIndex(1);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'customer_template_') . '.xlsx';
         $writer = new Xlsx($spreadsheet);

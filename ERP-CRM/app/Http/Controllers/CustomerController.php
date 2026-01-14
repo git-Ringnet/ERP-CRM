@@ -36,6 +36,25 @@ class CustomerController extends Controller
             $query->where('type', $request->type);
         }
 
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        // Filter by debt limit
+        if ($request->filled('has_debt_limit')) {
+            if ($request->has_debt_limit === 'yes') {
+                $query->where('debt_limit', '>', 0);
+            } else {
+                $query->where(function($q) {
+                    $q->whereNull('debt_limit')->orWhere('debt_limit', 0);
+                });
+            }
+        }
+
         $customers = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('customers.index', compact('customers'));
@@ -61,7 +80,7 @@ class CustomerController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:customers,code'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
             'address' => ['nullable', 'string'],
             'type' => ['required', 'in:normal,vip'],
             'tax_code' => ['nullable', 'string', 'max:50'],
@@ -70,6 +89,8 @@ class CustomerController extends Controller
             'debt_limit' => ['nullable', 'numeric', 'min:0'],
             'debt_days' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string'],
+        ], [
+            'phone.regex' => 'Số điện thoại chỉ được chứa số, dấu +, -, khoảng trắng và dấu ngoặc đơn.',
         ]);
 
         Customer::create($validated);
@@ -111,7 +132,7 @@ class CustomerController extends Controller
             'code' => ['required', 'string', 'max:50', Rule::unique('customers')->ignore($customer->id)],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
             'address' => ['nullable', 'string'],
             'type' => ['required', 'in:normal,vip'],
             'tax_code' => ['nullable', 'string', 'max:50'],
@@ -120,6 +141,8 @@ class CustomerController extends Controller
             'debt_limit' => ['nullable', 'numeric', 'min:0'],
             'debt_days' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string'],
+        ], [
+            'phone.regex' => 'Số điện thoại chỉ được chứa số, dấu +, -, khoảng trắng và dấu ngoặc đơn.',
         ]);
 
         $customer->update($validated);
