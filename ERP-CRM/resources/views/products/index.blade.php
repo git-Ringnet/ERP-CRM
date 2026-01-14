@@ -24,7 +24,7 @@
             <!-- Filter by Category (A-Z) -->
             <div class="flex items-center gap-2">
                 <select name="category" onchange="window.location.href='{{ route('products.index') }}?category='+this.value+'&search={{ request('search') }}'" 
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả danh mục</option>
                     @foreach($categories as $cat)
                         <option value="{{ $cat }}" {{ request('category') == $cat ? 'selected' : '' }}>{{ $cat }}</option>

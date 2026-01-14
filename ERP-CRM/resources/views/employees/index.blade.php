@@ -21,7 +21,7 @@
             <!-- Filter by Department -->
             <div class="flex items-center gap-2">
                 <select name="department" onchange="window.location.href='{{ route('employees.index') }}?department='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'" 
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả phòng ban</option>
                     <option value="Kinh doanh" {{ request('department') == 'Kinh doanh' ? 'selected' : '' }}>Kinh doanh</option>
                     <option value="Kỹ thuật" {{ request('department') == 'Kỹ thuật' ? 'selected' : '' }}>Kỹ thuật</option>
@@ -35,7 +35,7 @@
             <!-- Filter by Status -->
             <div class="flex items-center gap-2">
                 <select name="status" onchange="window.location.href='{{ route('employees.index') }}?status='+this.value+'&department={{ request('department') }}&search={{ request('search') }}'" 
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        class="border border-gray-300 rounded-lg px-7 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Tất cả trạng thái</option>
                     <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang làm việc</option>
                     <option value="leave" {{ request('status') == 'leave' ? 'selected' : '' }}>Nghỉ phép</option>

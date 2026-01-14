@@ -180,9 +180,13 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">
-                                {{ $transaction->warehouse->name }}
-                                @if($transaction->type === 'transfer' && $transaction->toWarehouse)
-                                    <span class="text-gray-400">→</span> {{ $transaction->toWarehouse->name }}
+                                @if($transaction->type === 'transfer')
+                                    {{ $transaction->fromWarehouse->name ?? 'N/A' }}
+                                    @if($transaction->toWarehouse)
+                                        <span class="text-gray-400">→</span> {{ $transaction->toWarehouse->name }}
+                                    @endif
+                                @else
+                                    {{ $transaction->warehouse->name ?? 'N/A' }}
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $transaction->date->format('d/m/Y') }}</td>
