@@ -8,8 +8,10 @@ use App\Models\SupplierQuotation;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
+use App\Models\Warehouse;
 use App\Mail\PurchaseOrderMail;
 use App\Exports\PurchaseOrdersExport;
+use App\Services\PurchaseImportSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -18,6 +20,12 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseOrderController extends Controller
 {
+    protected PurchaseImportSyncService $purchaseImportSyncService;
+
+    public function __construct(PurchaseImportSyncService $purchaseImportSyncService)
+    {
+        $this->purchaseImportSyncService = $purchaseImportSyncService;
+    }
     public function index(Request $request)
     {
         $query = PurchaseOrder::with(['supplier', 'items', 'supplierQuotation']);
@@ -26,7 +34,7 @@ class PurchaseOrderController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhereHas('supplier', fn($q) => $q->where('name', 'like', "%{$search}%"));
+                    ->orWhereHas('supplier', fn($q) => $q->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -100,7 +108,7 @@ class PurchaseOrderController extends Controller
             foreach ($validated['items'] as $item) {
                 $total = $item['quantity'] * $item['unit_price'];
                 $subtotal += $total;
-                
+
                 $order->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
@@ -195,7 +203,7 @@ class PurchaseOrderController extends Controller
             foreach ($validated['items'] as $item) {
                 $total = $item['quantity'] * $item['unit_price'];
                 $subtotal += $total;
-                
+
                 $purchaseOrder->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
@@ -326,17 +334,42 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Đơn hàng chưa sẵn sàng để nhận!');
         }
 
-        $purchaseOrder->update([
-            'status' => 'received',
-            'actual_delivery' => now(),
+        $request->validate([
+            'warehouse_id' => ['nullable', 'exists:warehouses,id'],
         ]);
 
-        // Cập nhật số lượng đã nhận
-        foreach ($purchaseOrder->items as $item) {
-            $item->update(['received_quantity' => $item->quantity]);
-        }
+        DB::beginTransaction();
+        try {
+            $purchaseOrder->update([
+                'status' => 'received',
+                'actual_delivery' => now(),
+            ]);
 
-        return back()->with('success', 'Đã xác nhận nhận hàng thành công!');
+            // Cập nhật số lượng đã nhận
+            foreach ($purchaseOrder->items as $item) {
+                $item->update(['received_quantity' => $item->quantity]);
+            }
+
+            // Auto-create import when PO is received
+            $purchaseOrder->load(['items', 'supplier']);
+            $warehouseId = $request->warehouse_id ?? null;
+
+            try {
+                $import = $this->purchaseImportSyncService->createImportFromPO($purchaseOrder, $warehouseId, false);
+                if ($import) {
+                    DB::commit();
+                    return back()->with('success', 'Đã nhận hàng và tạo phiếu nhập kho ' . $import->code . '. Vui lòng duyệt phiếu nhập kho để cập nhật tồn kho.');
+                }
+            } catch (\Exception $e) {
+                Log::warning("Could not create import for PO #{$purchaseOrder->id}: " . $e->getMessage());
+            }
+
+            DB::commit();
+            return back()->with('success', 'Đã xác nhận nhận hàng thành công!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 
     public function cancel(PurchaseOrder $purchaseOrder)
@@ -362,7 +395,21 @@ class PurchaseOrderController extends Controller
     {
         $filters = $request->only(['search', 'status', 'supplier_id']);
         $filename = 'don-mua-hang-' . date('Y-m-d') . '.xlsx';
-        
+
         return Excel::download(new PurchaseOrdersExport($filters), $filename);
+    }
+
+    /**
+     * Get linked import for a PO
+     */
+    public function getImport(PurchaseOrder $purchaseOrder)
+    {
+        $import = $this->purchaseImportSyncService->getImport($purchaseOrder);
+
+        if (!$import) {
+            return back()->with('error', 'Chưa có phiếu nhập kho liên kết với đơn mua hàng này.');
+        }
+
+        return redirect()->route('imports.show', $import);
     }
 }

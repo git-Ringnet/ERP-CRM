@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SupplierPriceList;
 use App\Models\SupplierPriceListItem;
 use App\Models\Supplier;
+use App\Models\ProductItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -860,5 +861,252 @@ class SupplierPriceListController extends Controller
                 'supplier' => $item->priceList->supplier->name,
             ]),
         ]);
+    }
+
+    /**
+     * Apply prices from a price list to ProductItems in inventory
+     * Matches by SKU and updates cost_usd
+     */
+    private function cleanSku($sku)
+    {
+        // Remove all non-printable characters and extra whitespace
+        return preg_replace('/[^\x20-\x7E]/', '', trim($sku));
+    }
+
+    public function applyPrices(Request $request, SupplierPriceList $supplierPriceList)
+    {
+        $request->validate([
+            'price_field' => 'required|in:list_price,price_1yr,price_2yr,price_3yr,price_4yr,price_5yr',
+            'update_mode' => 'required|in:all,empty_only',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $priceField = $request->price_field;
+            $updateMode = $request->update_mode;
+            $exchangeRate = $supplierPriceList->exchange_rate ?: 1;
+
+            // Get all items from this price list that have the selected price field
+            $priceListItems = $supplierPriceList->items()
+                ->whereNotNull($priceField)
+                ->where($priceField, '>', 0)
+                ->get();
+
+            $updated = 0;
+            $skipped = 0;
+            $notFound = 0;
+
+            foreach ($priceListItems as $priceItem) {
+                $cleanSku = $this->cleanSku($priceItem->sku);
+                if (empty($cleanSku))
+                    continue;
+
+                // Try exact match with cleaned SKU (check both ProductItem sku and Parent Product code)
+                $query = ProductItem::where(function ($q) use ($cleanSku) {
+                    $q->where('sku', $cleanSku)
+                        ->orWhereHas('product', function ($pq) use ($cleanSku) {
+                            $pq->where('code', $cleanSku);
+                        });
+                });
+
+                if ($updateMode === 'empty_only') {
+                    $query->where(function ($q) {
+                        $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
+                    });
+                }
+
+                $productItems = $query->get();
+
+                // Fallback: Try LIKE search if exact match failed
+                if ($productItems->isEmpty()) {
+                    $fallbackSku = trim($priceItem->sku);
+                    $fallbackQuery = ProductItem::where(function ($q) use ($fallbackSku) {
+                        $q->where('sku', 'LIKE', $fallbackSku)
+                            ->orWhereHas('product', function ($pq) use ($fallbackSku) {
+                                $pq->where('code', 'LIKE', $fallbackSku);
+                            });
+                    });
+                    if ($updateMode === 'empty_only') {
+                        $fallbackQuery->where(function ($q) {
+                            $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
+                        });
+                    }
+                    $productItems = $fallbackQuery->get();
+                }
+
+                if ($productItems->isEmpty()) {
+                    $notFound++;
+                    continue;
+                }
+
+                foreach ($productItems as $productItem) {
+                    $productItem->update([
+                        'cost_usd' => $priceItem->$priceField,
+                    ]);
+                    $updated++;
+                }
+            }
+
+            DB::commit();
+
+            $message = "Đã cập nhật giá cho {$updated} sản phẩm trong kho.";
+            if ($notFound > 0) {
+                $message .= " {$notFound} SKU không tìm thấy trong kho.";
+            }
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'updated' => $updated,
+                    'not_found' => $notFound,
+                ]);
+            }
+
+            return back()->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error applying prices: ' . $e->getMessage());
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lỗi áp dụng giá: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Lỗi áp dụng giá: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Preview which items will be affected by applying prices
+     */
+    public function previewApplyPrices(Request $request, SupplierPriceList $supplierPriceList)
+    {
+        $priceField = $request->get('price_field', 'list_price');
+        $updateMode = $request->get('update_mode', 'all');
+
+        // Get price list items with the selected price
+        $priceListItems = $supplierPriceList->items()
+            ->whereNotNull($priceField)
+            ->where($priceField, '>', 0)
+            ->get(['sku', 'product_name', $priceField]);
+
+        $preview = [];
+        $matchCount = 0;
+
+        foreach ($priceListItems as $priceItem) {
+            $cleanSku = $this->cleanSku($priceItem->sku);
+            if (empty($cleanSku))
+                continue;
+
+            $query = ProductItem::with('product', 'warehouse')
+                ->where(function ($q) use ($cleanSku) {
+                    $q->where('sku', $cleanSku)
+                        ->orWhereHas('product', function ($pq) use ($cleanSku) {
+                            $pq->where('code', $cleanSku);
+                        });
+                });
+
+            if ($updateMode === 'empty_only') {
+                $query->where(function ($q) {
+                    $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
+                });
+            }
+
+            $productItems = $query->get();
+
+            // Fallback: Try LIKE search if exact match failed
+            if ($productItems->isEmpty()) {
+                $fallbackSku = trim($priceItem->sku);
+                $fallbackQuery = ProductItem::with('product', 'warehouse')
+                    ->where(function ($q) use ($fallbackSku) {
+                        $q->where('sku', 'LIKE', $fallbackSku)
+                            ->orWhereHas('product', function ($pq) use ($fallbackSku) {
+                                $pq->where('code', 'LIKE', $fallbackSku);
+                            });
+                    });
+
+                if ($updateMode === 'empty_only') {
+                    $fallbackQuery->where(function ($q) {
+                        $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
+                    });
+                }
+                $productItems = $fallbackQuery->get();
+            }
+
+            foreach ($productItems as $productItem) {
+                $preview[] = [
+                    'sku' => $productItem->sku,
+                    'product_name' => $productItem->product->name ?? $priceItem->product_name,
+                    'warehouse' => $productItem->warehouse->name ?? 'N/A',
+                    'current_cost' => $productItem->cost_usd,
+                    'new_cost' => $priceItem->$priceField,
+                    'quantity' => $productItem->quantity,
+                ];
+                $matchCount++;
+            }
+
+            // Limit preview to 100 items for performance
+            if (count($preview) >= 100) {
+                break;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'total_price_items' => $priceListItems->count(),
+            'match_count' => $matchCount,
+            'preview' => $preview,
+            'exchange_rate' => $supplierPriceList->exchange_rate,
+            'currency' => $supplierPriceList->currency,
+        ]);
+    }
+
+    /**
+     * Update pricing configuration for a price list
+     */
+    public function updatePricingConfig(Request $request, SupplierPriceList $supplierPriceList)
+    {
+        $request->validate([
+            'supplier_discount_percent' => 'nullable|numeric|min:0|max:100',
+            'margin_percent' => 'nullable|numeric|min:0',
+            'shipping_percent' => 'nullable|numeric|min:0',
+            'shipping_fixed' => 'nullable|numeric|min:0',
+            'other_fees' => 'nullable|numeric|min:0',
+        ]);
+
+        try {
+            $supplierPriceList->update([
+                'supplier_discount_percent' => $request->input('supplier_discount_percent', 0),
+                'margin_percent' => $request->input('margin_percent', 0),
+                'shipping_percent' => $request->input('shipping_percent', 0),
+                'shipping_fixed' => $request->input('shipping_fixed', 0),
+                'other_fees' => $request->input('other_fees', 0),
+            ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đã lưu cấu hình giá thành công!',
+                ]);
+            }
+
+            return back()->with('success', 'Đã lưu cấu hình giá thành công!');
+
+        } catch (\Exception $e) {
+            Log::error('Error updating pricing config: ' . $e->getMessage());
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lỗi lưu cấu hình: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Lỗi lưu cấu hình: ' . $e->getMessage());
+        }
     }
 }

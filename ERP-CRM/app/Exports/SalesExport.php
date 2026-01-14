@@ -26,7 +26,7 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
             $search = $this->filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%");
+                    ->orWhere('customer_name', 'like', "%{$search}%");
             });
         }
         if (!empty($this->filters['status'])) {
@@ -38,13 +38,33 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
         if (!empty($this->filters['project_id'])) {
             $query->where('project_id', $this->filters['project_id']);
         }
+        if (!empty($this->filters['customer_id'])) {
+            $query->where('customer_id', $this->filters['customer_id']);
+        }
+        if (!empty($this->filters['date_from'])) {
+            try {
+                $dateFrom = \Carbon\Carbon::createFromFormat('d/m/Y', $this->filters['date_from'])->startOfDay();
+                $query->whereDate('date', '>=', $dateFrom);
+            } catch (\Exception $e) {
+            }
+        }
+        if (!empty($this->filters['date_to'])) {
+            try {
+                $dateTo = \Carbon\Carbon::createFromFormat('d/m/Y', $this->filters['date_to'])->endOfDay();
+                $query->whereDate('date', '<=', $dateTo);
+            } catch (\Exception $e) {
+            }
+        }
 
         return $query->get();
     }
 
+    private $rowNumber = 0;
+
     public function headings(): array
     {
         return [
+            'STT',
             'Mã đơn',
             'Loại',
             'Dự án',
@@ -67,6 +87,8 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
 
     public function map($sale): array
     {
+        $this->rowNumber++;
+
         $typeLabels = [
             'retail' => 'Bán lẻ',
             'project' => 'Bán theo dự án',
@@ -87,6 +109,7 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
         ];
 
         return [
+            $this->rowNumber,
             $sale->code,
             $typeLabels[$sale->type] ?? $sale->type,
             $sale->project ? $sale->project->code : '',

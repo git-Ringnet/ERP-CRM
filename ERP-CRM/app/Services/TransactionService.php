@@ -67,7 +67,7 @@ class TransactionService
                     // Support both 'serials' and 'skus' keys for compatibility
                     $serials = $item['serials'] ?? $item['skus'] ?? [];
                     // Filter out empty serials
-                    $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
+                    $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
 
                     ImportItem::create([
                         'import_id' => $transaction->id,
@@ -171,7 +171,8 @@ class TransactionService
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
                     $itemWarehouseId = is_array($item) ? ($item['warehouse_id'] ?? $warehouseId) : $warehouseId;
                     if (!$this->validateStock($productId, $itemWarehouseId, $quantity)) {
-                        throw new Exception("Insufficient stock for product ID {$productId}");
+                        $productName = \App\Models\Product::find($productId)->name ?? 'Unknown';
+                        throw new Exception("Không đủ tồn kho cho sản phẩm: {$productName}");
                     }
                 }
             }
@@ -332,7 +333,8 @@ class TransactionService
                     $productId = is_array($item) ? $item['product_id'] : $item->product_id;
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
                     if (!$this->validateStock($productId, $sourceWarehouseId, $quantity)) {
-                        throw new Exception("Insufficient stock for product ID {$productId} in source warehouse");
+                        $productName = \App\Models\Product::find($productId)->name ?? 'Unknown';
+                        throw new Exception("Không đủ tồn kho cho sản phẩm: {$productName} tại kho nguồn");
                     }
                 }
             }
@@ -369,7 +371,7 @@ class TransactionService
 
                     // Store selected product_item_ids as JSON (unique values only)
                     $productItemIds = $item['product_item_ids'] ?? [];
-                    $productItemIds = array_filter($productItemIds, fn ($id) => !empty($id));
+                    $productItemIds = array_filter($productItemIds, fn($id) => !empty($id));
                     $productItemIds = array_unique($productItemIds);
 
                     TransferItem::create([

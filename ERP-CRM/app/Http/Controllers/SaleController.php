@@ -8,7 +8,9 @@ use App\Models\SaleExpense;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\Warehouse;
 use App\Exports\SalesExport;
+use App\Services\SaleExportSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -17,6 +19,12 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class SaleController extends Controller
 {
+    protected SaleExportSyncService $saleExportSyncService;
+
+    public function __construct(SaleExportSyncService $saleExportSyncService)
+    {
+        $this->saleExportSyncService = $saleExportSyncService;
+    }
     /**
      * Display a listing of sales with search and filter functionality.
      */
@@ -27,9 +35,9 @@ class SaleController extends Controller
         // Search functionality
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%");
+                    ->orWhere('customer_name', 'like', "%{$search}%");
             });
         }
 
@@ -48,10 +56,35 @@ class SaleController extends Controller
             $query->where('project_id', $request->project_id);
         }
 
+        // Filter by customer
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', $request->customer_id);
+        }
+
+        // Filter by specific date range
+        if ($request->filled('date_from')) {
+            try {
+                $dateFrom = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_from)->startOfDay();
+                $query->whereDate('date', '>=', $dateFrom);
+            } catch (\Exception $e) {
+                // Ignore invalid date format
+            }
+        }
+        if ($request->filled('date_to')) {
+            try {
+                $dateTo = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_to)->endOfDay();
+                $query->whereDate('date', '<=', $dateTo);
+            } catch (\Exception $e) {
+                // Ignore invalid date format
+            }
+        }
+
         $sales = $query->with('project')->orderBy('created_at', 'desc')->paginate(10);
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        // Optimize: Select only needed columns
+        $customers = Customer::select('id', 'name')->orderBy('name')->get();
 
-        return view('sales.index', compact('sales', 'projects'));
+        return view('sales.index', compact('sales', 'projects', 'customers'));
     }
 
     /**
@@ -62,14 +95,14 @@ class SaleController extends Controller
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
-        
+
         // Generate sale code
         $code = $this->generateSaleCode();
-        
+
         // Pre-select project if passed from project detail page
         $selectedProjectId = $request->get('project_id');
         $selectedProject = $selectedProjectId ? Project::find($selectedProjectId) : null;
-        
+
         return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject'));
     }
 
@@ -80,12 +113,12 @@ class SaleController extends Controller
     {
         $date = date('Ymd');
         $prefix = 'SO-' . $date . '-';
-        
+
         // Get the last sale code for today
         $lastSale = Sale::where('code', 'like', $prefix . '%')
             ->orderBy('code', 'desc')
             ->first();
-        
+
         if ($lastSale) {
             // Extract the sequence number and increment
             $lastNumber = intval(substr($lastSale->code, -4));
@@ -93,7 +126,7 @@ class SaleController extends Controller
         } else {
             $newNumber = 1;
         }
-        
+
         return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 
@@ -137,15 +170,15 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             $code = $validated['code'];
-            
+
             $customer = Customer::find($validated['customer_id']);
-            
+
             // Calculate totals
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
                 $subtotal += $item['quantity'] * $item['price'];
             }
-            
+
             $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
             $afterDiscount = $subtotal - $discountAmount;
             $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
@@ -179,15 +212,15 @@ class SaleController extends Controller
                 $product = Product::find($item['product_id']);
                 $costPrice = $product->cost ?? 0;
                 $quantity = $item['quantity'];
-                
+
                 // Use item-level project_id if set, otherwise use sale-level project_id
                 $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
-                
+
                 // Get warranty: use input value if provided, otherwise use product default
-                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== '' 
-                    ? (int)$item['warranty_months'] 
+                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
+                    ? (int) $item['warranty_months']
                     : $product->warranty_months;
-                
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -253,7 +286,7 @@ class SaleController extends Controller
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
-        
+
         return view('sales.edit', compact('sale', 'customers', 'products', 'projects'));
     }
 
@@ -295,13 +328,13 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             $customer = Customer::find($validated['customer_id']);
-            
+
             // Calculate totals
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
                 $subtotal += $item['quantity'] * $item['price'];
             }
-            
+
             $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
             $afterDiscount = $subtotal - $discountAmount;
             $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
@@ -328,20 +361,20 @@ class SaleController extends Controller
 
             // Delete old items and create new ones with cost price and project
             $sale->items()->delete();
-            
+
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
                 $costPrice = $product->cost ?? 0;
                 $quantity = $item['quantity'];
-                
+
                 // Use item-level project_id if set, otherwise use sale-level project_id
                 $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
-                
+
                 // Get warranty: use input value if provided, otherwise use product default
-                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== '' 
-                    ? (int)$item['warranty_months'] 
+                $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
+                    ? (int) $item['warranty_months']
                     : $product->warranty_months;
-                
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -398,7 +431,7 @@ class SaleController extends Controller
     {
         $filters = $request->only(['search', 'status', 'type', 'project_id']);
         $filename = 'don-hang-ban-' . date('Y-m-d') . '.xlsx';
-        
+
         return Excel::download(new SalesExport($filters), $filename);
     }
 
@@ -408,7 +441,7 @@ class SaleController extends Controller
     public function generatePdf(Sale $sale)
     {
         $sale->load('items', 'customer');
-        
+
         // TODO: Implement PDF generation with DomPDF or similar
         // For now, return a simple view that can be printed
         return view('sales.invoice', compact('sale'));
@@ -420,14 +453,14 @@ class SaleController extends Controller
     public function sendEmail(Sale $sale)
     {
         $sale->load('items', 'customer');
-        
+
         if (!$sale->customer || !$sale->customer->email) {
             return back()->with('error', 'Khách hàng không có email.');
         }
 
         try {
             Mail::to($sale->customer->email)->send(new \App\Mail\SaleInvoiceMail($sale));
-            
+
             return back()->with('success', 'Đã gửi hóa đơn qua email đến ' . $sale->customer->email);
         } catch (\Exception $e) {
             return back()->with('error', 'Không thể gửi email: ' . $e->getMessage());
@@ -445,7 +478,7 @@ class SaleController extends Controller
         ]);
 
         $sales = Sale::with(['items', 'customer'])->whereIn('id', $validated['sale_ids'])->get();
-        
+
         $sent = 0;
         $failed = 0;
         $noEmail = 0;
@@ -497,7 +530,7 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             $newPaidAmount = $sale->paid_amount + $validated['amount'];
-            
+
             if ($newPaidAmount > $sale->total) {
                 return back()->with('error', 'Số tiền thanh toán vượt quá tổng đơn hàng.');
             }
@@ -507,7 +540,7 @@ class SaleController extends Controller
             $sale->save();
 
             // TODO: Create payment record in payments table
-            
+
             DB::commit();
             return back()->with('success', 'Đã ghi nhận thanh toán ' . number_format($validated['amount']) . ' đ');
         } catch (\Exception $e) {
@@ -518,11 +551,13 @@ class SaleController extends Controller
 
     /**
      * Update sale status
+     * Auto-creates export when status changes to 'approved'
      */
     public function updateStatus(Request $request, Sale $sale)
     {
         $validated = $request->validate([
             'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
+            'warehouse_id' => ['nullable', 'exists:warehouses,id'],
         ]);
 
         $oldStatus = $sale->status;
@@ -541,17 +576,77 @@ class SaleController extends Controller
             return back()->with('error', 'Không thể chuyển trạng thái từ "' . $sale->status_label . '" sang trạng thái này.');
         }
 
-        $sale->status = $newStatus;
-        $sale->save();
+        // Logic Check: Prevent Shipping/Completed if Export is not completed
+        if (in_array($newStatus, ['shipping', 'completed'])) {
+            $export = $this->saleExportSyncService->getExport($sale);
+            if ($export && $export->status !== 'completed') {
+                return back()->with('error', "Không thể giao hàng. Vui lòng duyệt phiếu xuất kho {$export->code} để xác nhận trừ tồn kho trước.");
+            }
+        }
 
-        $statusLabels = [
-            'pending' => 'Chờ duyệt',
-            'approved' => 'Đã duyệt',
-            'shipping' => 'Đang giao hàng',
-            'completed' => 'Hoàn thành',
-            'cancelled' => 'Đã hủy',
-        ];
+        DB::beginTransaction();
+        try {
+            $sale->status = $newStatus;
+            $sale->save();
 
-        return back()->with('success', 'Đã cập nhật trạng thái đơn hàng thành "' . $statusLabels[$newStatus] . '"');
+            // Auto-create export when sale is approved
+            if ($newStatus === 'approved' && $oldStatus === 'pending') {
+                $sale->load('items');
+                $warehouseId = $validated['warehouse_id'] ?? null;
+
+                try {
+                    $export = $this->saleExportSyncService->createExportFromSale($sale, $warehouseId, false);
+                    if ($export) {
+                        DB::commit();
+                        return back()->with('success', 'Đã duyệt đơn hàng và tạo phiếu xuất kho ' . $export->code . '. Vui lòng duyệt phiếu xuất kho để trừ tồn kho.');
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail the status update
+                    \Log::warning("Could not create export for Sale #{$sale->id}: " . $e->getMessage());
+                }
+            }
+
+            // Auto-cancel export/restore stock when sale is cancelled
+            if ($newStatus === 'cancelled') {
+                try {
+                    $this->saleExportSyncService->cancelExportFromSale($sale);
+                } catch (\Exception $e) {
+                    // Log error but generally we might want to fail the cancellation if stock return fails?
+                    // For now, let's just log it to avoid blocking user flow if something minor breaks.
+                    // But technically, if stock return fails, we should probably rollback and tell user.
+                    // Let's re-throw to trigger rollback in the main catch block.
+                    throw new \Exception("Không thể hủy phiếu xuất kho liên quan: " . $e->getMessage());
+                }
+            }
+
+            DB::commit();
+
+            $statusLabels = [
+                'pending' => 'Chờ duyệt',
+                'approved' => 'Đã duyệt',
+                'shipping' => 'Đang giao hàng',
+                'completed' => 'Hoàn thành',
+                'cancelled' => 'Đã hủy',
+            ];
+
+            return back()->with('success', 'Đã cập nhật trạng thái đơn hàng thành "' . $statusLabels[$newStatus] . '"');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get linked export for a sale
+     */
+    public function getExport(Sale $sale)
+    {
+        $export = $this->saleExportSyncService->getExport($sale);
+
+        if (!$export) {
+            return back()->with('error', 'Chưa có phiếu xuất kho liên kết với đơn hàng này.');
+        }
+
+        return redirect()->route('exports.show', $export);
     }
 }

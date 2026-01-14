@@ -145,9 +145,14 @@ Route::middleware(['auth'])->group(function () {
     // Customer Debt Management routes
     Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
     Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');
+    Route::get('/customer-debts/aging-report', [CustomerDebtController::class, 'agingReport'])->name('customer-debts.aging-report');
+    Route::get('/customer-debts/aging-report/export', [CustomerDebtController::class, 'exportAgingReport'])->name('customer-debts.aging-report.export');
     Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
     Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
     Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
+
+    // Sale-to-Export sync route
+    Route::get('/sales/{sale}/export', [SaleController::class, 'getExport'])->name('sales.export.link');
 
     // Quotation routes (Báo giá)
     Route::get('/quotations/export/excel', [QuotationController::class, 'export'])->name('quotations.export');
@@ -199,6 +204,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
+    Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
 
     // Purchase Pricing routes (Giá nhập, giá kho)
     Route::resource('purchase-pricings', PurchasePricingController::class);
@@ -224,6 +230,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
     Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
     Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
+    Route::post('/supplier-price-lists/{supplierPriceList}/apply-prices', [\App\Http\Controllers\SupplierPriceListController::class, 'applyPrices'])->name('supplier-price-lists.apply-prices');
+    Route::get('/supplier-price-lists/{supplierPriceList}/preview-apply', [\App\Http\Controllers\SupplierPriceListController::class, 'previewApplyPrices'])->name('supplier-price-lists.preview-apply');
+    Route::post('/supplier-price-lists/{supplierPriceList}/update-pricing-config', [\App\Http\Controllers\SupplierPriceListController::class, 'updatePricingConfig'])->name('supplier-price-lists.update-pricing-config');
 
     // Notification routes (Thông báo)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

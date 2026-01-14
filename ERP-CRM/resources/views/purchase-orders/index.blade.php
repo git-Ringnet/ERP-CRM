@@ -80,8 +80,9 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhà cung cấp</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày tạo</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao dự kiến</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian đặt</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao DK</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
@@ -89,11 +90,70 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($orders as $order)
-                    <tr class="hover:bg-gray-50">
+                    @php
+                        // Calculate order duration and status
+                        $orderDate = $order->order_date;
+                        $daysElapsed = $orderDate->diffInDays(now());
+                        $weeksElapsed = floor($daysElapsed / 7);
+                        
+                        // Expected arrival: 4-6 weeks if not set
+                        $expectedMinDate = $orderDate->copy()->addWeeks(4);
+                        $expectedMaxDate = $orderDate->copy()->addWeeks(6);
+                        
+                        // Status indicators
+                        $isOverdue = $order->expected_delivery && now()->gt($order->expected_delivery) && $order->status !== 'received' && $order->status !== 'cancelled';
+                        $isNearDelivery = $order->expected_delivery && now()->diffInDays($order->expected_delivery, false) <= 7 && now()->diffInDays($order->expected_delivery, false) >= 0 && $order->status !== 'received' && $order->status !== 'cancelled';
+                        $isLongWaiting = $daysElapsed > 42 && $order->status !== 'received' && $order->status !== 'cancelled';
+                        
+                        // Row class
+                        $rowClass = $isOverdue ? 'bg-red-50 hover:bg-red-100' : ($isLongWaiting ? 'bg-orange-50 hover:bg-orange-100' : ($isNearDelivery ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'));
+                    @endphp
+                    <tr class="{{ $rowClass }}">
                         <td class="px-4 py-3 font-medium text-primary">{{ $order->code }}</td>
                         <td class="px-4 py-3">{{ $order->supplier->name }}</td>
                         <td class="px-4 py-3">{{ $order->order_date->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3">{{ $order->expected_delivery ? $order->expected_delivery->format('d/m/Y') : '-' }}</td>
+                        <td class="px-4 py-3">
+                            @if($order->status !== 'received' && $order->status !== 'cancelled')
+                                <div class="flex items-center">
+                                    <span class="text-sm font-medium {{ $isLongWaiting ? 'text-orange-600' : 'text-gray-600' }}">
+                                        {{ $daysElapsed }} ngày
+                                    </span>
+                                    <span class="text-xs text-gray-400 ml-1">({{ $weeksElapsed }}w)</span>
+                                </div>
+                                @if($isLongWaiting)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 mt-1">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i> Đã lâu
+                                    </span>
+                                @elseif($isNearDelivery)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 mt-1">
+                                        <i class="fas fa-shipping-fast mr-1"></i> Sắp về
+                                    </span>
+                                @elseif($isOverdue)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 mt-1 animate-pulse">
+                                        <i class="fas fa-exclamation-circle mr-1"></i> Quá hạn
+                                    </span>
+                                @endif
+                            @else
+                                <span class="text-gray-400 text-sm">-</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3">
+                            @if($order->expected_delivery)
+                                <div class="{{ $isOverdue ? 'text-red-600 font-medium' : ($isNearDelivery ? 'text-green-600' : 'text-gray-600') }}">
+                                    {{ $order->expected_delivery->format('d/m/Y') }}
+                                </div>
+                                @if($isOverdue)
+                                    <span class="text-xs text-red-500">Quá {{ now()->diffInDays($order->expected_delivery) }} ngày</span>
+                                @elseif($isNearDelivery)
+                                    <span class="text-xs text-green-500">Còn {{ now()->diffInDays($order->expected_delivery, false) }} ngày</span>
+                                @endif
+                            @elseif($order->status !== 'received' && $order->status !== 'cancelled')
+                                <div class="text-gray-400 text-sm">{{ $expectedMinDate->format('d/m') }} - {{ $expectedMaxDate->format('d/m') }}</div>
+                                <span class="text-xs text-gray-400">4-6 tuần</span>
+                            @else
+                                <span class="text-gray-400">-</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-right font-semibold">{{ number_format($order->total) }}đ</td>
                         <td class="px-4 py-3">
                             @switch($order->status)
@@ -122,18 +182,18 @@
                         </td>
                         <td class="px-4 py-3 text-center">
                             <div class="flex items-center justify-center space-x-1">
-                                <a href="{{ route('purchase-orders.show', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200" title="Xem">
+                                <a href="{{ route('purchase-orders.show', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Xem">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 @if(in_array($order->status, ['draft', 'pending_approval']))
-                                    <a href="{{ route('purchase-orders.edit', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200" title="Sửa">
+                                    <a href="{{ route('purchase-orders.edit', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-all" title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                 @endif
                                 @if($order->status == 'draft')
                                     <form action="{{ route('purchase-orders.submit-approval', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200" title="Gửi duyệt">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-all" title="Gửi duyệt">
                                             <i class="fas fa-paper-plane"></i>
                                         </button>
                                     </form>
@@ -141,7 +201,7 @@
                                 @if($order->status == 'pending_approval')
                                     <form action="{{ route('purchase-orders.approve', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-100 text-green-600 rounded-lg hover:bg-green-200" title="Duyệt">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-all transform hover:scale-110" title="Duyệt">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
@@ -149,12 +209,12 @@
                                 @if($order->status == 'approved')
                                     <form action="{{ route('purchase-orders.send', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200" title="Gửi NCC">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-all" title="Gửi NCC">
                                             <i class="fas fa-envelope"></i>
                                         </button>
                                     </form>
                                 @endif
-                                <a href="{{ route('purchase-orders.print', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200" title="In" target="_blank">
+                                <a href="{{ route('purchase-orders.print', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" title="In" target="_blank">
                                     <i class="fas fa-print"></i>
                                 </a>
                             </div>
@@ -162,7 +222,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
                     </tr>
                     @endforelse
                 </tbody>
