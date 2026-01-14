@@ -70,6 +70,14 @@ class Customer extends Model
     }
 
     /**
+     * Relationship with Projects
+     */
+    public function projects()
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
      * Relationship with PaymentHistory
      */
     public function paymentHistories()

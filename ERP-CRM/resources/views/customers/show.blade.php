@@ -118,6 +118,89 @@
                 </div>
             </div>
             @endif
+
+            <!-- Danh sách dự án -->
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-project-diagram mr-2 text-primary"></i>Dự án liên quan
+                        <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            {{ $customer->projects->count() }}
+                        </span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    @if($customer->projects->isEmpty())
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-folder-open text-4xl mb-2"></i>
+                            <p>Chưa có dự án nào</p>
+                        </div>
+                    @else
+                        <div class="space-y-4">
+                            @foreach($customer->projects as $project)
+                            <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex-1">
+                                        <a href="{{ route('projects.show', $project->id) }}" 
+                                           class="text-lg font-semibold text-primary hover:underline">
+                                            {{ $project->code }}
+                                        </a>
+                                        <p class="text-sm text-gray-600 mt-1">{{ $project->name }}</p>
+                                    </div>
+                                    @if($project->status === 'active')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                            Đang thực hiện
+                                        </span>
+                                    @elseif($project->status === 'completed')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            Hoàn thành
+                                        </span>
+                                    @else
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                            {{ ucfirst($project->status) }}
+                                        </span>
+                                    @endif
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span class="text-gray-500">Địa điểm:</span>
+                                        <span class="text-gray-900 ml-1">{{ $project->location ?: 'N/A' }}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Ngày bắt đầu:</span>
+                                        <span class="text-gray-900 ml-1">{{ $project->start_date ? $project->start_date->format('d/m/Y') : 'N/A' }}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Người quản lý:</span>
+                                        <span class="text-gray-900 ml-1">{{ $project->manager->name ?? 'N/A' }}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Đơn xuất kho:</span>
+                                        <span class="text-gray-900 ml-1 font-semibold">{{ $project->exports->count() }}</span>
+                                    </div>
+                                </div>
+
+                                @if($project->exports->isNotEmpty())
+                                <div class="mt-3 pt-3 border-t border-gray-100">
+                                    <p class="text-xs text-gray-500 mb-2">Đơn xuất kho gần nhất:</p>
+                                    <div class="flex items-center justify-between text-sm">
+                                        <a href="{{ route('exports.show', $project->exports->first()->id) }}" 
+                                           class="text-primary hover:underline font-medium">
+                                            {{ $project->exports->first()->code }}
+                                        </a>
+                                        <span class="text-gray-500">
+                                            {{ $project->exports->first()->date->format('d/m/Y') }}
+                                        </span>
+                                    </div>
+                                </div>
+                                @endif
+                            </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
         <!-- Sidebar - 1 column -->

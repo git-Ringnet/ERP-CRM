@@ -84,6 +84,10 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
+        $customer->load(['projects' => function($query) {
+            $query->with('exports')->latest();
+        }]);
+        
         return view('customers.show', compact('customer'));
     }
 
@@ -130,6 +134,22 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
+        // Check if customer has related projects
+        if ($customer->projects()->exists()) {
+            return redirect()->route('customers.index')
+                ->with('error', 'Không thể xóa khách hàng này vì còn dự án liên quan.');
+        }
+
+        // Check if customer has related exports through projects
+        $hasExports = \App\Models\Export::whereHas('project', function($query) use ($customer) {
+            $query->where('customer_id', $customer->id);
+        })->exists();
+
+        if ($hasExports) {
+            return redirect()->route('customers.index')
+                ->with('error', 'Không thể xóa khách hàng này vì còn đơn xuất kho liên quan.');
+        }
+
         $customer->delete();
 
         return redirect()->route('customers.index')
