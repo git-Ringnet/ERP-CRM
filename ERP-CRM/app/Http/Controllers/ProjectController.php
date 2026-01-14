@@ -197,6 +197,11 @@ class ProjectController extends Controller
             return back()->with('error', 'Không thể xóa dự án đã có đơn hàng.');
         }
 
+        // Check if project has exports
+        if ($project->exports()->exists()) {
+            return back()->with('error', 'Không thể xóa dự án đã có phiếu xuất vật tư.');
+        }
+
         $project->delete();
 
         return redirect()->route('projects.index')
