@@ -76,7 +76,7 @@ class Project extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'planning' => 'Lên kế hoạch',
             'in_progress' => 'Đang thực hiện',
             'completed' => 'Hoàn thành',
@@ -91,7 +91,7 @@ class Project extends Model
      */
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'planning' => 'bg-yellow-100 text-yellow-800',
             'in_progress' => 'bg-blue-100 text-blue-800',
             'completed' => 'bg-green-100 text-green-800',
@@ -103,18 +103,24 @@ class Project extends Model
 
     /**
      * Calculate total revenue from sales
+     * Uses sales total to account for discounts and tax
      */
     public function getTotalRevenueAttribute(): float
     {
-        return $this->saleItems()->sum('total');
+        return $this->sales()->sum('total');
     }
 
     /**
-     * Calculate total cost from sale items
+     * Calculate total cost
+     * Cost = Revenue - Profit (where Profit = Sum of Sales Margin)
+     * This ensures consistency: Profit = Revenue - Cost
      */
     public function getTotalCostAttribute(): float
     {
-        return $this->saleItems()->sum('cost_total');
+        $revenue = $this->total_revenue;
+        $profit = $this->sales()->sum('margin');
+
+        return $revenue - $profit;
     }
 
     /**
@@ -122,7 +128,7 @@ class Project extends Model
      */
     public function getProfitAttribute(): float
     {
-        return $this->total_revenue - $this->total_cost;
+        return $this->sales()->sum('margin');
     }
 
     /**
@@ -170,8 +176,8 @@ class Project extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('code', 'like', "%{$search}%")
-              ->orWhere('name', 'like', "%{$search}%")
-              ->orWhere('customer_name', 'like', "%{$search}%");
+                ->orWhere('name', 'like', "%{$search}%")
+                ->orWhere('customer_name', 'like', "%{$search}%");
         });
     }
 

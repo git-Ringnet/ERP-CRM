@@ -75,6 +75,13 @@ class QuotationController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+        ], [
+            'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
+            'code.unique' => 'Mã báo giá đã tồn tại.',
+            'code.required' => 'Vui lòng nhập mã báo giá.',
+            'customer_id.required' => 'Vui lòng chọn khách hàng.',
+            'title.required' => 'Vui lòng nhập tiêu đề.',
+            'products.required' => 'Vui lòng chọn ít nhất một sản phẩm.',
         ]);
 
         DB::beginTransaction();
@@ -107,7 +114,7 @@ class QuotationController extends Controller
                 'note' => $validated['note'],
                 'status' => 'draft',
                 'current_approval_level' => 0,
-                'created_by' => null, // TODO: auth()->id()
+                'created_by' => auth()->id(),
             ]);
 
             foreach ($validated['products'] as $item) {
@@ -176,6 +183,13 @@ class QuotationController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+        ], [
+            'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
+            'code.unique' => 'Mã báo giá đã tồn tại.',
+            'code.required' => 'Vui lòng nhập mã báo giá.',
+            'customer_id.required' => 'Vui lòng chọn khách hàng.',
+            'title.required' => 'Vui lòng nhập tiêu đề.',
+            'products.required' => 'Vui lòng chọn ít nhất một sản phẩm.',
         ]);
 
         DB::beginTransaction();
@@ -341,8 +355,8 @@ class QuotationController extends Controller
                 ->where('level', $nextLevel->level)
                 ->where('action', 'pending')
                 ->update([
-                    'approver_id' => null, // TODO: auth()->id()
-                    'approver_name' => 'Admin', // TODO: auth()->user()->name
+                    'approver_id' => auth()->id(),
+                    'approver_name' => auth()->user()->name,
                     'action' => 'approved',
                     'comment' => $request->comment,
                     'action_at' => now(),
@@ -376,8 +390,8 @@ class QuotationController extends Controller
             $quotation->save();
             DB::commit();
 
-            $message = $quotation->status === 'approved' 
-                ? 'Báo giá đã được duyệt hoàn tất.' 
+            $message = $quotation->status === 'approved'
+                ? 'Báo giá đã được duyệt hoàn tất.'
                 : 'Đã duyệt cấp ' . $nextLevel->level . '. Chờ duyệt cấp tiếp theo.';
 
             return back()->with('success', $message);
@@ -412,8 +426,8 @@ class QuotationController extends Controller
                 ->where('level', $nextLevel->level)
                 ->where('action', 'pending')
                 ->update([
-                    'approver_id' => null, // TODO: auth()->id()
-                    'approver_name' => 'Admin',
+                    'approver_id' => auth()->id(),
+                    'approver_name' => auth()->user()->name,
                     'action' => 'rejected',
                     'comment' => $request->comment,
                     'action_at' => now(),
@@ -459,8 +473,8 @@ class QuotationController extends Controller
 
         $quotation->update(['status' => $request->response]);
 
-        $message = $request->response === 'accepted' 
-            ? 'Khách hàng đã chấp nhận báo giá.' 
+        $message = $request->response === 'accepted'
+            ? 'Khách hàng đã chấp nhận báo giá.'
             : 'Khách hàng đã từ chối báo giá.';
 
         return back()->with('success', $message);
@@ -551,7 +565,7 @@ class QuotationController extends Controller
     {
         $filters = $request->only(['search', 'status']);
         $filename = 'bao-gia-' . date('Y-m-d') . '.xlsx';
-        
+
         return Excel::download(new QuotationsExport($filters), $filename);
     }
 }

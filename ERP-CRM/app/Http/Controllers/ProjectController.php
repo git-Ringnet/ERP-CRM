@@ -34,6 +34,17 @@ class ProjectController extends Controller
             $query->where('customer_id', $request->customer_id);
         }
 
+        // Filter by date range (Active during period)
+        if ($request->filled('date_from')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('end_date', '>=', $request->date_from)
+                    ->orWhereNull('end_date');
+            });
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('start_date', '<=', $request->date_to);
+        }
+
         $projects = $query->orderBy('created_at', 'desc')->paginate(10);
         $customers = Customer::orderBy('name')->get();
 
@@ -109,7 +120,7 @@ class ProjectController extends Controller
     public function show(Project $project)
     {
         $project->load(['customer', 'manager', 'sales.items', 'saleItems.sale', 'exports.warehouse']);
-        
+
         // Get sales statistics
         $salesStats = [
             'total_orders' => $project->sales()->count(),
@@ -240,7 +251,7 @@ class ProjectController extends Controller
     {
         $filters = $request->only(['search', 'status', 'customer_id']);
         $filename = 'du-an-' . date('Y-m-d') . '.xlsx';
-        
+
         return Excel::download(new ProjectsExport($filters), $filename);
     }
 
@@ -251,12 +262,15 @@ class ProjectController extends Controller
     {
         $query = Project::with(['customer']);
 
-        // Date range filter
+        // Date range filter (Active during period)
         if ($request->filled('from_date')) {
-            $query->where('start_date', '>=', $request->from_date);
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('end_date', '>=', $request->from_date)
+                    ->orWhereNull('end_date');
+            });
         }
         if ($request->filled('to_date')) {
-            $query->where('start_date', '<=', $request->to_date);
+            $query->whereDate('start_date', '<=', $request->to_date);
         }
 
         // Status filter
