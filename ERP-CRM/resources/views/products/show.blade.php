@@ -34,7 +34,7 @@
                             <label class="block text-sm font-medium text-gray-500">Tên sản phẩm</label>
                             <p class="text-sm text-gray-900">{{ $product->name }}</p>
                         </div>
-                        <div>
+                        <div class="hidden">
                             <label class="block text-sm font-medium text-gray-500">Danh mục</label>
                             <p class="text-sm">
                                 @if($product->category)
@@ -129,6 +129,9 @@
                                         @case('transferred')
                                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Đã chuyển</span>
                                             @break
+                                        @case('liquidation')
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">Thanh lý</span>
+                                            @break
                                         @default
                                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{{ $item->status }}</span>
                                     @endswitch
@@ -170,6 +173,10 @@
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Hư hỏng:</span>
                         <span class="text-sm font-semibold text-red-600">{{ $product->items->where('status', 'damaged')->sum('quantity') }}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Thanh lý:</span>
+                        <span class="text-sm font-semibold text-indigo-600">{{ $product->items->where('status', 'liquidation')->sum('quantity') }}</span>
                     </div>
                 </div>
             </div>

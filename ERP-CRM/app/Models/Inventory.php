@@ -158,4 +158,16 @@ class Inventory extends Model
     {
         return $this->stock >= $quantity;
     }
+    /**
+     * Get stock breakdown by status.
+     */
+    public function getStockBreakdownAttribute()
+    {
+        return \App\Models\ProductItem::where('product_id', $this->product_id)
+            ->where('warehouse_id', $this->warehouse_id)
+            ->selectRaw('status, sum(quantity) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+    }
 }

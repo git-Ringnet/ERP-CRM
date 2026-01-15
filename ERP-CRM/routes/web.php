@@ -106,6 +106,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Damaged Goods Routes
     Route::resource('damaged-goods', DamagedGoodController::class);
+    Route::get('/api/damaged-goods/items', [DamagedGoodController::class, 'getProductItems'])->name('damaged-goods.items');
     Route::patch('/damaged-goods/{damaged_good}/status', [DamagedGoodController::class, 'updateStatus'])->name('damaged-goods.update-status');
     Route::get('/damaged-goods-export', [DamagedGoodController::class, 'export'])->name('damaged-goods.export');
 

@@ -29,6 +29,7 @@ class SaleItem extends Model
         'cost_total',
         'warranty_months',
         'warranty_start_date',
+        'is_liquidation',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class SaleItem extends Model
         'cost_total' => 'decimal:2',
         'warranty_months' => 'integer',
         'warranty_start_date' => 'date',
+        'is_liquidation' => 'boolean',
     ];
 
     /**

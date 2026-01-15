@@ -93,7 +93,38 @@ class SaleController extends Controller
     public function create(Request $request)
     {
         $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
+        // Get products with liquidation count to display in UI
+        // Get products with liquidation count to display in UI
+        $baseProducts = Product::withCount([
+            'items as liquidation_count' => function ($query) {
+                $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
+            }
+        ])->orderBy('name')->get();
+
+        $products = collect();
+        foreach ($baseProducts as $product) {
+            // Add normal product
+            $products->push([
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => $product->price,
+                'warranty_months' => $product->warranty_months,
+                'is_liquidation' => 0,
+                'liquidation_count' => 0
+            ]);
+
+            // Add liquidation product if available
+            if ($product->liquidation_count > 0) {
+                $products->push([
+                    'id' => $product->id, // Same ID
+                    'name' => $product->name . ' - Hàng thanh lý',
+                    'price' => 0, // Let user set price
+                    'warranty_months' => 0, // Usually no warranty or limited
+                    'is_liquidation' => 1,
+                    'liquidation_count' => $product->liquidation_count
+                ]);
+            }
+        }
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Generate sale code
@@ -184,6 +215,46 @@ class SaleController extends Controller
             $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
             $total = $afterDiscount + $vatAmount;
 
+            // Validate Stock Availability
+            $normalQuantities = []; // Normal stock
+            $liquidationQuantities = []; // Liquidation stock
+
+            foreach ($validated['products'] as $item) {
+                $pid = $item['product_id'];
+                $isLiquidation = isset($item['is_liquidation']) && $item['is_liquidation'] == 1;
+
+                if ($isLiquidation) {
+                    if (!isset($liquidationQuantities[$pid]))
+                        $liquidationQuantities[$pid] = 0;
+                    $liquidationQuantities[$pid] += $item['quantity'];
+                } else {
+                    if (!isset($normalQuantities[$pid]))
+                        $normalQuantities[$pid] = 0;
+                    $normalQuantities[$pid] += $item['quantity'];
+                }
+            }
+
+            // Check Normal Stock
+            foreach ($normalQuantities as $productId => $qty) {
+                $product = Product::find($productId);
+                if ($product->in_stock_quantity < $qty) {
+                    throw new \Exception("Sản phẩm {$product->name} (Hàng mới) chỉ còn {$product->in_stock_quantity}. Bạn đang tạo đơn với số lượng {$qty}.");
+                }
+            }
+
+            // Check Liquidation Stock
+            foreach ($liquidationQuantities as $productId => $qty) {
+                $product = Product::find($productId);
+                // Calculate liquidation stock dynamically
+                $liquidationStock = $product->items()
+                    ->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION)
+                    ->sum('quantity');
+
+                if ($liquidationStock < $qty) {
+                    throw new \Exception("Sản phẩm {$product->name} (Hàng thanh lý) chỉ còn {$liquidationStock}. Bạn đang tạo đơn với số lượng {$qty}.");
+                }
+            }
+
             // Create sale
             $sale = Sale::create([
                 'code' => $code,
@@ -227,6 +298,7 @@ class SaleController extends Controller
                     'product_name' => $product->name,
                     'project_id' => $itemProjectId,
                     'quantity' => $quantity,
+                    'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     'price' => $item['price'],
                     'cost_price' => $costPrice,
                     'total' => $quantity * $item['price'],
@@ -284,7 +356,38 @@ class SaleController extends Controller
     {
         $sale->load('items');
         $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
+        // Get products with liquidation count to display in UI
+        // Get products with liquidation count to display in UI
+        $baseProducts = Product::withCount([
+            'items as liquidation_count' => function ($query) {
+                $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
+            }
+        ])->orderBy('name')->get();
+
+        $products = collect();
+        foreach ($baseProducts as $product) {
+            // Add normal product
+            $products->push([
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => $product->price,
+                'warranty_months' => $product->warranty_months,
+                'is_liquidation' => 0,
+                'liquidation_count' => 0
+            ]);
+
+            // Add liquidation product if available
+            if ($product->liquidation_count > 0) {
+                $products->push([
+                    'id' => $product->id,
+                    'name' => $product->name . ' - Hàng thanh lý',
+                    'price' => 0,
+                    'warranty_months' => 0,
+                    'is_liquidation' => 1,
+                    'liquidation_count' => $product->liquidation_count
+                ]);
+            }
+        }
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         return view('sales.edit', compact('sale', 'customers', 'products', 'projects'));
@@ -340,6 +443,46 @@ class SaleController extends Controller
             $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
             $total = $afterDiscount + $vatAmount;
 
+            // Validate Stock Availability
+            // Validate Stock Availability
+            $normalQuantities = [];
+            $liquidationQuantities = [];
+
+            foreach ($validated['products'] as $item) {
+                $pid = $item['product_id'];
+                $isLiquidation = isset($item['is_liquidation']) && $item['is_liquidation'] == 1;
+
+                if ($isLiquidation) {
+                    if (!isset($liquidationQuantities[$pid]))
+                        $liquidationQuantities[$pid] = 0;
+                    $liquidationQuantities[$pid] += $item['quantity'];
+                } else {
+                    if (!isset($normalQuantities[$pid]))
+                        $normalQuantities[$pid] = 0;
+                    $normalQuantities[$pid] += $item['quantity'];
+                }
+            }
+
+            // Check Normal Stock
+            foreach ($normalQuantities as $productId => $qty) {
+                $product = Product::find($productId);
+                if ($product->in_stock_quantity < $qty) {
+                    throw new \Exception("Sản phẩm {$product->name} (Hàng mới) chỉ còn {$product->in_stock_quantity}. Bạn đang cập nhật đơn với số lượng {$qty}.");
+                }
+            }
+
+            // Check Liquidation Stock
+            foreach ($liquidationQuantities as $productId => $qty) {
+                $product = Product::find($productId);
+                $liquidationStock = $product->items()
+                    ->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION)
+                    ->sum('quantity');
+
+                if ($liquidationStock < $qty) {
+                    throw new \Exception("Sản phẩm {$product->name} (Hàng thanh lý) chỉ còn {$liquidationStock}. Bạn đang cập nhật đơn với số lượng {$qty}.");
+                }
+            }
+
             // Update sale
             $sale->update([
                 'code' => $validated['code'],
@@ -381,6 +524,7 @@ class SaleController extends Controller
                     'product_name' => $product->name,
                     'project_id' => $itemProjectId,
                     'quantity' => $quantity,
+                    'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     'price' => $item['price'],
                     'cost_price' => $costPrice,
                     'total' => $quantity * $item['price'],

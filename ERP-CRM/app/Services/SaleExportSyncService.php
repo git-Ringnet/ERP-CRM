@@ -154,6 +154,7 @@ class SaleExportSyncService
                     'export_id' => $export->id,
                     'product_id' => $saleItem->product_id,
                     'quantity' => $saleItem->quantity,
+                    'is_liquidation' => $saleItem->is_liquidation,
                     'unit' => null,
                     'serial_number' => null,
                     'comments' => "Từ đơn hàng {$sale->code} - {$saleItem->product_name}",

@@ -14,6 +14,8 @@ class DamagedGood extends Model
         'code',
         'type',
         'product_id',
+        'warehouse_id',
+        'product_item_id',
         'quantity',
         'original_value',
         'recovery_value',
@@ -41,6 +43,21 @@ class DamagedGood extends Model
     public function discoveredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'discovered_by');
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function productItem(): BelongsTo
+    {
+        return $this->belongsTo(ProductItem::class);
+    }
+
+    public function items(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(ProductItem::class, 'damaged_good_items');
     }
 
     // Scopes
@@ -88,7 +105,7 @@ class DamagedGood extends Model
 
     public function getTypeLabel(): string
     {
-        return match($this->type) {
+        return match ($this->type) {
             'damaged' => 'Hàng hư hỏng',
             'liquidation' => 'Thanh lý',
             default => $this->type,
@@ -97,7 +114,7 @@ class DamagedGood extends Model
 
     public function getStatusLabel(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'pending' => 'Chờ duyệt',
             'approved' => 'Đã duyệt',
             'rejected' => 'Từ chối',
@@ -108,7 +125,7 @@ class DamagedGood extends Model
 
     public function getStatusColor(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'pending' => 'warning',
             'approved' => 'success',
             'rejected' => 'danger',

@@ -55,6 +55,27 @@
                         <p class="text-2xl font-bold {{ $inventory->stock <= 0 ? 'text-red-600' : ($inventory->is_low_stock ? 'text-yellow-600' : 'text-green-600') }}">
                             {{ number_format($inventory->stock) }}
                         </p>
+                        
+                        @if($inventory->stock > 0)
+                        <div class="mt-2 text-sm text-gray-600 space-y-1 bg-gray-50 p-3 rounded-lg">
+                            <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Chi tiết tồn kho:</p>
+                            @foreach($inventory->stock_breakdown as $status => $count)
+                                @if($count > 0 && $status != 'sold' && $status !== 'transferred')
+                                <div class="flex items-center justify-between max-w-[200px]">
+                                    <span>
+                                        @switch($status)
+                                            @case('in_stock') <i class="fas fa-check-circle text-green-500 mr-2 w-4"></i>Mới: @break
+                                            @case('damaged') <i class="fas fa-times-circle text-red-500 mr-2 w-4"></i>Hỏng: @break
+                                            @case('liquidation') <i class="fas fa-tag text-purple-500 mr-2 w-4"></i>Thanh lý: @break
+                                            @default <i class="fas fa-box text-gray-400 mr-2 w-4"></i>{{ ucfirst($status) }}:
+                                        @endswitch
+                                    </span>
+                                    <span class="font-bold text-gray-900">{{ $count }}</span>
+                                </div>
+                                @endif
+                            @endforeach
+                        </div>
+                        @endif
                     </div>
                 </div>
                 

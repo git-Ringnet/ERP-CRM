@@ -19,6 +19,7 @@ class ProductItem extends Model
     public const STATUS_SOLD = 'sold';
     public const STATUS_DAMAGED = 'damaged';
     public const STATUS_TRANSFERRED = 'transferred';
+    public const STATUS_LIQUIDATION = 'liquidation';
 
     /**
      * NO_SKU prefix for items without physical SKU
@@ -134,6 +135,7 @@ class ProductItem extends Model
             self::STATUS_SOLD => 'Đã bán',
             self::STATUS_DAMAGED => 'Hư hỏng',
             self::STATUS_TRANSFERRED => 'Đã chuyển',
+            self::STATUS_LIQUIDATION => 'Thanh lý',
         ];
     }
 }

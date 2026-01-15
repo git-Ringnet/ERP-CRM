@@ -11,11 +11,23 @@ class DamagedGoodRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'original_value' => str_replace(',', '', $this->original_value),
+            'recovery_value' => str_replace(',', '', $this->recovery_value),
+        ]);
+    }
+
     public function rules(): array
     {
         $rules = [
             'type' => 'required|in:damaged,liquidation',
             'product_id' => 'required|exists:products,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'product_item_id' => 'nullable|exists:product_items,id', // Legacy/Single
+            'product_item_ids' => 'nullable|array',
+            'product_item_ids.*' => 'exists:product_items,id',
             'quantity' => 'required|numeric|min:0.01',
             'original_value' => 'required|numeric|min:0',
             'recovery_value' => 'required|numeric|min:0',

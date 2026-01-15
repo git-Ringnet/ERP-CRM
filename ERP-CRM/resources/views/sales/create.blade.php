@@ -136,14 +136,19 @@
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                                         @foreach($products as $product)
                                             <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
-                                                 data-value="{{ $product->id }}" 
-                                                 data-price="{{ $product->price }}"
-                                                 data-warranty="{{ $product->warranty_months ?? 0 }}"
-                                                 data-text="{{ $product->name }}">
-                                                {{ $product->name }}
+                                                 data-value="{{ $product['id'] }}" 
+                                                 data-price="{{ $product['price'] }}"
+                                                 data-is-liquidation="{{ $product['is_liquidation'] }}"
+                                                 data-warranty="{{ $product['warranty_months'] ?? 0 }}"
+                                                 data-text="{{ $product['name'] }}">
+                                                {{ $product['name'] }}
+                                                @if(isset($product['liquidation_count']) && $product['liquidation_count'] > 0 && !$product['is_liquidation'])
+                                                    <span class="text-orange-600 italic text-xs ml-1">(Có {{ $product['liquidation_count'] }} hàng thanh lý)</span>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
+                                    <input type="hidden" name="products[0][is_liquidation]" value="0" class="is-liquidation-input">
                                 </div>
                             </div>
                             <div class="md:col-span-1">
@@ -502,6 +507,10 @@ function initAllSearchableSelects() {
                     priceInput.value = formatMoney(opt.dataset.price);
                     calculateRowTotal(parseInt(container.dataset.index));
                 }
+                const isLiquidationInput = row.querySelector('.is-liquidation-input');
+                if (isLiquidationInput && opt.dataset.isLiquidation) {
+                    isLiquidationInput.value = opt.dataset.isLiquidation;
+                }
                 // Auto-fill warranty from product
                 if (warrantyInput && opt.dataset.warranty) {
                     const warrantyMonths = parseInt(opt.dataset.warranty) || 0;
@@ -617,8 +626,9 @@ function addProductRow() {
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
                     <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
+                    <input type="hidden" name="products[${productIndex}][is_liquidation]" value="0" class="is-liquidation-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
-                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-warranty="${p.warranty_months || 0}" data-text="${p.name}">${p.name}</div>`).join('')}
+                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-is-liquidation="${p.is_liquidation}" data-warranty="${p.warranty_months || 0}" data-text="${p.name}">${p.name}${p.liquidation_count > 0 ? ` <span class="text-orange-600 italic text-xs ml-1">(Có ${p.liquidation_count} sẵn)</span>` : ''}</div>`).join('')}
                     </div>
                 </div>
             </div>

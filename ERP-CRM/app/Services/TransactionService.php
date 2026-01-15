@@ -67,13 +67,13 @@ class TransactionService
                 foreach ($data['items'] as $item) {
                     // Support both 'serials' and 'skus' keys for compatibility
                     $serials = $item['serials'] ?? $item['skus'] ?? [];
-                    
+
                     // Parse serial_list if provided (textarea input)
                     if (empty($serials) && !empty($item['serial_list'])) {
                         $serials = preg_split('/[\n,]+/', $item['serial_list']);
                         $serials = array_map('trim', $serials);
                     }
-                    
+
                     // Filter out empty serials
                     $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
 
@@ -98,11 +98,11 @@ class TransactionService
                 foreach ($transaction->items as $item) {
                     // Use item's warehouse_id if available, otherwise use transaction's warehouse_id
                     $warehouseId = $item->warehouse_id ?? $transaction->warehouse_id;
-                    
+
                     if (!$warehouseId) {
                         throw new Exception("Không tìm thấy kho nhập cho sản phẩm {$item->product->name}");
                     }
-                    
+
                     // Parse serials from JSON stored in serial_number
                     $serials = [];
                     if (!empty($item->serial_number)) {
@@ -237,6 +237,7 @@ class TransactionService
                         // Store selected serial IDs as JSON
                         'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                         'comments' => $item['comments'] ?? null,
+                        'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     ]);
                     $totalQty += $item['quantity'];
                 }
@@ -276,11 +277,18 @@ class TransactionService
                     }
 
                     // For remaining quantity (not selected serials), update NOSKU items first, then others
+                    $remainingQty = $item->quantity - count($productItemIds);
+
+                    // Determine target status based on is_liquidation flag
+                    $targetStatus = (!empty($item->is_liquidation) && $item->is_liquidation)
+                        ? ProductItem::STATUS_LIQUIDATION
+                        : ProductItem::STATUS_IN_STOCK;
+
                     if ($remainingQty > 0) {
-                        // First try NOSKU items
+                        // 1. Try NOSKU items with correct status
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->warehouse_id)
-                            ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->where('status', $targetStatus)
                             ->where('sku', 'like', 'NOSKU%')
                             ->limit($remainingQty)
                             ->pluck('id')
@@ -293,23 +301,24 @@ class TransactionService
                             ]);
                             $remainingQty -= count($noSkuItems);
                         }
+                    }
 
-                        // If still need more, get any available items
-                        if ($remainingQty > 0) {
-                            $otherItems = ProductItem::where('product_id', $item->product_id)
-                                ->where('warehouse_id', $transaction->warehouse_id)
-                                ->where('status', ProductItem::STATUS_IN_STOCK)
-                                ->whereNotIn('id', array_merge($productItemIds, $noSkuItems))
-                                ->limit($remainingQty)
-                                ->pluck('id')
-                                ->toArray();
+                    if ($remainingQty > 0) {
+                        // 2. Try any items with correct status
+                        $otherItems = ProductItem::where('product_id', $item->product_id)
+                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('status', $targetStatus)
+                            ->whereNotIn('id', array_merge($productItemIds, $noSkuItems ?? []))
+                            ->limit($remainingQty)
+                            ->pluck('id')
+                            ->toArray();
 
-                            if (!empty($otherItems)) {
-                                ProductItem::whereIn('id', $otherItems)->update([
-                                    'status' => ProductItem::STATUS_SOLD,
-                                    'export_id' => $transaction->id,
-                                ]);
-                            }
+                        if (!empty($otherItems)) {
+                            ProductItem::whereIn('id', $otherItems)->update([
+                                'status' => ProductItem::STATUS_SOLD,
+                                'export_id' => $transaction->id,
+                            ]);
+                            $remainingQty -= count($otherItems);
                         }
                     }
                 }

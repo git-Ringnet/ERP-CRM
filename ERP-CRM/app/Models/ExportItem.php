@@ -17,10 +17,12 @@ class ExportItem extends Model
         'unit',
         'serial_number',
         'comments',
+        'is_liquidation',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
+        'is_liquidation' => 'boolean',
     ];
 
     /**

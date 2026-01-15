@@ -71,7 +71,19 @@ class Product extends Model
      */
     public function getInStockQuantityAttribute(): int
     {
-        return $this->items()->where('status', 'in_stock')->sum('quantity');
+        return $this->items()
+            ->where('status', ProductItem::STATUS_IN_STOCK)
+            ->sum('quantity');
+    }
+
+    /**
+     * Get liquidation quantity (only items with status 'liquidation')
+     */
+    public function getLiquidationQuantityAttribute(): int
+    {
+        return $this->items()
+            ->where('status', ProductItem::STATUS_LIQUIDATION)
+            ->sum('quantity');
     }
 
     /**
@@ -86,8 +98,8 @@ class Product extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
-              ->orWhere('code', 'like', "%{$search}%")
-              ->orWhere('category', 'like', "%{$search}%");
+                ->orWhere('code', 'like', "%{$search}%")
+                ->orWhere('category', 'like', "%{$search}%");
         });
     }
 
