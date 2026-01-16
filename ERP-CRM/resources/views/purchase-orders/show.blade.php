@@ -20,7 +20,7 @@
         $isLongWaiting = $daysElapsed > 42; // More than 6 weeks
     @endphp
 
-    <div class="max-w-5xl mx-auto space-y-6">
+    <div class="mx-auto space-y-6">
         <!-- Success Animation Overlay (hidden by default) -->
         <div id="approval-success" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
             <div class="bg-white rounded-2xl p-8 transform scale-0 transition-all duration-500 ease-out" id="success-card">
@@ -162,7 +162,8 @@
                                 @endif
                             @else
                                 <p class="text-sm text-gray-600">{{ $expectedMinDate->format('d/m') }} -
-                                    {{ $expectedMaxDate->format('d/m/Y') }}</p>
+                                    {{ $expectedMaxDate->format('d/m/Y') }}
+                                </p>
                                 <p class="text-xs text-gray-400">4-6 tuần từ ngày đặt</p>
                             @endif
                         </div>
@@ -354,50 +355,56 @@
                     <!-- Cost Summary -->
                     <div class="space-y-3">
                         <h4 class="font-medium text-gray-800 border-b pb-2">Cơ cấu chi phí</h4>
-                        
+
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
                             <span class="text-gray-600"><i class="fas fa-box mr-2 text-blue-500"></i>Giá vốn hàng hóa</span>
                             <span class="font-medium">{{ number_format($purchaseOrder->subtotal) }}đ</span>
                         </div>
-                        
+
                         @if($purchaseOrder->discount_amount > 0)
-                        <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-percentage mr-2 text-green-500"></i>Chiết khấu NCC</span>
-                            <span class="font-medium text-green-600">-{{ number_format($purchaseOrder->discount_amount) }}đ</span>
-                        </div>
+                            <div class="flex justify-between items-center py-2 border-b border-dashed">
+                                <span class="text-gray-600"><i class="fas fa-percentage mr-2 text-green-500"></i>Chiết khấu
+                                    NCC</span>
+                                <span
+                                    class="font-medium text-green-600">-{{ number_format($purchaseOrder->discount_amount) }}đ</span>
+                            </div>
                         @endif
-                        
+
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-truck mr-2 text-orange-500"></i>Phí vận chuyển</span>
+                            <span class="text-gray-600"><i class="fas fa-truck mr-2 text-orange-500"></i>Phí vận
+                                chuyển</span>
                             <span class="font-medium">{{ number_format($purchaseOrder->shipping_cost) }}đ</span>
                         </div>
-                        
+
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-receipt mr-2 text-purple-500"></i>Chi phí khác</span>
+                            <span class="text-gray-600"><i class="fas fa-receipt mr-2 text-purple-500"></i>Chi phí
+                                khác</span>
                             <span class="font-medium">{{ number_format($purchaseOrder->other_cost) }}đ</span>
                         </div>
-                        
+
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-file-invoice mr-2 text-red-500"></i>Thuế VAT ({{ $purchaseOrder->vat_percent }}%)</span>
+                            <span class="text-gray-600"><i class="fas fa-file-invoice mr-2 text-red-500"></i>Thuế VAT
+                                ({{ $purchaseOrder->vat_percent }}%)</span>
                             <span class="font-medium">{{ number_format($purchaseOrder->vat_amount) }}đ</span>
                         </div>
-                        
+
                         <div class="flex justify-between items-center py-3 bg-blue-50 rounded-lg px-3 mt-2">
-                            <span class="font-bold text-gray-800"><i class="fas fa-calculator mr-2 text-blue-600"></i>TỔNG CHI PHÍ MUA</span>
+                            <span class="font-bold text-gray-800"><i class="fas fa-calculator mr-2 text-blue-600"></i>TỔNG
+                                CHI PHÍ MUA</span>
                             <span class="font-bold text-xl text-blue-600">{{ number_format($purchaseOrder->total) }}đ</span>
                         </div>
                     </div>
-                    
+
                     <!-- Per Item Cost -->
                     <div class="space-y-3">
                         <h4 class="font-medium text-gray-800 border-b pb-2">Giá vốn trung bình/sản phẩm</h4>
-                        
+
                         @php
                             $totalQty = $purchaseOrder->items->sum('quantity');
                             $avgCostPerItem = $totalQty > 0 ? $purchaseOrder->total / $totalQty : 0;
                             $totalCostBeforeVat = $purchaseOrder->subtotal - $purchaseOrder->discount_amount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost;
                         @endphp
-                        
+
                         <div class="bg-gray-50 rounded-lg p-4">
                             <div class="flex justify-between items-center mb-3">
                                 <span class="text-gray-600">Tổng số lượng:</span>
@@ -405,14 +412,15 @@
                             </div>
                             <div class="flex justify-between items-center mb-3">
                                 <span class="text-gray-600">Giá vốn trước VAT/sp:</span>
-                                <span class="font-medium">{{ number_format($totalQty > 0 ? $totalCostBeforeVat / $totalQty : 0) }}đ</span>
+                                <span
+                                    class="font-medium">{{ number_format($totalQty > 0 ? $totalCostBeforeVat / $totalQty : 0) }}đ</span>
                             </div>
                             <div class="flex justify-between items-center py-2 px-3 bg-orange-100 rounded-lg">
                                 <span class="font-semibold text-orange-800">Giá vốn sau VAT/sp:</span>
                                 <span class="font-bold text-orange-600">{{ number_format($avgCostPerItem) }}đ</span>
                             </div>
                         </div>
-                        
+
                         <div class="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                             <h5 class="font-medium text-yellow-800 mb-2">
                                 <i class="fas fa-lightbulb mr-1"></i> Gợi ý định giá bán
@@ -438,50 +446,50 @@
         </div>
     </div>
 
-@push('scripts')
-<script>
-// Check if coming from a successful approval
-@if(session('success') && str_contains(session('success'), 'duyệt'))
-    // Show success animation
-    const overlay = document.getElementById('approval-success');
-    const card = document.getElementById('success-card');
-    
-    overlay.classList.remove('hidden');
-    overlay.classList.add('flex');
-    
-    setTimeout(() => {
-        card.classList.remove('scale-0');
-        card.classList.add('scale-100');
-    }, 100);
-    
-    setTimeout(() => {
-        card.classList.remove('scale-100');
-        card.classList.add('scale-0');
-        setTimeout(() => {
-            overlay.classList.add('hidden');
-            overlay.classList.remove('flex');
-        }, 500);
-    }, 2000);
-@endif
+    @push('scripts')
+        <script>
+            // Check if coming from a successful approval
+            @if(session('success') && str_contains(session('success'), 'duyệt'))
+                // Show success animation
+                const overlay = document.getElementById('approval-success');
+                const card = document.getElementById('success-card');
 
-// Add click animation to approve button
-document.querySelectorAll('.approve-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
-        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý...';
-        this.disabled = true;
-    });
-});
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
 
-// Close overlay on click
-document.getElementById('approval-success')?.addEventListener('click', function() {
-    const card = document.getElementById('success-card');
-    card.classList.remove('scale-100');
-    card.classList.add('scale-0');
-    setTimeout(() => {
-        this.classList.add('hidden');
-        this.classList.remove('flex');
-    }, 500);
-});
-</script>
-@endpush
+                setTimeout(() => {
+                    card.classList.remove('scale-0');
+                    card.classList.add('scale-100');
+                }, 100);
+
+                setTimeout(() => {
+                    card.classList.remove('scale-100');
+                    card.classList.add('scale-0');
+                    setTimeout(() => {
+                        overlay.classList.add('hidden');
+                        overlay.classList.remove('flex');
+                    }, 500);
+                }, 2000);
+            @endif
+
+            // Add click animation to approve button
+            document.querySelectorAll('.approve-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý...';
+                    this.disabled = true;
+                });
+            });
+
+            // Close overlay on click
+            document.getElementById('approval-success')?.addEventListener('click', function () {
+                const card = document.getElementById('success-card');
+                card.classList.remove('scale-100');
+                card.classList.add('scale-0');
+                setTimeout(() => {
+                    this.classList.add('hidden');
+                    this.classList.remove('flex');
+                }, 500);
+            });
+        </script>
+    @endpush
 @endsection

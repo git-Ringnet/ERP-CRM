@@ -15,7 +15,8 @@
                     <div class="ml-4">
                         <p class="text-sm text-gray-500">KH có công nợ</p>
                         <p class="text-2xl font-bold text-gray-800">
-                            {{ number_format($summary['total_customers_with_debt']) }}</p>
+                            {{ number_format($summary['total_customers_with_debt']) }}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -39,7 +40,8 @@
                     <div class="ml-4">
                         <p class="text-sm text-gray-500">Nợ quá hạn</p>
                         <p class="text-2xl font-bold text-orange-600">
-                            {{ number_format($summary['total_overdue'], 0, ',', '.') }}đ</p>
+                            {{ number_format($summary['total_overdue'], 0, ',', '.') }}đ
+                        </p>
                     </div>
                 </div>
             </div>
@@ -79,7 +81,7 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex justify-between items-center">
+        <div class="flex justify-between items-center hidden">
             <div class="flex gap-2">
                 <a href="{{ route('customer-debts.export') }}"
                     class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
@@ -112,9 +114,11 @@
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->phone }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
-                                    {{ number_format($customer->total_sales, 0, ',', '.') }}</td>
+                                    {{ number_format($customer->total_sales, 0, ',', '.') }}
+                                </td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600">
-                                    {{ number_format($customer->total_paid, 0, ',', '.') }}</td>
+                                    {{ number_format($customer->total_paid, 0, ',', '.') }}
+                                </td>
                                 <td
                                     class="px-4 py-3 text-sm text-right font-medium {{ $customer->total_debt > 0 ? 'text-red-600' : 'text-gray-600' }}">
                                     {{ number_format($customer->total_debt, 0, ',', '.') }}
