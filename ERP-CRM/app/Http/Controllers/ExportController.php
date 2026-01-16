@@ -244,9 +244,10 @@ class ExportController extends Controller
      */
     public function destroy(Export $export)
     {
-        if ($export->status !== 'pending') {
+        // Only allow deleting pending or rejected exports
+        if (!in_array($export->status, ['pending', 'rejected'])) {
             return redirect()->route('exports.index')
-                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý.');
+                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý hoặc đã bị từ chối.');
         }
 
         try {

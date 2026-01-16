@@ -44,6 +44,7 @@
                         <option value="">-- Tất cả trạng thái --</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
                         <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                        <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
                     </select>
                 </div>
                 <div>
@@ -92,11 +93,11 @@
                             </td>
                             <td class="px-4 py-3 text-center">
                                 @if($transfer->status === 'pending')
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử
-                                        lý</span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>
+                                @elseif($transfer->status === 'rejected')
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Đã từ chối</span>
                                 @else
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Hoàn
-                                        thành</span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-center">
@@ -121,6 +122,16 @@
                                             class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Từ chối">
                                             <i class="fas fa-times"></i>
                                         </button>
+                                    @elseif($transfer->status === 'rejected')
+                                        <form action="{{ route('transfers.destroy', $transfer) }}" method="POST" class="inline-block"
+                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa phiếu chuyển kho này?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                                                title="Xóa">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     @endif
                                 </div>
                             </td>

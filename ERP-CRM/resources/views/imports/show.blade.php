@@ -37,6 +37,8 @@
             </span>
             @if($import->status === 'pending')
                 <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>
+            @elseif($import->status === 'rejected')
+                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">Đã từ chối</span>
             @else
                 <span class="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành</span>
             @endif

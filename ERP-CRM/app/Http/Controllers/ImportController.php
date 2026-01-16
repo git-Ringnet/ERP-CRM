@@ -237,10 +237,10 @@ class ImportController extends Controller
      */
     public function destroy(Import $import)
     {
-        // Only allow deleting pending imports
-        if ($import->status !== 'pending') {
+        // Only allow deleting pending or rejected imports
+        if (!in_array($import->status, ['pending', 'rejected'])) {
             return redirect()->route('imports.index')
-                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý.');
+                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý hoặc đã bị từ chối.');
         }
 
         try {

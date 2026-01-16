@@ -223,9 +223,10 @@ class TransferController extends Controller
      */
     public function destroy(Transfer $transfer)
     {
-        if ($transfer->status !== 'pending') {
+        // Only allow deleting pending or rejected transfers
+        if (!in_array($transfer->status, ['pending', 'rejected'])) {
             return redirect()->route('transfers.index')
-                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý.');
+                ->with('error', 'Chỉ có thể xóa phiếu đang chờ xử lý hoặc đã bị từ chối.');
         }
 
         try {
