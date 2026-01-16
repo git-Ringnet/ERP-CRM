@@ -17,16 +17,16 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="font-sans antialiased bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen">
+<body class="font-sans antialiased bg-gradient-to-br from-slate-900 via-blue-900 to-blue-800 min-h-screen">
     <div class="min-h-screen flex items-center justify-center p-4">
         <div class="w-full max-w-md">
             <!-- Logo & Title -->
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-xl mb-4 shadow-lg">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl mb-4 shadow-lg">
                     <i class="fas fa-cube text-white text-3xl"></i>
                 </div>
                 <h1 class="text-3xl font-bold text-white">Mini ERP</h1>
-                <p class="text-gray-400 mt-2">Hệ thống quản lý doanh nghiệp</p>
+                <p class="text-gray-300 mt-2">Hệ thống quản lý doanh nghiệp</p>
             </div>
 
             <!-- Login Card -->
@@ -93,7 +93,7 @@
             </div>
 
             <!-- Footer -->
-            <p class="text-center text-gray-500 text-sm mt-6">
+            <p class="text-center text-gray-400 text-sm mt-6">
                 &copy; {{ date('Y') }} Mini ERP. All rights reserved.
             </p>
         </div>
