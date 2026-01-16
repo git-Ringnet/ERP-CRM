@@ -88,10 +88,6 @@ function addItem(existingData = null) {
     itemDiv.className = 'item-card bg-gray-50 rounded-lg p-4 border border-gray-200';
     itemDiv.dataset.index = itemIndex;
     
-    const productOptions = products.map(p => 
-        `<option value="${p.id}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
-    ).join('');
-    
     const warehouseOptions = warehouses.map(w => 
         `<option value="${w.id}" ${existingData && existingData.warehouse_id == w.id ? 'selected' : ''}>${w.name}</option>`
     ).join('');
@@ -108,18 +104,26 @@ function addItem(existingData = null) {
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
-                <select name="items[${itemIndex}][product_id]" required 
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                        onchange="loadStockInfo(${itemIndex})">
-                    <option value="">-- Chọn sản phẩm --</option>
-                    ${productOptions}
-                </select>
+                <div class="searchable-select product-searchable" data-index="${itemIndex}">
+                    <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
+                    <input type="hidden" name="items[${itemIndex}][product_id]" required class="product-id-input">
+                    <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
+                        ${products.map(p => `
+                            <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
+                                 data-value="${p.id}" 
+                                 data-text="${p.code} - ${p.name}">
+                                ${p.code} - ${p.name}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Kho nguồn *</label>
                 <select name="items[${itemIndex}][warehouse_id]" required 
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                        onchange="loadStockInfo(${itemIndex})">
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded warehouse-from-select"
+                        onchange="loadStockInfo(${itemIndex}); validateWarehouses(${itemIndex})">
                     <option value="">-- Chọn kho --</option>
                     ${warehouseOptions}
                 </select>
@@ -127,10 +131,14 @@ function addItem(existingData = null) {
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Kho đích *</label>
                 <select name="items[${itemIndex}][to_warehouse_id]" required 
-                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded warehouse-to-select"
+                        onchange="validateWarehouses(${itemIndex})">
                     <option value="">-- Chọn kho --</option>
                     ${warehouseOptions}
                 </select>
+                <p id="warehouseWarning_${itemIndex}" class="text-xs text-red-600 mt-1 hidden">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>Kho nguồn và kho đích không được trùng nhau!
+                </p>
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
@@ -179,6 +187,33 @@ function addItem(existingData = null) {
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
     if (item) item.remove();
+}
+
+function validateWarehouses(itemIdx) {
+    const warehouseFromSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const warehouseToSelect = document.querySelector(`[name="items[${itemIdx}][to_warehouse_id]"]`);
+    const warningEl = document.getElementById(`warehouseWarning_${itemIdx}`);
+    
+    if (!warehouseFromSelect || !warehouseToSelect || !warningEl) return;
+    
+    const fromWarehouse = warehouseFromSelect.value;
+    const toWarehouse = warehouseToSelect.value;
+    
+    if (fromWarehouse && toWarehouse && fromWarehouse === toWarehouse) {
+        // Show warning
+        warningEl.classList.remove('hidden');
+        warehouseToSelect.classList.add('border-red-500');
+        
+        // Reset kho đích
+        warehouseToSelect.value = '';
+        
+        // Show alert
+        alert('Kho nguồn và kho đích không được trùng nhau! Vui lòng chọn kho đích khác.');
+    } else {
+        // Hide warning
+        warningEl.classList.add('hidden');
+        warehouseToSelect.classList.remove('border-red-500');
+    }
 }
 
 async function loadStockInfo(itemIdx) {
@@ -478,6 +513,136 @@ function validateForm() {
 document.addEventListener('DOMContentLoaded', function() {
     addItem();
 });
+
+// Searchable Select Functions
+function initSearchableSelect(container) {
+    const input = container.querySelector('.searchable-input');
+    const hiddenInput = container.querySelector('input[type="hidden"]');
+    const dropdown = container.querySelector('.searchable-dropdown');
+    const options = dropdown.querySelectorAll('.searchable-option');
+    const itemIdx = parseInt(container.dataset.index);
+    
+    input.addEventListener('focus', () => {
+        dropdown.classList.remove('hidden');
+        filterOptions('');
+    });
+    
+    input.addEventListener('input', (e) => {
+        filterOptions(e.target.value);
+    });
+    
+    function filterOptions(query) {
+        const q = query.toLowerCase();
+        let hasResults = false;
+        options.forEach(opt => {
+            const text = opt.dataset.text.toLowerCase();
+            if (text.includes(q)) {
+                opt.classList.remove('hidden');
+                hasResults = true;
+            } else {
+                opt.classList.add('hidden');
+            }
+        });
+        
+        // Show no results message
+        let noResults = dropdown.querySelector('.no-results');
+        if (!hasResults) {
+            if (!noResults) {
+                noResults = document.createElement('div');
+                noResults.className = 'no-results px-3 py-2 text-gray-500 italic text-sm';
+                noResults.textContent = 'Không tìm thấy sản phẩm';
+                dropdown.appendChild(noResults);
+            }
+            noResults.classList.remove('hidden');
+        } else if (noResults) {
+            noResults.classList.add('hidden');
+        }
+    }
+    
+    options.forEach(opt => {
+        opt.addEventListener('click', () => {
+            input.value = opt.dataset.text;
+            hiddenInput.value = opt.dataset.value;
+            dropdown.classList.add('hidden');
+            loadStockInfo(itemIdx);
+        });
+    });
+    
+    // Keyboard navigation
+    input.addEventListener('keydown', (e) => {
+        const visibleOptions = [...options].filter(o => !o.classList.contains('hidden'));
+        const highlighted = dropdown.querySelector('.searchable-option.highlighted');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!highlighted && visibleOptions.length) {
+                visibleOptions[0].classList.add('highlighted');
+            } else if (highlighted) {
+                const idx = visibleOptions.indexOf(highlighted);
+                if (idx < visibleOptions.length - 1) {
+                    highlighted.classList.remove('highlighted');
+                    visibleOptions[idx + 1].classList.add('highlighted');
+                    visibleOptions[idx + 1].scrollIntoView({ block: 'nearest' });
+                }
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (highlighted) {
+                const idx = visibleOptions.indexOf(highlighted);
+                if (idx > 0) {
+                    highlighted.classList.remove('highlighted');
+                    visibleOptions[idx - 1].classList.add('highlighted');
+                    visibleOptions[idx - 1].scrollIntoView({ block: 'nearest' });
+                }
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlighted) highlighted.click();
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+        }
+    });
+    
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+}
+
+// Initialize searchable selects when items are added
+const originalAddItem = addItem;
+addItem = function(existingData = null) {
+    originalAddItem(existingData);
+    // Initialize the newly added searchable select
+    setTimeout(() => {
+        const lastItem = document.querySelector(`[data-index="${itemIndex - 1}"]`);
+        if (lastItem) {
+            const searchable = lastItem.querySelector('.product-searchable');
+            if (searchable && !searchable.dataset.initialized) {
+                initSearchableSelect(searchable);
+                searchable.dataset.initialized = 'true';
+            }
+        }
+    }, 0);
+};
 </script>
+@endpush
+
+@push('styles')
+<style>
+.searchable-select {
+    position: relative;
+}
+.searchable-dropdown {
+    top: 100%;
+    left: 0;
+    right: 0;
+}
+.searchable-option.highlighted {
+    background-color: #dbeafe;
+}
+</style>
 @endpush
 @endsection
