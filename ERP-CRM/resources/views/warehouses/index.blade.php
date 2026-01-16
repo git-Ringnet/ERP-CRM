@@ -23,7 +23,7 @@
                 <!-- Filter by Status -->
                 <select name="status"
                     onchange="window.location.href='{{ route('warehouses.index') }}?status='+this.value+'&type={{ request('type') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                     <option value="">Tất cả trạng thái</option>
                     <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang hoạt động</option>
                     <option value="maintenance" {{ request('status') == 'maintenance' ? 'selected' : '' }}>Đang bảo trì
@@ -34,7 +34,7 @@
                 <!-- Filter by Type -->
                 <select name="type"
                     onchange="window.location.href='{{ route('warehouses.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                     <option value="">Tất cả loại</option>
                     <option value="physical" {{ request('type') == 'physical' ? 'selected' : '' }}>Kho vật lý</option>
                     <option value="virtual" {{ request('type') == 'virtual' ? 'selected' : '' }}>Kho ảo</option>

@@ -20,7 +20,7 @@ class ExportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
     public function collection()
     {
-        $query = Export::with(['warehouse', 'employee', 'project'])
+        $query = Export::with(['warehouse', 'employee', 'project', 'customer'])
             ->orderBy('date', 'desc');
 
         // Apply filters
@@ -46,7 +46,7 @@ class ExportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
             'Mã phiếu',
             'Ngày xuất',
             'Kho',
-            'Dự án',
+            'Dự án / Khách hàng',
             'Nhân viên',
             'Tổng số lượng',
             'Trạng thái',
@@ -62,11 +62,19 @@ class ExportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
             'rejected' => 'Từ chối',
         ];
 
+        // Determine project or customer
+        $projectOrCustomer = '';
+        if ($export->project) {
+            $projectOrCustomer = $export->project->code . ' - ' . $export->project->name;
+        } elseif ($export->customer) {
+            $projectOrCustomer = $export->customer->code . ' - ' . $export->customer->name;
+        }
+
         return [
             $export->code,
             $export->date->format('d/m/Y'),
             $export->warehouse->name ?? '',
-            $export->project ? $export->project->code . ' - ' . $export->project->name : '',
+            $projectOrCustomer,
             $export->employee->name ?? '',
             $export->total_qty,
             $statusLabels[$export->status] ?? $export->status,

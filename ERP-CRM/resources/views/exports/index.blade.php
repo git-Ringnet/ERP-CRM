@@ -30,7 +30,7 @@
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <select name="warehouse_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    <select name="warehouse_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả kho --</option>
                         @foreach($warehouses as $warehouse)
                             <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
@@ -40,7 +40,7 @@
                     </select>
                 </div>
                 <div>
-                    <select name="project_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    <select name="project_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả dự án --</option>
                         @foreach($projects as $project)
                             <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
@@ -50,7 +50,17 @@
                     </select>
                 </div>
                 <div>
-                    <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    <select name="customer_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
+                        <option value="">-- Tất cả khách hàng --</option>
+                        @foreach($customers as $customer)
+                            <option value="{{ $customer->id }}" {{ request('customer_id') == $customer->id ? 'selected' : '' }}>
+                                {{ $customer->code }} - {{ $customer->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <select name="status" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả trạng thái --</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
                         <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
@@ -60,11 +70,13 @@
                     <input type="date" name="date_from" value="{{ request('date_from') }}" placeholder="Từ ngày"
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
-                <div class="flex gap-2">
+                <div>
                     <input type="date" name="date_to" value="{{ request('date_to') }}" placeholder="Đến ngày"
-                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                    <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                        <i class="fas fa-search"></i>
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <button type="submit" class="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-search mr-2"></i>Tìm kiếm
                     </button>
                 </div>
             </form>

@@ -23,7 +23,7 @@
                 <!-- Filter by Warehouse -->
                 <select name="warehouse_id"
                     onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&stock_status={{ request('stock_status') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                     <option value="">Tất cả kho</option>
                     @foreach($warehouses as $warehouse)
                         <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
@@ -35,7 +35,7 @@
                 <!-- Filter by Stock Status -->
                 <select name="stock_status"
                     onchange="window.location.href='{{ route('inventory.index') }}?stock_status='+this.value+'&warehouse_id={{ request('warehouse_id') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                     <option value="">Tất cả trạng thái</option>
                     <option value="available" {{ request('stock_status') == 'available' ? 'selected' : '' }}>Còn hàng</option>
                     <option value="low" {{ request('stock_status') == 'low' ? 'selected' : '' }}>Sắp hết</option>
@@ -45,7 +45,7 @@
                 <!-- Filter by Expiry -->
                 <select name="expiry_filter"
                     onchange="window.location.href='{{ route('inventory.index') }}?expiry_filter='+this.value+'&warehouse_id={{ request('warehouse_id') }}&stock_status={{ request('stock_status') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                     <option value="">Tất cả hạn sử dụng</option>
                     <option value="expiring" {{ request('expiry_filter') == 'expiring' ? 'selected' : '' }}>Sắp hết hạn
                     </option>

@@ -56,6 +56,11 @@ class ExportController extends Controller
             $query->where('project_id', $request->project_id);
         }
 
+        // Filter by customer
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', $request->customer_id);
+        }
+
         // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -80,8 +85,9 @@ class ExportController extends Controller
 
         $warehouses = Warehouse::active()->get();
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress', 'completed'])->orderBy('name')->get();
+        $customers = \App\Models\Customer::orderBy('name')->get();
 
-        return view('exports.index', compact('exports', 'warehouses', 'projects'));
+        return view('exports.index', compact('exports', 'warehouses', 'projects', 'customers'));
     }
 
     /**
