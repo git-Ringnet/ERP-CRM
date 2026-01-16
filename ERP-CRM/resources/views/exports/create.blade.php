@@ -46,7 +46,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Dự án</label>
-                <select name="project_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                <select name="project_id" id="project_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" onchange="toggleExportType()">
                     <option value="">-- Không chọn dự án --</option>
                     @foreach($projects as $project)
                         <option value="{{ $project->id }}" {{ old('project_id') == $project->id ? 'selected' : '' }}>
@@ -54,12 +54,30 @@
                         </option>
                     @endforeach
                 </select>
-                <p class="mt-1 text-xs text-gray-500">Chọn dự án nếu xuất kho cho dự án cụ thể</p>
             </div>
 
-            <div class="md:col-span-2">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
+                <select name="customer_id" id="customer_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" onchange="toggleExportType()">
+                    <option value="">-- Không chọn khách hàng --</option>
+                    @foreach($customers as $customer)
+                        <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                            {{ $customer->code }} - {{ $customer->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="md:col-span-3">
+                <p class="text-xs text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Chọn <strong>Dự án</strong> nếu xuất cho dự án, hoặc <strong>Khách hàng</strong> nếu xuất bán/giao hàng cho khách hàng. Có thể để trống cả hai.
+                </p>
+            </div>
+
+            <div class="md:col-span-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea name="note" rows="2" 
+                <textarea name="note" rows="1" 
                           class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
             </div>
         </div>
@@ -90,6 +108,34 @@
 
 @push('scripts')
 <script>
+// Toggle between project and customer selection
+function toggleExportType() {
+    const projectSelect = document.getElementById('project_id');
+    const customerSelect = document.getElementById('customer_id');
+    
+    if (projectSelect && customerSelect) {
+        // If project is selected, disable customer
+        if (projectSelect.value) {
+            customerSelect.value = '';
+            customerSelect.disabled = true;
+            customerSelect.classList.add('bg-gray-100');
+        } else {
+            customerSelect.disabled = false;
+            customerSelect.classList.remove('bg-gray-100');
+        }
+        
+        // If customer is selected, disable project
+        if (customerSelect.value) {
+            projectSelect.value = '';
+            projectSelect.disabled = true;
+            projectSelect.classList.add('bg-gray-100');
+        } else {
+            projectSelect.disabled = false;
+            projectSelect.classList.remove('bg-gray-100');
+        }
+    }
+}
+
 let itemIndex = 0;
 const products = @json($products);
 const warehouses = @json($warehouses);

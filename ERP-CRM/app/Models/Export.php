@@ -15,6 +15,7 @@ class Export extends Model
         'code',
         'warehouse_id',
         'project_id',
+        'customer_id',
         'date',
         'employee_id',
         'total_qty',
@@ -44,6 +45,14 @@ class Export extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Get the customer for this export.
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     /**

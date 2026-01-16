@@ -201,6 +201,67 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Danh sách phiếu xuất kho -->
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-arrow-up mr-2 text-orange-500"></i>Phiếu xuất kho
+                        <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                            {{ $customer->exports->count() }}
+                        </span>
+                    </h2>
+                </div>
+                <div class="p-6">
+                    @if($customer->exports->isEmpty())
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-box-open text-4xl mb-2"></i>
+                            <p>Chưa có phiếu xuất nào</p>
+                        </div>
+                    @else
+                        <div class="space-y-3">
+                            @foreach($customer->exports->take(5) as $export)
+                            <div class="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                                <div class="flex items-center justify-between mb-2">
+                                    <a href="{{ route('exports.show', $export->id) }}" 
+                                       class="font-semibold text-orange-600 hover:underline">
+                                        {{ $export->code }}
+                                    </a>
+                                    @if($export->status === 'pending')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                            Chờ xử lý
+                                        </span>
+                                    @else
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                            Hoàn thành
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    <div class="flex justify-between">
+                                        <span>Ngày xuất:</span>
+                                        <span class="font-medium">{{ $export->date->format('d/m/Y') }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Số lượng:</span>
+                                        <span class="font-medium">{{ number_format($export->total_qty) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                            
+                            @if($customer->exports->count() > 5)
+                            <div class="text-center pt-2">
+                                <a href="{{ route('exports.index', ['customer_id' => $customer->id]) }}" 
+                                   class="text-sm text-primary hover:underline">
+                                    Xem tất cả {{ $customer->exports->count() }} phiếu xuất →
+                                </a>
+                            </div>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
         <!-- Sidebar - 1 column -->

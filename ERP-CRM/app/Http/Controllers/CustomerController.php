@@ -105,9 +105,14 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
-        $customer->load(['projects' => function($query) {
-            $query->with('exports')->latest();
-        }]);
+        $customer->load([
+            'projects' => function($query) {
+                $query->with('exports')->latest();
+            },
+            'exports' => function($query) {
+                $query->latest()->limit(10);
+            }
+        ]);
         
         return view('customers.show', compact('customer'));
     }

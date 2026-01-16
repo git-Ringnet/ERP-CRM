@@ -44,7 +44,7 @@ class ExportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Export::with(['warehouse', 'employee', 'items', 'project']);
+        $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -93,9 +93,10 @@ class ExportController extends Controller
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $customers = \App\Models\Customer::orderBy('name')->get();
         $code = Export::generateCode();
 
-        return view('exports.create', compact('warehouses', 'products', 'employees', 'projects', 'code'));
+        return view('exports.create', compact('warehouses', 'products', 'employees', 'projects', 'customers', 'code'));
     }
 
     /**
@@ -131,7 +132,7 @@ class ExportController extends Controller
      */
     public function show(Export $export)
     {
-        $export->load(['warehouse', 'employee', 'items.product', 'project']);
+        $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
 
         // Get exported product items (serials) grouped by product_id
         $exportedItems = ProductItem::where('export_id', $export->id)
@@ -155,6 +156,8 @@ class ExportController extends Controller
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
+        $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $customers = \App\Models\Customer::orderBy('name')->get();
 
         $existingItems = $export->items->map(function ($item) use ($export) {
             // Get selected product_item_ids from serial_number JSON
@@ -175,7 +178,7 @@ class ExportController extends Controller
             ];
         })->toArray();
 
-        return view('exports.edit', compact('export', 'warehouses', 'products', 'employees', 'existingItems'));
+        return view('exports.edit', compact('export', 'warehouses', 'products', 'employees', 'projects', 'customers', 'existingItems'));
     }
 
     /**

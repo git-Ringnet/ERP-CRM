@@ -78,7 +78,7 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án / Khách hàng</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
@@ -96,10 +96,21 @@
                     </td>
                     <td class="px-4 py-3 text-sm">
                         @if($export->project)
-                            <a href="{{ route('projects.show', $export->project) }}" class="text-blue-600 hover:text-blue-800 hover:underline">
-                                {{ $export->project->code }}
-                            </a>
-                            <div class="text-xs text-gray-500">{{ Str::limit($export->project->name, 30) }}</div>
+                            <div class="flex items-center gap-1">
+                                <span class="px-1.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded">Dự án</span>
+                                <a href="{{ route('projects.show', $export->project) }}" class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    {{ $export->project->code }}
+                                </a>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5">{{ Str::limit($export->project->name, 30) }}</div>
+                        @elseif($export->customer)
+                            <div class="flex items-center gap-1">
+                                <span class="px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700 rounded">KH</span>
+                                <a href="{{ route('customers.show', $export->customer) }}" class="text-green-600 hover:text-green-800 hover:underline">
+                                    {{ $export->customer->code }}
+                                </a>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5">{{ Str::limit($export->customer->name, 30) }}</div>
                         @else
                             <span class="text-gray-400">-</span>
                         @endif

@@ -63,6 +63,17 @@
                     @endif
                 </div>
                 @endif
+                @if($export->customer)
+                <div>
+                    <label class="text-sm text-gray-500">Khách hàng</label>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('customers.show', $export->customer) }}" 
+                           class="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                            {{ $export->customer->code }} - {{ $export->customer->name }}
+                        </a>
+                    </div>
+                </div>
+                @endif
             </div>
             
             <div class="space-y-3">

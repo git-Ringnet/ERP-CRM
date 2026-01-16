@@ -78,6 +78,14 @@ class Customer extends Model
     }
 
     /**
+     * Relationship with Exports
+     */
+    public function exports()
+    {
+        return $this->hasMany(Export::class);
+    }
+
+    /**
      * Relationship with PaymentHistory
      */
     public function paymentHistories()

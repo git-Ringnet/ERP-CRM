@@ -23,6 +23,7 @@ class ExportRequest extends FormRequest
             'date' => 'required|date',
             'employee_id' => 'nullable|exists:users,id',
             'project_id' => 'nullable|exists:projects,id',
+            'customer_id' => 'nullable|exists:customers,id',
             'note' => 'nullable|string|max:1000',
 
             // Items validation - warehouse_id per item

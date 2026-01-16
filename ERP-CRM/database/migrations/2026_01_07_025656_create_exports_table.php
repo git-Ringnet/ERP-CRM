@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('code', 20)->unique();
             $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
             $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete()->comment('Dự án liên kết');
+            $table->foreignId('customer_id')->nullable()->constrained('customers')->nullOnDelete()->comment('Khách hàng (nếu xuất cho khách hàng)');
             $table->date('date');
             $table->foreignId('employee_id')->nullable()->constrained('users')->nullOnDelete();
             $table->integer('total_qty')->default(0)->comment('Tổng số lượng');
