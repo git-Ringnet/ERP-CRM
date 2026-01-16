@@ -60,7 +60,6 @@
                         <option value="">Chọn cách tính</option>
                         <option value="fixed" {{ old('calculation_type') == 'fixed' ? 'selected' : '' }}>Cố định</option>
                         <option value="percentage" {{ old('calculation_type') == 'percentage' ? 'selected' : '' }}>Phần trăm</option>
-                        <option value="formula" {{ old('calculation_type') == 'formula' ? 'selected' : '' }}>Công thức</option>
                     </select>
                 </div>
             </div>
@@ -81,18 +80,7 @@
                 <p class="text-xs text-gray-500 mt-1">Tính theo % doanh thu đơn hàng</p>
             </div>
 
-            <div id="formulaField" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Công thức tính</label>
-                <input type="text" name="formula" value="{{ old('formula') }}"
-                       placeholder="VD: revenue * 0.05 + quantity * 1000"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary font-mono">
-                <p class="text-xs text-gray-500 mt-1">
-                    Biến có thể dùng: <code class="bg-gray-100 px-1 rounded">revenue</code> (doanh thu), 
-                    <code class="bg-gray-100 px-1 rounded">quantity</code> (số lượng), 
-                    <code class="bg-gray-100 px-1 rounded">distance</code> (khoảng cách), 
-                    <code class="bg-gray-100 px-1 rounded">weight</code> (trọng lượng)
-                </p>
-            </div>
+            <!-- Formula field removed -->
 
             <!-- Apply Conditions -->
             <div>
@@ -162,14 +150,11 @@ function toggleCalculationFields() {
     const type = document.getElementById('calculationType').value;
     document.getElementById('fixedField').classList.add('hidden');
     document.getElementById('percentageField').classList.add('hidden');
-    document.getElementById('formulaField').classList.add('hidden');
     
     if (type === 'fixed') {
         document.getElementById('fixedField').classList.remove('hidden');
     } else if (type === 'percentage') {
         document.getElementById('percentageField').classList.remove('hidden');
-    } else if (type === 'formula') {
-        document.getElementById('formulaField').classList.remove('hidden');
     }
 }
 

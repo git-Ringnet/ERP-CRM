@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Ép buộc toàn bộ link phải chạy HTTPS
+        if ($this->app->environment('production') || true) {
+            URL::forceScheme('https');
+        }
         // Use custom Tailwind pagination view
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.tailwind');
         \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.simple-tailwind');

@@ -94,20 +94,23 @@ class SaleController extends Controller
     {
         $customers = Customer::orderBy('name')->get();
         // Get products with liquidation count to display in UI
-        // Get products with liquidation count to display in UI
-        $baseProducts = Product::withCount([
-            'items as liquidation_count' => function ($query) {
-                $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
-            }
-        ])->orderBy('name')->get();
+        $baseProducts = Product::with(['supplierPriceListItems.priceList'])
+            ->withCount([
+                'items as liquidation_count' => function ($query) {
+                    $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
+                }
+            ])->orderBy('name')->get();
 
         $products = collect();
         foreach ($baseProducts as $product) {
+            // Get calculated price
+            $suggestedPrice = $product->calculated_selling_price;
+
             // Add normal product
             $products->push([
                 'id' => $product->id,
                 'name' => $product->name,
-                'price' => $product->price,
+                'price' => $suggestedPrice,
                 'warranty_months' => $product->warranty_months,
                 'is_liquidation' => 0,
                 'liquidation_count' => 0
@@ -118,7 +121,7 @@ class SaleController extends Controller
                 $products->push([
                     'id' => $product->id, // Same ID
                     'name' => $product->name . ' - Hàng thanh lý',
-                    'price' => 0, // Let user set price
+                    'price' => 0, // Let user set price for liquidation
                     'warranty_months' => 0, // Usually no warranty or limited
                     'is_liquidation' => 1,
                     'liquidation_count' => $product->liquidation_count
@@ -281,7 +284,7 @@ class SaleController extends Controller
             // Create sale items with cost price and project
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
-                $costPrice = $product->cost ?? 0;
+                $costPrice = $product->calculated_cost;
                 $quantity = $item['quantity'];
 
                 // Use item-level project_id if set, otherwise use sale-level project_id
@@ -354,23 +357,26 @@ class SaleController extends Controller
      */
     public function edit(Sale $sale)
     {
-        $sale->load('items');
+        $sale->load(['items', 'expenses']);
         $customers = Customer::orderBy('name')->get();
         // Get products with liquidation count to display in UI
-        // Get products with liquidation count to display in UI
-        $baseProducts = Product::withCount([
-            'items as liquidation_count' => function ($query) {
-                $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
-            }
-        ])->orderBy('name')->get();
+        $baseProducts = Product::with(['supplierPriceListItems.priceList'])
+            ->withCount([
+                'items as liquidation_count' => function ($query) {
+                    $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
+                }
+            ])->orderBy('name')->get();
 
         $products = collect();
         foreach ($baseProducts as $product) {
+            // Get calculated price
+            $suggestedPrice = $product->calculated_selling_price;
+
             // Add normal product
             $products->push([
                 'id' => $product->id,
                 'name' => $product->name,
-                'price' => $product->price,
+                'price' => $suggestedPrice,
                 'warranty_months' => $product->warranty_months,
                 'is_liquidation' => 0,
                 'liquidation_count' => 0
@@ -426,6 +432,10 @@ class SaleController extends Controller
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'expenses' => ['nullable', 'array'],
+            'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
+            'expenses.*.description' => ['nullable', 'string'],
+            'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         DB::beginTransaction();
@@ -507,7 +517,7 @@ class SaleController extends Controller
 
             foreach ($validated['products'] as $item) {
                 $product = Product::find($item['product_id']);
-                $costPrice = $product->cost ?? 0;
+                $costPrice = $product->calculated_cost;
                 $quantity = $item['quantity'];
 
                 // Use item-level project_id if set, otherwise use sale-level project_id
@@ -532,6 +542,23 @@ class SaleController extends Controller
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
                 ]);
+            }
+
+            // Update sale expenses
+            $sale->expenses()->delete();
+            if (!empty($validated['expenses'])) {
+                foreach ($validated['expenses'] as $expense) {
+                    if (empty($expense['type']) && empty($expense['amount']))
+                        continue;
+
+                    SaleExpense::create([
+                        'sale_id' => $sale->id,
+                        'type' => $expense['type'] ?? 'other',
+                        'description' => $expense['description'] ?? '',
+                        'amount' => $expense['amount'] ?? 0,
+                        'note' => $expense['note'] ?? null,
+                    ]);
+                }
             }
 
             // Calculate margin and debt AFTER creating new items

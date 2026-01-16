@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\DB;
 
 class DamagedGoodController extends Controller
 {
@@ -207,130 +208,126 @@ class DamagedGoodController extends Controller
         $oldStatus = $damagedGood->status;
         $newStatus = $request->status;
 
-        $damagedGood->update([
-            'status' => $newStatus,
-            'solution' => $request->solution,
-        ]);
+        // Use transaction to ensure atomicity
+        DB::beginTransaction();
+        try {
+            // Update the main record
+            $damagedGood->update([
+                'status' => $newStatus,
+                'solution' => $request->solution,
+            ]);
 
-        // Gửi thông báo cho người tạo báo cáo khi duyệt/từ chối
-        if ($oldStatus !== $newStatus) {
-            $notificationService = new NotificationService();
+            // Gửi thông báo cho người tạo báo cáo khi duyệt/từ chối
+            if ($oldStatus !== $newStatus) {
+                $notificationService = new NotificationService();
 
-            if ($newStatus === 'approved') {
-                // --- VALIDATION: CHECK STOCK BEFORE APPROVAL ---
-                $pivotItems = $damagedGood->items;
+                if ($newStatus === 'approved') {
+                    // --- VALIDATION: CHECK STOCK BEFORE APPROVAL ---
+                    $pivotItems = $damagedGood->items;
 
-                if ($pivotItems->count() > 0) {
-                    foreach ($pivotItems as $item) {
-                        if ($item->status !== ProductItem::STATUS_IN_STOCK) {
-                            $damagedGood->update(['status' => $oldStatus]);
-                            return back()->with('error', "Item {$item->sku} không còn trong kho. Không thể duyệt.");
+                    if ($pivotItems->count() > 0) {
+                        foreach ($pivotItems as $item) {
+                            if ($item->status !== ProductItem::STATUS_IN_STOCK) {
+                                throw new \Exception("Item {$item->sku} không còn trong kho. Không thể duyệt.");
+                            }
+                        }
+                    } elseif ($damagedGood->product_item_id) {
+                        $item = ProductItem::find($damagedGood->product_item_id);
+                        if (!$item || $item->status !== ProductItem::STATUS_IN_STOCK) {
+                            throw new \Exception('Sản phẩm này hiện không còn trong kho (hoặc đã bán/hỏng), không thể duyệt báo cáo.');
+                        }
+                        if ($damagedGood->quantity > $item->quantity) {
+                            throw new \Exception("Số lượng báo cáo ({$damagedGood->quantity}) lớn hơn số lượng tồn của item này ({$item->quantity}).");
+                        }
+                    } elseif ($damagedGood->warehouse_id) {
+                        // Check total available quantity in that warehouse
+                        $totalAvailable = ProductItem::where('product_id', $damagedGood->product_id)
+                            ->where('warehouse_id', $damagedGood->warehouse_id)
+                            ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->sum('quantity');
+
+                        if ($totalAvailable < $damagedGood->quantity) {
+                            throw new \Exception("Không đủ tồn kho để duyệt. Kho hiện có {$totalAvailable}, báo cáo {$damagedGood->quantity}.");
+                        }
+                    } else {
+                        if (!$damagedGood->warehouse_id && !$damagedGood->product_item_id) {
+                            throw new \Exception('Thiếu thông tin kho hàng. Không thể trừ tồn kho.');
                         }
                     }
-                    // Check if quantity matches count (optional check)
-                    if ($damagedGood->quantity != $pivotItems->count()) {
-                        // Warning or strict? STRICT basically says "quantity" field is just a summary. 
-                        // But if user manually changed Quantity without updating items, it's a mismatch. 
-                        // Let's assume quantity is correct or update it? 
-                        // For now just valid items existence.
-                    }
-                } elseif ($damagedGood->product_item_id) {
-                    $item = ProductItem::find($damagedGood->product_item_id);
-                    if (!$item || $item->status !== ProductItem::STATUS_IN_STOCK) {
-                        // Revert status update
-                        $damagedGood->update(['status' => $oldStatus]);
-                        return back()->with('error', 'Sản phẩm này hiện không còn trong kho (hoặc đã bán/hỏng), không thể duyệt báo cáo.');
-                    }
-                    if ($damagedGood->quantity > $item->quantity) {
-                        $damagedGood->update(['status' => $oldStatus]);
-                        return back()->with('error', "Số lượng báo cáo ({$damagedGood->quantity}) lớn hơn số lượng tồn của item này ({$item->quantity}).");
-                    }
-                } elseif ($damagedGood->warehouse_id) {
-                    // Check total available quantity in that warehouse
-                    $totalAvailable = ProductItem::where('product_id', $damagedGood->product_id)
-                        ->where('warehouse_id', $damagedGood->warehouse_id)
-                        ->where('status', ProductItem::STATUS_IN_STOCK)
-                        ->sum('quantity');
 
-                    if ($totalAvailable < $damagedGood->quantity) {
-                        // Revert status update
-                        $damagedGood->update(['status' => $oldStatus]);
-                        return back()->with('error', "Không đủ tồn kho để duyệt. Kho hiện có {$totalAvailable}, báo cáo {$damagedGood->quantity}.");
+                    if ($damagedGood->discovered_by) {
+                        $notificationService->notifyDamagedGoodApproved($damagedGood, $damagedGood->discovered_by);
                     }
-                } else {
-                    if (!$damagedGood->warehouse_id && !$damagedGood->product_item_id) {
-                        $damagedGood->update(['status' => $oldStatus]);
-                        return back()->with('error', 'Thiếu thông tin kho hàng. Không thể trừ tồn kho.');
-                    }
-                }
 
-                if ($damagedGood->discovered_by) {
-                    $notificationService->notifyDamagedGoodApproved($damagedGood, $damagedGood->discovered_by);
-                }
-
-                // --- INVENTORY INTEGRATION ---
-                // 1. Pivot Items
-                if ($pivotItems->count() > 0) {
-                    foreach ($pivotItems as $item) {
-                        $item->status = ($damagedGood->type === 'liquidation')
-                            ? ProductItem::STATUS_LIQUIDATION
-                            : ProductItem::STATUS_DAMAGED;
-                        $item->save();
-                    }
-                }
-                // 2. Single Item (Legacy)
-                elseif ($damagedGood->product_item_id) {
-                    $item = ProductItem::find($damagedGood->product_item_id);
-                    if ($item && $item->status === ProductItem::STATUS_IN_STOCK) {
-                        if ($damagedGood->type === 'liquidation') {
-                            $item->status = ProductItem::STATUS_LIQUIDATION;
-                        } else {
-                            $item->status = ProductItem::STATUS_DAMAGED;
-                        }
-                        $item->save();
-                    }
-                }
-                // 3. Bulk (No specific items linked)
-                elseif ($damagedGood->warehouse_id) {
-                    $qtyNeeded = $damagedGood->quantity;
-                    $items = ProductItem::where('product_id', $damagedGood->product_id)
-                        ->where('warehouse_id', $damagedGood->warehouse_id)
-                        ->where('status', ProductItem::STATUS_IN_STOCK)
-                        ->orderBy('quantity', 'desc')
-                        ->get();
-
-                    foreach ($items as $item) {
-                        if ($qtyNeeded <= 0)
-                            break;
-
-                        if ($item->quantity > $qtyNeeded) {
-                            $item->quantity -= $qtyNeeded;
-                            $item->save();
-
-                            $newItem = $item->replicate();
-                            $newItem->sku = ProductItem::generateNoSku($item->product_id);
-                            $newItem->quantity = $qtyNeeded;
-                            $newItem->status = ($damagedGood->type === 'liquidation')
-                                ? ProductItem::STATUS_LIQUIDATION
-                                : ProductItem::STATUS_DAMAGED;
-                            $newItem->save();
-
-                            $qtyNeeded = 0;
-                        } else {
-                            $qtyNeeded -= $item->quantity;
+                    // --- INVENTORY INTEGRATION ---
+                    // 1. Pivot Items
+                    if ($pivotItems->count() > 0) {
+                        foreach ($pivotItems as $item) {
                             $item->status = ($damagedGood->type === 'liquidation')
                                 ? ProductItem::STATUS_LIQUIDATION
                                 : ProductItem::STATUS_DAMAGED;
                             $item->save();
                         }
                     }
-                }
+                    // 2. Single Item (Legacy)
+                    elseif ($damagedGood->product_item_id) {
+                        $item = ProductItem::find($damagedGood->product_item_id);
+                        if ($item && $item->status === ProductItem::STATUS_IN_STOCK) {
+                            if ($damagedGood->type === 'liquidation') {
+                                $item->status = ProductItem::STATUS_LIQUIDATION;
+                            } else {
+                                $item->status = ProductItem::STATUS_DAMAGED;
+                            }
+                            $item->save();
+                        }
+                    }
+                    // 3. Bulk (No specific items linked)
+                    elseif ($damagedGood->warehouse_id) {
+                        $qtyNeeded = $damagedGood->quantity;
+                        $items = ProductItem::where('product_id', $damagedGood->product_id)
+                            ->where('warehouse_id', $damagedGood->warehouse_id)
+                            ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->orderBy('quantity', 'desc')
+                            ->get();
 
-            } elseif ($newStatus === 'rejected') {
-                $reason = $request->solution ?? '';
-                $notificationService->notifyDamagedGoodRejected($damagedGood, $damagedGood->discovered_by, $reason);
-            }
+                        foreach ($items as $item) {
+                            if ($qtyNeeded <= 0)
+                                break;
+
+                            if ($item->quantity > $qtyNeeded) {
+                                $item->quantity -= $qtyNeeded;
+                                $item->save();
+
+                                $newItem = $item->replicate();
+                                $newItem->sku = ProductItem::generateNoSku($item->product_id);
+                                $newItem->quantity = $qtyNeeded;
+                                $newItem->status = ($damagedGood->type === 'liquidation')
+                                    ? ProductItem::STATUS_LIQUIDATION
+                                    : ProductItem::STATUS_DAMAGED;
+                                $newItem->save();
+
+                                $qtyNeeded = 0;
+                            } else {
+                                $qtyNeeded -= $item->quantity;
+                                $item->status = ($damagedGood->type === 'liquidation')
+                                    ? ProductItem::STATUS_LIQUIDATION
+                                    : ProductItem::STATUS_DAMAGED;
+                                $item->save();
+                            }
+                        }
+                    }
+                } elseif ($newStatus === 'rejected') {
+                    $reason = $request->solution ?? '';
+                    $notificationService->notifyDamagedGoodRejected($damagedGood, $damagedGood->discovered_by, $reason);
+                }
+            } // End if status changed
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage());
         }
+
 
         return redirect()
             ->route('damaged-goods.show', $damagedGood)

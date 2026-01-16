@@ -192,16 +192,21 @@
 
             <!-- Expenses Section -->
             <div class="border-t pt-4">
-                <h4 class="text-lg font-medium text-gray-900 mb-4">Chi phí bán hàng</h4>
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-lg font-medium text-gray-900">Chi phí bán hàng (Nội bộ)</h4>
+                    <button type="button" onclick="calculateSuggestedExpenses()" 
+                            class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
+                        <i class="fas fa-calculator mr-1.5"></i> Tính chi phí tự động
+                    </button>
+                </div>
                 
                 <div id="expenseList" class="space-y-3">
                     <div class="expense-item bg-yellow-50 p-3 rounded-lg">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <div class="md:col-span-3">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>
-                                <select name="expenses[0][type]" onchange="calculateExpenses()"
+                                <select name="expenses[0][type]" onchange="updateExpenseSummary()"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-type">
-                                    <option value="">Chọn loại</option>
                                     <option value="shipping">Vận chuyển</option>
                                     <option value="marketing">Marketing</option>
                                     <option value="commission">Hoa hồng</option>
@@ -215,9 +220,9 @@
                             </div>
                             <div class="md:col-span-3">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền</label>
-                                <input type="number" name="expenses[0][amount]" min="0" value="0"
-                                       onchange="calculateExpenses()"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-amount">
+                                <input type="text" name="expenses[0][amount]" value="0"
+                                       onchange="updateExpenseSummary()"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-amount price-input">
                             </div>
                             <div class="md:col-span-1 flex items-end">
                                 <button type="button" onclick="removeExpenseRow(this)" 
@@ -492,7 +497,7 @@ function initAllSearchableSelects() {
     const customerSelect = document.getElementById('customerSelect');
     if (customerSelect) {
         initSearchableSelect(customerSelect, () => {
-            autoCalculateExpenses();
+            // removed autoCalculateExpenses();
         });
     }
     
@@ -516,7 +521,7 @@ function initAllSearchableSelects() {
                     const warrantyMonths = parseInt(opt.dataset.warranty) || 0;
                     warrantyInput.value = warrantyMonths > 0 ? warrantyMonths : '';
                 }
-                autoCalculateExpenses();
+                // removed autoCalculateExpenses();
             });
             container.dataset.initialized = 'true';
         }
@@ -686,95 +691,90 @@ function updatePrice(select, index) {
     row.querySelector('.price-input').value = price;
     calculateRowTotal(index);
     
-    // Auto-calculate expenses based on formulas
-    autoCalculateExpenses();
+    // Auto-calculate expenses based on formulas - REMOVED in favor of manual button
+    // autoCalculateExpenses();
 }
 
-async function autoCalculateExpenses() {
-    const customerId = document.querySelector('select[name="customer_id"]').value;
-    if (!customerId) return;
-    
-    // Get all products and calculate total revenue
-    let totalRevenue = 0;
-    let totalQuantity = 0;
-    const productIds = [];
-    
+async function calculateSuggestedExpenses() {
+    const customerId = document.querySelector('input[name="customer_id"]').value;
+    const items = [];
     document.querySelectorAll('.product-item').forEach(row => {
-        const productId = row.querySelector('.product-select').value;
-        const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
-        const price = parseFloat(row.querySelector('.price-input').value) || 0;
+        const productId = row.querySelector('.product-id-input').value;
+        const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+        const price = unformatMoney(row.querySelector('.price-input').value) || 0;
         
-        if (productId) {
-            productIds.push(productId);
-            totalRevenue += qty * price;
-            totalQuantity += qty;
+        if (productId && quantity > 0) {
+            items.push({
+                product_id: productId,
+                quantity: quantity,
+                price: price
+            });
         }
     });
     
-    if (productIds.length === 0) return;
+    if (items.length === 0) {
+        alert('Vui lòng thêm sản phẩm trước khi tính chi phí.');
+        return;
+    }
+    
+    // Show loading
+    const btn = document.querySelector('button[onclick="calculateSuggestedExpenses()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang tính...';
+    btn.disabled = true;
     
     try {
-        // Call API to get applicable formulas
-        const response = await fetch(`/api/cost-formulas/applicable?customer_id=${customerId}&product_id=${productIds[0]}&revenue=${totalRevenue}&quantity=${totalQuantity}`);
-        const expenses = await response.json();
-        
-        // Clear existing expense rows
-        const expenseList = document.getElementById('expenseList');
-        expenseList.innerHTML = '';
-        
-        // Add expense rows from formulas
-        expenses.forEach((expense, idx) => {
-            const newRow = document.createElement('div');
-            newRow.className = 'expense-item bg-yellow-50 p-3 rounded-lg';
-            newRow.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <div class="md:col-span-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>
-                        <select name="expenses[${idx}][type]" onchange="calculateExpenses()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-type">
-                            <option value="shipping" ${expense.type === 'shipping' ? 'selected' : ''}>Vận chuyển</option>
-                            <option value="marketing" ${expense.type === 'marketing' ? 'selected' : ''}>Marketing</option>
-                            <option value="commission" ${expense.type === 'commission' ? 'selected' : ''}>Hoa hồng</option>
-                            <option value="other" ${expense.type === 'other' ? 'selected' : ''}>Khác</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-5">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-                        <input type="text" name="expenses[${idx}][description]" value="${expense.description}"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền</label>
-                        <input type="number" name="expenses[${idx}][amount]" min="0" value="${expense.amount}"
-                               onchange="calculateExpenses()"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-amount">
-                    </div>
-                    <div class="md:col-span-1 flex items-end">
-                        <button type="button" onclick="removeExpenseRow(this)" 
-                                class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-            expenseList.appendChild(newRow);
+        const response = await fetch('{{ route("cost-formulas.calculate") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                customer_id: customerId,
+                items: items
+            })
         });
         
-        expenseIndex = expenses.length;
-        calculateExpenses();
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            // Optional: Clear existing "Automatic" expenses?
+            // For now, let's keep it simple and just append.
+            // Or maybe clear only empty rows?
+            
+            let count = 0;
+            data.forEach(expense => {
+                addExpenseRow({
+                    type: expense.type,
+                    description: expense.description + ' (Tự động)',
+                    amount: expense.amount
+                });
+                count++;
+            });
+            alert(`Đã tìm thấy và thêm ${count} mục chi phí phù hợp.`);
+            updateExpenseSummary();
+        } else {
+            alert('Không tìm thấy công thức chi phí phù hợp.');
+        }
         
     } catch (error) {
-        console.error('Error fetching cost formulas:', error);
+        console.error('Error:', error);
+        alert('Có lỗi xảy ra khi tính chi phí.');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Add event listener to customer select
+    // Add event listener to customer select
     const customerSelect = document.querySelector('select[name="customer_id"]');
     if (customerSelect) {
         customerSelect.addEventListener('change', function() {
-            autoCalculateExpenses();
+            // removed autoCalculateExpenses();
         });
     }
 });
@@ -861,33 +861,38 @@ function calculateDebt() {
 }
 
 // Expense functions
-function addExpenseRow() {
+function addExpenseRow(data = null) {
     const expenseList = document.getElementById('expenseList');
     const newRow = document.createElement('div');
     newRow.className = 'expense-item bg-yellow-50 p-3 rounded-lg';
+    
+    // Default values
+    const type = data ? data.type : 'shipping';
+    const description = data ? data.description : '';
+    const amount = data ? formatMoney(data.amount) : '0';
+    
     newRow.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
             <div class="md:col-span-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>
-                <select name="expenses[${expenseIndex}][type]" onchange="calculateExpenses()"
+                <select name="expenses[${expenseIndex}][type]" onchange="updateExpenseSummary()"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-type">
-                    <option value="">Chọn loại</option>
-                    <option value="shipping">Vận chuyển</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="commission">Hoa hồng</option>
-                    <option value="other">Khác</option>
+                    <option value="shipping" ${type === 'shipping' ? 'selected' : ''}>Vận chuyển</option>
+                    <option value="marketing" ${type === 'marketing' ? 'selected' : ''}>Marketing</option>
+                    <option value="commission" ${type === 'commission' ? 'selected' : ''}>Hoa hồng</option>
+                    <option value="other" ${type === 'other' ? 'selected' : ''}>Khác</option>
                 </select>
             </div>
             <div class="md:col-span-5">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-                <input type="text" name="expenses[${expenseIndex}][description]" placeholder="VD: Chi phí vận chuyển"
+                <input type="text" name="expenses[${expenseIndex}][description]" value="${description}" placeholder="VD: Chi phí vận chuyển"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
             <div class="md:col-span-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền</label>
-                <input type="number" name="expenses[${expenseIndex}][amount]" min="0" value="0"
-                       onchange="calculateExpenses()"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-amount">
+                <input type="text" name="expenses[${expenseIndex}][amount]" value="${amount}"
+                       onchange="updateExpenseSummary()"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-amount price-input">
             </div>
             <div class="md:col-span-1 flex items-end">
                 <button type="button" onclick="removeExpenseRow(this)" 
@@ -900,17 +905,18 @@ function addExpenseRow() {
     expenseList.appendChild(newRow);
     expenseIndex++;
     initMoneyInputs();
+    updateExpenseSummary();
 }
 
 function removeExpenseRow(btn) {
     const items = document.querySelectorAll('.expense-item');
-    if (items.length > 1) {
+    if (items.length > 0) { // Allow removing all if needed, or keep 1
         btn.closest('.expense-item').remove();
-        calculateExpenses();
+        updateExpenseSummary();
     }
 }
 
-function calculateExpenses() {
+function updateExpenseSummary() {
     let shipping = 0, marketing = 0, commission = 0, other = 0;
     
     document.querySelectorAll('.expense-item').forEach(row => {

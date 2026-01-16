@@ -16,9 +16,9 @@ class CostFormulaController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%");
+                    ->orWhere('name', 'like', "%{$search}%");
             });
         }
 
@@ -35,7 +35,7 @@ class CostFormulaController extends Controller
     {
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
-        
+
         return view('cost-formulas.create', compact('products', 'customers'));
     }
 
@@ -45,10 +45,10 @@ class CostFormulaController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:cost_formulas,code'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:shipping,marketing,commission,other'],
-            'calculation_type' => ['required', 'in:fixed,percentage,formula'],
+            'calculation_type' => ['required', 'in:fixed,percentage'],
             'fixed_amount' => ['nullable', 'numeric', 'min:0'],
             'percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'formula' => ['nullable', 'string'],
+            // formula field removed
             'apply_to' => ['required', 'in:all,product,category,customer'],
             'apply_conditions' => ['nullable', 'array'],
             'is_active' => ['boolean'],
@@ -65,7 +65,7 @@ class CostFormulaController extends Controller
     {
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
-        
+
         return view('cost-formulas.edit', compact('costFormula', 'products', 'customers'));
     }
 
@@ -75,10 +75,10 @@ class CostFormulaController extends Controller
             'code' => ['required', 'string', 'max:50', Rule::unique('cost_formulas')->ignore($costFormula->id)],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:shipping,marketing,commission,other'],
-            'calculation_type' => ['required', 'in:fixed,percentage,formula'],
+            'calculation_type' => ['required', 'in:fixed,percentage'],
             'fixed_amount' => ['nullable', 'numeric', 'min:0'],
             'percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'formula' => ['nullable', 'string'],
+            // formula field removed
             'apply_to' => ['required', 'in:all,product,category,customer'],
             'apply_conditions' => ['nullable', 'array'],
             'is_active' => ['boolean'],
@@ -102,36 +102,75 @@ class CostFormulaController extends Controller
     /**
      * API: Get applicable formulas for a sale
      */
-    public function getApplicableFormulas(Request $request)
+    /**
+     * API: Calculate suggested expenses for a sale based on items and customer
+     */
+    public function calculateForSale(Request $request)
     {
-        $productId = $request->input('product_id');
         $customerId = $request->input('customer_id');
-        $revenue = $request->input('revenue', 0);
-        $quantity = $request->input('quantity', 1);
+        $items = $request->input('items', []); // Array of {product_id, quantity, price}
+
+        $totalRevenue = 0;
+        $productRevenues = []; // product_id => revenue
+
+        // Calculate revenues
+        foreach ($items as $item) {
+            $lineTotal = ($item['quantity'] ?? 0) * ($item['price'] ?? 0);
+            $totalRevenue += $lineTotal;
+
+            $pid = $item['product_id'] ?? null;
+            if ($pid) {
+                if (!isset($productRevenues[$pid]))
+                    $productRevenues[$pid] = 0;
+                $productRevenues[$pid] += $lineTotal;
+            }
+        }
 
         $formulas = CostFormula::where('is_active', true)->get();
-        $applicableExpenses = [];
+        $suggestedExpenses = [];
 
         foreach ($formulas as $formula) {
-            $conditions = [
-                'product_id' => $productId,
-                'customer_id' => $customerId,
-            ];
+            $amount = 0;
+            $isMatched = false;
 
-            if ($formula->appliesTo($conditions)) {
-                $cost = $formula->calculateCost($revenue, [
-                    'quantity' => $quantity,
-                ]);
+            if ($formula->apply_to === 'all') {
+                $amount = $formula->calculateCost($totalRevenue);
+                $isMatched = true;
+            } elseif ($formula->apply_to === 'customer') {
+                if ($formula->appliesTo(['customer_id' => $customerId])) {
+                    $amount = $formula->calculateCost($totalRevenue);
+                    $isMatched = true;
+                }
+            } elseif ($formula->apply_to === 'product') {
+                // Check if any item matches the product conditions
+                $relevantRevenue = 0;
+                $hasMatch = false;
 
-                $applicableExpenses[] = [
+                foreach ($items as $item) {
+                    if ($formula->appliesTo(['product_id' => $item['product_id'] ?? null])) {
+                        $relevantRevenue += ($item['quantity'] ?? 0) * ($item['price'] ?? 0);
+                        $hasMatch = true;
+                    }
+                }
+
+                if ($hasMatch) {
+                    $amount = $formula->calculateCost($relevantRevenue);
+                    $isMatched = true;
+                }
+            }
+
+            if ($isMatched) {
+                $suggestedExpenses[] = [
                     'type' => $formula->type,
+                    'type_label' => $formula->type_label,
                     'description' => $formula->name,
-                    'amount' => $cost,
+                    'amount' => max(0, $amount),
                     'formula_id' => $formula->id,
                 ];
             }
         }
 
-        return response()->json($applicableExpenses);
+        return response()->json($suggestedExpenses);
     }
 }
+

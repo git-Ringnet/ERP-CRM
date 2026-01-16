@@ -110,11 +110,15 @@
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                                         @foreach($products as $product)
                                             <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
-                                                 data-value="{{ $product->id }}" 
-                                                 data-price="{{ $product->price }}"
-                                                 data-warranty="{{ $product->warranty_months ?? 0 }}"
-                                                 data-text="{{ $product->name }}">
-                                                {{ $product->name }}
+                                                 data-value="{{ $product['id'] }}" 
+                                                 data-price="{{ $product['price'] }}"
+                                                 data-is-liquidation="{{ $product['is_liquidation'] }}"
+                                                 data-warranty="{{ $product['warranty_months'] ?? 0 }}"
+                                                 data-text="{{ $product['name'] }}">
+                                                {{ $product['name'] }}
+                                                @if(isset($product['liquidation_count']) && $product['liquidation_count'] > 0 && !$product['is_liquidation'])
+                                                    <span class="text-orange-600 italic text-xs ml-1">(Có {{ $product['liquidation_count'] }} sẵn)</span>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
@@ -160,7 +164,58 @@
                 </button>
             </div>
 
-            <!-- Totals Section -->
+            <!-- Expenses Section (Internal Costs) -->
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-lg font-medium text-gray-900">Chi phí nội bộ (Không hiển thị trên hóa đơn)</h4>
+                    <button type="button" onclick="calculateExpenses()" 
+                            class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
+                        <i class="fas fa-calculator mr-1.5"></i> Tính chi phí tự động
+                    </button>
+                </div>
+                
+                <div id="expenseList" class="space-y-3">
+                    @if($sale->expenses && count($sale->expenses) > 0)
+                        @foreach($sale->expenses as $index => $expense)
+                        <div class="expense-item bg-gray-50 p-3 rounded-lg">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                <div class="md:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>
+                                    <select name="expenses[{{ $index }}][type]" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-type">
+                                        <option value="shipping" {{ $expense->type == 'shipping' ? 'selected' : '' }}>Vận chuyển</option>
+                                        <option value="marketing" {{ $expense->type == 'marketing' ? 'selected' : '' }}>Marketing</option>
+                                        <option value="commission" {{ $expense->type == 'commission' ? 'selected' : '' }}>Hoa hồng</option>
+                                        <option value="other" {{ $expense->type == 'other' ? 'selected' : '' }}>Khác</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-5">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                                    <input type="text" name="expenses[{{ $index }}][description]" value="{{ $expense->description }}"
+                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                           placeholder="Chi tiết chi phí...">
+                                </div>
+                                <div class="md:col-span-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>
+                                    <input type="text" name="expenses[{{ $index }}][amount]" value="{{ number_format((int)$expense->amount, 0, '.', ',') }}"
+                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input expense-amount">
+                                </div>
+                                <div class="md:col-span-1 flex items-end">
+                                    <button type="button" onclick="removeExpenseRow(this)" 
+                                            class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    @endif
+                </div>
+
+                <button type="button" onclick="addExpenseRow()" 
+                        class="mt-3 inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-plus mr-2"></i> Thêm chi phí
+                </button>
+            </div>
             <div class="border-t pt-4">
                 <div class="space-y-3 max-w-md ml-auto">
                     <div class="flex justify-between items-center">
@@ -425,6 +480,10 @@ function initAllSearchableSelects() {
                     priceInput.value = formatMoney(opt.dataset.price);
                     calculateRowTotal(parseInt(container.dataset.index));
                 }
+                const isLiquidationInput = row.querySelector('.is-liquidation-input');
+                if (isLiquidationInput && opt.dataset.isLiquidation) {
+                    isLiquidationInput.value = opt.dataset.isLiquidation;
+                }
                 // Auto-fill warranty from product
                 if (warrantyInput && opt.dataset.warranty) {
                     const warrantyMonths = parseInt(opt.dataset.warranty) || 0;
@@ -454,7 +513,7 @@ function addProductRow() {
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
                     <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
-                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-warranty="${p.warranty_months || 0}" data-text="${p.name}">${p.name}</div>`).join('')}
+                        ${products.map(p => `<div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" data-value="${p.id}" data-price="${p.price}" data-is-liquidation="${p.is_liquidation}" data-warranty="${p.warranty_months || 0}" data-text="${p.name}">${p.name}${p.liquidation_count > 0 ? ` <span class="text-orange-600 italic text-xs ml-1">(Có ${p.liquidation_count} sẵn)</span>` : ''}</div>`).join('')}
                     </div>
                 </div>
             </div>
@@ -622,6 +681,131 @@ function validateAndSubmit() {
         // Set flag to prevent "Leave site?" warning
         isSubmitting = true;
         document.getElementById('saleForm').submit();
+    }
+}
+
+// Expense Management
+let expenseIndex = {{ count($sale->expenses) }};
+
+function addExpenseRow(data = null) {
+    const expenseList = document.getElementById('expenseList');
+    const newRow = document.createElement('div');
+    newRow.className = 'expense-item bg-gray-50 p-3 rounded-lg';
+    
+    // Default values
+    const type = data ? data.type : 'other';
+    const description = data ? data.description : '';
+    const amount = data ? formatMoney(data.amount) : '';
+    
+    newRow.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Loại chi phí</label>
+                <select name="expenses[${expenseIndex}][type]" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary expense-type">
+                    <option value="shipping" ${type === 'shipping' ? 'selected' : ''}>Vận chuyển</option>
+                    <option value="marketing" ${type === 'marketing' ? 'selected' : ''}>Marketing</option>
+                    <option value="commission" ${type === 'commission' ? 'selected' : ''}>Hoa hồng</option>
+                    <option value="other" ${type === 'other' ? 'selected' : ''}>Khác</option>
+                </select>
+            </div>
+            <div class="md:col-span-5">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                <input type="text" name="expenses[${expenseIndex}][description]" value="${description}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                       placeholder="Chi tiết chi phí...">
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>
+                <input type="text" name="expenses[${expenseIndex}][amount]" value="${amount}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input expense-amount">
+            </div>
+            <div class="md:col-span-1 flex items-end">
+                <button type="button" onclick="removeExpenseRow(this)" 
+                        class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    expenseList.appendChild(newRow);
+    expenseIndex++;
+    
+    // Initialize money input
+    const newPriceInput = newRow.querySelector('.price-input');
+    setupMoneyInput(newPriceInput);
+}
+
+function removeExpenseRow(btn) {
+    btn.closest('.expense-item').remove();
+}
+
+async function calculateExpenses() {
+    // Collect data
+    const customerId = document.querySelector('input[name="customer_id"]').value;
+    const items = [];
+    document.querySelectorAll('.product-item').forEach(row => {
+        const productId = row.querySelector('.product-id-input').value;
+        const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+        const price = unformatMoney(row.querySelector('.price-input').value) || 0;
+        
+        if (productId && quantity > 0) {
+            items.push({
+                product_id: productId,
+                quantity: quantity,
+                price: price
+            });
+        }
+    });
+    
+    if (items.length === 0) {
+        alert('Vui lòng thêm sản phẩm trước khi tính chi phí.');
+        return;
+    }
+    
+    // Show loading
+    const btn = document.querySelector('button[onclick="calculateExpenses()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang tính...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('{{ route("cost-formulas.calculate") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                customer_id: customerId,
+                items: items
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            // Confirm clear existing? No, just append or maybe optional.
+            // For now, let's just append new suggestions.
+            let count = 0;
+            data.forEach(expense => {
+                addExpenseRow({
+                    type: expense.type,
+                    description: expense.description + ' (Tự động)',
+                    amount: expense.amount
+                });
+                count++;
+            });
+            alert(`Đã tìm thấy và thêm ${count} mục chi phí phù hợp.`);
+        } else {
+            alert('Không tìm thấy công thức chi phí phù hợp.');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Có lỗi xảy ra khi tính chi phí.');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 </script>

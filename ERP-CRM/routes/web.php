@@ -136,7 +136,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Cost Formula routes
     Route::resource('cost-formulas', CostFormulaController::class);
-    Route::get('/api/cost-formulas/applicable', [CostFormulaController::class, 'getApplicableFormulas'])->name('cost-formulas.applicable');
+    Route::post('/api/cost-formulas/calculate', [CostFormulaController::class, 'calculateForSale'])->name('cost-formulas.calculate');
 
     // Settings routes
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
