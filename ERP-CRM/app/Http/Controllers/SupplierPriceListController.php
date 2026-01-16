@@ -250,7 +250,9 @@ class SupplierPriceListController extends Controller
 
         // Convert headers from [{index: 0, name: 'A'}, ...] to [0 => 'A', ...]
         $fileHeaders = [];
-        foreach ($request->headers as $header) {
+        // Convert headers from [{index: 0, name: 'A'}, ...] to [0 => 'A', ...]
+        $fileHeaders = [];
+        foreach ($request->input('headers', []) as $header) {
             if (isset($header['index'])) {
                 $fileHeaders[$header['index']] = $header['name'] ?? '';
             }
@@ -901,49 +903,30 @@ class SupplierPriceListController extends Controller
                 if (empty($cleanSku))
                     continue;
 
-                // Try exact match with cleaned SKU (check both ProductItem sku and Parent Product code)
-                $query = ProductItem::where(function ($q) use ($cleanSku) {
-                    $q->where('sku', $cleanSku)
-                        ->orWhereHas('product', function ($pq) use ($cleanSku) {
-                            $pq->where('code', $cleanSku);
-                        });
-                });
+                // Match Products by code (exact or LIKE)
+                // Note: The user specified that price list SKUs match Product codes, not individual Item serials.
+                $products = \App\Models\Product::where('code', $cleanSku)
+                    ->orWhere('code', 'LIKE', trim($priceItem->sku))
+                    ->with('items')
+                    ->get();
 
-                if ($updateMode === 'empty_only') {
-                    $query->where(function ($q) {
-                        $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
-                    });
-                }
-
-                $productItems = $query->get();
-
-                // Fallback: Try LIKE search if exact match failed
-                if ($productItems->isEmpty()) {
-                    $fallbackSku = trim($priceItem->sku);
-                    $fallbackQuery = ProductItem::where(function ($q) use ($fallbackSku) {
-                        $q->where('sku', 'LIKE', $fallbackSku)
-                            ->orWhereHas('product', function ($pq) use ($fallbackSku) {
-                                $pq->where('code', 'LIKE', $fallbackSku);
-                            });
-                    });
-                    if ($updateMode === 'empty_only') {
-                        $fallbackQuery->where(function ($q) {
-                            $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
-                        });
-                    }
-                    $productItems = $fallbackQuery->get();
-                }
-
-                if ($productItems->isEmpty()) {
+                if ($products->isEmpty()) {
                     $notFound++;
                     continue;
                 }
 
-                foreach ($productItems as $productItem) {
-                    $productItem->update([
-                        'cost_usd' => $priceItem->$priceField,
-                    ]);
-                    $updated++;
+                foreach ($products as $product) {
+                    // Update all items of this product
+                    foreach ($product->items as $item) {
+                        if ($updateMode === 'empty_only' && $item->cost_usd > 0) {
+                            continue;
+                        }
+
+                        $item->update([
+                            'cost_usd' => $priceItem->$priceField,
+                        ]);
+                        $updated++;
+                    }
                 }
             }
 
@@ -1002,58 +985,40 @@ class SupplierPriceListController extends Controller
             if (empty($cleanSku))
                 continue;
 
-            $query = ProductItem::with('product', 'warehouse')
-                ->where(function ($q) use ($cleanSku) {
-                    $q->where('sku', $cleanSku)
-                        ->orWhereHas('product', function ($pq) use ($cleanSku) {
-                            $pq->where('code', $cleanSku);
-                        });
-                });
+            // Match Products by code (exact or LIKE)
+            $products = \App\Models\Product::where('code', $cleanSku)
+                ->orWhere('code', 'LIKE', trim($priceItem->sku))
+                ->with(['items.warehouse', 'items'])
+                ->get();
 
-            if ($updateMode === 'empty_only') {
-                $query->where(function ($q) {
-                    $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
-                });
+            if ($products->isEmpty()) {
+                continue;
             }
 
-            $productItems = $query->get();
+            foreach ($products as $product) {
+                foreach ($product->items as $item) {
+                    if ($updateMode === 'empty_only' && $item->cost_usd > 0) {
+                        continue;
+                    }
 
-            // Fallback: Try LIKE search if exact match failed
-            if ($productItems->isEmpty()) {
-                $fallbackSku = trim($priceItem->sku);
-                $fallbackQuery = ProductItem::with('product', 'warehouse')
-                    ->where(function ($q) use ($fallbackSku) {
-                        $q->where('sku', 'LIKE', $fallbackSku)
-                            ->orWhereHas('product', function ($pq) use ($fallbackSku) {
-                                $pq->where('code', 'LIKE', $fallbackSku);
-                            });
-                    });
+                    $matchCount++;
 
-                if ($updateMode === 'empty_only') {
-                    $fallbackQuery->where(function ($q) {
-                        $q->whereNull('cost_usd')->orWhere('cost_usd', 0);
-                    });
+                    // Limit preview to 100 items
+                    if (count($preview) < 100) {
+                        $preview[] = [
+                            'sku' => $item->sku, // Display Item SKU/Serial
+                            'product_name' => $product->name,
+                            'warehouse' => $item->warehouse->name ?? 'N/A',
+                            'current_cost' => $item->cost_usd,
+                            'new_cost' => $priceItem->$priceField,
+                            'quantity' => 1 // Items are individual units
+                        ];
+                    }
                 }
-                $productItems = $fallbackQuery->get();
-            }
-
-            foreach ($productItems as $productItem) {
-                $preview[] = [
-                    'sku' => $productItem->sku,
-                    'product_name' => $productItem->product->name ?? $priceItem->product_name,
-                    'warehouse' => $productItem->warehouse->name ?? 'N/A',
-                    'current_cost' => $productItem->cost_usd,
-                    'new_cost' => $priceItem->$priceField,
-                    'quantity' => $productItem->quantity,
-                ];
-                $matchCount++;
-            }
-
-            // Limit preview to 100 items for performance
-            if (count($preview) >= 100) {
-                break;
             }
         }
+
+
 
         return response()->json([
             'success' => true,

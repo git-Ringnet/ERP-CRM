@@ -41,7 +41,7 @@
 
             <div class="flex gap-2">
                 <a href="{{ route('quotations.export', request()->query()) }}"
-                    class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
+                    class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
                     <i class="fas fa-file-excel mr-2"></i>
                     Xuất Excel
                 </a>
@@ -181,7 +181,8 @@
                     <div class="text-sm text-gray-700 mb-2 truncate">{{ $quotation->title }}</div>
                     <div class="space-y-1 text-sm text-gray-600 mb-3">
                         <div><i class="fas fa-calendar w-4"></i> {{ $quotation->date->format('d/m/Y') }} -
-                            {{ $quotation->valid_until->format('d/m/Y') }}</div>
+                            {{ $quotation->valid_until->format('d/m/Y') }}
+                        </div>
                         <div><i class="fas fa-money-bill w-4"></i> {{ number_format($quotation->total) }} đ</div>
                     </div>
                     <div class="flex gap-2">

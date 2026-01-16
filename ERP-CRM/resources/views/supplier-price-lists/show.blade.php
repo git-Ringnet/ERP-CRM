@@ -327,9 +327,14 @@ function loadPreview() {
     document.getElementById('applyBtn').disabled = true;
     document.getElementById('previewStats').innerHTML = '';
 
-    fetch(`/supplier-price-lists/${priceListId}/preview-apply?price_field=${priceField}&update_mode=${updateMode}`)
-        .then(res => res.json())
-        .then(data => {
+    fetch(`/supplier-price-lists/${priceListId}/preview-apply?price_field=${priceField}&update_mode=${updateMode}`, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
             if (data.success) {
                 renderPreview(data);
             } else {
@@ -433,7 +438,8 @@ function applyPrices() {
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({
             price_field: priceField,
@@ -535,11 +541,18 @@ function savePricingConfig() {
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify(data)
     })
-    .then(res => res.json())
+    .then(async res => {
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Server Error: ${res.status} - ${text.substring(0, 100)}`);
+        }
+        return res.json();
+    })
     .then(data => {
         if (data.success) {
             closePricingConfigModal();
@@ -551,7 +564,8 @@ function savePricingConfig() {
         }
     })
     .catch(err => {
-        alert('Lỗi kết nối');
+        console.error(err);
+        alert('Lỗi: ' + err.message);
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-save mr-2"></i>Lưu cấu hình';
     });

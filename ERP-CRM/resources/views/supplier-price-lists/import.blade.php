@@ -53,11 +53,12 @@
                             <option value="">Chọn nhà cung cấp...</option>
                             @foreach($suppliers as $supplier)
                                 <option value="{{ $supplier->id }}" data-type="{{ strtolower($supplier->name) }}">
-                                    {{ $supplier->name }}</option>
+                                    {{ $supplier->name }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
-                    <div>
+                    <div style="display:none">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Loại giá</label>
                         <select id="price_type" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                             <option value="list">Giá niêm yết (List Price)</option>
@@ -547,6 +548,27 @@
                         }
 
                         populateSheetList(data.sheets);
+
+                        // Auto-select all sheets and skip to confirmation
+                        setTimeout(() => {
+                            // 1. Select All Sheets
+                            const selectAllCb = document.getElementById('select_all_sheets');
+                            selectAllCb.checked = true;
+                            selectAllCb.dispatchEvent(new Event('change'));
+
+                            // 2. Apply default auto-detect mapping to all sheets
+                            importState.selectedSheets.forEach(sheet => {
+                                importState.sheetMappings[sheet.index] = {
+                                    headerRow: 1, // Default, backend will auto-search
+                                    mapping: {},  // Empty, backend will auto-detect
+                                    usePreset: true, // Mark as auto
+                                    totalRows: importState.sheets.find(s => s.index === sheet.index)?.rowCount || 0
+                                };
+                            });
+
+                            // 3. Skip to Confirmation Step
+                            goToStep(4);
+                        }, 100);
                     } else {
                         alert(data.message || 'Lỗi phân tích file');
                     }
@@ -565,15 +587,15 @@
             list.innerHTML = sheets.map((sheet, idx) => {
                 const isSkipped = skipPatterns.some(p => sheet.name.toLowerCase().includes(p));
                 return `
-                <div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 ${isSkipped ? 'bg-yellow-50' : ''}">
-                    <label class="flex items-center gap-3 cursor-pointer flex-1">
-                        <input type="checkbox" class="sheet-checkbox rounded" data-index="${sheet.index}" data-name="${sheet.name}" ${!isSkipped ? 'checked' : ''}>
-                        <span class="font-medium">${sheet.name}</span>
-                    </label>
-                    <span class="text-sm text-gray-500">${sheet.rowCount} dòng</span>
-                    ${isSkipped ? '<span class="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded">Bỏ qua</span>' : ''}
-                </div>
-            `;
+                        <div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 ${isSkipped ? 'bg-yellow-50' : ''}">
+                            <label class="flex items-center gap-3 cursor-pointer flex-1">
+                                <input type="checkbox" class="sheet-checkbox rounded" data-index="${sheet.index}" data-name="${sheet.name}" ${!isSkipped ? 'checked' : ''}>
+                                <span class="font-medium">${sheet.name}</span>
+                            </label>
+                            <span class="text-sm text-gray-500">${sheet.rowCount} dòng</span>
+                            ${isSkipped ? '<span class="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded">Bỏ qua</span>' : ''}
+                        </div>
+                    `;
             }).join('');
 
             document.getElementById('sheet_count').textContent = sheets.length;
@@ -842,15 +864,15 @@
                 const getValue = idx => idx !== '' ? (row[parseInt(idx)] || '-') : '-';
                 const formatPrice = val => { const n = parseFloat(String(val).replace(/[^0-9.-]/g, '')); return isNaN(n) ? '-' : n.toLocaleString(); };
                 return `<tr class="border-b">
-                <td class="px-3 py-2">${getValue(mapping.sku)}</td>
-                <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.product_name)}</td>
-                <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.description)}</td>
-                <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price))}</td>
-                <td class="px-3 py-2">${getValue(mapping.category)}</td>
-                <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_1yr))}</td>
-                <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_3yr))}</td>
-                <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_5yr))}</td>
-            </tr>`;
+                        <td class="px-3 py-2">${getValue(mapping.sku)}</td>
+                        <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.product_name)}</td>
+                        <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.description)}</td>
+                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price))}</td>
+                        <td class="px-3 py-2">${getValue(mapping.category)}</td>
+                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_1yr))}</td>
+                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_3yr))}</td>
+                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_5yr))}</td>
+                    </tr>`;
             }).join('');
         }
 
@@ -881,12 +903,12 @@
                         '<span class="text-yellow-600 text-xs"><i class="fas fa-exclamation"></i> Chưa mapping</span>');
 
                 return `<div class="flex justify-between py-2">
-                <span>${sheet.name}</span>
-                <span class="flex items-center gap-3">
-                    ${mappingStatus}
-                    <span class="text-gray-500">${rows} dòng</span>
-                </span>
-            </div>`;
+                        <span>${sheet.name}</span>
+                        <span class="flex items-center gap-3">
+                            ${mappingStatus}
+                            <span class="text-gray-500">${rows} dòng</span>
+                        </span>
+                    </div>`;
             }).join('');
 
             document.getElementById('summary_rows').textContent = totalRows.toLocaleString();
