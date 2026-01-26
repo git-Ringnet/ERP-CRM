@@ -18,12 +18,14 @@ class ImportItem extends Model
         'unit',
         'serial_number',
         'cost',
+        'warehouse_price',
         'comments',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'cost' => 'decimal:2',
+        'warehouse_price' => 'decimal:2',
     ];
 
     /**
@@ -48,5 +50,14 @@ class ImportItem extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * Calculate warehouse price including service cost allocation.
+     */
+    public function calculateWarehousePrice(float $serviceCostPerUnit = 0): void
+    {
+        // Warehouse price = cost + allocated service cost per unit
+        $this->warehouse_price = $this->cost + $serviceCostPerUnit;
     }
 }

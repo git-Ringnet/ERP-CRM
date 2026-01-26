@@ -118,6 +118,7 @@
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">PP phân bổ</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số SP</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Đã sử dụng</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
                     </tr>
                 </thead>
@@ -147,6 +148,20 @@
                                     <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Đã duyệt</span>
                                 @else
                                     <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Hoàn thành</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                @php
+                                    $importsCount = $allocation->imports()->count();
+                                @endphp
+                                @if($importsCount > 0)
+                                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                        <i class="fas fa-check-circle mr-1"></i>{{ $importsCount }} phiếu
+                                    </span>
+                                @else
+                                    <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
+                                        <i class="fas fa-minus-circle mr-1"></i>Chưa dùng
+                                    </span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-center">

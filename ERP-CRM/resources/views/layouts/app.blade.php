@@ -185,8 +185,20 @@
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Bán hàng
                     </p>
 
+                    <a href="{{ route('leads.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('leads.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-bullseye w-6 text-cyan-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Đấu mối</span>
+                    </a>
+
+                    <a href="{{ route('opportunities.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                    </a>
+
                     <a href="{{ route('quotations.index') }}"
-                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
                         <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
                     </a>
@@ -243,12 +255,6 @@
                         <span class="ml-3">Đơn mua hàng (PO)</span>
                     </a>
 
-                    <a href="{{ route('purchase-pricings.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-pricings.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-money-bill w-6 text-green-400"></i>
-                        <span class="ml-3">Giá nhập, giá kho</span>
-                    </a>
-
                     <a href="{{ route('shipping-allocations.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-truck-loading w-6 text-orange-400"></i>
@@ -282,7 +288,7 @@
 
 
         <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-h-screen">
+        <div class="flex-1 flex flex-col min-h-screen min-w-0">
             <!-- Top Header -->
             <header
                 class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
@@ -402,10 +408,10 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 p-3 sm:p-4 lg:p-6 overflow-x-hidden min-h-0">
+            <main class="flex-1 p-3 sm:p-4 lg:p-6 overflow-hidden min-h-0 flex flex-col">
                 <!-- Flash Messages -->
                 @if(session('success'))
-                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative"
+                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded-lg relative flex-shrink-0"
                         role="alert">
                         <span class="block sm:inline text-sm">{{ session('success') }}</span>
                         <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
@@ -416,7 +422,7 @@
                 @endif
 
                 @if(session('error'))
-                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded-lg relative"
+                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded-lg relative flex-shrink-0"
                         role="alert">
                         <span class="block sm:inline text-sm">{{ session('error') }}</span>
                         <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"
@@ -427,7 +433,7 @@
                 @endif
 
                 @if(session('warning'))
-                    <div class="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 sm:px-4 py-3 rounded-lg relative"
+                    <div class="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 sm:px-4 py-3 rounded-lg relative flex-shrink-0"
                         role="alert">
                         <span class="block sm:inline text-sm">{{ session('warning') }}</span>
                         <button type="button" class="absolute top-0 bottom-0 right-0 px-3 sm:px-4 py-3 focus:outline-none"

@@ -79,6 +79,87 @@
             </div>
         </div>
 
+        <!-- Service Costs Section -->
+        @if($import->total_service_cost > 0 || $import->shippingAllocation)
+        <div class="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">
+                <i class="fas fa-calculator text-orange-500 mr-2"></i>Chi phí phục vụ nhập hàng
+            </h3>
+            
+            @if($import->shippingAllocation)
+            <!-- Shipping Allocation Info -->
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-semibold text-blue-800">
+                        <i class="fas fa-truck mr-1"></i>Sử dụng phân bổ chi phí vận chuyển
+                    </span>
+                    <a href="{{ route('shipping-allocations.show', $import->shippingAllocation) }}" 
+                       class="text-xs text-blue-600 hover:underline" target="_blank">
+                        Xem chi tiết <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <span class="text-gray-600">Mã phiếu:</span>
+                        <p class="font-medium">{{ $import->shippingAllocation->code }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Phương pháp:</span>
+                        <p class="font-medium">{{ $import->shippingAllocation->method_label }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Tổng chi phí:</span>
+                        <p class="font-medium text-orange-600">{{ number_format($import->shippingAllocation->total_shipping_cost, 0, ',', '.') }} ₫</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Đơn mua hàng:</span>
+                        <p class="font-medium">{{ $import->shippingAllocation->purchaseOrder->code ?? 'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+            @endif
+            
+            @if($import->total_service_cost > 0)
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                @if($import->shipping_cost > 0)
+                <div>
+                    <label class="text-xs text-gray-600">Chi phí vận chuyển</label>
+                    <p class="font-medium text-gray-900">{{ number_format($import->shipping_cost, 0, ',', '.') }} ₫</p>
+                </div>
+                @endif
+                @if($import->loading_cost > 0)
+                <div>
+                    <label class="text-xs text-gray-600">Chi phí bốc xếp</label>
+                    <p class="font-medium text-gray-900">{{ number_format($import->loading_cost, 0, ',', '.') }} ₫</p>
+                </div>
+                @endif
+                @if($import->inspection_cost > 0)
+                <div>
+                    <label class="text-xs text-gray-600">Chi phí kiểm định</label>
+                    <p class="font-medium text-gray-900">{{ number_format($import->inspection_cost, 0, ',', '.') }} ₫</p>
+                </div>
+                @endif
+                @if($import->other_cost > 0)
+                <div>
+                    <label class="text-xs text-gray-600">Chi phí khác</label>
+                    <p class="font-medium text-gray-900">{{ number_format($import->other_cost, 0, ',', '.') }} ₫</p>
+                </div>
+                @endif
+            </div>
+            <div class="pt-3 border-t border-orange-300">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-700">Tổng chi phí phục vụ:</span>
+                    <span class="text-lg font-bold text-orange-600">{{ number_format($import->total_service_cost, 0, ',', '.') }} ₫</span>
+                </div>
+                <div class="flex justify-between items-center mt-2">
+                    <span class="text-sm text-gray-600">Chi phí phục vụ / đơn vị:</span>
+                    <span class="text-sm font-semibold text-gray-700">{{ number_format($import->getServiceCostPerUnit(), 0, ',', '.') }} ₫</span>
+                </div>
+            </div>
+            @endif
+        </div>
+        @endif
+
         @if($import->note)
         <div class="mb-6">
             <label class="text-sm text-gray-500">Ghi chú</label>

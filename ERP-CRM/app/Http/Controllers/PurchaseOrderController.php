@@ -82,6 +82,7 @@ class PurchaseOrderController extends Controller
             'order_date' => 'required|date',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
         ]);
@@ -180,6 +181,7 @@ class PurchaseOrderController extends Controller
             'expected_delivery' => 'nullable|date',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
         ]);

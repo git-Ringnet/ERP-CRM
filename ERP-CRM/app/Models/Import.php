@@ -18,8 +18,16 @@ class Import extends Model
         'date',
         'employee_id',
         'total_qty',
+        'shipping_cost',
+        'loading_cost',
+        'inspection_cost',
+        'other_cost',
+        'total_service_cost',
+        'discount_percent',
+        'vat_percent',
         'reference_type',
         'reference_id',
+        'shipping_allocation_id',
         'note',
         'status',
     ];
@@ -27,6 +35,13 @@ class Import extends Model
     protected $casts = [
         'date' => 'date',
         'total_qty' => 'integer',
+        'shipping_cost' => 'decimal:2',
+        'loading_cost' => 'decimal:2',
+        'inspection_cost' => 'decimal:2',
+        'other_cost' => 'decimal:2',
+        'total_service_cost' => 'decimal:2',
+        'discount_percent' => 'decimal:2',
+        'vat_percent' => 'decimal:2',
         'reference_id' => 'integer',
     ];
 
@@ -60,6 +75,23 @@ class Import extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ImportItem::class);
+    }
+
+    /**
+     * Get the shipping allocation for this import.
+     */
+    public function shippingAllocation(): BelongsTo
+    {
+        return $this->belongsTo(ShippingAllocation::class);
+    }
+
+    /**
+     * Get the purchase order for this import.
+     */
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'reference_id')
+            ->where('reference_type', 'purchase_order');
     }
 
     /**
@@ -122,5 +154,49 @@ class Import extends Model
             'rejected' => 'red',
             default => 'gray',
         };
+    }
+
+    /**
+     * Calculate total service cost.
+     */
+    public function calculateServiceCost(): void
+    {
+        $this->total_service_cost = $this->shipping_cost + $this->loading_cost + $this->inspection_cost + $this->other_cost;
+    }
+
+    /**
+     * Calculate warehouse price for each item.
+     * Returns service cost per unit to be added to item cost.
+     */
+    public function getServiceCostPerUnit(): float
+    {
+        if ($this->total_qty <= 0) {
+            return 0;
+        }
+        return $this->total_service_cost / $this->total_qty;
+    }
+
+    /**
+     * Check if this import uses shipping allocation.
+     */
+    public function usesShippingAllocation(): bool
+    {
+        return !is_null($this->shipping_allocation_id) && $this->shippingAllocation()->exists();
+    }
+
+    /**
+     * Get allocated cost per unit for a specific product from shipping allocation.
+     */
+    public function getAllocatedCostForProduct(int $productId): float
+    {
+        if (!$this->usesShippingAllocation()) {
+            return 0;
+        }
+
+        $allocationItem = $this->shippingAllocation->items()
+            ->where('product_id', $productId)
+            ->first();
+
+        return $allocationItem ? (float) $allocationItem->allocated_cost_per_unit : 0;
     }
 }

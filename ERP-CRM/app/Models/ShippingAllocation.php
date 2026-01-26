@@ -51,6 +51,11 @@ class ShippingAllocation extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function imports(): HasMany
+    {
+        return $this->hasMany(Import::class);
+    }
+
     public function scopeByStatus(Builder $query, $status): Builder
     {
         return $query->where('status', $status);

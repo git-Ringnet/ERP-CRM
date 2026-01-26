@@ -86,11 +86,13 @@
             <div id="itemsContainer" class="space-y-3">
                 @if($quotation && $quotation->items->count() > 0)
                     @foreach($quotation->items as $index => $item)
-                    <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div class="col-span-4">
+                    <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                        <div class="col-span-4 relative product-autocomplete">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
-                            <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}" required
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                            <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
+                            <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id ?? '' }}" class="product-id">
+                            <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
                         </div>
                         <div class="col-span-2">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
@@ -115,11 +117,12 @@
                     </div>
                     @endforeach
                 @else
-                <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div class="col-span-4">
+                <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                    <div class="col-span-4 relative product-autocomplete">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
-                        <input type="text" name="items[0][product_name]" required placeholder="Tên sản phẩm"
-                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+                        <input type="text" name="items[0][product_name]" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
+                        <input type="hidden" name="items[0][product_id]" class="product-id">
+                        <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
@@ -215,8 +218,17 @@
         padding: 10px 12px;
     }
     .ts-dropdown .option.active {
-        background-color: #3b82f6;
-        color: white;
+        background-color: #eff6ff;
+        color: #1e3a8a;
+    }
+
+    /* Custom Autocomplete Suggestions */
+    .suggestions-list::-webkit-scrollbar {
+        width: 6px;
+    }
+    .suggestions-list::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 3px;
     }
 </style>
 @endpush
@@ -240,6 +252,80 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     calculateTotal();
 });
+
+@php
+    $productData = $products->map(function ($p) {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'code' => $p->code,
+            'unit' => $p->unit
+        ];
+    });
+@endphp
+const products = @json($productData);
+
+function setupProductAutocomplete(row) {
+    const input = row.querySelector('.product-name-input');
+    const idInput = row.querySelector('.product-id');
+    const suggestions = row.querySelector('.suggestions-list');
+
+    function renderSuggestions(matches) {
+        suggestions.innerHTML = '';
+        if (matches.length === 0) {
+            suggestions.classList.add('hidden');
+            return;
+        }
+        matches.forEach(p => {
+            const li = document.createElement('li');
+            li.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0';
+            li.innerHTML = `
+                <div class="font-medium text-sm text-gray-900">${p.name}</div>
+                <div class="text-xs text-gray-500">Mã: ${p.code} | ĐVT: ${p.unit || '---'}</div>
+            `;
+            li.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // Prevent blur event
+                input.value = p.name;
+                idInput.value = p.id;
+                suggestions.classList.add('hidden');
+            });
+            suggestions.appendChild(li);
+        });
+        suggestions.classList.remove('hidden');
+    }
+
+    input.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        // Reset ID if input changes
+        const exactMatch = products.find(p => p.name.toLowerCase() === val);
+        idInput.value = exactMatch ? exactMatch.id : '';
+
+        if (val.length < 1) {
+            suggestions.classList.add('hidden');
+            return;
+        }
+
+        const matches = products.filter(p => 
+            p.name.toLowerCase().includes(val) || 
+            p.code.toLowerCase().includes(val)
+        ).slice(0, 20);
+        renderSuggestions(matches);
+    });
+
+    input.addEventListener('focus', function() {
+        if (this.value.trim() === '') {
+            renderSuggestions(products.slice(0, 20));
+        } else {
+             this.dispatchEvent(new Event('input'));
+        }
+    });
+
+    input.addEventListener('blur', function() {
+       setTimeout(() => suggestions.classList.add('hidden'), 200);
+    });
+}
+
+document.querySelectorAll('.item-row').forEach(row => setupProductAutocomplete(row));
 
 let itemIndex = {{ $quotation ? $quotation->items->count() : 1 }};
 
@@ -277,11 +363,13 @@ function calculateTotal() {
 document.getElementById('addItem').addEventListener('click', function() {
     const container = document.getElementById('itemsContainer');
     const newRow = document.createElement('div');
-    newRow.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200';
+    newRow.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
     newRow.innerHTML = `
-        <div class="col-span-4">
+        <div class="col-span-4 relative product-autocomplete">
             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
-            <input type="text" name="items[${itemIndex}][product_name]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+            <input type="text" name="items[${itemIndex}][product_name]" class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off" placeholder="Nhập tên sản phẩm...">
+            <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id">
+            <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
         </div>
         <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
@@ -300,6 +388,7 @@ document.getElementById('addItem').addEventListener('click', function() {
         </div>
     `;
     container.appendChild(newRow);
+    setupProductAutocomplete(newRow);
     itemIndex++;
     updateRemoveButtons();
 });

@@ -35,13 +35,18 @@ class QuotationController extends Controller
         return view('quotations.index', compact('quotations'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
 
-        return view('quotations.create', compact('customers', 'products', 'code'));
+        $prefill = [
+            'customer_id' => $request->get('customer_id'),
+            'title' => $request->get('title'),
+        ];
+
+        return view('quotations.create', compact('customers', 'products', 'code', 'prefill'));
     }
 
     private function generateCode(): string

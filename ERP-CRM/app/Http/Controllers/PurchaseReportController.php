@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
-use App\Models\PurchasePricing;
+use App\Models\ImportItem;
 use App\Models\ShippingAllocation;
 use App\Models\Supplier;
 use App\Models\Product;
@@ -104,16 +104,19 @@ class PurchaseReportController extends Controller
 
     private function getProductReport($dateFrom, $dateTo, $productId = null): array
     {
-        $query = PurchasePricing::select(
+        $query = ImportItem::select(
                 'product_id',
                 DB::raw('SUM(quantity) as total_quantity'),
-                DB::raw('AVG(purchase_price) as avg_purchase_price'),
-                DB::raw('SUM(purchase_price * quantity) as total_value'),
+                DB::raw('AVG(cost) as avg_purchase_price'),
+                DB::raw('SUM(cost * quantity) as total_value'),
                 DB::raw('AVG(warehouse_price) as avg_warehouse_price'),
-                DB::raw('SUM(total_service_cost) as total_service_cost'),
-                DB::raw('COUNT(DISTINCT supplier_id) as supplier_count')
+                DB::raw('SUM((warehouse_price - cost) * quantity) as total_service_cost'),
+                DB::raw('COUNT(DISTINCT import_id) as import_count')
             )
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->whereHas('import', function($q) use ($dateFrom, $dateTo) {
+                $q->whereBetween('date', [$dateFrom, $dateTo])
+                  ->where('status', 'completed');
+            })
             ->groupBy('product_id')
             ->with('product');
 
@@ -124,14 +127,24 @@ class PurchaseReportController extends Controller
         $results = $query->get();
 
         return $results->map(function ($item) {
+            // Get unique suppliers for this product
+            $supplierCount = ImportItem::where('product_id', $item->product_id)
+                ->whereHas('import', function($q) use ($item) {
+                    $q->where('status', 'completed');
+                })
+                ->join('imports', 'import_items.import_id', '=', 'imports.id')
+                ->distinct('imports.supplier_id')
+                ->count('imports.supplier_id');
+
             return [
                 'product' => $item->product->name ?? 'N/A',
                 'total_quantity' => $item->total_quantity,
                 'avg_purchase_price' => $item->avg_purchase_price,
                 'total_value' => $item->total_value,
                 'avg_warehouse_price' => $item->avg_warehouse_price,
-                'total_service_cost' => $item->total_service_cost,
-                'supplier_count' => $item->supplier_count,
+                'total_service_cost' => $item->total_service_cost ?? 0,
+                'import_count' => $item->import_count,
+                'supplier_count' => $supplierCount,
             ];
         })->toArray();
     }
@@ -182,7 +195,7 @@ class PurchaseReportController extends Controller
             ->selectRaw('
                 SUM(subtotal) as goods_value,
                 SUM(shipping_cost) as shipping_cost,
-                SUM(other_cost) as service_cost,
+                SUM(other_cost) as other_cost,
                 SUM(vat_amount) as vat_amount,
                 SUM(total) as grand_total
             ')
@@ -193,12 +206,12 @@ class PurchaseReportController extends Controller
         return [
             'goods_value' => $totals->goods_value ?? 0,
             'shipping_cost' => $totals->shipping_cost ?? 0,
-            'service_cost' => $totals->service_cost ?? 0,
+            'other_cost' => $totals->other_cost ?? 0,
             'vat_amount' => $totals->vat_amount ?? 0,
             'breakdown' => [
                 ['name' => 'Giá trị hàng hóa', 'value' => $totals->goods_value ?? 0, 'rate' => round((($totals->goods_value ?? 0) / $grandTotal) * 100, 1)],
                 ['name' => 'Chi phí vận chuyển', 'value' => $totals->shipping_cost ?? 0, 'rate' => round((($totals->shipping_cost ?? 0) / $grandTotal) * 100, 1)],
-                ['name' => 'Chi phí phục vụ', 'value' => $totals->service_cost ?? 0, 'rate' => round((($totals->service_cost ?? 0) / $grandTotal) * 100, 1)],
+                ['name' => 'Chi phí khác', 'value' => $totals->other_cost ?? 0, 'rate' => round((($totals->other_cost ?? 0) / $grandTotal) * 100, 1)],
                 ['name' => 'VAT', 'value' => $totals->vat_amount ?? 0, 'rate' => round((($totals->vat_amount ?? 0) / $grandTotal) * 100, 1)],
             ]
         ];

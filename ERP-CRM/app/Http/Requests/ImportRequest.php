@@ -32,13 +32,23 @@ class ImportRequest extends FormRequest
             'note' => 'nullable|string|max:1000',
             'reference_code' => 'nullable|string|max:100',
             
+            // Shipping allocation
+            'shipping_allocation_id' => 'nullable|exists:shipping_allocations,id',
+
+            // Service costs
+            'shipping_cost' => 'nullable|numeric|min:0',
+            'loading_cost' => 'nullable|numeric|min:0',
+            'inspection_cost' => 'nullable|numeric|min:0',
+            'other_cost' => 'nullable|numeric|min:0',
+
             // Items validation
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.cost' => 'nullable|numeric|min:0',
             'items.*.comments' => 'nullable|string|max:500',
-            
+
             // Support for serial list (textarea)
             'items.*.serial_list' => 'nullable|string',
             // Support for multiple serials (array)
@@ -69,25 +79,25 @@ class ImportRequest extends FormRequest
 
         foreach ($items as $index => $item) {
             $productId = $item['product_id'] ?? null;
-            
+
             // Get serials from array or from serial_list textarea
             $serials = $item['serials'] ?? [];
             if (empty($serials) && !empty($item['serial_list'])) {
                 // Parse serial_list (newline or comma separated)
                 $serials = preg_split('/[\n,]+/', $item['serial_list']);
             }
-            
+
             if (empty($productId) || empty($serials)) {
                 continue;
             }
 
             // Filter out empty serials
             $serials = array_filter(array_map('trim', $serials), fn($s) => !empty($s));
-            
+
             foreach ($serials as $serial) {
                 $serial = trim($serial);
                 $key = "{$productId}:{$serial}";
-                
+
                 // Check duplicate within request
                 if (isset($allSerials[$key])) {
                     $duplicatesInRequest[$key] = $serial;
@@ -102,7 +112,7 @@ class ImportRequest extends FormRequest
                     ->whereIn('sku', $serials)
                     ->pluck('sku')
                     ->toArray();
-                
+
                 if (!empty($existingSerials)) {
                     $product = Product::find($productId);
                     $productName = $product ? $product->name : "ID: {$productId}";

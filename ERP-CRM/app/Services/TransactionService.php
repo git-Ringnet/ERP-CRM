@@ -53,8 +53,16 @@ class TransactionService
                     'date' => $data['date'],
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'total_qty' => 0,
+                    'shipping_cost' => $data['shipping_cost'] ?? 0,
+                    'loading_cost' => $data['loading_cost'] ?? 0,
+                    'inspection_cost' => $data['inspection_cost'] ?? 0,
+                    'other_cost' => $data['other_cost'] ?? 0,
+                    'total_service_cost' => $data['total_service_cost'] ?? 0,
+                    'discount_percent' => $data['discount_percent'] ?? 0,
+                    'vat_percent' => $data['vat_percent'] ?? 10,
                     'reference_type' => $data['reference_type'] ?? null,
                     'reference_id' => $data['reference_id'] ?? null,
+                    'shipping_allocation_id' => $data['shipping_allocation_id'] ?? null,
                     'note' => $data['note'] ?? null,
                     'status' => 'pending',
                 ]);
@@ -77,6 +85,17 @@ class TransactionService
                     // Filter out empty serials
                     $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
 
+                    // Calculate warehouse price (cost + service cost per unit)
+                    // Priority: Use shipping allocation if available, otherwise use service cost
+                    $additionalCost = 0;
+                    if (isset($data['shipping_allocation_id']) && $data['shipping_allocation_id']) {
+                        // Will be calculated after transaction is created
+                        $additionalCost = 0;
+                    } else {
+                        $additionalCost = $transaction->getServiceCostPerUnit();
+                    }
+                    $warehousePrice = ($item['cost'] ?? 0) + $additionalCost;
+
                     ImportItem::create([
                         'import_id' => $transaction->id,
                         'product_id' => $item['product_id'],
@@ -86,11 +105,22 @@ class TransactionService
                         // Store serials as JSON for later use when approving
                         'serial_number' => !empty($serials) ? json_encode($serials) : null,
                         'cost' => $item['cost'] ?? $item['cost_usd'] ?? 0,
+                        'warehouse_price' => $warehousePrice,
                         'comments' => $item['comments'] ?? null,
                     ]);
                     $totalQty += $item['quantity'];
                 }
                 $transaction->update(['total_qty' => $totalQty]);
+                
+                // Update warehouse_price for items if using shipping allocation
+                if ($transaction->usesShippingAllocation()) {
+                    foreach ($transaction->items as $item) {
+                        $allocatedCost = $transaction->getAllocatedCostForProduct($item->product_id);
+                        $item->update([
+                            'warehouse_price' => $item->cost + $allocatedCost
+                        ]);
+                    }
+                }
             }
 
             // Create ProductItems and update inventory when approving

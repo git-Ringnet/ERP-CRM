@@ -16,7 +16,8 @@ class ShippingAllocationController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = ShippingAllocation::with(['purchaseOrder', 'warehouse', 'creator', 'items']);
+        $query = ShippingAllocation::with(['purchaseOrder', 'warehouse', 'creator', 'items'])
+            ->withCount('imports'); // Count related imports
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -138,7 +139,14 @@ class ShippingAllocationController extends Controller
 
     public function show(ShippingAllocation $shippingAllocation): View
     {
-        $shippingAllocation->load(['purchaseOrder.supplier', 'warehouse', 'items.product', 'creator', 'approver']);
+        $shippingAllocation->load([
+            'purchaseOrder.supplier', 
+            'warehouse', 
+            'items.product', 
+            'creator', 
+            'approver',
+            'imports.items' // Load imports that used this allocation
+        ]);
 
         return view('shipping-allocations.show', compact('shippingAllocation'));
     }

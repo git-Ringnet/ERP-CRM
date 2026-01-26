@@ -26,7 +26,6 @@ use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\SupplierQuotationController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\WarrantyController;
-use App\Http\Controllers\PurchasePricingController;
 use App\Http\Controllers\ShippingAllocationController;
 use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\NotificationController;
@@ -189,6 +188,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
 
     // Supplier Quotation routes (Báo giá từ NCC)
+    Route::get('/supplier-quotations/import', [SupplierQuotationController::class, 'showImportForm'])->name('supplier-quotations.import');
+    Route::post('/supplier-quotations/analyze', [SupplierQuotationController::class, 'analyzeFile'])->name('supplier-quotations.analyze');
+    Route::post('/supplier-quotations/sheet-data', [SupplierQuotationController::class, 'getSheetData'])->name('supplier-quotations.sheet-data');
+    Route::post('/supplier-quotations/auto-detect', [SupplierQuotationController::class, 'autoDetectMapping'])->name('supplier-quotations.auto-detect');
+    Route::post('/supplier-quotations/do-import', [SupplierQuotationController::class, 'import'])->name('supplier-quotations.do-import');
     Route::resource('supplier-quotations', SupplierQuotationController::class);
     Route::post('/supplier-quotations/{supplierQuotation}/select', [SupplierQuotationController::class, 'select'])->name('supplier-quotations.select');
     Route::post('/supplier-quotations/{supplierQuotation}/reject', [SupplierQuotationController::class, 'reject'])->name('supplier-quotations.reject');
@@ -206,10 +210,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
-
-    // Purchase Pricing routes (Giá nhập, giá kho)
-    Route::resource('purchase-pricings', PurchasePricingController::class);
-    Route::post('/purchase-pricings/recalculate', [PurchasePricingController::class, 'recalculate'])->name('purchase-pricings.recalculate');
 
     // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
     Route::resource('shipping-allocations', ShippingAllocationController::class);
@@ -241,6 +241,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/notifications/recent', [NotificationController::class, 'recent'])->name('notifications.recent');
     Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-as-read');
     Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-as-read');
+
+    // Leads & Opportunities (CRM)
+    Route::resource('leads', \App\Http\Controllers\LeadController::class);
+    Route::post('/leads/{lead}/convert', [\App\Http\Controllers\LeadController::class, 'convert'])->name('leads.convert');
+
+    Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
+    Route::post('/opportunities/{opportunity}/update-stage', [\App\Http\Controllers\OpportunityController::class, 'updateStage'])->name('opportunities.update-stage');
 });
 
 // Auth routes (login, logout, etc.)

@@ -304,9 +304,9 @@
                         </p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">Chi phí phục vụ</p>
+                        <p class="text-sm text-gray-600">Chi phí khác</p>
                         <p class="text-xl font-bold text-blue-600">
-                            {{ number_format($costAnalysis['service_cost'] / 1000000, 1) }}tr
+                            {{ number_format($costAnalysis['other_cost'] / 1000000, 1) }}tr
                         </p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4 text-center">

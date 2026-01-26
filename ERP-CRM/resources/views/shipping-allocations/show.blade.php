@@ -174,6 +174,66 @@
             </div>
             @endif
 
+            <!-- Related Imports -->
+            @if($shippingAllocation->imports->count() > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-base font-semibold text-gray-800">
+                        <i class="fas fa-file-import mr-2 text-blue-500"></i>Phiếu nhập đã sử dụng phân bổ này
+                    </h2>
+                </div>
+                <div class="p-4">
+                    <div class="space-y-2">
+                        @foreach($shippingAllocation->imports as $import)
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <i class="fas fa-arrow-down text-blue-500"></i>
+                                <div>
+                                    <a href="{{ route('imports.show', $import) }}" class="font-medium text-blue-600 hover:underline">
+                                        {{ $import->code }}
+                                    </a>
+                                    <p class="text-xs text-gray-500">
+                                        {{ $import->date->format('d/m/Y') }} - 
+                                        {{ $import->items->sum('quantity') }} sản phẩm
+                                    </p>
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full
+                                {{ $import->status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                {{ $import->status_label }}
+                            </span>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @else
+            <div class="bg-white rounded-lg shadow-sm border-2 border-dashed border-gray-300">
+                <div class="p-6 text-center">
+                    <i class="fas fa-info-circle text-gray-400 text-3xl mb-3"></i>
+                    <p class="text-sm font-medium text-gray-700 mb-2">Chưa có phiếu nhập nào sử dụng phân bổ này</p>
+                    <p class="text-xs text-gray-500 mb-4">Phân bổ này có thể được chọn khi tạo phiếu nhập kho</p>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left max-w-md mx-auto">
+                        <p class="text-xs font-semibold text-blue-800 mb-2">
+                            <i class="fas fa-lightbulb mr-1"></i>Cách sử dụng:
+                        </p>
+                        <ol class="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+                            <li>Vào menu <strong>Nhập kho</strong> → <strong>Tạo phiếu nhập</strong></li>
+                            <li>Tick chọn <strong>"Sử dụng phân bổ chi phí vận chuyển"</strong></li>
+                            <li>Chọn phiếu phân bổ này: <strong>{{ $shippingAllocation->code }}</strong></li>
+                            <li>Chi phí sẽ tự động phân bổ theo phương pháp: <strong>{{ $shippingAllocation->method_label }}</strong></li>
+                        </ol>
+                        <div class="mt-3 pt-3 border-t border-blue-200">
+                            <a href="{{ route('imports.create') }}" class="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-plus-circle mr-1"></i>Tạo phiếu nhập ngay
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Note -->
             @if($shippingAllocation->note)
             <div class="bg-white rounded-lg shadow-sm">

@@ -8,6 +8,9 @@ use App\Models\Supplier;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Mail\PurchaseRequestMail;
 
 class PurchaseRequestController extends Controller
 {
@@ -19,7 +22,7 @@ class PurchaseRequestController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%");
             });
         }
 
@@ -57,6 +60,7 @@ class PurchaseRequestController extends Controller
             'suppliers.*' => 'exists:suppliers,id',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit' => 'nullable|string',
             'items.*.specifications' => 'nullable|string',
@@ -64,6 +68,9 @@ class PurchaseRequestController extends Controller
 
         DB::beginTransaction();
         try {
+            $status = $request->has('send') ? 'sent' : 'draft';
+            $sentAt = $request->has('send') ? now() : null;
+
             $purchaseRequest = PurchaseRequest::create([
                 'code' => $validated['code'],
                 'title' => $validated['title'],
@@ -71,7 +78,8 @@ class PurchaseRequestController extends Controller
                 'priority' => $validated['priority'],
                 'requirements' => $request->requirements,
                 'note' => $request->note,
-                'status' => 'draft',
+                'status' => $status,
+                'sent_at' => $sentAt,
             ]);
 
             $purchaseRequest->suppliers()->attach($validated['suppliers']);
@@ -87,8 +95,18 @@ class PurchaseRequestController extends Controller
             }
 
             DB::commit();
+
+            // Gửi email nếu trạng thái là sent
+            if ($status === 'sent') {
+                $this->sendEmailsToSuppliers($purchaseRequest);
+            }
+
+            $message = $status === 'sent'
+                ? 'Đã tạo và gửi yêu cầu báo giá cho nhà cung cấp!'
+                : 'Đã lưu nháp yêu cầu báo giá!';
+
             return redirect()->route('purchase-requests.index')
-                ->with('success', 'Đã tạo yêu cầu báo giá thành công!');
+                ->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();
@@ -129,6 +147,7 @@ class PurchaseRequestController extends Controller
             'suppliers.*' => 'exists:suppliers,id',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
         ]);
 
@@ -186,7 +205,9 @@ class PurchaseRequestController extends Controller
             'sent_at' => now(),
         ]);
 
-        // TODO: Gửi email cho các NCC
+        // Gửi email cho các NCC
+        $this->sendEmailsToSuppliers($purchaseRequest);
+
         $supplierNames = $purchaseRequest->suppliers->pluck('name')->join(', ');
 
         return back()->with('success', "Đã gửi yêu cầu báo giá đến: {$supplierNames}");
@@ -200,5 +221,36 @@ class PurchaseRequestController extends Controller
 
         $purchaseRequest->update(['status' => 'cancelled']);
         return back()->with('success', 'Đã hủy yêu cầu báo giá!');
+    }
+
+    /**
+     * Gửi email đến tất cả nhà cung cấp
+     */
+    private function sendEmailsToSuppliers(PurchaseRequest $purchaseRequest): void
+    {
+        $purchaseRequest->load(['items', 'suppliers']);
+
+        $sentCount = 0;
+        $failedSuppliers = [];
+
+        foreach ($purchaseRequest->suppliers as $supplier) {
+            if (empty($supplier->email)) {
+                $failedSuppliers[] = $supplier->name . ' (không có email)';
+                continue;
+            }
+
+            try {
+                Mail::to($supplier->email)->send(new PurchaseRequestMail($purchaseRequest, $supplier));
+                $sentCount++;
+                Log::info("Đã gửi yêu cầu báo giá {$purchaseRequest->code} đến {$supplier->email}");
+            } catch (\Exception $e) {
+                $failedSuppliers[] = $supplier->name . ' (' . $e->getMessage() . ')';
+                Log::error("Lỗi gửi email yêu cầu báo giá đến {$supplier->email}: " . $e->getMessage());
+            }
+        }
+
+        if (!empty($failedSuppliers)) {
+            session()->flash('warning', 'Không thể gửi email đến: ' . implode(', ', $failedSuppliers));
+        }
     }
 }

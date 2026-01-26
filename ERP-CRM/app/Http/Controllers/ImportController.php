@@ -80,12 +80,25 @@ class ImportController extends Controller
     public function create()
     {
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
+        $products = Product::with(['supplierPriceListItems.priceList'])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($product) {
+                $product->default_cost = $product->calculated_cost;
+                return $product;
+            });
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
         $code = Import::generateCode();
+        
+        // Get approved or completed shipping allocations for selection
+        // Allow both approved and completed allocations to be reused
+        $shippingAllocations = \App\Models\ShippingAllocation::with(['purchaseOrder', 'warehouse'])
+            ->whereIn('status', ['approved', 'completed'])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        return view('imports.create', compact('warehouses', 'products', 'employees', 'suppliers', 'code'));
+        return view('imports.create', compact('warehouses', 'products', 'employees', 'suppliers', 'code', 'shippingAllocations'));
     }
 
     /**
@@ -96,6 +109,13 @@ class ImportController extends Controller
     {
         try {
             $data = $request->validated();
+
+            // Calculate service costs
+            $data['shipping_cost'] = $data['shipping_cost'] ?? 0;
+            $data['loading_cost'] = $data['loading_cost'] ?? 0;
+            $data['inspection_cost'] = $data['inspection_cost'] ?? 0;
+            $data['other_cost'] = $data['other_cost'] ?? 0;
+            $data['total_service_cost'] = $data['shipping_cost'] + $data['loading_cost'] + $data['inspection_cost'] + $data['other_cost'];
 
             $import = $this->transactionService->processImport($data);
 
@@ -121,8 +141,8 @@ class ImportController extends Controller
      */
     public function show(Import $import)
     {
-        $import->load(['warehouse', 'employee', 'items.product']);
-        
+        $import->load(['warehouse', 'employee', 'items.product', 'shippingAllocation.items.product']);
+
         // Get product items created from this import
         $productItems = ProductItem::where('import_id', $import->id)->get();
 
@@ -142,7 +162,13 @@ class ImportController extends Controller
 
         $import->load(['items.product', 'items.warehouse']);
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
+        $products = Product::with(['supplierPriceListItems.priceList'])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($product) {
+                $product->default_cost = $product->calculated_cost;
+                return $product;
+            });
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
 
@@ -164,6 +190,7 @@ class ImportController extends Controller
                 'warehouse_id' => $item->warehouse_id,
                 'quantity' => $item->quantity,
                 'serials' => $serials,
+                'cost' => $item->cost,
                 'comments' => $item->comments ?? '',
             ];
         })->toArray();
@@ -194,6 +221,11 @@ class ImportController extends Controller
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
+                'shipping_cost' => $data['shipping_cost'] ?? 0,
+                'loading_cost' => $data['loading_cost'] ?? 0,
+                'inspection_cost' => $data['inspection_cost'] ?? 0,
+                'other_cost' => $data['other_cost'] ?? 0,
+                'total_service_cost' => ($data['shipping_cost'] ?? 0) + ($data['loading_cost'] ?? 0) + ($data['inspection_cost'] ?? 0) + ($data['other_cost'] ?? 0),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -208,7 +240,7 @@ class ImportController extends Controller
                     $serials = array_map('trim', $serials);
                 }
                 // Filter out empty serials
-                $serials = array_values(array_filter($serials, fn ($s) => !empty(trim($s))));
+                $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
 
                 $import->items()->create([
                     'product_id' => $itemData['product_id'],
@@ -216,7 +248,7 @@ class ImportController extends Controller
                     'quantity' => $itemData['quantity'],
                     'serial_number' => !empty($serials) ? json_encode($serials) : null,
                     'comments' => $itemData['comments'] ?? null,
-                    'cost' => 0,
+                    'cost' => $itemData['cost'] ?? 0,
                 ]);
                 $totalQty += $itemData['quantity'];
             }
