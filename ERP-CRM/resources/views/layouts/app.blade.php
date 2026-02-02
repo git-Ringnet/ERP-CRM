@@ -197,6 +197,12 @@
                         <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
                     </a>
 
+                    <a href="{{ route('activities.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
+                    </a>
+
                     <a href="{{ route('quotations.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-alt w-6 flex-shrink-0"></i>

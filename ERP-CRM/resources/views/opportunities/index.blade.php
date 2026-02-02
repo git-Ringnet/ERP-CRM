@@ -43,7 +43,10 @@
                                 <div class="bg-white p-3 rounded shadow-sm border border-gray-200 cursor-move hover:shadow-md transition-shadow relative group"
                                     draggable="true" data-id="{{ $opportunity->id }}">
                                     <div class="flex justify-between items-start mb-2">
-                                        <h3 class="font-medium text-gray-900 truncate pr-6">{{ $opportunity->name }}</h3>
+                                        <a href="{{ route('opportunities.show', $opportunity) }}"
+                                            class="font-medium text-gray-900 truncate pr-6 hover:text-blue-600">
+                                            {{ $opportunity->name }}
+                                        </a>
                                         <a href="{{ route('opportunities.edit', $opportunity) }}"
                                             class="opacity-0 group-hover:opacity-100 absolute top-2 right-2 text-gray-400 hover:text-blue-600">
                                             <i class="fas fa-pencil-alt text-xs"></i>
@@ -67,6 +70,21 @@
                                             </span>
                                         @endif
                                     </div>
+                                    @if($opportunity->next_action)
+                                        <div class="mt-2 text-xs border-t pt-2 border-gray-100">
+                                            <div class="font-medium text-gray-700">Tiếp theo:</div>
+                                            <div class="text-gray-600 truncate" title="{{ $opportunity->next_action }}">
+                                                {{ $opportunity->next_action }}
+                                            </div>
+                                            @if($opportunity->next_action_date)
+                                                <div
+                                                    class="{{ $opportunity->next_action_date->isPast() ? 'text-red-500' : 'text-gray-400' }}">
+                                                    {{ $opportunity->next_action_date->format('d/m/Y') }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endif
+
                                 </div>
                             @endforeach
                         </div>

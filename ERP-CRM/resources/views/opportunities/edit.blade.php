@@ -105,6 +105,25 @@
                 </div>
 
                 <div class="col-span-1">
+                    <label for="next_action" class="block text-sm font-medium text-gray-700 mb-1">
+                        Hành động tiếp theo
+                    </label>
+                    <input type="text" name="next_action" id="next_action"
+                        value="{{ old('next_action', $opportunity->next_action) }}"
+                        placeholder="Ví dụ: Gọi điện chốt hợp đồng..."
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="col-span-1">
+                    <label for="next_action_date" class="block text-sm font-medium text-gray-700 mb-1">
+                        Ngày thực hiện
+                    </label>
+                    <input type="date" name="next_action_date" id="next_action_date"
+                        value="{{ old('next_action_date', $opportunity->next_action_date ? $opportunity->next_action_date->format('Y-m-d') : '') }}"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="col-span-1">
                     <label for="assigned_to" class="block text-sm font-medium text-gray-700 mb-1">
                         Người phụ trách
                     </label>

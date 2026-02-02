@@ -60,11 +60,26 @@ class OpportunityController extends Controller
             'expected_close_date' => 'nullable|date',
             'assigned_to' => 'nullable|exists:users,id',
             'description' => 'nullable|string',
+            'next_action' => 'nullable|string|max:255',
+            'next_action_date' => 'nullable|date',
         ]);
 
         $validated['created_by'] = auth()->id();
 
-        \App\Models\Opportunity::create($validated);
+        $opportunity = \App\Models\Opportunity::create($validated);
+
+        // Auto-create task if next_action is provided
+        if (!empty($validated['next_action'])) {
+            \App\Models\Activity::create([
+                'subject' => $validated['next_action'],
+                'type' => 'task',
+                'due_date' => $validated['next_action_date'] ?? null,
+                'opportunity_id' => $opportunity->id,
+                'customer_id' => $opportunity->customer_id,
+                'user_id' => $opportunity->assigned_to ?? auth()->id(),
+                'created_by' => auth()->id(),
+            ]);
+        }
 
         return redirect()->route('opportunities.index')->with('success', 'Đã tạo cơ hội thành công.');
     }
@@ -74,6 +89,7 @@ class OpportunityController extends Controller
      */
     public function show(\App\Models\Opportunity $opportunity)
     {
+        $opportunity->load(['activities.user', 'activities.createdBy', 'customer', 'assignedTo']);
         return view('opportunities.show', compact('opportunity'));
     }
 
@@ -100,9 +116,26 @@ class OpportunityController extends Controller
             'expected_close_date' => 'nullable|date',
             'assigned_to' => 'nullable|exists:users,id',
             'description' => 'nullable|string',
+            'next_action' => 'nullable|string|max:255',
+            'next_action_date' => 'nullable|date',
         ]);
 
+        // Check if next_action changed
+        $oldAction = $opportunity->next_action;
         $opportunity->update($validated);
+
+        // Auto-create task if next_action is provided and changed (or just new)
+        if (!empty($validated['next_action']) && $validated['next_action'] !== $oldAction) {
+            \App\Models\Activity::create([
+                'subject' => $validated['next_action'],
+                'type' => 'task',
+                'due_date' => $validated['next_action_date'] ?? null,
+                'opportunity_id' => $opportunity->id,
+                'customer_id' => $opportunity->customer_id,
+                'user_id' => $opportunity->assigned_to ?? auth()->id(),
+                'created_by' => auth()->id(),
+            ]);
+        }
 
         return redirect()->route('opportunities.index')->with('success', 'Đã cập nhật cơ hội thành công.');
     }

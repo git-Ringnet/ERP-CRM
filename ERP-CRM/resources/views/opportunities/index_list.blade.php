@@ -31,6 +31,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá trị</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Giai đoạn</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hành động tiếp theo</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự kiến chốt</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phụ trách</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hành động</th>
@@ -40,7 +41,10 @@
                     @forelse ($opportunities as $opportunity)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $opportunity->name }}</div>
+                                <a href="{{ route('opportunities.show', $opportunity) }}"
+                                    class="text-sm font-medium text-gray-900 hover:text-blue-600">
+                                    {{ $opportunity->name }}
+                                </a>
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm text-gray-900">{{ $opportunity->customer->name ?? 'N/A' }}</div>
@@ -52,6 +56,19 @@
                                 <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $opportunity->stage_color }}">
                                     {{ $opportunity->stage_label }}
                                 </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500">
+                                @if($opportunity->next_action)
+                                    <div>{{ $opportunity->next_action }}</div>
+                                    @if($opportunity->next_action_date)
+                                        <div
+                                            class="text-xs {{ $opportunity->next_action_date->isPast() ? 'text-red-500' : 'text-gray-400' }}">
+                                            {{ $opportunity->next_action_date->format('d/m/Y') }}
+                                        </div>
+                                    @endif
+                                @else
+                                    -
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-500">
                                 {{ $opportunity->expected_close_date ? $opportunity->expected_close_date->format('d/m/Y') : '-' }}

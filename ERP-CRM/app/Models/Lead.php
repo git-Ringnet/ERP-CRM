@@ -42,6 +42,11 @@ class Lead extends Model
         return $this->hasMany(Opportunity::class);
     }
 
+    public function activities()
+    {
+        return $this->hasMany(Activity::class);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {

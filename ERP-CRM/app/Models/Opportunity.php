@@ -22,6 +22,8 @@ class Opportunity extends Model
         'assigned_to',
         'created_by',
         'closed_at',
+        'next_action',
+        'next_action_date',
     ];
 
     protected $casts = [
@@ -29,6 +31,7 @@ class Opportunity extends Model
         'probability' => 'integer',
         'expected_close_date' => 'date',
         'closed_at' => 'date',
+        'next_action_date' => 'date',
     ];
 
     public function customer()
@@ -39,6 +42,11 @@ class Opportunity extends Model
     public function lead()
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    public function activities()
+    {
+        return $this->hasMany(Activity::class);
     }
 
     public function assignedTo()

@@ -248,6 +248,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
     Route::post('/opportunities/{opportunity}/update-stage', [\App\Http\Controllers\OpportunityController::class, 'updateStage'])->name('opportunities.update-stage');
+
+    // Activities (Tasks/CRM)
+    Route::resource('activities', \App\Http\Controllers\ActivityController::class);
 });
 
 // Auth routes (login, logout, etc.)

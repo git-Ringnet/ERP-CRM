@@ -42,9 +42,9 @@ class Customer extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
-              ->orWhere('code', 'like', "%{$search}%")
-              ->orWhere('email', 'like', "%{$search}%")
-              ->orWhere('phone', 'like', "%{$search}%");
+                ->orWhere('code', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%");
         });
     }
 
@@ -91,6 +91,14 @@ class Customer extends Model
     public function paymentHistories()
     {
         return $this->hasMany(PaymentHistory::class);
+    }
+
+    /**
+     * Relationship with Activities (CRM)
+     */
+    public function activities()
+    {
+        return $this->hasMany(Activity::class);
     }
 
     /**
