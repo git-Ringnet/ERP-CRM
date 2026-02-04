@@ -182,6 +182,16 @@
                 </div>
 
                 <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Lịch biểu</p>
+                    
+                    <a href="{{ route('work-schedules.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-schedules.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-calendar-alt w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Lịch làm việc</span>
+                    </a>
+                </div>
+
+                <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Bán hàng
                     </p>
 

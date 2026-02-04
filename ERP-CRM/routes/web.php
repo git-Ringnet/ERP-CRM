@@ -251,6 +251,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Activities (Tasks/CRM)
     Route::resource('activities', \App\Http\Controllers\ActivityController::class);
+
+    // Work Schedule routes
+    Route::get('/work-schedules/get-events', [\App\Http\Controllers\WorkScheduleController::class, 'getEvents'])->name('work-schedules.events');
+    Route::resource('work-schedules', \App\Http\Controllers\WorkScheduleController::class);
 });
 
 // Auth routes (login, logout, etc.)
