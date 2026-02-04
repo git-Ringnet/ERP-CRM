@@ -766,11 +766,16 @@
                 default: {
                     headerRow: 1,
                     patterns: {
-                        sku: ['SKU', 'Part Number', 'Code', 'Mã'],
-                        product_name: ['Product', 'Name', 'Tên'],
-                        description: ['Description', 'Mô tả'],
-                        price: ['Price', 'Giá'],
-                        category: ['Category', 'Danh mục']
+                        sku: ['SKU', 'Part Number', 'Code', 'Mã', 'Mã SP', 'Product Code', 'Item Number', 'Model', 'Part No', 'P/N'],
+                        product_name: ['Product', 'Name', 'Tên', 'Sản phẩm', 'Title', 'Item Name', 'Description Short'],
+                        description: ['Description', 'Mô tả', 'Desc', 'Details', 'Specs'],
+                        price: ['Price', 'Giá', 'List Price', 'Unit Price', 'MSRP', 'Amount', 'Cost', 'GPL', 'Standard Price'],
+                        category: ['Category', 'Danh mục', 'Type', 'Loại', 'Family', 'Series'],
+                        price_1yr: ['1yr', '1 Year', '12 Months'],
+                        price_2yr: ['2yr', '2 Year', '24 Months'],
+                        price_3yr: ['3yr', '3 Year', '36 Months'],
+                        price_4yr: ['4yr', '4 Year', '48 Months'],
+                        price_5yr: ['5yr', '5 Year', '60 Months']
                     }
                 }
             };

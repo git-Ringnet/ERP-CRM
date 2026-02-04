@@ -46,20 +46,57 @@ class SupplierPriceListController extends Controller
             ],
         ],
         'default' => [
-            'name' => 'Mặc định',
-            'skipSheets' => [],
-            'headerKeywords' => ['sku', 'code', 'price', 'description'],
+            'name' => 'Mặc định (Đa năng)',
+            'skipSheets' => ['cover', 'summary', 'instructions', 'notes', 'readme', 'general info', 'change log'],
+            'headerKeywords' => [
+                'sku', 'code', 'price', 'description', 
+                'part number', 'part #', 'part no', 'part_no', 'model', 'product id',
+                'list price', 'msrp', 'unit price', 'amount', 'cost',
+                'product', 'item', 'name', 'title'
+            ],
             'columnPatterns' => [
-                'sku' => ['SKU', 'Part Number', 'Code', 'Mã', 'Mã SP'],
-                'product_name' => ['Product', 'Name', 'Tên', 'Sản phẩm', 'Tên SP'],
-                'description' => ['Description', 'Mô tả', 'Desc'],
-                'price' => ['Price', 'Giá', 'Unit Price', 'List Price', 'Đơn giá'],
-                'category' => ['Category', 'Danh mục', 'Type', 'Loại'],
-                'price_1yr' => ['1yr Contract', '1 Year', '1Yr', 'Replace DD by 12', 'Replaces DD by 12', '1 Năm'],
-                'price_2yr' => ['2yr Contract', '2 Year', '2Yr', 'Replace DD by 24', 'Replaces DD by 24', '2 Năm'],
-                'price_3yr' => ['3yr Contract', '3 Year', '3Yr', 'Replace DD by 36', 'Replaces DD by 36', '3 Năm'],
-                'price_4yr' => ['4yr Contract', '4 Year', '4Yr', 'Replace DD by 48', 'Replaces DD by 48', '4 Năm'],
-                'price_5yr' => ['5yr Contract', '5 Year', '5Yr', 'Replace DD by 60', 'Replaces DD by 60', '5 Năm'],
+                'sku' => [
+                    'SKU', 'SKU#', 'Part Number', 'Part No', 'Part#', 'PartNo', 'Code', 'Mã', 'Mã SP', 
+                    'Product Code', 'Item Number', 'Item#', 'Model', 'Model Number', 'MTM', 'Material', 
+                    'Product ID', 'P/N', 'Item Code'
+                ],
+                'product_name' => [
+                    'Product', 'Product Name', 'Name', 'Tên', 'Sản phẩm', 'Description Short', 
+                    'Item Name', 'Model Name', 'Title', 'Item Description', 'Short Description', 'Product Title'
+                ],
+                'description' => [
+                    'Description', 'Desc', 'Mô tả', 'Details', 'Product Description', 
+                    'Long Description', 'Specification', 'Specs', 'Full Description'
+                ],
+                'price' => [
+                    'Price', 'Giá', 'List Price', 'Unit Price', 'MSRP', 'Base Price', 'Net Price',
+                    'USD Price', 'Price USD', 'Unit Cost', 'Extended Price', 'Amount', 'Global Price List', 
+                    'GPL', 'Standard Price', 'Cost'
+                ],
+                'category' => [
+                    'Category', 'Danh mục', 'Type', 'Loại', 'Product Type', 'Product Family', 
+                    'Product Group', 'Series', 'Product Line', 'Class', 'Classification'
+                ],
+                'price_1yr' => [
+                    '1yr Contract', '1 Year', '1Yr', 'Replace DD by 12', 'Replaces DD by 12', '1 Năm', 
+                    '12 Months', '1Y Support', 'Support 1Y'
+                ],
+                'price_2yr' => [
+                    '2yr Contract', '2 Year', '2Yr', 'Replace DD by 24', 'Replaces DD by 24', '2 Năm', 
+                    '24 Months', '2Y Support', 'Support 2Y'
+                ],
+                'price_3yr' => [
+                    '3yr Contract', '3 Year', '3Yr', 'Replace DD by 36', 'Replaces DD by 36', '3 Năm', 
+                    '36 Months', '3Y Support', 'Support 3Y'
+                ],
+                'price_4yr' => [
+                    '4yr Contract', '4 Year', '4Yr', 'Replace DD by 48', 'Replaces DD by 48', '4 Năm', 
+                    '48 Months', '4Y Support', 'Support 4Y'
+                ],
+                'price_5yr' => [
+                    '5yr Contract', '5 Year', '5Yr', 'Replace DD by 60', 'Replaces DD by 60', '5 Năm', 
+                    '60 Months', '5Y Support', 'Support 5Y'
+                ],
             ],
         ],
     ];
@@ -572,15 +609,24 @@ class SupplierPriceListController extends Controller
             'part#',
             'part #',
             'partnumber',
+            'part_no',
+            'part no',
+            'model',
+            'code',
             'product',
             'description',
+            'desc',
             'price',
             'usd',
+            'msrp',
+            'amount',
+            'cost',
             'item',
             'unit',
             'contract',
             'forticare',
-            'list'
+            'list',
+            'p/n'
         ];
 
         $bestRow = null;
@@ -620,11 +666,11 @@ class SupplierPriceListController extends Controller
             // Kiểm tra xem có chứa từ khóa header không
             $keywordMatches = 0;
             foreach ($rowValues as $value) {
-                // Dùng logic clean aggressive để match keyword
-                $cleanValue = preg_replace('/[^a-z0-9]/', '', $value);
+                // Dùng logic clean aggressive để match keyword (hỗ trợ Unicode)
+                $cleanValue = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($value));
 
                 foreach ($headerKeywords as $keyword) {
-                    $cleanKeyword = preg_replace('/[^a-z0-9]/', '', strtolower($keyword));
+                    $cleanKeyword = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($keyword));
                     if (str_contains($cleanValue, $cleanKeyword)) {
                         $keywordMatches++;
                         // Mỗi cell chỉ count 1 keyword để tránh duplicate match
@@ -674,9 +720,9 @@ class SupplierPriceListController extends Controller
                     if (empty($headerName))
                         continue;
 
-                    // Normalize header: Chỉ giữ lại chữ cái và số để so sánh (Aggressive cleaning)
-                    $cleanHeader = preg_replace('/[^a-z0-9]/', '', strtolower($headerName));
-                    $cleanPattern = preg_replace('/[^a-z0-9]/', '', strtolower($pattern));
+                    // Normalize header: Chỉ giữ lại chữ cái và số để so sánh (Aggressive cleaning hỗ trợ Unicode)
+                    $cleanHeader = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($headerName));
+                    $cleanPattern = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($pattern));
 
                     // Match chính xác hoặc header chứa pattern
                     $isMatch = $cleanHeader === $cleanPattern ||
