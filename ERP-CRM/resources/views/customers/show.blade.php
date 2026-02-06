@@ -262,6 +262,177 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Lịch sử hoạt động -->
+            <div class="bg-white rounded-lg shadow-sm" x-data="{ showActivityModal: false }">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-history mr-2 text-purple-500"></i>Lịch sử hoạt động
+                        <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                            {{ $customer->activities->count() }}
+                        </span>
+                    </h2>
+                    <button @click="showActivityModal = true" 
+                            class="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors">
+                        <i class="fas fa-plus mr-1"></i>Thêm hoạt động
+                    </button>
+                </div>
+                <div class="p-6">
+                    @if($customer->activities->isEmpty())
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-comments text-4xl mb-2"></i>
+                            <p>Chưa có hoạt động nào được ghi nhận</p>
+                            <button @click="showActivityModal = true" class="mt-3 text-purple-600 hover:underline text-sm">
+                                + Thêm hoạt động đầu tiên
+                            </button>
+                        </div>
+                    @else
+                        <div class="relative">
+                            <!-- Timeline line -->
+                            <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                            
+                            <div class="space-y-4">
+                                @foreach($customer->activities as $activity)
+                                @php
+                                    $typeConfig = [
+                                        'call' => ['icon' => 'phone', 'bg' => 'bg-green-100', 'text' => 'text-green-600', 'label' => 'Cuộc gọi'],
+                                        'meeting' => ['icon' => 'users', 'bg' => 'bg-blue-100', 'text' => 'text-blue-600', 'label' => 'Cuộc họp'],
+                                        'email' => ['icon' => 'envelope', 'bg' => 'bg-yellow-100', 'text' => 'text-yellow-600', 'label' => 'Email'],
+                                        'task' => ['icon' => 'tasks', 'bg' => 'bg-orange-100', 'text' => 'text-orange-600', 'label' => 'Công việc'],
+                                        'note' => ['icon' => 'sticky-note', 'bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'label' => 'Ghi chú'],
+                                    ];
+                                    $config = $typeConfig[$activity->type] ?? $typeConfig['note'];
+                                @endphp
+                                <div class="relative pl-10">
+                                    <!-- Timeline dot -->
+                                    <div class="absolute left-0 w-8 h-8 rounded-full {{ $config['bg'] }} {{ $config['text'] }} flex items-center justify-center ring-4 ring-white">
+                                        <i class="fas fa-{{ $config['icon'] }} text-sm"></i>
+                                    </div>
+                                    
+                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow {{ $activity->is_completed ? 'bg-gray-50' : 'bg-white' }}">
+                                        <div class="flex items-start justify-between mb-2">
+                                            <div class="flex-1">
+                                                <span class="inline-block px-2 py-0.5 text-xs font-medium rounded {{ $config['bg'] }} {{ $config['text'] }} mb-1">
+                                                    {{ $config['label'] }}
+                                                </span>
+                                                <h4 class="font-semibold text-gray-900 {{ $activity->is_completed ? 'line-through opacity-60' : '' }}">
+                                                    {{ $activity->subject }}
+                                                </h4>
+                                            </div>
+                                            <form action="{{ route('activities.update', $activity) }}" method="POST" class="ml-2">
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="toggle_status" value="1">
+                                                <button type="submit" title="{{ $activity->is_completed ? 'Đánh dấu chưa hoàn thành' : 'Đánh dấu hoàn thành' }}"
+                                                        class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors
+                                                               {{ $activity->is_completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400' }}">
+                                                    @if($activity->is_completed)
+                                                        <i class="fas fa-check text-xs"></i>
+                                                    @endif
+                                                </button>
+                                            </form>
+                                        </div>
+                                        
+                                        @if($activity->description)
+                                            <p class="text-sm text-gray-600 mb-2 {{ $activity->is_completed ? 'opacity-60' : '' }}">{{ $activity->description }}</p>
+                                        @endif
+                                        
+                                        <div class="flex items-center justify-between text-xs text-gray-500">
+                                            <div class="flex items-center space-x-3">
+                                                @if($activity->due_date)
+                                                    <span class="{{ $activity->due_date->isPast() && !$activity->is_completed ? 'text-red-600 font-semibold' : '' }}">
+                                                        <i class="far fa-calendar mr-1"></i>{{ $activity->due_date->format('d/m/Y') }}
+                                                    </span>
+                                                @endif
+                                                <span>
+                                                    <i class="far fa-user mr-1"></i>{{ $activity->createdBy->name ?? 'N/A' }}
+                                                </span>
+                                            </div>
+                                            <span class="text-gray-400">{{ $activity->created_at->diffForHumans() }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Modal thêm hoạt động -->
+                <div x-show="showActivityModal" x-cloak
+                     class="fixed inset-0 z-50 overflow-y-auto" 
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" @click="showActivityModal = false"></div>
+                        
+                        <div class="relative inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-lg sm:w-full"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100">
+                            <form action="{{ route('activities.store') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="customer_id" value="{{ $customer->id }}">
+                                
+                                <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="text-lg font-semibold text-gray-900">
+                                            <i class="fas fa-plus-circle text-purple-500 mr-2"></i>Thêm hoạt động mới
+                                        </h3>
+                                        <button type="button" @click="showActivityModal = false" class="text-gray-400 hover:text-gray-600">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Loại hoạt động *</label>
+                                            <select name="type" required class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200">
+                                                <option value="call">Cuộc gọi</option>
+                                                <option value="meeting">Cuộc họp</option>
+                                                <option value="email">Email</option>
+                                                <option value="task">Công việc</option>
+                                                <option value="note">Ghi chú</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề *</label>
+                                            <input type="text" name="subject" required placeholder="VD: Gọi điện tư vấn sản phẩm..."
+                                                   class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200">
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                                            <textarea name="description" rows="3" placeholder="Chi tiết hoạt động..."
+                                                      class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200"></textarea>
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Hạn hoàn thành</label>
+                                            <input type="date" name="due_date" 
+                                                   class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                                    <button type="submit" class="w-full sm:w-auto inline-flex justify-center rounded-lg px-4 py-2 bg-purple-600 text-white font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                        <i class="fas fa-save mr-2"></i>Lưu hoạt động
+                                    </button>
+                                    <button type="button" @click="showActivityModal = false" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-lg px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium hover:bg-gray-50">
+                                        Hủy
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sidebar - 1 column -->

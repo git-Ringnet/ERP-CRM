@@ -111,6 +111,9 @@ class CustomerController extends Controller
             },
             'exports' => function($query) {
                 $query->latest()->limit(10);
+            },
+            'activities' => function($query) {
+                $query->with('user', 'createdBy')->latest()->limit(20);
             }
         ]);
         
