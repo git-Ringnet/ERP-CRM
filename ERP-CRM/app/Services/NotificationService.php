@@ -289,4 +289,93 @@ class NotificationService
             ]
         );
     }
+
+    /**
+     * Tạo thông báo khi lịch làm việc được tạo
+     */
+    public function notifyWorkScheduleCreated($schedule, array $recipientUserIds): void
+    {
+        $typeLabels = [
+            'personal' => 'cá nhân',
+            'group' => 'nhóm',
+        ];
+        
+        $typeLabel = $typeLabels[$schedule->type] ?? $schedule->type;
+        $title = 'Lịch làm việc mới';
+        $creatorName = $schedule->creator ? $schedule->creator->name : 'Người dùng';
+        $message = "Lịch {$typeLabel} '{$schedule->title}' đã được tạo bởi {$creatorName}";
+        $link = '/work-schedules';
+        
+        foreach ($recipientUserIds as $userId) {
+            $this->createNotification(
+                $userId,
+                'work_schedule_created',
+                $title,
+                $message,
+                $link,
+                'calendar',
+                'blue',
+                [
+                    'schedule_id' => $schedule->id,
+                    'schedule_title' => $schedule->title,
+                    'schedule_type' => $schedule->type,
+                    'start_datetime' => $schedule->start_datetime->format('Y-m-d H:i'),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Tạo thông báo khi lịch làm việc sắp hết hạn (1 ngày trước)
+     */
+    public function notifyWorkScheduleUpcoming($schedule, array $recipientUserIds): void
+    {
+        $title = 'Lịch làm việc sắp đến hạn';
+        $message = "Lịch '{$schedule->title}' sẽ đến hạn vào {$schedule->end_datetime->format('d/m/Y H:i')}";
+        $link = '/work-schedules';
+        
+        foreach ($recipientUserIds as $userId) {
+            $this->createNotification(
+                $userId,
+                'work_schedule_upcoming',
+                $title,
+                $message,
+                $link,
+                'clock',
+                'yellow',
+                [
+                    'schedule_id' => $schedule->id,
+                    'schedule_title' => $schedule->title,
+                    'end_datetime' => $schedule->end_datetime->format('Y-m-d H:i'),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Tạo thông báo khi lịch làm việc đã hết hạn
+     */
+    public function notifyWorkScheduleExpired($schedule, array $recipientUserIds): void
+    {
+        $title = 'Lịch làm việc đã hết hạn';
+        $message = "Lịch '{$schedule->title}' đã hết hạn vào {$schedule->end_datetime->format('d/m/Y H:i')}";
+        $link = '/work-schedules';
+        
+        foreach ($recipientUserIds as $userId) {
+            $this->createNotification(
+                $userId,
+                'work_schedule_expired',
+                $title,
+                $message,
+                $link,
+                'exclamation-circle',
+                'red',
+                [
+                    'schedule_id' => $schedule->id,
+                    'schedule_title' => $schedule->title,
+                    'end_datetime' => $schedule->end_datetime->format('Y-m-d H:i'),
+                ]
+            );
+        }
+    }
 }

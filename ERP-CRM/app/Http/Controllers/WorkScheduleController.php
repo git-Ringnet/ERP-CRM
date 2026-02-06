@@ -7,9 +7,17 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Services\NotificationService;
 
 class WorkScheduleController extends Controller
 {
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     public function index()
     {
         $users = User::all();
@@ -105,6 +113,18 @@ class WorkScheduleController extends Controller
             if ($schedule->type === 'group' && !empty($participants)) {
                 $schedule->participants()->sync($participants);
             }
+            
+            // Gửi thông báo
+            $recipientIds = [];
+            if ($schedule->type === 'group' && !empty($participants)) {
+                // Gửi cho tất cả participants
+                $recipientIds = $participants;
+            } else {
+                // Gửi cho chính người tạo (lịch cá nhân)
+                $recipientIds = [Auth::id()];
+            }
+            
+            $this->notificationService->notifyWorkScheduleCreated($schedule, $recipientIds);
             
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Tạo lịch làm việc thành công', 'data' => $schedule]);

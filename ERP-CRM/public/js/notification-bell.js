@@ -104,7 +104,11 @@ function notificationBell() {
                 'arrow-up': 'fas fa-arrow-up text-orange-500',
                 'exchange': 'fas fa-exchange-alt text-purple-500',
                 'check': 'fas fa-check text-green-500',
-                'times': 'fas fa-times text-red-500'
+                'times': 'fas fa-times text-red-500',
+                'exclamation-triangle': 'fas fa-exclamation-triangle text-yellow-500',
+                'calendar': 'fas fa-calendar text-blue-500',
+                'clock': 'fas fa-clock text-yellow-500',
+                'exclamation-circle': 'fas fa-exclamation-circle text-red-500'
             };
             return iconMap[notification.icon] || 'fas fa-bell text-gray-500';
         },
@@ -121,12 +125,12 @@ function notificationBell() {
             if (diff < 3600) return Math.floor(diff / 60) + ' phút trước';
             if (diff < 86400) return Math.floor(diff / 3600) + ' giờ trước';
             if (diff < 604800) return Math.floor(diff / 86400) + ' ngày trước';
-            
+
             // Format as date if older than 7 days
-            return date.toLocaleDateString('vi-VN', { 
-                day: '2-digit', 
-                month: '2-digit', 
-                year: 'numeric' 
+            return date.toLocaleDateString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
             });
         }
     }

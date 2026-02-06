@@ -31,14 +31,19 @@
 <div class="flex flex-col h-full space-y-4" x-data="calendarApp()">
     <!-- Legend & Filter -->
     <div class="bg-white p-4 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
-        <div class="flex items-center space-x-3 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
-            <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Chú thích:</span>
-            <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-red-500"></span><span class="text-xs">Cao/Gấp</span></div>
-            <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-yellow-400"></span><span class="text-xs">Trung bình</span></div>
-            <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-blue-400"></span><span class="text-xs">Thấp</span></div>
+        <div class="flex items-center space-x-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Mức độ ưu tiên:</span>
+                <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-blue-600"></span><span class="text-xs font-medium">Thấp</span></div>
+                <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-orange-500"></span><span class="text-xs font-medium">Trung bình</span></div>
+                <div class="flex items-center space-x-1"><span class="w-3 h-3 rounded-full bg-red-600"></span><span class="text-xs font-medium">Cao/Gấp</span></div>
+            </div>
             <span class="text-gray-300">|</span>
-            <div class="flex items-center space-x-1"><i class="fas fa-check-circle text-green-500 text-xs"></i><span class="text-xs">Hoàn thành</span></div>
-            <div class="flex items-center space-x-1"><i class="fas fa-exclamation-circle text-red-500 text-xs"></i><span class="text-xs">Quá hạn</span></div>
+            <div class="flex items-center space-x-2">
+                <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Trạng thái:</span>
+                <div class="flex items-center space-x-1"><i class="fas fa-check-circle text-green-600 text-sm"></i><span class="text-xs font-medium">Hoàn thành</span></div>
+                <div class="flex items-center space-x-1"><i class="fas fa-exclamation-circle text-red-600 text-sm"></i><span class="text-xs font-medium">Quá hạn</span></div>
+            </div>
         </div>
 
         <div class="flex items-center space-x-2 w-full sm:w-auto">
@@ -98,16 +103,16 @@
                             <div>
                                 <label for="type" class="block text-sm font-medium text-gray-700">Loại lịch <span class="text-red-500">*</span></label>
                                 <select id="type" x-model="form.type" @change="handleTypeChange()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
-                                    <option value="personal">📅 Cá nhân</option>
-                                    <option value="group">👥 Nhóm / Deadline</option>
+                                    <option value="personal">Cá nhân</option>
+                                    <option value="group">Nhóm / Deadline</option>
                                 </select>
                             </div>
                             <div>
                                 <label for="priority" class="block text-sm font-medium text-gray-700">Mức độ ưu tiên <span class="text-red-500">*</span></label>
                                 <select id="priority" x-model="form.priority" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
-                                    <option value="low">🔵 Thấp</option>
-                                    <option value="medium">🟡 Trung bình</option>
-                                    <option value="high">🔴 Cao / Gấp</option>
+                                    <option value="low">Thấp</option>
+                                    <option value="medium">Trung bình</option>
+                                    <option value="high">Cao / Gấp</option>
                                 </select>
                             </div>
                         </div>
@@ -116,10 +121,10 @@
                         <div x-show="isEditMode">
                             <label for="status" class="block text-sm font-medium text-gray-700">Trạng thái</label>
                             <select id="status" x-model="form.status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
-                                <option value="new">🆕 Mới</option>
-                                <option value="in_progress">🚧 Đang làm</option>
-                                <option value="completed">✅ Hoàn thành</option>
-                                <option value="overdue">❗ Quá hạn</option>
+                                <option value="new">Mới</option>
+                                <option value="in_progress">Đang làm</option>
+                                <option value="completed">Hoàn thành</option>
+                                <option value="overdue">Quá hạn</option>
                             </select>
                         </div>
 
@@ -244,16 +249,17 @@
                     eventContent: function(arg) {
                         const props = arg.event.extendedProps;
                         
-                        // Priority Colors
-                        let borderColorClass = 'border-blue-400';
-                        let cardBg = 'bg-blue-50 text-blue-800';
+                        // Priority Colors - Màu đậm và rõ ràng hơn
+                        let borderColorClass = 'border-blue-600';
+                        let cardBg = 'bg-blue-100 text-blue-900';
+                        let borderWidth = 'border-l-4';
                         
                         if (props.priority === 'high') {
-                            borderColorClass = 'border-red-500';
-                            cardBg = 'bg-red-50 text-red-800';
+                            borderColorClass = 'border-red-600';
+                            cardBg = 'bg-red-100 text-red-900';
                         } else if (props.priority === 'medium') {
-                            borderColorClass = 'border-yellow-400';
-                            cardBg = 'bg-yellow-50 text-yellow-800';
+                            borderColorClass = 'border-orange-500';
+                            cardBg = 'bg-orange-100 text-orange-900';
                         }
 
                         // Status styling
@@ -284,10 +290,10 @@
 
                         return {
                             html: `
-                            <div class="custom-event p-1 pl-2 border-l-4 rounded-r shadow-xs text-xs overflow-hidden ${borderColorClass} ${cardBg} flex items-center">
+                            <div class="custom-event p-1.5 pl-2 ${borderWidth} rounded-r shadow-sm text-xs overflow-hidden ${borderColorClass} ${cardBg} flex items-center font-medium">
                                 <div class="flex-1 min-w-0">
                                     <div class="font-semibold truncate">
-                                        ${timeText ? `<span class="opacity-75 mr-1">${timeText}</span>` : ''}
+                                        ${timeText ? `<span class="opacity-80 mr-1 font-bold">${timeText}</span>` : ''}
                                         ${arg.event.title}
                                     </div>
                                 </div>
