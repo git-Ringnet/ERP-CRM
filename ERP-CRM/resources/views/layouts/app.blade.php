@@ -293,6 +293,12 @@
                         <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
                     </a>
 
+                    <a href="{{ route('activity-logs.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activity-logs.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-history w-6 text-purple-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hoạt động</span>
+                    </a>
+
                     <a href="{{ route('settings.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('settings.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-cog w-6 flex-shrink-0"></i>

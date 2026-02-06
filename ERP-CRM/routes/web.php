@@ -29,6 +29,7 @@ use App\Http\Controllers\WarrantyController;
 use App\Http\Controllers\ShippingAllocationController;
 use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ActivityLogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -255,6 +256,10 @@ Route::middleware(['auth'])->group(function () {
     // Work Schedule routes
     Route::get('/work-schedules/get-events', [\App\Http\Controllers\WorkScheduleController::class, 'getEvents'])->name('work-schedules.events');
     Route::resource('work-schedules', \App\Http\Controllers\WorkScheduleController::class);
+
+    // Activity Log routes (Nhật ký hoạt động)
+    Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::get('/users/{user}/activity-logs', [ActivityLogController::class, 'userLogs'])->name('users.activity-logs');
 });
 
 // Auth routes (login, logout, etc.)

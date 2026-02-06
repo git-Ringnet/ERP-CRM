@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,7 +19,7 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        $query = DB::table('users')->whereNotNull('employee_code');
+        $query = User::whereNotNull('employee_code');
 
         // Search functionality (Requirement 3.9)
         if ($request->filled('search')) {
@@ -45,8 +46,7 @@ class EmployeeController extends Controller
         $employees = $query->orderBy('created_at', 'desc')->paginate(10);
 
         // Get unique departments for filter dropdown
-        $departments = DB::table('users')
-            ->whereNotNull('employee_code')
+        $departments = User::whereNotNull('employee_code')
             ->whereNotNull('department')
             ->distinct()
             ->pluck('department');
@@ -92,10 +92,8 @@ class EmployeeController extends Controller
         // Hash password
         $validated['password'] = bcrypt($validated['password']);
 
-        DB::table('users')->insert(array_merge($validated, [
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]));
+        // Use User model to trigger LogsActivity trait
+        User::create($validated);
 
         return redirect()->route('employees.index')
             ->with('success', 'Nhân viên đã được tạo thành công.');
@@ -107,14 +105,8 @@ class EmployeeController extends Controller
      */
     public function show($id)
     {
-        $employee = DB::table('users')
-            ->whereNotNull('employee_code')
-            ->where('id', $id)
-            ->first();
-
-        if (!$employee) {
-            abort(404);
-        }
+        $employee = User::whereNotNull('employee_code')
+            ->findOrFail($id);
 
         return view('employees.show', compact('employee'));
     }
@@ -125,14 +117,8 @@ class EmployeeController extends Controller
      */
     public function edit($id)
     {
-        $employee = DB::table('users')
-            ->whereNotNull('employee_code')
-            ->where('id', $id)
-            ->first();
-
-        if (!$employee) {
-            abort(404);
-        }
+        $employee = User::whereNotNull('employee_code')
+            ->findOrFail($id);
 
         return view('employees.edit', compact('employee'));
     }
@@ -143,14 +129,8 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $employee = DB::table('users')
-            ->whereNotNull('employee_code')
-            ->where('id', $id)
-            ->first();
-
-        if (!$employee) {
-            abort(404);
-        }
+        $employee = User::whereNotNull('employee_code')
+            ->findOrFail($id);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -179,9 +159,8 @@ class EmployeeController extends Controller
             unset($validated['password']);
         }
 
-        DB::table('users')->where('id', $id)->update(array_merge($validated, [
-            'updated_at' => now(),
-        ]));
+        // Use update method on model instance to trigger events
+        $employee->update($validated);
 
         return redirect()->route('employees.index')
             ->with('success', 'Nhân viên đã được cập nhật thành công.');
@@ -193,16 +172,11 @@ class EmployeeController extends Controller
      */
     public function destroy($id)
     {
-        $employee = DB::table('users')
-            ->whereNotNull('employee_code')
-            ->where('id', $id)
-            ->first();
+        $employee = User::whereNotNull('employee_code')
+            ->findOrFail($id);
 
-        if (!$employee) {
-            abort(404);
-        }
-
-        DB::table('users')->where('id', $id)->delete();
+        // Use delete method on model instance to trigger events
+        $employee->delete();
 
         return redirect()->route('employees.index')
             ->with('success', 'Nhân viên đã được xóa thành công.');
@@ -214,7 +188,7 @@ class EmployeeController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
-        $query = DB::table('users')->whereNotNull('employee_code');
+        $query = User::whereNotNull('employee_code');
 
         // Apply filters if present (Requirement 7.6)
         if ($request->filled('search')) {
@@ -236,7 +210,7 @@ class EmployeeController extends Controller
             $query->where('status', $request->status);
         }
 
-        $employees = collect($query->get());
+        $employees = $query->get();
 
         // Generate Excel file (Requirement 7.7)
         $filepath = $exportService->exportEmployees($employees);
@@ -323,21 +297,13 @@ class EmployeeController extends Controller
      */
     public function toggleLock($id)
     {
-        $employee = DB::table('users')
-            ->whereNotNull('employee_code')
-            ->where('id', $id)
-            ->first();
-
-        if (!$employee) {
-            return redirect()->route('employees.index')
-                ->with('error', 'Không tìm thấy nhân viên.');
-        }
+        $employee = User::whereNotNull('employee_code')
+            ->findOrFail($id);
 
         $newLockStatus = !$employee->is_locked;
         
-        DB::table('users')->where('id', $id)->update([
+        $employee->update([
             'is_locked' => $newLockStatus,
-            'updated_at' => now(),
         ]);
 
         $message = $newLockStatus 
