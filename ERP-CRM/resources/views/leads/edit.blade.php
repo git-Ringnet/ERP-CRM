@@ -35,28 +35,37 @@
                     </label>
                     <input type="text" name="company_name" id="company_name"
                         value="{{ old('company_name', $lead->company_name) }}"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('company_name') border-red-500 @enderror">
+                    @error('company_name')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-1">
                     <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
                         Số điện thoại
                     </label>
                     <input type="text" name="phone" id="phone" value="{{ old('phone', $lead->phone) }}"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('phone') border-red-500 @enderror">
+                    @error('phone')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-1">
                     <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
                         Email
                     </label>
                     <input type="email" name="email" id="email" value="{{ old('email', $lead->email) }}"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 @error('email') border-red-500 @enderror">
+                    @error('email')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-1">
                     <label for="source" class="block text-sm font-medium text-gray-700 mb-1">
                         Nguồn
                     </label>
                     <select name="source" id="source"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white @error('source') border-red-500 @enderror">
                         <option value="">-- Chọn nguồn --</option>
                         <option value="Website" {{ old('source', $lead->source) == 'Website' ? 'selected' : '' }}>Website
                         </option>
@@ -67,13 +76,16 @@
                             thiệu</option>
                         <option value="Khác" {{ old('source', $lead->source) == 'Khác' ? 'selected' : '' }}>Khác</option>
                     </select>
+                    @error('source')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-1">
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-1">
                         Trạng thái <span class="text-red-500">*</span>
                     </label>
                     <select name="status" id="status"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white @error('status') border-red-500 @enderror"
                         required>
                         <option value="new" {{ old('status', $lead->status) == 'new' ? 'selected' : '' }}>Mới</option>
                         <option value="contacted" {{ old('status', $lead->status) == 'contacted' ? 'selected' : '' }}>Đã liên
@@ -84,18 +96,24 @@
                         <option value="converted" {{ old('status', $lead->status) == 'converted' ? 'selected' : '' }}
                             disabled>Đã chuyển đổi</option>
                     </select>
+                    @error('status')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-1">
                     <label for="assigned_to" class="block text-sm font-medium text-gray-700 mb-1">
                         Người phụ trách
                     </label>
                     <select name="assigned_to" id="assigned_to"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white @error('assigned_to') border-red-500 @enderror">
                         <option value="">-- Chọn nhân viên --</option>
                         @foreach($users as $user)
                             <option value="{{ $user->id }}" {{ old('assigned_to', $lead->assigned_to) == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
                         @endforeach
                     </select>
+                    @error('assigned_to')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div class="col-span-2">
                     <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
