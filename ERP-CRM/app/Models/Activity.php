@@ -22,6 +22,7 @@ class Activity extends Model
         'opportunity_id',
         'customer_id',
         'lead_id',
+        'customer_care_stage_id',
     ];
 
     protected $casts = [
@@ -54,5 +55,10 @@ class Activity extends Model
     public function lead()
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    public function customerCareStage()
+    {
+        return $this->belongsTo(CustomerCareStage::class);
     }
 }

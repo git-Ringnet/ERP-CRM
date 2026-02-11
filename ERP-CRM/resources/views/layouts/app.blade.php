@@ -213,6 +213,12 @@
                         <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
                     </a>
 
+                    <a href="{{ route('customer-care-stages.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
+                    </a>
+
                     <a href="{{ route('quotations.index') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-file-alt w-6 flex-shrink-0"></i>

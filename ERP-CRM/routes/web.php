@@ -260,6 +260,39 @@ Route::middleware(['auth'])->group(function () {
     // Activity Log routes (Nhật ký hoạt động)
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/users/{user}/activity-logs', [ActivityLogController::class, 'userLogs'])->name('users.activity-logs');
+
+    // Customer Care Stages routes (Theo dõi tiến độ chăm sóc khách hàng)
+    Route::get('/customer-care-stages/dashboard', [\App\Http\Controllers\CustomerCareStageController::class, 'dashboard'])->name('customer-care-stages.dashboard');
+    Route::resource('customer-care-stages', \App\Http\Controllers\CustomerCareStageController::class);
+    Route::post('/customer-care-stages/{customerCareStage}/update-progress', [\App\Http\Controllers\CustomerCareStageController::class, 'updateProgress'])->name('customer-care-stages.update-progress');
+    Route::post('/customer-care-stages/{customerCareStage}/assign', [\App\Http\Controllers\CustomerCareStageController::class, 'assignUser'])->name('customer-care-stages.assign');
+    Route::post('/customer-care-stages/{customerCareStage}/complete-action', [\App\Http\Controllers\CustomerCareStageController::class, 'completeAction'])->name('customer-care-stages.complete-action');
+    Route::post('/customer-care-stages/{customerCareStage}/snooze-action', [\App\Http\Controllers\CustomerCareStageController::class, 'snoozeAction'])->name('customer-care-stages.snooze-action');
+    
+    // Care Milestones routes
+    Route::post('/customer-care-stages/{customerCareStage}/milestones', [\App\Http\Controllers\CareMilestoneController::class, 'store'])->name('care-milestones.store');
+    Route::put('/care-milestones/{careMilestone}', [\App\Http\Controllers\CareMilestoneController::class, 'update'])->name('care-milestones.update');
+    Route::delete('/care-milestones/{careMilestone}', [\App\Http\Controllers\CareMilestoneController::class, 'destroy'])->name('care-milestones.destroy');
+    Route::post('/care-milestones/{careMilestone}/toggle-complete', [\App\Http\Controllers\CareMilestoneController::class, 'toggleComplete'])->name('care-milestones.toggle-complete');
+
+    // Communication Logs
+    Route::post('/customer-care-stages/{stage}/communications', [\App\Http\Controllers\CommunicationLogController::class, 'store'])->name('communications.store');
+    Route::put('/communications/{log}', [\App\Http\Controllers\CommunicationLogController::class, 'update'])->name('communications.update');
+    Route::delete('/communications/{log}', [\App\Http\Controllers\CommunicationLogController::class, 'destroy'])->name('communications.destroy');
+
+    // Milestone Templates
+    Route::resource('milestone-templates', \App\Http\Controllers\MilestoneTemplateController::class);
+    Route::post('/milestone-templates/{template}/apply/{stage}', [\App\Http\Controllers\MilestoneTemplateController::class, 'apply'])->name('milestone-templates.apply');
+
+    // Reminders
+    Route::get('reminders', [\App\Http\Controllers\ReminderController::class, 'index'])->name('reminders.index');
+    Route::post('reminders', [\App\Http\Controllers\ReminderController::class, 'store'])->name('reminders.store');
+    Route::put('reminders/{reminder}', [\App\Http\Controllers\ReminderController::class, 'update'])->name('reminders.update');
+    Route::delete('reminders/{reminder}', [\App\Http\Controllers\ReminderController::class, 'destroy'])->name('reminders.destroy');
+    Route::post('/reminders/{reminder}/snooze', [\App\Http\Controllers\ReminderController::class, 'snooze'])->name('reminders.snooze');
+
+    // Customer AJAX API
+    Route::get('/api/customers/{customer}/details', [\App\Http\Controllers\CustomerCareStageController::class, 'getCustomerDetails'])->name('customers.details');
 });
 
 // Auth routes (login, logout, etc.)

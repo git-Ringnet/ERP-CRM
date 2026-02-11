@@ -103,6 +103,22 @@ class Customer extends Model
     }
 
     /**
+     * Relationship with Customer Care Stages
+     */
+    public function careStages()
+    {
+        return $this->hasMany(CustomerCareStage::class);
+    }
+
+    /**
+     * Get current/latest care stage
+     */
+    public function currentCareStage()
+    {
+        return $this->hasOne(CustomerCareStage::class)->latestOfMany();
+    }
+
+    /**
      * Get total debt amount
      */
     public function getTotalDebtAttribute(): float

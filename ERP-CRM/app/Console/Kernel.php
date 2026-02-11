@@ -14,6 +14,9 @@ class Kernel extends ConsoleKernel
     {
         // Kiểm tra lịch làm việc hết hạn mỗi giờ
         $schedule->command('work-schedules:check-deadlines')->hourly();
+        
+        // Gửi nhắc nhở hành động sắp đến hạn mỗi 15 phút
+        $schedule->command('reminders:send-action-due')->everyFifteenMinutes();
     }
 
     /**
