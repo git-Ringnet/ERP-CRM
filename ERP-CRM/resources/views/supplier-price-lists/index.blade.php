@@ -34,7 +34,7 @@
                 <a href="{{ route('supplier-price-lists.import') }}"
                     class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                     <i class="fas fa-file-import mr-2"></i>
-                    Import Excel
+                    Import Bảng giá
                 </a>
             </div>
         </div>
@@ -121,6 +121,10 @@
                                     <a href="{{ route('supplier-price-lists.show', $priceList) }}"
                                         class="p-2 text-blue-600 hover:bg-blue-50 rounded" title="Xem chi tiết">
                                         <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ route('supplier-price-lists.edit', $priceList) }}"
+                                        class="p-2 text-gray-600 hover:bg-gray-50 rounded" title="Chỉnh sửa">
+                                        <i class="fas fa-pencil-alt"></i>
                                     </a>
                                     <a href="{{ route('supplier-price-lists.show', $priceList) }}#apply"
                                         class="p-2 text-green-600 hover:bg-green-50 rounded" title="Áp dụng giá vào kho">

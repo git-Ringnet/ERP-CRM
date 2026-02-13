@@ -84,7 +84,7 @@
         <div class="bg-white rounded-lg shadow-sm p-4">
             <form method="GET" class="flex flex-col md:flex-row gap-3 items-end">
                 <div class="flex-1">
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm SKU, tên sản phẩm..."
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm SKU, tên sản phẩm, sheet source..."
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div class="w-full md:w-48">
@@ -108,24 +108,35 @@
             <div class="px-4 py-3 border-b bg-gray-50">
                 <span class="font-medium text-sm">{{ number_format($items->total()) }} sản phẩm</span>
             </div>
-            <div class="overflow-x-auto max-h-[60vh]">
-                <table class="w-full text-sm table-fixed">
-                    <thead class="bg-gray-50 sticky top-0">
+            <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
+                <table class="w-full text-sm min-w-max">
+                    <thead class="bg-gray-50 sticky top-0 z-10">
                         <tr>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 120px;">SKU</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 200px;">Tên sản phẩm</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 100px;">Danh mục</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 100px;">Giá gốc</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 90px;">1yr</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500" style="width: 90px;">3yr</th>
-                            <th class="px-3 py-2 text-right font-medium text-purple-600 bg-purple-50" style="width: 120px;">
+                            <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">SKU</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[200px]">Tên sản phẩm</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">Danh mục</th>
+                            @foreach($priceColumns as $col)
+                                <th class="px-3 py-2 text-right font-medium text-gray-500 whitespace-nowrap min-w-[110px]">
+                                    {{ $col['label'] }}
+                                </th>
+                            @endforeach
+                            <th class="px-3 py-2 text-right font-medium text-purple-600 bg-purple-50 whitespace-nowrap min-w-[130px]">
                                 <i class="fas fa-calculator mr-1"></i>Giá bán
                             </th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500" style="width: 80px;">Sheet</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[100px]">Sheet</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
                         @php
+                            $currency = $supplierPriceList->currency;
+                            $symbol = match($currency) {
+                                'USD' => '$',
+                                'EUR' => '€',
+                                'VND' => '₫',
+                                default => $currency . ' '
+                            };
+                            $isVnd = $currency === 'VND';
+
                             $exchangeRate = $supplierPriceList->exchange_rate ?? 1;
                             $hasFormula = $supplierPriceList->supplier_discount_percent > 0 || 
                                           $supplierPriceList->margin_percent > 0 || 
@@ -139,48 +150,63 @@
                                 $finalPriceData = $basePrice > 0 ? $supplierPriceList->calculateFinalPrice($basePrice) : null;
                             @endphp
                             <tr class="hover:bg-gray-50">
-                                <td class="px-3 py-2 font-mono text-blue-600" title="{{ $item->sku }}">
-                                    <div class="truncate">{{ $item->sku }}</div>
+                                <td class="px-3 py-2 font-mono text-blue-600 whitespace-nowrap">
+                                    {{ $item->sku }}
                                 </td>
-                                <td class="px-3 py-2">
-                                    <div class="font-medium truncate" title="{{ $item->product_name }}">
-                                        {{ Str::limit($item->product_name, 35) }}</div>
+                                <td class="px-3 py-2 min-w-[200px]">
+                                    <div class="font-medium" title="{{ $item->product_name }}">
+                                        {{ $item->product_name }}</div>
                                     @if($item->description)
-                                        <div class="text-gray-400 truncate text-xs" title="{{ $item->description }}">
-                                            {{ Str::limit($item->description, 40) }}</div>
+                                        <div class="text-gray-400 text-xs" title="{{ $item->description }}">
+                                            {{ Str::limit($item->description, 50) }}</div>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2 text-gray-600" title="{{ $item->category }}">
-                                    <div class="line-clamp-2 text-xs">{{ $item->category ?? '-' }}</div>
+                                <td class="px-3 py-2 text-gray-600">
+                                    <div class="text-xs">{{ $item->category ?? '-' }}</div>
                                 </td>
-                                <td class="px-3 py-2 text-right font-medium whitespace-nowrap text-gray-600">
-                                    @if($item->list_price)
-                                        ${{ number_format($item->list_price, 0) }}
-                                    @else
-                                        -
-                                    @endif
-                                </td>
-                                <td class="px-3 py-2 text-right text-gray-500 whitespace-nowrap text-xs">
-                                    {{ $item->price_1yr ? '$' . number_format($item->price_1yr, 0) : '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-right text-gray-500 whitespace-nowrap text-xs">
-                                    {{ $item->price_3yr ? '$' . number_format($item->price_3yr, 0) : '-' }}
-                                </td>
+                                @foreach($priceColumns as $col)
+                                    @php
+                                        $priceValue = null;
+                                        if ($col['is_custom']) {
+                                            // Lấy giá từ extra_data cho custom columns
+                                            $priceValue = $item->extra_data['prices'][$col['key']] ?? null;
+                                        } else {
+                                            // Lấy giá từ cột cố định
+                                            $priceValue = $item->{$col['key']} ?? null;
+                                        }
+                                        // Ép kiểu về float để tránh lỗi number_format
+                                        $priceValue = $priceValue ? (float) $priceValue : null;
+                                        $isListPrice = $col['key'] === 'list_price';
+                                    @endphp
+                                    <td class="px-3 py-2 text-right whitespace-nowrap {{ $isListPrice ? 'font-medium text-gray-600' : 'text-gray-500 text-xs' }}">
+                                        @if($priceValue)
+                                            @if($isVnd)
+                                                {{ number_format($priceValue, 0) }}₫
+                                            @else
+                                                {{ $symbol }}{{ number_format($priceValue, 2) }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                @endforeach
                                 <td class="px-3 py-2 text-right whitespace-nowrap bg-purple-50">
                                     @if($finalPriceData)
-                                        <div class="font-bold text-purple-700">{{ number_format($finalPriceData['final_price_vnd'], 0) }}</div>
-                                        <div class="text-xs text-gray-500">${{ number_format($finalPriceData['final_price'], 2) }}</div>
+                                        <div class="font-bold text-purple-700">{{ number_format($finalPriceData['final_price_vnd'], 0) }}₫</div>
+                                        @if(!$isVnd)
+                                            <div class="text-xs text-gray-500">{{ $symbol }}{{ number_format($finalPriceData['final_price'], 2) }}</div>
+                                        @endif
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2 text-gray-400" title="{{ $item->source_sheet }}">
-                                    <div class="truncate text-xs">{{ $item->source_sheet }}</div>
+                                <td class="px-3 py-2 text-gray-400 whitespace-nowrap">
+                                    <div class="text-xs">{{ $item->source_sheet }}</div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">Không có sản phẩm nào</td>
+                                <td colspan="{{ 5 + count($priceColumns) }}" class="px-4 py-8 text-center text-gray-500">Không có sản phẩm nào</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -196,7 +222,15 @@
         <!-- Import Log -->
         @if($supplierPriceList->import_log)
             <div class="bg-white rounded-lg shadow-sm p-4">
-                <h4 class="font-medium text-gray-900 mb-2 text-sm"><i class="fas fa-history mr-2"></i>Thông tin Import</h4>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-medium text-gray-900 text-sm"><i class="fas fa-history mr-2"></i>Thông tin Import</h4>
+                    @if(($supplierPriceList->import_log['skipped'] ?? 0) > 0)
+                        <button onclick="document.getElementById('skippedItemsModal').classList.remove('hidden')" 
+                                class="text-xs text-red-600 hover:text-red-800 underline">
+                            Xem chi tiết bỏ qua ({{ $supplierPriceList->import_log['skipped'] }})
+                        </button>
+                    @endif
+                </div>
                 <div class="text-xs text-gray-600">
                     <span>Ngày:
                         {{ \Carbon\Carbon::parse($supplierPriceList->import_log['imported_at'])->format('d/m/Y H:i') }}</span>
@@ -205,7 +239,66 @@
                     <span class="mx-2">|</span>
                     <span>Tạo mới: {{ number_format($supplierPriceList->import_log['created'] ?? 0) }}</span>
                     <span class="mx-2">|</span>
-                    <span>Bỏ qua: {{ number_format($supplierPriceList->import_log['skipped'] ?? 0) }}</span>
+                    <span class="{{ ($supplierPriceList->import_log['skipped'] ?? 0) > 0 ? 'text-red-600 font-medium' : '' }}">
+                        Bỏ qua: {{ number_format($supplierPriceList->import_log['skipped'] ?? 0) }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Skipped Items Modal -->
+            <div id="skippedItemsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+                <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+                    <div class="px-6 py-4 border-b flex justify-between items-center bg-red-50">
+                        <h3 class="text-lg font-semibold text-red-800">
+                            <i class="fas fa-exclamation-circle mr-2"></i>Chi tiết các mục bị bỏ qua
+                        </h3>
+                        <button onclick="document.getElementById('skippedItemsModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto">
+                        @foreach($supplierPriceList->import_log['sheets'] ?? [] as $sheet)
+                            @if(!empty($sheet['skipped_details']) || !empty($sheet['skipped_reason']))
+                                <div class="mb-4 last:mb-0">
+                                    <h4 class="font-medium text-gray-900 mb-2 bg-gray-100 p-2 rounded">
+                                        Sheet: {{ $sheet['name'] }}
+                                        @if(!empty($sheet['skipped_reason']))
+                                            <span class="ml-2 text-red-600 text-sm">- {{ $sheet['skipped_reason'] }}</span>
+                                        @endif
+                                    </h4>
+                                    
+                                    @if(!empty($sheet['skipped_details']))
+                                        <div class="border rounded-lg overflow-hidden">
+                                            <table class="w-full text-sm">
+                                                <thead class="bg-gray-50">
+                                                    <tr>
+                                                        <th class="px-3 py-2 text-left w-16">Dòng</th>
+                                                        <th class="px-3 py-2 text-left">SKU</th>
+                                                        <th class="px-3 py-2 text-left">Lý do</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y">
+                                                    @foreach($sheet['skipped_details'] as $detail)
+                                                        <tr>
+                                                            <td class="px-3 py-2 text-gray-500">{{ $detail['row'] }}</td>
+                                                            <td class="px-3 py-2 font-mono">{{ $detail['sku'] ?? '-' }}</td>
+                                                            <td class="px-3 py-2 text-red-600">{{ $detail['reason'] }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+                    <div class="px-6 py-4 border-t bg-gray-50 flex justify-end">
+                        <button onclick="document.getElementById('skippedItemsModal').classList.add('hidden')" 
+                                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                            Đóng
+                        </button>
+                    </div>
                 </div>
             </div>
         @endif
@@ -254,12 +347,9 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Chọn loại giá áp dụng</label>
                     <select id="priceField" class="w-full border border-gray-300 rounded-lg px-3 py-2" onchange="loadPreview()">
-                        <option value="list_price">Giá niêm yết (List Price)</option>
-                        <option value="price_1yr">Giá hợp đồng 1 năm</option>
-                        <option value="price_2yr">Giá hợp đồng 2 năm</option>
-                        <option value="price_3yr">Giá hợp đồng 3 năm</option>
-                        <option value="price_4yr">Giá hợp đồng 4 năm</option>
-                        <option value="price_5yr">Giá hợp đồng 5 năm</option>
+                        @foreach($priceColumns as $col)
+                            <option value="{{ $col['key'] }}">{{ $col['label'] }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
@@ -496,31 +586,87 @@ function closePricingConfigModal() {
 }
 
 function calculatePreviewPrice() {
-    const basePrice = parseFloat(document.getElementById('previewBasePrice').value) || 1000;
+    const isVnd = '{{ $supplierPriceList->currency }}' === 'VND';
+    const exchangeRate = {{ $supplierPriceList->exchange_rate ?: 1 }};
+    
+    // Base Price Input (If VND, treat as VND. If USD, treat as USD)
+    const basePriceInput = parseFloat(document.getElementById('previewBasePrice').value) || (isVnd ? 25000000 : 1000);
+    
+    // Configs
     const discountPercent = parseFloat(document.getElementById('supplierDiscountPercent').value) || 0;
     const marginPercent = parseFloat(document.getElementById('marginPercent').value) || 0;
     const shippingPercent = parseFloat(document.getElementById('shippingPercent').value) || 0;
     const shippingFixed = parseFloat(document.getElementById('shippingFixed').value) || 0;
     const otherFees = parseFloat(document.getElementById('otherFees').value) || 0;
-    const exchangeRate = {{ $supplierPriceList->exchange_rate ?: 1 }};
 
-    // Calculate
-    const discountAmount = basePrice * (discountPercent / 100);
-    const afterDiscount = basePrice - discountAmount;
-    const marginAmount = afterDiscount * (marginPercent / 100);
-    const shippingFromPercent = afterDiscount * (shippingPercent / 100);
-    const totalShipping = shippingFromPercent + shippingFixed;
-    const finalPrice = afterDiscount + marginAmount + totalShipping + otherFees;
-    const finalPriceVnd = finalPrice * exchangeRate;
+    let finalPriceVnd = 0;
+    let finalPriceUsd = 0;
 
-    // Update preview
-    document.getElementById('previewDiscount').textContent = `- $${discountAmount.toFixed(2)}`;
-    document.getElementById('previewAfterDiscount').textContent = `$${afterDiscount.toFixed(2)}`;
-    document.getElementById('previewMargin').textContent = `+ $${marginAmount.toFixed(2)}`;
-    document.getElementById('previewShipping').textContent = `+ $${totalShipping.toFixed(2)}`;
-    document.getElementById('previewOther').textContent = `+ $${otherFees.toFixed(2)}`;
-    document.getElementById('previewFinal').textContent = `$${finalPrice.toFixed(2)}`;
-    document.getElementById('previewFinalVnd').textContent = `${finalPriceVnd.toLocaleString()} VND`;
+    // Display updates
+    const formatCurrency = (val, currency) => {
+        if(currency === 'VND') return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    };
+
+    if (isVnd) {
+        // --- LOGIC CHO VND ---
+        // Base Price is VND
+        const basePrice = basePriceInput;
+        
+        // 1. Discount
+        const discountAmount = basePrice * (discountPercent / 100);
+        const afterDiscount = basePrice - discountAmount;
+        
+        // 2. Margin (on After Discount)
+        const marginAmount = afterDiscount * (marginPercent / 100);
+        
+        // 3. Shipping (% on After Discount + Fixed USD converted to VND)
+        const shippingFromPercent = afterDiscount * (shippingPercent / 100);
+        const shippingFixedVnd = shippingFixed * exchangeRate;
+        const totalShipping = shippingFromPercent + shippingFixedVnd;
+        
+        // 4. Other Fees (USD converted to VND)
+        const otherFeesVnd = otherFees * exchangeRate;
+        
+        // Final
+        finalPriceVnd = afterDiscount + marginAmount + totalShipping + otherFeesVnd;
+        finalPriceUsd = finalPriceVnd / exchangeRate; // Approx
+
+        // Render Params
+        document.getElementById('previewBasePriceDisplay').textContent = formatCurrency(basePrice, 'VND');
+        document.getElementById('previewDiscount').textContent = `- ${formatCurrency(discountAmount, 'VND')}`;
+        document.getElementById('previewAfterDiscount').textContent = formatCurrency(afterDiscount, 'VND');
+        document.getElementById('previewMargin').textContent = `+ ${formatCurrency(marginAmount, 'VND')}`;
+        document.getElementById('previewShipping').textContent = `+ ${formatCurrency(totalShipping, 'VND')} (gồm $${shippingFixed} fix)`;
+        document.getElementById('previewOther').textContent = `+ ${formatCurrency(otherFeesVnd, 'VND')}`;
+        document.getElementById('previewFinal').textContent = formatCurrency(finalPriceVnd, 'VND');
+        // Final VND row - hide or show USD equiv?
+        document.getElementById('previewFinalVnd').textContent = `~ ${formatCurrency(finalPriceUsd, 'USD')}`;
+        document.getElementById('previewFinalLabel').textContent = `Quy đổi USD (Tỷ giá ${exchangeRate}):`;
+
+    } else {
+        // --- LOGIC CHO USD (Giữ nguyên hoặc tinh chỉnh) ---
+        const basePrice = basePriceInput;
+        
+        const discountAmount = basePrice * (discountPercent / 100);
+        const afterDiscount = basePrice - discountAmount;
+        const marginAmount = afterDiscount * (marginPercent / 100);
+        const shippingFromPercent = afterDiscount * (shippingPercent / 100);
+        const totalShipping = shippingFromPercent + shippingFixed;
+        const finalPrice = afterDiscount + marginAmount + totalShipping + otherFees;
+        finalPriceVnd = finalPrice * exchangeRate;
+
+        // Render Params
+        document.getElementById('previewBasePriceDisplay').textContent = formatCurrency(basePrice, 'USD');
+        document.getElementById('previewDiscount').textContent = `- ${formatCurrency(discountAmount, 'USD')}`;
+        document.getElementById('previewAfterDiscount').textContent = formatCurrency(afterDiscount, 'USD');
+        document.getElementById('previewMargin').textContent = `+ ${formatCurrency(marginAmount, 'USD')}`;
+        document.getElementById('previewShipping').textContent = `+ ${formatCurrency(totalShipping, 'USD')}`;
+        document.getElementById('previewOther').textContent = `+ ${formatCurrency(otherFees, 'USD')}`;
+        document.getElementById('previewFinal').textContent = formatCurrency(finalPrice, 'USD');
+        document.getElementById('previewFinalVnd').textContent = formatCurrency(finalPriceVnd, 'VND');
+        document.getElementById('previewFinalLabel').textContent = `Thành tiền VND (Tỷ giá ${exchangeRate}):`;
+    }
 }
 
 function savePricingConfig() {
@@ -630,7 +776,7 @@ document.getElementById('pricingConfigModal')?.addEventListener('click', functio
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-truck text-orange-600 mr-1"></i>Phí ship (USD)
+                                <i class="fas fa-truck text-orange-600 mr-1"></i>Phí ship ({{ $supplierPriceList->currency }})
                             </label>
                             <input type="number" id="shippingFixed" step="0.01" min="0"
                                    value="{{ $supplierPriceList->shipping_fixed ?? 0 }}"
@@ -641,7 +787,7 @@ document.getElementById('pricingConfigModal')?.addEventListener('click', functio
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-money-bill text-gray-600 mr-1"></i>Phí khác (USD)
+                            <i class="fas fa-money-bill text-gray-600 mr-1"></i>Phí khác ({{ $supplierPriceList->currency }})
                         </label>
                         <input type="number" id="otherFees" step="0.01" min="0"
                                value="{{ $supplierPriceList->other_fees ?? 0 }}"
@@ -657,8 +803,8 @@ document.getElementById('pricingConfigModal')?.addEventListener('click', functio
                     
                     <div class="bg-gray-50 rounded-lg p-4">
                         <div class="mb-3">
-                            <label class="block text-sm text-gray-600 mb-1">Giá gốc thử (USD)</label>
-                            <input type="number" id="previewBasePrice" value="1000" step="1" min="0"
+                            <label class="block text-sm text-gray-600 mb-1">Giá gốc thử ({{ $supplierPriceList->currency }})</label>
+                            <input type="number" id="previewBasePrice" value="{{ $supplierPriceList->currency == 'VND' ? 25000000 : 1000 }}" step="1" min="0"
                                    onchange="calculatePreviewPrice()" oninput="calculatePreviewPrice()"
                                    class="w-full border border-gray-300 rounded px-3 py-2 text-lg font-mono">
                         </div>
@@ -693,7 +839,7 @@ document.getElementById('pricingConfigModal')?.addEventListener('click', functio
                                 <span class="text-primary font-mono" id="previewFinal">$1,000.00</span>
                             </div>
                             <div class="flex justify-between text-purple-600">
-                                <span>Tỷ giá {{ number_format($supplierPriceList->exchange_rate, 0) }}:</span>
+                                <span id="previewFinalLabel">Tỷ giá {{ number_format($supplierPriceList->exchange_rate, 0) }}:</span>
                                 <span class="font-mono font-bold" id="previewFinalVnd">26,000,000 VND</span>
                             </div>
                         </div>

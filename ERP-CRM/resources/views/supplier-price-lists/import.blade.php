@@ -79,7 +79,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Tỷ giá quy đổi VND</label>
-                        <input type="number" id="exchange_rate" value="25000" min="1"
+                        <input type="number" id="exchange_rate" value="25000" min="0" step="any"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     </div>
                     <div>
@@ -90,13 +90,13 @@
                 </div>
 
                 <div class="mt-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">File Excel <span
+                    <label class="block text-sm font-medium text-gray-700 mb-2">File Excel/PDF <span
                             class="text-red-500">*</span></label>
                     <div id="dropzone"
                         class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
                         <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
-                        <p class="text-gray-600">Kéo thả file Excel vào đây hoặc</p>
-                        <input type="file" id="excel_file" accept=".xlsx,.xls" class="hidden">
+                        <p class="text-gray-600">Kéo thả file vào đây (Excel, PDF) hoặc</p>
+                        <input type="file" id="excel_file" accept=".xlsx,.xls,.pdf" class="hidden">
                         <button type="button" onclick="document.getElementById('excel_file').click()"
                             class="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
                             <i class="fas fa-folder-open mr-2"></i>Chọn file
@@ -290,8 +290,10 @@
                                     <th class="px-3 py-2 text-left">Mô tả</th>
                                     <th class="px-3 py-2 text-right">Giá</th>
                                     <th class="px-3 py-2 text-left">Danh mục</th>
-                                    <th class="px-3 py-2 text-right">1yr</th>
-                                    <th class="px-3 py-2 text-right">3yr</th>
+                                    <th class="px-3 py-2 text-right">1yr / Gold</th>
+                                    <th class="px-3 py-2 text-right">2yr / Silver</th>
+                                    <th class="px-3 py-2 text-right">3yr / Bronze</th>
+                                    <th class="px-3 py-2 text-right">4yr</th>
                                     <th class="px-3 py-2 text-right">5yr</th>
                                 </tr>
                             </thead>
@@ -516,8 +518,8 @@
         });
 
         function uploadFile(file) {
-            if (!file.name.match(/\.(xlsx|xls)$/i)) {
-                alert('Vui lòng chọn file Excel (.xlsx hoặc .xls)');
+            if (!file.name.match(/\.(xlsx|xls|pdf)$/i)) {
+                alert('Vui lòng chọn file Excel (.xlsx, .xls) hoặc PDF (.pdf)');
                 return;
             }
 
@@ -545,6 +547,20 @@
                         // Auto-fill name
                         if (!document.getElementById('price_list_name').value) {
                             document.getElementById('price_list_name').value = data.fileName.replace(/\.(xlsx|xls)$/i, '');
+                        }
+
+                        // Auto-detect currency
+                        if (data.suggestedCurrency) {
+                            const currencySelect = document.getElementById('currency');
+                            currencySelect.value = data.suggestedCurrency;
+                            
+                            // Highlight the change
+                            currencySelect.classList.add('bg-yellow-100');
+                            setTimeout(() => currencySelect.classList.remove('bg-yellow-100'), 2000);
+                            
+                            if (data.suggestedExchangeRate) {
+                                document.getElementById('exchange_rate').value = data.suggestedExchangeRate;
+                            }
                         }
 
                         populateSheetList(data.sheets);
@@ -717,7 +733,13 @@
             fetch('{{ route("supplier-price-lists.auto-detect") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({ headers: headers, supplier_type: supplierType })
+                body: JSON.stringify({ 
+                    headers: headers, 
+                    supplier_type: supplierType,
+                    temp_path: importState.tempPath,
+                    sheet_index: importState.currentSheet,
+                    header_row: parseInt(document.getElementById('header_row').value)
+                })
             })
                 .then(res => res.json())
                 .then(data => {
@@ -771,9 +793,9 @@
                         description: ['Description', 'Mô tả', 'Desc', 'Details', 'Specs'],
                         price: ['Price', 'Giá', 'List Price', 'Unit Price', 'MSRP', 'Amount', 'Cost', 'GPL', 'Standard Price'],
                         category: ['Category', 'Danh mục', 'Type', 'Loại', 'Family', 'Series'],
-                        price_1yr: ['1yr', '1 Year', '12 Months'],
-                        price_2yr: ['2yr', '2 Year', '24 Months'],
-                        price_3yr: ['3yr', '3 Year', '36 Months'],
+                        price_1yr: ['1yr', '1 Year', '12 Months', 'Gold List Price', 'Gold Price'],
+                        price_2yr: ['2yr', '2 Year', '24 Months', 'Silver List Price', 'Silver Price'],
+                        price_3yr: ['3yr', '3 Year', '36 Months', 'Bronze List Price', 'Bronze Price'],
                         price_4yr: ['4yr', '4 Year', '48 Months'],
                         price_5yr: ['5yr', '5 Year', '60 Months']
                     }
@@ -819,15 +841,96 @@
             alert(`Đã áp dụng cấu hình ${supplierType.toUpperCase()} cho ${mappedCount} sheet!\n\nHeader row: ${preset.headerRow}\n\nKhi import, hệ thống sẽ tự động nhận diện cột dựa trên tên cột trong file Excel.`);
         }
 
+        function addCustomColumn() {
+            const name = prompt("Nhập tên cho loại giá mới (ví dụ: Giá Đại Lý, Gold Price...):");
+            if (!name) return;
+
+            const key = 'custom_' + name; // Encode simplistic key
+            const safeId = 'map_' + key.replace(/[^a-zA-Z0-9]/g, '_');
+
+            const container = document.getElementById('custom_columns_container');
+            const div = document.createElement('div');
+            div.className = 'grid grid-cols-2 gap-4 items-end';
+            div.innerHTML = `
+                <div>
+                    <label class="block text-xs text-gray-500">${name}</label>
+                    <input type="hidden" class="custom-col-key" value="${key}">
+                    <input type="hidden" class="custom-col-name" value="${name}">
+                    <select id="${safeId}" class="custom-col-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" onchange="updatePreview()">
+                        <option value="">-- Chọn cột trong file Excel --</option>
+                        ${document.getElementById('map_sku').innerHTML} <!-- Reuse options from SKU select -->
+                    </select>
+                </div>
+                <button type="button" onclick="this.parentElement.remove(); updatePreview()" class="text-red-500 pb-2 hover:text-red-700">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            container.appendChild(div);
+
+            // Clean up the first option (which is duplicated "Chọn cột")
+             const select = div.querySelector('select');
+             if(select.options.length > 0 && select.options[0].text.includes('-- Chọn cột --')) {
+                 select.options[0].remove();
+                 select.options[0].remove(); // Remove duplicate "Chọn cột SKU" if copied
+                 const defaultOpt = document.createElement('option');
+                 defaultOpt.value = "";
+                 defaultOpt.text = "-- Chọn cột --";
+                 select.insertBefore(defaultOpt, select.firstChild);
+                 select.value = "";
+             }
+        }
+
         function restoreMapping(mapping) {
+            // Restore standard fields
             Object.entries(mapping).forEach(([field, index]) => {
-                const select = document.getElementById('map_' + field);
-                if (select && index !== undefined) select.value = index;
+                if (!field.startsWith('custom_')) {
+                    const select = document.getElementById('map_' + field);
+                    if (select && index !== undefined) select.value = index;
+                }
+            });
+
+            // Restore custom fields
+            const container = document.getElementById('custom_columns_container');
+            container.innerHTML = ''; // Clear existing
+            
+            Object.entries(mapping).forEach(([field, index]) => {
+                if (field.startsWith('custom_')) {
+                    const name = field.substring(7);
+                    // Re-create the UI for this custom col
+                     const key = field; 
+                     const safeId = 'map_' + key.replace(/[^a-zA-Z0-9]/g, '_');
+
+                     const div = document.createElement('div');
+                     div.className = 'grid grid-cols-2 gap-4 items-end';
+                     div.innerHTML = `
+                        <div>
+                            <label class="block text-xs text-gray-500">${name}</label>
+                            <input type="hidden" class="custom-col-key" value="${key}">
+                            <input type="hidden" class="custom-col-name" value="${name}">
+                            <select id="${safeId}" class="custom-col-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" onchange="updatePreview()">
+                                <option value="">-- Chọn cột --</option>
+                                ${document.getElementById('map_sku').innerHTML} 
+                            </select>
+                        </div>
+                        <button type="button" onclick="this.parentElement.remove(); updatePreview()" class="text-red-500 pb-2 hover:text-red-700">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                     `;
+                     container.appendChild(div);
+                     
+                     // Fix options
+                     const select = div.querySelector('select');
+                     // Should act same as addCustomColumn cleanup logic or better, reuse logic
+                     // Just simple select value set
+                     setTimeout(() => { 
+                         if(select) select.value = index; 
+                     }, 0);
+                }
             });
         }
 
         function getCurrentMapping() {
-            return {
+            const mapping = {
                 sku: document.getElementById('map_sku').value,
                 product_name: document.getElementById('map_product_name').value,
                 description: document.getElementById('map_description').value,
@@ -839,6 +942,16 @@
                 price_4yr: document.getElementById('map_price_4yr').value,
                 price_5yr: document.getElementById('map_price_5yr').value,
             };
+
+            // Capture custom columns
+            document.querySelectorAll('.custom-col-select').forEach(select => {
+                const key = select.parentElement.querySelector('.custom-col-key').value;
+                if (select.value) {
+                    mapping[key] = select.value;
+                }
+            });
+
+            return mapping;
         }
 
         function saveCurrentMapping() {
@@ -868,17 +981,46 @@
             tbody.innerHTML = preview.slice(0, 10).map(row => {
                 const getValue = idx => idx !== '' ? (row[parseInt(idx)] || '-') : '-';
                 const formatPrice = val => { const n = parseFloat(String(val).replace(/[^0-9.-]/g, '')); return isNaN(n) ? '-' : n.toLocaleString(); };
-                return `<tr class="border-b">
-                        <td class="px-3 py-2">${getValue(mapping.sku)}</td>
-                        <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.product_name)}</td>
-                        <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.description)}</td>
-                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price))}</td>
-                        <td class="px-3 py-2">${getValue(mapping.category)}</td>
-                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_1yr))}</td>
-                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_3yr))}</td>
-                        <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_5yr))}</td>
-                    </tr>`;
-            }).join('');
+            // Dynamic headers for preview
+            let dynamicHeaders = '';
+            Object.keys(mapping).forEach(key => {
+                 if(key.startsWith('custom_')) {
+                     dynamicHeaders += `<td class="px-3 py-2 text-right">${formatPrice(getValue(mapping[key]))}</td>`;
+                 }
+            });
+
+            return `<tr class="border-b">
+                    <td class="px-3 py-2">${getValue(mapping.sku)}</td>
+                    <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.product_name)}</td>
+                    <td class="px-3 py-2 max-w-xs truncate">${getValue(mapping.description)}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price))}</td>
+                    <td class="px-3 py-2">${getValue(mapping.category)}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_1yr))}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_2yr))}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_3yr))}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_4yr))}</td>
+                    <td class="px-3 py-2 text-right">${formatPrice(getValue(mapping.price_5yr))}</td>
+                    ${dynamicHeaders}
+                </tr>`;
+        }).join('');
+        
+        // Update header row dynamically
+        const headerRow = document.querySelector('#preview_tbody').previousElementSibling.querySelector('tr');
+        // Clear old dynamic headers if any
+        while(headerRow.children.length > 10) {
+            headerRow.lastElementChild.remove();
+        }
+        
+        // Add new dynamic headers
+        Object.keys(getCurrentMapping()).forEach(key => {
+             if(key.startsWith('custom_')) {
+                 const name = key.substring(7);
+                 const th = document.createElement('th');
+                 th.className = "px-3 py-2 text-right";
+                 th.textContent = name;
+                 headerRow.appendChild(th);
+             }
+        });
         }
 
         // Update preview when mapping changes

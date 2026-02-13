@@ -35,7 +35,11 @@
                     @forelse ($leads as $lead)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $lead->name }}</div>
+                                <div class="text-sm font-medium text-gray-900">
+                                    <a href="{{ route('leads.show', $lead) }}" class="hover:text-blue-600 hover:underline">
+                                        {{ $lead->name }}
+                                    </a>
+                                </div>
                                 <div class="text-sm text-gray-500">{{ $lead->company_name }}</div>
                             </td>
                             <td class="px-4 py-3">

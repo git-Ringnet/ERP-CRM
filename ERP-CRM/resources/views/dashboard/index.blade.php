@@ -252,6 +252,75 @@
     </div>
 
 
+    <!-- Upcoming Activities (My Tasks) -->
+    <div class="grid grid-cols-1 gap-6 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-tasks mr-2 text-blue-500"></i>Công việc sắp tới của tôi
+                </h2>
+                <a href="{{ route('activities.index') }}" class="text-sm text-blue-600 hover:underline">
+                    Xem tất cả
+                </a>
+            </div>
+            
+            @isset($upcomingActivities)
+            @if($upcomingActivities->count() > 0)
+                <div class="space-y-3">
+                    @foreach($upcomingActivities as $activity)
+                        <div class="flex items-start p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors border border-gray-100">
+                            <div class="flex-shrink-0 mt-1">
+                                <form action="{{ route('activities.update', $activity) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="toggle_status" value="1">
+                                    <button type="submit" class="w-5 h-5 rounded border border-gray-300 bg-white flex items-center justify-center text-transparent hover:text-green-500 hover:border-green-500 transition-colors" title="Đánh dấu hoàn thành">
+                                        <i class="fas fa-check text-xs"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="ml-3 flex-1">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-gray-900">{{ $activity->subject }}</p>
+                                    @if($activity->due_date)
+                                        <span class="text-xs font-medium {{ $activity->due_date->isPast() ? 'text-red-600' : 'text-gray-500' }}">
+                                            {{ $activity->due_date->format('d/m/Y') }}
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                    <span class="px-2 py-0.5 rounded bg-white border border-gray-200 uppercase tracking-wide text-[10px]">
+                                        {{ $activity->type }}
+                                    </span>
+                                    
+                                    @if($activity->lead)
+                                        <a href="{{ route('leads.show', $activity->lead) }}" class="flex items-center hover:text-blue-600">
+                                            <i class="fas fa-bullseye mr-1"></i> {{ $activity->lead->name }}
+                                        </a>
+                                    @elseif($activity->customer)
+                                        <a href="{{ route('customers.show', $activity->customer) }}" class="flex items-center hover:text-blue-600">
+                                            <i class="fas fa-building mr-1"></i> {{ $activity->customer->name }}
+                                        </a>
+                                    @elseif($activity->opportunity)
+                                        <a href="{{ route('opportunities.show', $activity->opportunity) }}" class="flex items-center hover:text-blue-600">
+                                            <i class="fas fa-funnel-dollar mr-1"></i> {{ $activity->opportunity->name }}
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-check-circle text-4xl mb-3 text-green-100"></i>
+                    <p>Tuyệt vời! Bạn không còn công việc nào tồn đọng.</p>
+                </div>
+            @endif
+            @endisset
+        </div>
+    </div>
+
     <!-- Recent Activities -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100">
         <div class="px-6 py-4 border-b border-gray-100">

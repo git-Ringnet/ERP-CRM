@@ -221,6 +221,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-reports', [PurchaseReportController::class, 'index'])->name('purchase-reports.index');
     Route::get('/purchase-reports/export', [PurchaseReportController::class, 'export'])->name('purchase-reports.export');
 
+    // Sales Reports routes (Báo cáo bán hàng)
+    Route::get('/sale-reports', [\App\Http\Controllers\SaleReportController::class, 'index'])->name('sale-reports.index');
+    Route::get('/sale-reports/export', [\App\Http\Controllers\SaleReportController::class, 'export'])->name('sale-reports.export');
+
     // Supplier Price List routes (Bảng giá nhà cung cấp - Import Excel)
     Route::get('/supplier-price-lists', [\App\Http\Controllers\SupplierPriceListController::class, 'index'])->name('supplier-price-lists.index');
     Route::get('/supplier-price-lists/import', [\App\Http\Controllers\SupplierPriceListController::class, 'showImportForm'])->name('supplier-price-lists.import');
@@ -228,6 +232,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/supplier-price-lists/sheet-data', [\App\Http\Controllers\SupplierPriceListController::class, 'getSheetData'])->name('supplier-price-lists.sheet-data');
     Route::post('/supplier-price-lists/auto-detect', [\App\Http\Controllers\SupplierPriceListController::class, 'autoDetectMapping'])->name('supplier-price-lists.auto-detect');
     Route::post('/supplier-price-lists/do-import', [\App\Http\Controllers\SupplierPriceListController::class, 'import'])->name('supplier-price-lists.do-import');
+    Route::get('/supplier-price-lists/{supplierPriceList}/edit', [\App\Http\Controllers\SupplierPriceListController::class, 'edit'])->name('supplier-price-lists.edit');
+    Route::put('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'update'])->name('supplier-price-lists.update');
     Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
     Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
     Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');

@@ -268,6 +268,14 @@ class DashboardController extends Controller
         $totalActivityPages = ceil($totalActivities / $perPage);
         $recentActivities = $allActivities->forPage($page, $perPage);
 
+        // Upcoming activities for current user
+        $upcomingActivities = \App\Models\Activity::where('user_id', auth()->id())
+            ->where('is_completed', false)
+            ->with(['opportunity', 'customer', 'lead'])
+            ->orderBy('due_date')
+            ->limit(10)
+            ->get();
+
         return view('dashboard.index', compact(
             'totalCustomers',
             'totalSuppliers',
@@ -297,7 +305,8 @@ class DashboardController extends Controller
             'page',
             'filterType',
             'startDate',
-            'endDate'
+            'endDate',
+            'upcomingActivities'
         ));
     }
 

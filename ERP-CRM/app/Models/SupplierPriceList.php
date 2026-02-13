@@ -31,6 +31,7 @@ class SupplierPriceList extends Model
         'pricing_formula',
         'notes',
         'import_log',
+        'custom_columns',
         'is_active',
         'created_by',
     ];
@@ -47,6 +48,7 @@ class SupplierPriceList extends Model
         'pricing_formula' => 'array',
         'import_log' => 'array',
         'is_active' => 'boolean',
+        'custom_columns' => 'array',
     ];
 
     public function supplier(): BelongsTo
