@@ -1,0 +1,87 @@
+Họ và tên: Huỳnh Việt Cảnh,,,Bộ phận công tác: Dự Án
+TT,Dự án / Khách hàng,Liên hệ,Nội dung công việc,Ghi chú
+A. CÔNG VIỆC TUẦN QUA,,,
+
+1,ERP - CRM,Anh Trung,"Module Quản lý Vai trò (Roles)
+- Xem danh sách vai trò
+- Tạo vai trò mới (tên mô tả trạng thái)
+- Sửa thông tin vai trò
+- Xóa vai trò (kiểm tra có nhân viên đang dùng không)
+- Gán quyền cho vai trò",Done
+
+2,ERP - CRM,Anh Trung,"Module Quản lý Quyền (Permissions)
+- Xem danh sách quyền theo module
+- Ma trận phân quyền (bảng vai trò × quyền)
+- Tích/bỏ tích checkbox để gán quyền hàng loạt
+- Cập nhật quyền cho nhiều vai trò cùng lúc
+- Nhóm quyền theo module (Khách hàng Nhà cung cấp Kho Bán hàng...)",Done
+
+3,ERP - CRM,Anh Trung,"Module Gán Vai trò cho Nhân viên
+- Xem vai trò hiện tại của nhân viên
+- Gán vai trò cho nhân viên (chọn nhiều vai trò)
+- Gỡ vai trò khỏi nhân viên
+- Đồng bộ vai trò (cập nhật tất cả vai trò cùng lúc)
+- Hiển thị quyền hiệu lực từ các vai trò",Done
+
+4,ERP - CRM,Anh Trung,"Module Gán Quyền Trực tiếp cho Nhân viên
+- Xem quyền trực tiếp của nhân viên
+- Gán quyền trực tiếp (không qua vai trò)
+- Gỡ quyền trực tiếp
+- Hiển thị riêng quyền trực tiếp và quyền từ vai trò",Done
+
+5,ERP - CRM,Anh Trung,"Module Nhật ký Kiểm toán (Audit Logs)
+- Xem lịch sử thay đổi vai trò và quyền
+- Lọc theo khoảng thời gian
+- Lọc theo nhân viên thực hiện
+- Lọc theo loại hành động (tạo sửa xóa gán)
+- Lọc theo đối tượng (vai trò quyền nhân viên)
+- Hiển thị giá trị cũ và giá trị mới
+- Ghi lại IP address của người thực hiện",Done
+
+6,ERP - CRM,Anh Trung,"Module Kiểm soát Truy cập
+- Middleware kiểm tra quyền trước khi vào route
+- Policy cho từng module (Customer Supplier Employee Product Warehouse Inventory Import Export Transfer DamagedGood Sale Quotation PurchaseOrder Report Setting)
+- Trả về lỗi 403 nếu không có quyền
+- Ghi log khi có truy cập trái phép
+- Cache quyền với Redis để tăng tốc (TTL 1 giờ)",Done
+
+7,ERP - CRM,Anh Trung,"Module Kiểm soát Giao diện
+- Ẩn/hiện menu theo quyền (@can directive)
+- Ẩn/hiện nút Thêm Sửa Xóa Duyệt Xuất Excel theo quyền
+- Kiểm tra nhiều quyền cùng lúc (@canany directive)
+- Kiểm tra vai trò (@role directive)
+- Tự động cập nhật giao diện khi quyền thay đổi",Done
+
+8,ERP - CRM,Anh Trung,"Module Lọc Dữ liệu theo Quyền
+- Quyền xem tất cả (view_all_sales): hiển thị tất cả đơn hàng
+- Quyền xem của mình (view_own_sales): chỉ hiển thị đơn hàng của nhân viên đó
+- Áp dụng cho: Đơn bán hàng Báo giá Đơn mua hàng
+- Trả về 404 (không phải 403) khi truy cập record không có quyền",Done
+
+B. CÔNG VIỆC TUẦN TỚI,,,
+
+9,ERP - CRM,Anh Trung,"Viết Tests cho hệ thống
+- Test tạo sửa xóa vai trò
+- Test gán quyền cho vai trò
+- Test gán vai trò cho nhân viên
+- Test kiểm tra quyền
+- Test cache và invalidation
+- Test middleware và policies
+- Test audit logging",Chưa làm
+
+10,ERP - CRM,Anh Trung,"Tích hợp vào các Controller hiện có
+- Thêm kiểm tra quyền vào CustomerController
+- Thêm kiểm tra quyền vào SupplierController
+- Thêm kiểm tra quyền vào EmployeeController
+- Thêm kiểm tra quyền vào ProductController
+- Thêm kiểm tra quyền vào WarehouseController
+- Thêm kiểm tra quyền vào InventoryController
+- Thêm kiểm tra quyền vào ImportController ExportController TransferController
+- Thêm kiểm tra quyền vào SaleController QuotationController PurchaseOrderController
+- Thêm kiểm tra quyền vào ReportController SettingController",Chưa làm
+
+11,ERP - CRM,Anh Trung,"Tạo tài liệu hướng dẫn
+- Hướng dẫn sử dụng cho Admin (cách tạo vai trò gán quyền)
+- Hướng dẫn cho Developer (cách thêm quyền mới cách bảo vệ route)
+- Danh sách tất cả quyền trong hệ thống
+- Danh sách vai trò mẫu và quyền tương ứng",Chưa làm

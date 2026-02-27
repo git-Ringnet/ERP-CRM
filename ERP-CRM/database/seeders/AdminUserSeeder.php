@@ -10,15 +10,15 @@ class AdminUserSeeder extends Seeder
 {
     /**
      * Run the database seeds.
-     * Create default admin user for testing
+     * Create default admin user for testing and assign Super Admin role
      */
     public function run(): void
     {
         // Check if admin user already exists
-        $existingUser = DB::table('users')->where('email', 'admin@erp.com')->first();
+        $user = \App\Models\User::where('email', 'admin@erp.com')->first();
         
-        if (!$existingUser) {
-            DB::table('users')->insert([
+        if (!$user) {
+            $user = \App\Models\User::create([
                 'employee_code' => 'ADMIN001',
                 'name' => 'Administrator',
                 'email' => 'admin@erp.com',
@@ -28,13 +28,24 @@ class AdminUserSeeder extends Seeder
                 'position' => 'System Administrator',
                 'status' => 'active',
                 'join_date' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
             
             $this->command->info('Admin user created: admin@erp.com / password');
         } else {
             $this->command->info('Admin user already exists.');
+        }
+        
+        // Assign Super Admin role
+        $superAdminRole = \App\Models\Role::where('slug', 'super_admin')->first();
+        
+        if ($superAdminRole && !$user->roles->contains($superAdminRole->id)) {
+            $user->roles()->attach($superAdminRole->id, [
+                'assigned_by' => $user->id,
+                'assigned_at' => now(),
+            ]);
+            $this->command->info('Super Admin role assigned to admin user.');
+        } else {
+            $this->command->info('Super Admin role already assigned or not found.');
         }
     }
 }

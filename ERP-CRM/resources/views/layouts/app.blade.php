@@ -317,6 +317,44 @@
                         <span class="ml-3 sidebar-text whitespace-nowrap">Cài đặt</span>
                     </a>
                 </div>
+
+                @can('view_roles')
+                <div class="mt-4">
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text whitespace-nowrap">Quản lý Truy cập</p>
+
+                    @can('view_user_roles')
+                    <a href="{{ route('users.index') }}"
+                        class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('users.index') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-users w-6 text-cyan-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Người dùng</span>
+                    </a>
+                    @endcan
+
+                    @can('view_roles')
+                    <a href="{{ route('roles.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('roles.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-user-tag w-6 text-blue-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Vai trò</span>
+                    </a>
+                    @endcan
+
+                    @can('view_permissions')
+                    <a href="{{ route('permissions.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('permissions.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-key w-6 text-yellow-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Quyền</span>
+                    </a>
+                    @endcan
+
+                    @can('view_audit_logs')
+                    <a href="{{ route('audit-logs.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('audit-logs.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-clipboard-list w-6 text-red-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký Kiểm toán</span>
+                    </a>
+                    @endcan
+                </div>
+                @endcan
             </nav>
         </aside>
 
