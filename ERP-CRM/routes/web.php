@@ -30,6 +30,8 @@ use App\Http\Controllers\ShippingAllocationController;
 use App\Http\Controllers\PurchaseReportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\PermissionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -266,6 +268,31 @@ Route::middleware(['auth'])->group(function () {
     // Activity Log routes (Nhật ký hoạt động)
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/users/{user}/activity-logs', [ActivityLogController::class, 'userLogs'])->name('users.activity-logs');
+
+    // Role Management routes (Quản lý vai trò)
+    Route::resource('roles', RoleController::class);
+
+    // Permission Management routes (Quản lý quyền)
+    Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+    Route::get('/permissions/matrix', [PermissionController::class, 'matrix'])->name('permissions.matrix');
+    Route::post('/permissions/matrix', [PermissionController::class, 'updateMatrix'])->name('permissions.matrix.update');
+
+    // User Management routes (Quản lý người dùng)
+    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index'])->name('users.index');
+
+    // User Role Assignment routes (Gán vai trò cho người dùng)
+    Route::get('/users/{user}/roles', [\App\Http\Controllers\UserRoleController::class, 'show'])->name('users.roles.show');
+    Route::post('/users/{user}/roles', [\App\Http\Controllers\UserRoleController::class, 'assign'])->name('users.roles.assign');
+    Route::delete('/users/{user}/roles/{role}', [\App\Http\Controllers\UserRoleController::class, 'revoke'])->name('users.roles.revoke');
+    Route::put('/users/{user}/roles', [\App\Http\Controllers\UserRoleController::class, 'sync'])->name('users.roles.sync');
+
+    // User Permission Assignment routes (Gán quyền trực tiếp cho người dùng)
+    Route::get('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'show'])->name('users.permissions.show');
+    Route::post('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'assign'])->name('users.permissions.assign');
+    Route::delete('/users/{user}/permissions/{permission}', [\App\Http\Controllers\UserPermissionController::class, 'revoke'])->name('users.permissions.revoke');
+
+    // Audit Log routes (Nhật ký kiểm toán)
+    Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
 
     // Customer Care Stages routes (Theo dõi tiến độ chăm sóc khách hàng)
     Route::get('/customer-care-stages/dashboard', [\App\Http\Controllers\CustomerCareStageController::class, 'dashboard'])->name('customer-care-stages.dashboard');

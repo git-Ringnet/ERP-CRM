@@ -16,6 +16,10 @@ class DatabaseSeeder extends Seeder
             // Admin user - chạy đầu tiên
             AdminUserSeeder::class,
             
+            // RBAC - Permissions and Roles
+            PermissionSeeder::class,
+            RoleSeeder::class,
+            
             // Base data - phải chạy trước
             // CustomerSeeder::class,
             // SupplierSeeder::class,

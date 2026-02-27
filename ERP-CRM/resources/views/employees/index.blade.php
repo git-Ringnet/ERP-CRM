@@ -135,6 +135,20 @@
                                title="Sửa">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            @can('view_user_roles')
+                            <a href="{{ route('users.roles.show', $employee->id) }}" 
+                               class="p-2 text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 hover:text-purple-700 transition-colors" 
+                               title="Quản lý Vai trò">
+                                <i class="fas fa-user-tag"></i>
+                            </a>
+                            @endcan
+                            @can('view_user_permissions')
+                            <a href="{{ route('users.permissions.show', $employee->id) }}" 
+                               class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors" 
+                               title="Quản lý Quyền Trực tiếp">
+                                <i class="fas fa-key"></i>
+                            </a>
+                            @endcan
                             <form action="{{ route('employees.toggle-lock', $employee->id) }}" method="POST" class="inline">
                                 @csrf
                                 <button type="submit" 

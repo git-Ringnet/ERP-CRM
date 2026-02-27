@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Traits\HasRoles;
+use App\Traits\HasPermissions;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, LogsActivity;
+    use HasApiTokens, HasFactory, Notifiable, LogsActivity, HasRoles, HasPermissions;
 
     /**
      * The attributes that are mass assignable.
