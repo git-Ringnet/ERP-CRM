@@ -58,6 +58,18 @@ class SupplierPriceListController extends Controller
                 'category' => ['Segment', 'Category', 'Product Family', 'Series', 'HDD Type'],
             ],
         ],
+        'sonicwall' => [
+            'name' => 'SonicWall',
+            'skipSheets' => ['links', 'cover', 'instructions'],
+            'headerKeywords' => ['sku', 'isrp', 'disti', 'msrp', 'description', 'dealer price'],
+            'columnPatterns' => [
+                'sku' => ['SonicWALL SKU', 'SKU', 'Part Number', 'P/N'],
+                'product_name' => ['Description', 'Product Description', 'SonicWALL Product Description'],
+                'description' => ['Description', 'Full Description'],
+                'price' => ['NEW ISRP', 'NEW DISTI', 'MSRP (USD)', 'Distributor Price (USD)', 'Reseller Price (USD)', 'MSRP', 'List Price'],
+                'category' => ['Category', 'Product Family'],
+            ],
+        ],
         'default' => [
             'name' => 'Mặc định (Đa năng)',
             'skipSheets' => ['cover', 'summary', 'instructions', 'notes', 'readme', 'general info', 'change log'],
@@ -209,14 +221,15 @@ class SupplierPriceListController extends Controller
             ->distinct()
             ->pluck('category');
 
-        // Xác định các cột giá động dựa trên custom_columns
+        // Xác định các cột động dựa trên custom_columns
         $priceColumns = [];
         if ($supplierPriceList->custom_columns && is_array($supplierPriceList->custom_columns)) {
             foreach ($supplierPriceList->custom_columns as $col) {
                 $priceColumns[] = [
                     'key' => $col['key'],
                     'label' => $col['label'],
-                    'is_custom' => str_starts_with($col['key'], 'custom_')
+                    'is_custom' => true,
+                    'type' => $col['type'] ?? (str_starts_with($col['key'], 'custom_') ? 'price' : 'text')
                 ];
             }
         } else {
@@ -383,16 +396,35 @@ class SupplierPriceListController extends Controller
             $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
             $maxColToProcess = min($highestColIndex, 100); // Giới hạn tối đa 100 cột
             
+            // Row-level decision: is headerRow+1 a header continuation or data?
+            $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
+            
             for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
                 $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                 $value = $worksheet->getCell($col . $headerRow)->getValue();
+                $trimVal = trim($value ?? '');
+                
+                // Multi-row header: combine with next row ONLY if row-level check confirmed it
+                if ($isMultiRowHeader && $headerRow < $highestRow) {
+                    $nextRowVal = $worksheet->getCell($col . ($headerRow + 1))->getValue();
+                    $nextVal = trim($nextRowVal ?? '');
+                    
+                    if ($nextVal !== '') {
+                        $trimVal = ($trimVal !== '') ? $trimVal . ' ' . $nextVal : $nextVal;
+                    }
+                }
+                
+                // Clean newlines in header values
+                $trimVal = preg_replace('/[\r\n]+/', ' ', $trimVal);
+                $trimVal = preg_replace('/\s+/', ' ', $trimVal);
+                $trimVal = trim($trimVal);
                 
                 // Chỉ thêm các cột có header không rỗng
-                if (trim($value ?? '') !== '') {
+                if ($trimVal !== '') {
                     $headers[] = [
                         'column' => $col,
                         'index' => $colIdx - 1,
-                        'name' => $value ?? '',
+                        'name' => $trimVal,
                     ];
                 }
             }
@@ -547,7 +579,8 @@ class SupplierPriceListController extends Controller
             }
 
             $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($fullPath);
-            $reader->setReadDataOnly(true);
+            // DO NOT setReadDataOnly(true) during auto-detection as many files (like QNAP) 
+            // use merged cells (vertical) for headers.
             $spreadsheet = $reader->load($fullPath);
 
             // Lấy supplier để xác định preset
@@ -555,7 +588,9 @@ class SupplierPriceListController extends Controller
             $supplierName = strtolower($supplier->name ?? '');
             $supplierType = str_contains($supplierName, 'fortinet') ? 'fortinet' :
                 (str_contains($supplierName, 'cisco') ? 'cisco' : 
-                (str_contains($supplierName, 'qnap') ? 'qnap' : 'default'));
+                (str_contains($supplierName, 'qnap') ? 'qnap' : 
+                (str_contains($supplierName, 'zyxel') ? 'zyxel' : 
+                ((str_contains($supplierName, 'sonicwall') || str_contains($supplierName, 'dell')) ? 'sonicwall' : 'default'))));
             $preset = $this->supplierPresets[$supplierType] ?? $this->supplierPresets['default'];
 
             // Tự động phát hiện sheets và mapping nếu cần
@@ -618,17 +653,22 @@ class SupplierPriceListController extends Controller
 
             // Lưu custom columns từ request vào price list
             $customColumns = [];
+            $realHeaders = []; // Ensure it is defined for custom column labels if needed
             
             // Collect all custom keys from all sheets to save global definition
             foreach ($sheets as $sheetConfig) {
                 if (isset($sheetConfig['mapping'])) {
                     foreach ($sheetConfig['mapping'] as $key => $colIndex) {
-                        if (str_starts_with($key, 'custom_')) {
-                            // Format: custom_Gold Price -> label: "Gold Price", key: "custom_Gold Price"
-                            $label = substr($key, 7);
+                        if (str_starts_with($key, 'custom_') || str_starts_with($key, 'meta_')) {
+                            // Extract label: either from header (if available) or from key
+                            $label = (isset($realHeaders[$colIndex]) && $realHeaders[$colIndex] !== '') 
+                                     ? $realHeaders[$colIndex] 
+                                     : str_replace(['custom_', 'meta_'], '', $key);
+                                     
                             $customColumns[$key] = [
                                 'key' => $key,
-                                'label' => $label
+                                'label' => $label,
+                                'type' => str_starts_with($key, 'custom_') ? 'price' : 'text'
                             ];
                         }
                     }
@@ -694,13 +734,16 @@ class SupplierPriceListController extends Controller
                 $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
                 $maxColToProcess = min($highestColIndex, 100);
                 
+                // Row-level decision: is headerRow+1 a header continuation or data?
+                $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
+                
                 for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
                     $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                     $value = $this->getCellValue($worksheet, $col, $headerRow);
                     $trimVal = trim($value ?? '');
                     
-                    // Multi-row header: combine with next row if present
-                    if ($headerRow < $highestRow) {
+                    // Multi-row header: combine with next row ONLY if row-level check confirmed it's a header continuation
+                    if ($isMultiRowHeader && $headerRow < $highestRow) {
                         $nextRowVal = $this->getCellValue($worksheet, $col, $headerRow + 1);
                         $nextVal = trim($nextRowVal ?? '');
                         
@@ -719,48 +762,6 @@ class SupplierPriceListController extends Controller
                         $realHeaders[$colIdx - 1] = $trimVal;
                     }
                 }
-
-                // ... Logic Auto Detect Mapping ...
-                $mapping = $sheetConfig['mapping'] ?? [];
-                $detectedMapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset);
-                if (empty($mapping) || !isset($mapping['sku']) || $mapping['sku'] === '') {
-                    $mapping = $detectedMapping;
-                } else {
-                    foreach ($detectedMapping as $field => $index) {
-                        if (!isset($mapping[$field]) || $mapping[$field] === '') {
-                            $mapping[$field] = $index;
-                        }
-                    }
-                }
-
-                // CAPTURE LABELS from this sheet's mapping
-                foreach ($mapping as $field => $colIndex) {
-                    if ($colIndex !== '' && isset($realHeaders[$colIndex])) {
-                        $originalName = $realHeaders[$colIndex];
-                        // Nếu chưa có definition cho field này hoặc definition hiện tại ngắn quá (vd: "abc"), update
-                         if (!isset($columnDefinitions[$field]) || strlen($originalName) > strlen($columnDefinitions[$field])) {
-                            $columnDefinitions[$field] = $originalName;
-                        }
-                    }
-                }
-                
-                // Also capture Custom Columns Labels from key name directly if not found in header (fallback)
-                foreach ($mapping as $key => $colIndex) {
-                     if (str_starts_with($key, 'custom_')) {
-                         $label = substr($key, 7);
-                         if (!isset($columnDefinitions[$key])) {
-                             $columnDefinitions[$key] = $label;
-                         }
-                     }
-                }
-
-                // ... Validation ...
-                if (!$this->isValidSheetStructure($mapping, $fileHeaders)) {
-                     // ... log invalid ...
-                     continue;
-                }
-
-                // ... Process Rows Loop ...
 
                 Log::debug("Processing sheet: {$sheetConfig['name']}, headers:", $fileHeaders);
 
@@ -797,6 +798,29 @@ class SupplierPriceListController extends Controller
                     continue;
                 }
 
+                // CAPTURE LABELS from this sheet's mapping
+                foreach ($mapping as $field => $colIndex) {
+                    if ($colIndex !== '' && isset($realHeaders[$colIndex])) {
+                        // Skip internal mapping fields (per-tier SKU columns and range column)
+                        if (str_starts_with($field, '_') || preg_match('/^sku_\d+yr$/', $field)) continue;
+                        
+                        $originalName = $realHeaders[$colIndex];
+                        if (!isset($columnDefinitions[$field]) || strlen($originalName) > strlen($columnDefinitions[$field])) {
+                            $columnDefinitions[$field] = $originalName;
+                        }
+                    }
+                }
+                
+                // Also capture Custom Columns Labels from key name directly if not found in header (fallback)
+                foreach ($mapping as $key => $colIndex) {
+                     if (str_starts_with($key, 'custom_')) {
+                         $label = substr($key, 7);
+                         if (!isset($columnDefinitions[$key])) {
+                             $columnDefinitions[$key] = $label;
+                         }
+                     }
+                }
+
                 $sheetLog = [
                     'name' => $sheetConfig['name'],
                     'rows_processed' => 0,
@@ -809,7 +833,13 @@ class SupplierPriceListController extends Controller
                 $currentCategory = null; // Track current category from section headers
                 $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
-                for ($row = $headerRow + 1; $row <= $highestRow; $row++) {
+                // Determine data start row (reuse multi-row header flag from above)
+                $dataStartRow = $isMultiRowHeader ? $headerRow + 2 : $headerRow + 1;
+                if ($isMultiRowHeader) {
+                    Log::debug("Multi-row header detected, data starts at row {$dataStartRow}");
+                }
+
+                for ($row = $dataStartRow; $row <= $highestRow; $row++) {
                     $rowData = [];
                     // Chỉ đọc các cột cần thiết dựa trên mapping
                     $colsToRead = array_unique(array_filter(array_values($mapping), fn($v) => $v !== ''));
@@ -837,6 +867,134 @@ class SupplierPriceListController extends Controller
                         }
                     }
 
+                    // ============================================================
+                    // MULTI-TIER SPLIT MODE
+                    // When per-tier SKU columns are detected (e.g., Bitdefender format with 
+                    // repeating [SKU][Price] pairs), split each Excel row into multiple items.
+                    // ============================================================
+                    $hasMultiTierSku = isset($mapping['sku_2yr']) || isset($mapping['sku_3yr']) || isset($mapping['sku_4yr']) || isset($mapping['sku_5yr']);
+                    
+                    if ($hasMultiTierSku) {
+                        // Build tier definitions: each tier has a SKU column and a price column
+                        $tiers = [];
+                        $tierDefs = [
+                            ['sku_field' => 'sku', 'price_field' => 'price_1yr', 'period' => '1 Year'],
+                            ['sku_field' => 'sku_2yr', 'price_field' => 'price_2yr', 'period' => '2 Years'],
+                            ['sku_field' => 'sku_3yr', 'price_field' => 'price_3yr', 'period' => '3 Years'],
+                            ['sku_field' => 'sku_4yr', 'price_field' => 'price_4yr', 'period' => '4 Years'],
+                            ['sku_field' => 'sku_5yr', 'price_field' => 'price_5yr', 'period' => '5 Years'],
+                        ];
+                        
+                        // For tier 1: use main 'sku' column with 'price_1yr' (or 'price' fallback)
+                        foreach ($tierDefs as $def) {
+                            $skuCol = $mapping[$def['sku_field']] ?? null;
+                            $priceCol = $mapping[$def['price_field']] ?? ($def['sku_field'] === 'sku' ? ($mapping['price'] ?? null) : null);
+                            
+                            if ($skuCol !== null && $priceCol !== null) {
+                                $tiers[] = [
+                                    'sku_col' => $skuCol,
+                                    'price_col' => $priceCol,
+                                    'period' => $def['period'],
+                                ];
+                            }
+                        }
+                        
+                        // Get common fields
+                        $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' 
+                            ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
+                        $rangeValue = isset($mapping['_range_column']) && $mapping['_range_column'] !== ''
+                            ? trim((string) ($rowData[$mapping['_range_column']] ?? '')) : '';
+                        $category = isset($mapping['category']) && $mapping['category'] !== ''
+                            ? mb_substr(trim((string) ($rowData[$mapping['category']] ?? '')), 0, 255) : null;
+                        if (empty($category) && !empty($currentCategory)) {
+                            $category = mb_substr($currentCategory, 0, 255);
+                        }
+                        $description = isset($mapping['description']) && $mapping['description'] !== ''
+                            ? mb_substr(trim((string) ($rowData[$mapping['description']] ?? '')), 0, 65000) : null;
+                        
+                        // Check if this is a category header row (no valid tier data)
+                        $anyTierHasData = false;
+                        foreach ($tiers as $tier) {
+                            $tierSku = trim((string) ($rowData[$tier['sku_col']] ?? ''));
+                            $tierPrice = $this->parsePrice($rowData[$tier['price_col']] ?? null);
+                            if (!empty($tierSku) && $tierPrice) {
+                                $anyTierHasData = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!$anyTierHasData) {
+                            // Possibly a category/section header
+                            $candidate = $productName ?: trim((string) ($rowData[$mapping['sku']] ?? ''));
+                            if (!empty($candidate) && strlen($candidate) < 100 && 
+                                !str_contains(strtolower($candidate), 'price list') && 
+                                !str_contains(strtolower($candidate), 'note:')) {
+                                $currentCategory = $candidate;
+                            }
+                            $sheetLog['items_skipped']++;
+                            continue;
+                        }
+                        
+                        // Create one item per tier
+                        foreach ($tiers as $tier) {
+                            $tierSku = trim((string) ($rowData[$tier['sku_col']] ?? ''));
+                            $tierPrice = $this->parsePrice($rowData[$tier['price_col']] ?? null);
+                            
+                            // Skip tiers with no SKU or no price
+                            if (empty($tierSku) || !$tierPrice) continue;
+                            
+                            if (!$this->isValidSku($tierSku)) continue;
+                            
+                            // Build descriptive product name: "Product Name (Range) - Period"
+                            $tierProductName = $productName ?: $tierSku;
+                            if (!empty($rangeValue)) {
+                                $tierProductName .= ' (' . $rangeValue . ')';
+                            }
+                            $tierProductName .= ' - ' . $tier['period'];
+                            
+                            $itemData = [
+                                'supplier_price_list_id' => $priceList->id,
+                                'sku' => mb_substr($tierSku, 0, 255),
+                                'product_name' => mb_substr($tierProductName, 0, 65000),
+                                'description' => $description,
+                                'category' => $category,
+                                'list_price' => $tierPrice,
+                                'price_1yr' => null,
+                                'price_2yr' => null,
+                                'price_3yr' => null,
+                                'price_4yr' => null,
+                                'price_5yr' => null,
+                                'source_sheet' => mb_substr($sheetConfig['name'], 0, 255),
+                                'extra_data' => [
+                                    'range' => $rangeValue ?: null,
+                                    'period' => $tier['period'],
+                                ],
+                            ];
+                            
+                            if ($request->import_mode === 'update') {
+                                $existing = SupplierPriceListItem::where('supplier_price_list_id', $priceList->id)
+                                    ->where('sku', $tierSku)
+                                    ->first();
+                                if ($existing) {
+                                    $existing->update($itemData);
+                                    $sheetLog['items_updated']++;
+                                } else {
+                                    SupplierPriceListItem::create($itemData);
+                                    $sheetLog['items_created']++;
+                                }
+                            } else {
+                                SupplierPriceListItem::create($itemData);
+                                $sheetLog['items_created']++;
+                            }
+                            
+                            $sheetLog['rows_processed']++;
+                        }
+                        
+                    } else {
+                    // ============================================================
+                    // STANDARD MODE (original logic - one item per row)
+                    // ============================================================
+                    
                     // Lấy giá trị theo mapping
                     $sku = isset($mapping['sku']) && $mapping['sku'] !== '' ? trim((string) ($rowData[$mapping['sku']] ?? '')) : '';
                     $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
@@ -849,24 +1007,25 @@ class SupplierPriceListController extends Controller
                             ? $this->parsePrice($rowData[$mapping['price_1yr']] ?? null)
                             : null;
                     
-                    // Capture dynamic prices
+                    // Capture dynamic prices & meta
                     $extraPrices = [];
-                    $hasDynamicPrice = false;
+                    $metaData = [];
                     foreach ($mapping as $key => $colIndex) {
-                        if (str_starts_with($key, 'custom_') && $colIndex !== '') {
+                        if ($colIndex === '') continue;
+                        if (str_starts_with($key, 'custom_')) {
                             $val = $this->parsePrice($rowData[$colIndex] ?? null);
-                            if ($val) {
-                                $extraPrices[$key] = $val;
-                                $hasDynamicPrice = true;
-                            }
+                            if ($val !== null) $extraPrices[$key] = $val;
+                        } elseif (str_starts_with($key, 'meta_')) {
+                            $metaData[$key] = trim((string)($rowData[$colIndex] ?? ''));
                         }
                     }
+                    $hasDynamicPrice = !empty($extraPrices);
 
                     // Check all possible price columns
-                    $hasPrice = $listPrice || $price1yr || $hasDynamicPrice;
+                    $hasPrice = !!($listPrice || $price1yr || $hasDynamicPrice);
                     
                     if (!$hasPrice) {
-                        // Check other standard price columns
+                        // Check other standard price columns (price_2yr..5yr)
                         foreach (['price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $priceCol) {
                             if (isset($mapping[$priceCol]) && $mapping[$priceCol] !== '') {
                                 $val = $this->parsePrice($rowData[$mapping[$priceCol]] ?? null);
@@ -957,7 +1116,9 @@ class SupplierPriceListController extends Controller
                             ? $this->parsePrice($rowData[$mapping['price_5yr']] ?? null)
                             : null,
                         'source_sheet' => mb_substr($sheetConfig['name'], 0, 255),
-                        'extra_data' => !empty($extraPrices) ? ['prices' => $extraPrices] : null,
+                        'extra_data' => (!empty($extraPrices) || !empty($metaData)) 
+                                        ? ['prices' => $extraPrices, 'metadata' => $metaData] 
+                                        : null,
                     ];
 
                     if ($request->import_mode === 'update') {
@@ -978,6 +1139,8 @@ class SupplierPriceListController extends Controller
                     }
 
                     $sheetLog['rows_processed']++;
+                    
+                    } // end if/else hasMultiTierSku
                 }
 
                 $importLog['sheets'][] = $sheetLog;
@@ -989,12 +1152,29 @@ class SupplierPriceListController extends Controller
 
             // Save Collected Column Definitions to price list
             // Transform [key => label] to [{key, label}]
+            // Filter out standard hardcoded fields (already shown in show view), internal fields, and unused tiers
             if (!empty($columnDefinitions)) {
+                // Standard fields already displayed as hardcoded columns in show.blade.php
+                $standardFields = ['sku', 'product_name', 'category', 'description'];
+                
+                // Check if multi-tier split was used (per-tier SKU columns detected)
+                $isMultiTierImport = isset($mapping['sku_2yr']) || isset($mapping['sku_3yr']) 
+                    || isset($mapping['sku_4yr']) || isset($mapping['sku_5yr']);
+                
                 $cols = [];
                 foreach ($columnDefinitions as $key => $label) {
+                    // Skip standard hardcoded fields
+                    if (in_array($key, $standardFields)) continue;
+                    
+                    // Skip internal mapping fields
+                    if (str_starts_with($key, '_') || preg_match('/^sku_\d+yr$/', $key)) continue;
+                    
+                    // In multi-tier mode, skip price_Xyr (each item only has list_price)
+                    if ($isMultiTierImport && preg_match('/^price_\d+yr$/', $key)) continue;
+                    
                     $cols[] = ['key' => $key, 'label' => $label];
                 }
-                $priceList->update(['custom_columns' => $cols]);
+                $priceList->update(['custom_columns' => !empty($cols) ? $cols : null]);
             }
 
             $priceList->update(['import_log' => $importLog]);
@@ -1041,6 +1221,7 @@ class SupplierPriceListController extends Controller
 
         $bestRow = null;
         $maxMatches = 0;
+        $bestNonEmpty = 0;
         $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
         // Helper: read one row into array of cleaned values
@@ -1107,22 +1288,23 @@ class SupplierPriceListController extends Controller
             $score = $scoreValues($rowValues);
             if ($score['nonEmpty'] < 2) continue;
 
-            $keywordMatches = $score['matches'];
+            // USE UNMERGED score as primary detection criteria
+            $unmergedMatches = $score['matches'];
+            $nonEmptyCount = $score['nonEmpty'];
 
-            // Multi-row header support: try merging with the NEXT row
-            // This handles files like QNAP where headers span 2 rows due to merged cells
+            // SECONDARY: Check if merging with next row improves things
+            $effectiveScore = (float)$unmergedMatches;
+
             $nextRow = $row + 1;
             if ($nextRow <= 50) {
                 if (!isset($rowCache[$nextRow])) {
                     $rowCache[$nextRow] = $readRow($nextRow);
                 }
                 $nextValues = $rowCache[$nextRow];
-                // Merge: combine values from both rows to capture all info
                 $merged = [];
                 for ($ci = 1; $ci <= $highestColIndex; $ci++) {
                     $v1 = $rowValues[$ci] ?? '';
                     $v2 = $nextValues[$ci] ?? '';
-                    
                     if ($v1 !== '' && $v2 !== '') {
                         $merged[$ci] = $v1 . ' ' . $v2;
                     } else {
@@ -1130,24 +1312,29 @@ class SupplierPriceListController extends Controller
                     }
                 }
                 $mergedScore = $scoreValues($merged);
-                // Use merged score if it's better
-                if ($mergedScore['matches'] > $keywordMatches) {
-                    $keywordMatches = $mergedScore['matches'];
-                    Log::debug("Multi-row header: rows {$row}-{$nextRow} combined score: {$keywordMatches}");
+                
+                // If merging improves keywords, add a small 0.5 bonus to the core row score
+                // But don't let a generic group row (Row 2) beat a specific header row (Row 3)
+                // just because Row 2+3 combined has more words.
+                if ($mergedScore['matches'] > $unmergedMatches) {
+                    $effectiveScore += 0.5;
+                    $nonEmptyCount = max($nonEmptyCount, $mergedScore['nonEmpty']);
+                    Log::debug("Multi-row header potential: row {$row} matches {$unmergedMatches}, +nextRow matches {$mergedScore['matches']}");
                 }
             }
 
-            // Nếu dòng này có nhiều match hơn dòng trước -> update best row
-            // Ưu tiên dòng có nhiều match nhất
-            if ($keywordMatches > $maxMatches) {
-                $maxMatches = $keywordMatches;
+            // Update best row based on weighted score
+            if ($effectiveScore > $maxMatches || 
+                (abs($effectiveScore - $maxMatches) < 0.01 && $nonEmptyCount > $bestNonEmpty)) {
+                $maxMatches = $effectiveScore;
                 $bestRow = $row;
+                $bestNonEmpty = $nonEmptyCount;
             }
         }
 
-        // Nếu tìm thấy dòng có >= 1 match -> Return (Relaxed for QNAP)
+        // Return best row if found
         if ($maxMatches >= 1) {
-            Log::debug("Found best header at row {$bestRow} with {$maxMatches} matches");
+            Log::debug("Found best header at row {$bestRow} with score {$maxMatches}");
             return $bestRow;
         }
 
@@ -1158,6 +1345,54 @@ class SupplierPriceListController extends Controller
         ]);
 
         return null;
+    }
+
+    /**
+     * Check if the row after the header is a header continuation (multi-row header).
+     * Returns true if row headerRow+1 appears to be header text, false if it's data.
+     * Uses row-level analysis: checks all cells and votes header vs data.
+     */
+    private function isNextRowHeaderContinuation($worksheet, int $headerRow, int $maxColToCheck, int $highestRow): bool
+    {
+        if ($headerRow >= $highestRow) return false;
+
+        $headerLikeCount = 0;
+        $dataLikeCount = 0;
+        $checkCols = min($maxColToCheck, 25);
+
+        for ($colIdx = 1; $colIdx <= $checkCols; $colIdx++) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+            $nextVal = trim($this->getCellValue($worksheet, $col, $headerRow + 1) ?? '');
+
+            if ($nextVal === '') continue;
+
+            // SKU-like codes: mix of uppercase letters and digits, 6+ chars (e.g. 2759ZZBSR120ALZZ)
+            $isSkuLike = preg_match('/^[A-Z0-9\-\/\.]{6,}$/i', $nextVal)
+                         && preg_match('/[A-Z]/i', $nextVal)
+                         && preg_match('/[0-9]/', $nextVal);
+
+            // Numeric values: pure numbers, prices with commas, or range patterns like "0003-0014"
+            $isNumeric = is_numeric($nextVal) || preg_match('/^[\d,\.\-\s\/]+$/', $nextVal);
+
+            // Long text: product names, descriptions (>25 chars is almost certainly data)
+            $isLongText = mb_strlen($nextVal) > 25;
+
+            if ($isSkuLike || $isNumeric || $isLongText) {
+                $dataLikeCount++;
+            } else {
+                // Short non-numeric text could be a header continuation (e.g. "Year", "(USD)", "Ex-work TW")
+                $headerLikeCount++;
+            }
+        }
+
+        $totalNonEmpty = $headerLikeCount + $dataLikeCount;
+
+        // Row is header continuation only if >60% of non-empty cells look like headers
+        $isHeader = $totalNonEmpty > 0 && ($headerLikeCount / $totalNonEmpty) > 0.6;
+
+        Log::debug("isNextRowHeaderContinuation: headerRow={$headerRow}, headerLike={$headerLikeCount}, dataLike={$dataLikeCount}, result=" . ($isHeader ? 'true' : 'false'));
+
+        return $isHeader;
     }
 
     /**
@@ -1173,22 +1408,40 @@ class SupplierPriceListController extends Controller
             $headerMap[$index] = mb_strtolower(trim($header), 'UTF-8');
         }
 
+        // Helper: Remove Vietnamese accents and other marks for robust comparison
+        $removeAccents = function($str) {
+            $str = mb_strtolower((string)$str, 'UTF-8');
+            $str = preg_replace("/(à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ)/u", "a", $str);
+            $str = preg_replace("/(è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ)/u", "e", $str);
+            $str = preg_replace("/(ì|í|ị|ỉ|ĩ)/u", "i", $str);
+            $str = preg_replace("/(ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ)/u", "o", $str);
+            $str = preg_replace("/(ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ)/u", "u", $str);
+            $str = preg_replace("/(ỳ|ý|ỵ|ỷ|ỹ)/u", "y", $str);
+            $str = preg_replace("/(đ)/u", "d", $str);
+            // Handle common corrupted pieces
+            $str = str_replace(['a\'', 'a?', 'a ', 'e\'', 'e?'], ['a', 'a', 'a', 'e', 'e'], $str);
+            return $str;
+        };
+
+        // Helper: Super Clean (strip everything non-alpha for robust keyword matching)
+        $superClean = function($str) use ($removeAccents) {
+            $s = $removeAccents($str);
+            return preg_replace('/[^a-z0-9]/', '', $s);
+        };
+
         // Helper: Check column data validity score (0-100)
         $getColScore = function($colIndex) use ($rowSamples) {
-            if (empty($rowSamples)) return 100; // No samples, assume valid
-            $count = 0;
-            $numeric = 0;
+            if (empty($rowSamples)) return 100;
+            $count = 0; $numeric = 0;
             foreach ($rowSamples as $row) {
                 $val = $row[$colIndex] ?? null;
-                if ($val !== null && trim($val) !== '') {
+                if ($val !== null && trim((string)$val) !== '') {
                     $count++;
-                    // Check if numeric-ish
-                    $valStr = preg_replace('/[^0-9]/', '', (string)$val);
-                    if ($valStr !== '') $numeric++;
+                    $cleanVal = preg_replace('/[đ\$,\s\.\,]/u', '', (string)$val);
+                    if (is_numeric($cleanVal) && $cleanVal !== '') $numeric++;
                 }
             }
-            if (count($rowSamples) == 0) return 0;
-            return ($numeric / count($rowSamples)) * 100;
+            return ($count == 0) ? 0 : ($numeric / $count) * 100;
         };
 
         // Helper: find first header containing any of the given keywords
@@ -1204,14 +1457,98 @@ class SupplierPriceListController extends Controller
             return null;
         };
 
-        // 1. Detect SKU (Quan trọng nhất)
-        // ... (Keep existing SKU logic) ...
-        // I need to be careful not to delete logic I'm not seeing.
-        // My EndLine is 1184.
-        // I will copy SKU detection logic from previous view.
-        // Step 1233 showed lines 1104-1125.
+        // Detect Common Price List Types (Override FUZZY detection)
+        $allHeaderStr = $superClean(implode(' ', $headerMap));
         
-        // ... SKU ...
+        // Zyxel Specific Detect
+        if (str_contains($allHeaderStr, 'partnumber') && (str_contains($allHeaderStr, 'silver') || str_contains($allHeaderStr, 'msrp'))) {
+            Log::info("Zyxel-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if (str_contains($sc, 'partnumber')) $mapping['sku'] = $idx;
+                if (str_contains($sc, 'informationinenglish')) $mapping['product_name'] = $idx;
+                if (str_contains($sc, 'productmodel')) $mapping['meta_Model'] = $idx;
+                if (str_contains($sc, 'ghichu') || str_contains($sc, 'note')) $mapping['meta_Note'] = $idx;
+                
+                if (str_contains($sc, 'silver')) {
+                    if (!isset($mapping['price'])) $mapping['price'] = $idx;
+                    else $mapping['custom_Silver'] = $idx;
+                }
+                if (str_contains($sc, 'msrpchuavat')) {
+                    if (!isset($mapping['price'])) $mapping['price'] = $idx; 
+                    else $mapping['custom_MSRP (chưa VAT)'] = $idx;
+                }
+                if (str_contains($sc, 'daily')) $mapping['custom_Đại lý'] = $idx;
+                if (str_contains($sc, 'msrpcov')) $mapping['custom_MSRP (có V)'] = $idx;
+                if (str_contains($sc, 'msrpcov')) $mapping['custom_MSRP (có V)'] = $idx;
+                if ($sc === 'vat') $mapping['vat'] = $idx;
+            }
+        }
+        
+        // QNAP Specific Detect (Multi-row merged headers)
+        if (str_contains($allHeaderStr, 'purchaseprice') && (str_contains($allHeaderStr, 'suggesteddealerprice') || str_contains($allHeaderStr, 'msrpwithoutvat'))) {
+            Log::info("QNAP-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if (str_contains($sc, 'pn') || str_contains($sc, 'partnumber')) $mapping['sku'] = $idx;
+                if (str_contains($sc, 'description')) $mapping['product_name'] = $idx;
+                if (str_contains($sc, 'segment')) $mapping['category'] = $idx;
+                
+                if (str_contains($sc, 'purchaseprice')) {
+                    if (!isset($mapping['price'])) $mapping['price'] = $idx;
+                    else $mapping['custom_Purchase Price'] = $idx;
+                }
+                if (str_contains($sc, 'suggesteddealerprice')) $mapping['custom_Dealer Price'] = $idx;
+                if (str_contains($sc, 'msrpwithoutvat')) $mapping['custom_MSRP'] = $idx;
+            }
+        }
+        
+        // SonicWall Specific Detect
+        if (str_contains($allHeaderStr, 'isrp') || str_contains($allHeaderStr, 'disti') || str_contains($allHeaderStr, 'sonicwallsku')) {
+            Log::info("SonicWall-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if (str_contains($sc, 'sonicwallsku')) $mapping['sku'] = $idx;
+                if (str_contains($sc, 'sonicwallproductdescription') || (str_contains($sc, 'description') && !isset($mapping['product_name']))) {
+                    $mapping['product_name'] = $idx;
+                }
+                
+                if (str_contains($sc, 'isrp')) {
+                    if (!isset($mapping['price'])) $mapping['price'] = $idx;
+                    else $mapping['custom_ISRP'] = $idx;
+                }
+                if (str_contains($sc, 'disti') || str_contains($sc, 'distributorprice')) {
+                    if (!isset($mapping['price']) && !str_contains($allHeaderStr, 'isrp')) $mapping['price'] = $idx;
+                    else $mapping['custom_Distributor Price'] = $idx;
+                }
+                if (str_contains($sc, 'resellerprice') || str_contains($sc, 'dealerprice')) {
+                    $mapping['custom_Dealer Price'] = $idx;
+                }
+                if (str_contains($sc, 'msrp') && !str_contains($sc, 'isrp')) {
+                    if (!isset($mapping['price']) && !str_contains($allHeaderStr, 'isrp') && !str_contains($allHeaderStr, 'disti')) $mapping['price'] = $idx;
+                    else $mapping['custom_MSRP'] = $idx;
+                }
+            }
+        }
+
+        // 1. Detect SKU (Quan trọng nhất)
+        // First: Try preset columnPatterns for exact match
+        $presetPatterns = $preset['columnPatterns'] ?? [];
+        
+        if (!empty($presetPatterns['sku'])) {
+            foreach ($presetPatterns['sku'] as $pattern) {
+                $patternLower = mb_strtolower($pattern, 'UTF-8');
+                foreach ($headerMap as $index => $header) {
+                    if ($header === $patternLower || str_contains($header, $patternLower)) {
+                        $mapping['sku'] = $index;
+                        break 2;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: generic SKU keywords
+        if (!isset($mapping['sku'])) {
         $skuKeywords = ['sku', 'part number', 'part no', 'p/n', 'part#', 'part #',
                         'item no', 'item number', 'product code', 'marketing no',
                         'mã sản phẩm', 'mã sp', 'model no', 'model number', 'mtm'];
@@ -1230,106 +1567,309 @@ class SupplierPriceListController extends Controller
             $mapping['sku'] = $findByContains($skuContains, []) ?? null;
             if ($mapping['sku'] === null) unset($mapping['sku']);
         }
+        } // end fallback SKU
 
         // 2. Detect Product Name
         $usedIndices = isset($mapping['sku']) ? [$mapping['sku']] : [];
-        $nameKeywords = ['product name', 'product description', 'description', 'item description',
-                        'model name', 'product', 'tên sản phẩm', 'mô tả', 'diễn giải'];
-        foreach ($nameKeywords as $keyword) {
-            foreach ($headerMap as $index => $header) {
-                if (in_array($index, $usedIndices)) continue;
-                if (str_contains($header, $keyword)) {
-                    $mapping['product_name'] = $index;
-                    break 2;
+        if (!isset($mapping['product_name'])) {
+            $nameKeywords = [
+                'information in english', 'name', 'product name', 'description', 'thong tin san pham',
+                'item description', 'model name', 'tên sản phẩm', 'mô tả', 'diễn giải'
+            ];
+            $nameExclusions = ['segment', 'category', 'group', 'loại', 'nhóm', 'phần khúc', 'note', 'ghi chú'];
+
+            foreach ($nameKeywords as $keyword) {
+                $kwClean = $superClean($keyword);
+                foreach ($headerMap as $index => $header) {
+                    if (in_array($index, $usedIndices)) continue;
+                    $hClean = $superClean($header);
+                    
+                    // Specific check for "product"
+                    if ($kwClean === 'product' || $kwClean === 'tensanpham') {
+                        foreach ($nameExclusions as $ex) {
+                            if (str_contains($hClean, $superClean($ex))) continue 2;
+                        }
+                    }
+
+                    if (str_contains($hClean, $kwClean)) {
+                        $mapping['product_name'] = $index;
+                        break 2;
+                    }
                 }
             }
         }
-
         // 3. Detect Category
-        $catKeywords = ['category', 'segment', 'group', 'product group', 'product family',
-                       'danh mục', 'nhóm', 'loại', 'hdd type', 'series'];
-        foreach ($catKeywords as $keyword) {
-            foreach ($headerMap as $index => $header) {
-                if (str_contains($header, $keyword)) {
-                    $mapping['category'] = $index;
-                    break 2;
+        // First: Try preset columnPatterns
+        if (!empty($presetPatterns['category'])) {
+            foreach ($presetPatterns['category'] as $pattern) {
+                $patternLower = mb_strtolower($pattern, 'UTF-8');
+                foreach ($headerMap as $index => $header) {
+                    if ($header === $patternLower || str_contains($header, $patternLower)) {
+                        $mapping['category'] = $index;
+                        break 2;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: generic category keywords
+        if (!isset($mapping['category'])) {
+            $catKeywords = ['category', 'segment', 'group', 'product group', 'product family',
+                           'danh mục', 'nhóm', 'loại', 'hdd type', 'series', 'project', 'high end'];
+            foreach ($catKeywords as $keyword) {
+                $kwClean = $superClean($keyword);
+                foreach ($headerMap as $index => $header) {
+                    if (str_contains($superClean($header), $kwClean)) {
+                        $mapping['category'] = $index;
+                        break 2;
+                    }
+                }
+            }
+        } // end fallback category
+
+        // 4. Detect warranty/contract price tiers FIRST (before primary price)
+        // This ensures warranty columns are excluded from primary price detection
+        $warrantyKeywords = [
+            'price_1yr' => ['1yr', '1 year', '1 năm', 'support 1yr', '12 months', '1y support', 'support 1y'],
+            'price_2yr' => ['2yr', '2 year', '2 năm', 'support 2yr', '24 months', '2y support', 'support 2y'],
+            'price_3yr' => ['3yr', '3 year', '3 năm', 'support 3yr', '36 months', '3y support', 'support 3y'],
+            'price_4yr' => ['4yr', '4 year', '4 năm', '48 months', '4y support', 'support 4y'],
+            'price_5yr' => ['5yr', '5 year', '5 năm', '60 months', '5y support', 'support 5y'],
+        ];
+
+        // First: Try preset columnPatterns for warranty
+        foreach (['price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $field) {
+            if (!empty($presetPatterns[$field])) {
+                foreach ($presetPatterns[$field] as $pattern) {
+                    $patternLower = mb_strtolower($pattern, 'UTF-8');
+                    foreach ($headerMap as $index => $header) {
+                        if (str_contains($header, $patternLower)) {
+                            $mapping[$field] = $index;
+                            break 2;
+                        }
+                    }
                 }
             }
         }
 
-        // 4. Detect Primary Price column
-        $pricePatterns = [
-            ['(chưa vat)', '(ex vat)', 'msrp (chưa vat)', 'ex-vat', 'exc vat', 'exc. vat', 'chua vat', 'chưa v'], // Tier 0
-            ['list price', 'net price', 'base price', 'standard price', 'gpl', 'giá niêm yết', 'giá list'], // Tier 1
-            ['msrp', 'retail price', 'giá bán lẻ', 'giá lẻ', 'end-user', 'end user', 'giá user'], // Tier 2
-            ['purchase price', 'cost price', 'unit cost', 'giá nhập', 'giá vốn'], // Tier 3
-            ['distributor price', 'giá npp', 'giá nhà phân phối'], // Tier 4
-            ['reseller price', 'dealer price', 'partner price', 'giá đại lý', 'đại lý', 'sales price', 
-             'silver', 'gold', 'bronze', 'platinum', 'ec price', 'e-commerce', 'giá ec'], // Tier 5
-        ];
-        
-        $foundPriceIndices = [];
-        foreach ($pricePatterns as $tier => $keywords) {
+        // Fallback: generic warranty keywords
+        foreach ($warrantyKeywords as $field => $keywords) {
+            if (isset($mapping[$field])) continue; // Already found via preset
             foreach ($keywords as $keyword) {
                 foreach ($headerMap as $index => $header) {
-                    if (\Illuminate\Support\Str::contains($header, ['discount', 'giảm giá', 'chiết khấu', 'percent', '%', 'warranty', 'bảo hành'])) {
-                        continue;
-                    }
-
                     if (str_contains($header, $keyword)) {
-                        // VALIDATE DATA
-                        $targetIndex = $index;
-                        $score = $getColScore($targetIndex);
-                        
-                        // If empty, check adjacent (Merged Header Check)
-                        if ($score < 5) {
-                            $adjScore = $getColScore($targetIndex + 1);
-                            if ($adjScore > 20) {
-                                // Remap to adjacent
-                                $targetIndex = $targetIndex + 1;
-                                Log::info("Remapped empty price col {$index} ('{$header}') to adjacent col {$targetIndex} with score {$adjScore}");
-                            } else {
-                                // Penalize empty column
-                                $tier += 100; 
+                        $mapping[$field] = $index;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        // Also detect gold/silver/bronze as warranty tiers
+        // IMPORTANT: Only treat as warranty if it ALSO looks like a warranty column (contains year/năm/1y/etc.)
+        // Otherwise it might be a partner price level (like in Zyxel)
+        $tierAliases = [
+            'price_1yr' => ['gold'],
+            'price_2yr' => ['silver'],
+            'price_3yr' => ['bronze'],
+        ];
+        $warrantyMarkers = ['1yr', '2yr', '3yr', '4yr', '5yr', 'year', 'năm', 'bảo hành', 'warranty', 'support', 'bh', '1y', '2y', '3y'];
+        foreach ($tierAliases as $field => $aliases) {
+            if (isset($mapping[$field])) continue;
+            foreach ($aliases as $alias) {
+                foreach ($headerMap as $index => $header) {
+                    if (str_contains($header, $alias)) {
+                        $hasWarrantyMarker = false;
+                        foreach ($warrantyMarkers as $marker) {
+                            if (str_contains($header, $marker)) {
+                                $hasWarrantyMarker = true;
+                                break;
                             }
                         }
+                        if ($hasWarrantyMarker) {
+                            $mapping[$field] = $index;
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
 
-                        if (!isset($foundPriceIndices[$targetIndex]) || $tier < $foundPriceIndices[$targetIndex]['tier']) {
-                            $foundPriceIndices[$targetIndex] = ['tier' => $tier, 'keyword' => $keyword, 'header' => $header];
+        // Collect warranty column indices to exclude from primary price detection
+        $warrantyIndices = [];
+        foreach (['price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $field) {
+            if (isset($mapping[$field])) {
+                $warrantyIndices[] = $mapping[$field];
+            }
+        }
+
+        // 4b. Detect per-tier SKU columns (for formats like Bitdefender with repeating SKU+price pairs)
+        // Pattern: header has [SKU][Price 1yr][SKU][Price 2yr][SKU][Price 3yr]
+        // Each SKU column has the same header text but contains different SKU codes per tier
+        if (isset($mapping['sku'])) {
+            $skuHeader = $headerMap[$mapping['sku']] ?? null;
+            if ($skuHeader) {
+                $tierSkuMap = [
+                    'price_1yr' => 'sku_1yr',
+                    'price_2yr' => 'sku_2yr',
+                    'price_3yr' => 'sku_3yr',
+                    'price_4yr' => 'sku_4yr',
+                    'price_5yr' => 'sku_5yr',
+                ];
+                
+                foreach ($tierSkuMap as $priceField => $skuField) {
+                    if (!isset($mapping[$priceField])) continue;
+                    $priceIndex = $mapping[$priceField];
+                    
+                    // Check if the column immediately before this price column has the same header as the main SKU
+                    $prevIndex = $priceIndex - 1;
+                    if ($prevIndex >= 0 && $prevIndex !== $mapping['sku'] && isset($headerMap[$prevIndex])) {
+                        if ($headerMap[$prevIndex] === $skuHeader) {
+                            $mapping[$skuField] = $prevIndex;
+                            Log::debug("Detected per-tier SKU column: {$skuField} = column {$prevIndex} (adjacent to {$priceField})");
                         }
                     }
                 }
             }
         }
         
-        if (!empty($foundPriceIndices)) {
-            // Use the first (highest priority) price as the main price
-            uasort($foundPriceIndices, fn($a, $b) => $a['tier'] <=> $b['tier']);
-            $firstPrice = array_key_first($foundPriceIndices);
-            $mapping['price'] = $firstPrice;
+        // 4c. Detect range/quantity column (e.g. "Users range", "Quantity range")
+        $rangeKeywords = ['users range', 'user range', 'quantity range', 'qty range', 'license range', 'band'];
+        foreach ($rangeKeywords as $keyword) {
+            foreach ($headerMap as $index => $header) {
+                if (str_contains($header, $keyword)) {
+                    $mapping['_range_column'] = $index;
+                    Log::debug("Detected range column: column {$index} (header: {$header})");
+                    break 2;
+                }
+            }
+        }
+
+        // 5. Detect Primary Price column (excluding warranty columns)
+        // First: Try preset columnPatterns for price
+        if (!empty($presetPatterns['price'])) {
+            foreach ($presetPatterns['price'] as $pattern) {
+                $patternLower = mb_strtolower($pattern, 'UTF-8');
+                foreach ($headerMap as $index => $header) {
+                    if (in_array($index, $warrantyIndices)) continue;
+                    if ($header === $patternLower || str_contains($header, $patternLower)) {
+                        $mapping['price'] = $index;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        // Fallback: tiered price pattern search
+        if (!isset($mapping['price'])) {
+            $pricePatterns = [
+                ['(chưa vat)', '(ex vat)', 'msrp (chưa vat)', 'ex-vat', 'exc vat', 'exc. vat', 'chua vat', 'chua v', 'cha v', 'chua vat', 'cha vat', 'giá gốc', 'giá nhập', 'giá mua'], // Tier 0
+                ['msrp', 'isrp', 'srp', 'list price', 'net price', 'base price', 'standard price', 'gpl', 'giá niêm yết', 'giá list'], // Tier 1
+                ['retail price', 'giá bán lẻ', 'giá lẻ', 'end-user', 'end user', 'giá user'], // Tier 2
+                ['purchase price', 'disti', 'distributor price', 'cost price', 'unit cost', 'giá nhập', 'giá vốn'], // Tier 3
+                ['reseller price', 'dealer price', 'partner price', 'giá đại lý', 'đại lý', 'dai ly', 'sales price',
+                 'platinum', 'ec price', 'e-commerce', 'giá ec', 'silver', 'gold', 'bronze'], // Tier 4
+                ['price', 'giá'], // Tier 5
+            ];
             
-            // Additional price columns become custom columns
-            foreach ($foundPriceIndices as $index => $info) {
-                if ($index === $firstPrice) continue;
-                // Create a readable label from the header
-                $label = mb_convert_case($info['header'], MB_CASE_TITLE, "UTF-8");
-                // Clean labels like "msrp (usd)" -> "MSRP (USD)"
-                $label = preg_replace_callback('/\b(usd|msrp|vat)\b/i', fn($m) => strtoupper($m[0]), $label);
-                $mapping['custom_' . $label] = $index;
+            $priceExclusions = ['note', 'ghi chú', 'ghi chu', 'segment', 'category', 'danh mục', 'mô tả', 'description', 'update', 'product information', 'giới thiệu', 'đăng ký', 'cam kết', 'thông tin', 'sheet', 'warranty', 'bảo hành', 'remark'];
+        
+            $foundPriceIndices = [];
+            foreach ($pricePatterns as $tier => $keywords) {
+                foreach ($keywords as $keyword) {
+                    $keywordClean = $superClean($keyword);
+                    foreach ($headerMap as $index => $header) {
+                        if (in_array($index, $usedIndices)) continue;
+                        if (in_array($index, $warrantyIndices)) continue;
+                        
+                        $headerClean = $superClean($header);
+                        
+                        // Strict exclusion check
+                        foreach ($priceExclusions as $excluded) {
+                            if (str_contains($headerClean, $superClean($excluded))) continue 2;
+                        }
+                        
+                        // Skip SKU/Part columns
+                        if (str_contains($headerClean, 'partnumber') || str_contains($headerClean, 'sku')) continue;
+
+                        if (str_contains($headerClean, $keywordClean)) {
+                            $targetIndex = $index;
+                            $score = $getColScore($targetIndex);
+                            
+                            if ($score < 30) {
+                                $adjScore = $getColScore($targetIndex + 1);
+                                if ($adjScore > 50) {
+                                    $targetIndex = $targetIndex + 1;
+                                } else {
+                                    continue; 
+                                }
+                            }
+
+                            if (!isset($foundPriceIndices[$targetIndex]) || $tier < $foundPriceIndices[$targetIndex]['tier']) {
+                                $foundPriceIndices[$targetIndex] = ['tier' => $tier, 'keyword' => $keyword, 'header' => $header];
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (!empty($foundPriceIndices)) {
+                uasort($foundPriceIndices, fn($a, $b) => $a['tier'] <=> $b['tier']);
+                $firstPrice = array_key_first($foundPriceIndices);
+                $mapping['price'] = $firstPrice;
+                
+                foreach ($foundPriceIndices as $index => $info) {
+                    if ($index === $firstPrice) continue;
+                    $label = mb_convert_case($info['header'], MB_CASE_TITLE, "UTF-8");
+                    $label = preg_replace_callback('/\b(usd|msrp|vat)\b/i', fn($m) => strtoupper($m[0]), $label);
+                    $mapping['custom_' . $label] = $index;
+                }
             }
         }
         
         // Fallback: generic 'price' keyword search
         if (!isset($mapping['price'])) {
+            $usedIndices = array_values($mapping);
             foreach ($headerMap as $index => $header) {
-                if (str_contains($header, 'price') || str_contains($header, 'giá') || str_contains($header, 'amount')) {
-                    $mapping['price'] = $index;
-                    break;
+                if (in_array($index, $usedIndices)) continue;
+                if (in_array($index, $warrantyIndices)) continue;
+                
+                $hClean = $superClean($header);
+                
+                // Strict Note/SKU exclusion for fallback
+                $isExcluded = false;
+                foreach ($priceExclusions as $ex) {
+                    if (str_contains($hClean, $superClean($ex))) { $isExcluded = true; break; }
+                }
+                if ($isExcluded) continue;
+                if (str_contains($hClean, 'sku') || str_contains($hClean, 'partnumber')) continue;
+
+                if (str_contains($hClean, 'price') || str_contains($hClean, 'gia') || str_contains($hClean, 'amount')) {
+                    if ($getColScore($index) > 30) {
+                        $mapping['price'] = $index;
+                        break;
+                    }
                 }
             }
         }
 
-        // 5. Detect Description (separate from product_name)
+        // 6. Detect Description (separate from product_name)
+        // First: Try preset columnPatterns for description
+        if (!empty($presetPatterns['description'])) {
+            foreach ($presetPatterns['description'] as $pattern) {
+                $patternLower = mb_strtolower($pattern, 'UTF-8');
+                foreach ($headerMap as $index => $header) {
+                    if ($index === ($mapping['product_name'] ?? -1)) continue;
+                    if ($index === ($mapping['sku'] ?? -1)) continue;
+                    if ($header === $patternLower || str_contains($header, $patternLower)) {
+                        $mapping['description'] = $index;
+                        break 2;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: generic description keywords
         if (!isset($mapping['description']) && isset($mapping['product_name'])) {
             $descKeywords = ['description', 'full description', 'long description', 'specification', 'mô tả'];
             foreach ($descKeywords as $keyword) {
@@ -1343,28 +1883,36 @@ class SupplierPriceListController extends Controller
                 }
             }
         }
-
-        // 6. Detect warranty/contract price tiers
-        $warrantyKeywords = [
-            'price_1yr' => ['1yr', '1 year', 'gold', 'support 1yr', '12 months'],
-            'price_2yr' => ['2yr', '2 year', 'silver', 'support 2yr', '24 months'],
-            'price_3yr' => ['3yr', '3 year', 'bronze', 'support 3yr', '36 months'],
-            'price_4yr' => ['4yr', '4 year', '48 months'],
-            'price_5yr' => ['5yr', '5 year', '60 months'],
-        ];
-
-        foreach ($warrantyKeywords as $field => $keywords) {
-            foreach ($keywords as $keyword) {
-                foreach ($headerMap as $index => $header) {
-                    if (str_contains($header, $keyword)) {
-                        $mapping[$field] = $index;
-                        break 2;
-                    }
+        
+        // Final cleanup: remove duplicate column mappings
+        // If multiple columns have the same header text and one is already mapped to a standard field,
+        // don't also create custom_ entries for the duplicates
+        $mappedHeaders = [];
+        $mappedIndices = [];
+        foreach ($mapping as $field => $index) {
+            if (!str_starts_with($field, 'custom_') && $index !== '' && isset($headerMap[$index])) {
+                $mappedHeaders[] = $headerMap[$index];
+                $mappedIndices[] = $index;
+            }
+        }
+        // Remove custom_ columns that point to a column with a duplicate header of an already-mapped standard field
+        foreach ($mapping as $field => $index) {
+            if (str_starts_with($field, 'custom_') && $index !== '' && isset($headerMap[$index])) {
+                $header = $headerMap[$index];
+                // Remove if this column's header matches any standard field's header
+                if (in_array($header, $mappedHeaders)) {
+                    unset($mapping[$field]);
+                    Log::debug("Removed duplicate custom column '{$field}' (header '{$header}' already mapped to standard field)");
+                }
+                // Also remove if this column's header contains SKU-like keywords
+                if (\Illuminate\Support\Str::contains($header, ['sku', 'part number', 'part no', 'part#', 'p/n', 'mã sản phẩm'])) {
+                    unset($mapping[$field]);
+                    Log::debug("Removed SKU-like custom column '{$field}' (header '{$header}')");
                 }
             }
         }
         
-        Log::debug("Auto-detected mapping: " . json_encode($mapping));
+        Log::debug("Auto-detected mapping: " . json_encode($mapping) . " | Warranty cols excluded from price: " . json_encode($warrantyIndices));
 
         return $mapping;
     }
@@ -1468,12 +2016,15 @@ class SupplierPriceListController extends Controller
              }
         }
 
-        // Remove currency symbols and non-numeric characters (except . and -)
-        // Note: We might have already converted , to . above
+        // Final cleanup: Remove currency symbols and non-numeric characters (except . and -)
         $cleaned = preg_replace('/[^0-9.-]/', '', $str);
         
-        // Final check: if multiple dots remaining, it's likely bad parsing or thousands separators
-        // e.g. "1.200.000" -> cleaned is "1.200.000" -> not numeric
+        // Safety check: if stripping too much (e.g. "ATP800" -> "800"), it's probably not a pure price
+        // If letters were present and digits are small compared to total length, return null
+        if (preg_match('/[a-zA-Z]/', $str) && strlen($cleaned) < (strlen($str) * 0.4)) {
+            return null;
+        }
+
         if (substr_count($cleaned, '.') > 1) {
             $cleaned = str_replace('.', '', $cleaned);
         }
@@ -2029,13 +2580,16 @@ class SupplierPriceListController extends Controller
             $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
             $maxColToProcess = min($highestColIndex, 100);
             
+            // Row-level decision: is headerRow+1 a header continuation or data?
+            $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
+            
             for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
                 $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                 $value = $this->getCellValue($worksheet, $col, $headerRow);
                 $trimVal = trim($value ?? '');
                 
-                // Multi-row header: combine with next row if present
-                if ($headerRow < $highestRow) {
+                // Multi-row header: combine with next row ONLY if row-level check confirmed it
+                if ($isMultiRowHeader && $headerRow < $highestRow) {
                     $nextRowValue = $this->getCellValue($worksheet, $col, $headerRow + 1);
                     $nextVal = trim($nextRowValue ?? '');
                     
@@ -2056,9 +2610,22 @@ class SupplierPriceListController extends Controller
             
             Log::debug("Sheet '{$sheetName}' merged headers: " . json_encode($fileHeaders, JSON_UNESCAPED_UNICODE));
             
-            // Auto detect mapping
-            $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset);
-            
+            // Read sample data rows for validation scoring
+            $rowSamples = [];
+            $dataStartRow = $isMultiRowHeader ? $headerRow + 2 : $headerRow + 1;
+
+            for ($r = $dataStartRow; $r < min($dataStartRow + 20, $highestRow + 1); $r++) {
+                $rowVals = [];
+                foreach ($fileHeaders as $colIdx => $headerName) {
+                    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 1);
+                    $val = $this->getCellValue($worksheet, $col, $r);
+                    $rowVals[$colIdx] = $val;
+                }
+                $rowSamples[] = $rowVals;
+            }
+
+            // Auto detect mapping with data validation
+            $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset, $rowSamples);
             // Kiểm tra xem có mapping hợp lệ không (phải có SKU và ít nhất 1 cột giá)
             // IMPORTANT: Use !isset() instead of empty() because index 0 is a valid column
             // empty(0) returns true in PHP, which would reject SKU in column A

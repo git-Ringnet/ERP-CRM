@@ -164,26 +164,35 @@
                                 <td class="px-3 py-2 text-gray-600">
                                     <div class="text-xs">{{ $item->category ?? '-' }}</div>
                                 </td>
-                                @foreach($priceColumns as $col)
+                                 @foreach($priceColumns as $col)
                                     @php
-                                        $priceValue = null;
+                                        $value = null;
+                                        $isPrice = true;
                                         if ($col['is_custom']) {
-                                            // Lấy giá từ extra_data cho custom columns
-                                            $priceValue = $item->extra_data['prices'][$col['key']] ?? null;
+                                            $type = $col['type'] ?? 'price';
+                                            if ($type === 'text') {
+                                                $value = $item->extra_data['metadata'][$col['key']] ?? null;
+                                                $isPrice = false;
+                                            } else {
+                                                $value = $item->extra_data['prices'][$col['key']] ?? null;
+                                            }
                                         } else {
-                                            // Lấy giá từ cột cố định
-                                            $priceValue = $item->{$col['key']} ?? null;
+                                            $value = $item->{$col['key']} ?? null;
                                         }
-                                        // Ép kiểu về float để tránh lỗi number_format
-                                        $priceValue = $priceValue ? (float) $priceValue : null;
+                                        
                                         $isListPrice = $col['key'] === 'list_price';
                                     @endphp
-                                    <td class="px-3 py-2 text-right whitespace-nowrap {{ $isListPrice ? 'font-medium text-gray-600' : 'text-gray-500 text-xs' }}">
-                                        @if($priceValue)
-                                            @if($isVnd)
-                                                {{ number_format($priceValue, 0) }}₫
+                                    <td class="px-3 py-2 text-right whitespace-nowrap {{ ($isListPrice || !$isPrice) ? 'text-gray-600' : 'text-gray-500 text-xs' }} {{ $isPrice ? '' : 'text-left min-w-[120px]' }}">
+                                        @if($value !== null && $value !== '')
+                                            @if($isPrice)
+                                                @php $numVal = (float)$value; @endphp
+                                                @if($isVnd)
+                                                    {{ number_format($numVal, 0) }}₫
+                                                @else
+                                                    {{ $symbol }}{{ number_format($numVal, 2) }}
+                                                @endif
                                             @else
-                                                {{ $symbol }}{{ number_format($priceValue, 2) }}
+                                                <span class="text-xs">{{ $value }}</span>
                                             @endif
                                         @else
                                             -

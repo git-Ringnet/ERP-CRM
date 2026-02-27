@@ -26,7 +26,7 @@ class PriceListImportTest extends TestCase
                 ],
                 'expected' => [
                     'sku' => 0,
-                    'description' => 1,
+                    'product_name' => 1,
                     'price' => 2,
                     'category' => 3
                 ]
@@ -53,7 +53,7 @@ class PriceListImportTest extends TestCase
                 ],
                 'expected' => [
                     'sku' => 0,
-                    'description' => 1,
+                    'product_name' => 1,
                     'price' => 2
                 ]
             ],
@@ -70,6 +70,29 @@ class PriceListImportTest extends TestCase
                     'price' => 2,
                     'price_1yr' => 3
                 ]
+            ],
+            'Bitdefender_Format' => [
+                'headers' => [
+                    ['index' => 0, 'name' => 'Product Name'],
+                    ['index' => 1, 'name' => 'Users range'],
+                    ['index' => 2, 'name' => 'PART NUMBERS (SKU)'],
+                    ['index' => 3, 'name' => 'Price List/Unit 1 Year'],
+                    ['index' => 4, 'name' => 'PART NUMBERS (SKU)'],
+                    ['index' => 5, 'name' => 'Price List/Unit 2 Years'],
+                    ['index' => 6, 'name' => 'PART NUMBERS (SKU)'],
+                    ['index' => 7, 'name' => 'Price List/Unit 3 Years'],
+                ],
+                'expected' => [
+                    'sku' => 2,
+                    'product_name' => 0,
+                    'price_1yr' => 3,
+                    'price_2yr' => 5,
+                    'price_3yr' => 7,
+                    'sku_2yr' => 4,
+                    'sku_3yr' => 6,
+                    '_range_column' => 1,
+                ],
+                'not_expected_keys' => ['custom_'] // No custom columns from duplicate SKU headers
             ]
         ];
 
@@ -91,6 +114,18 @@ class PriceListImportTest extends TestCase
                     $actual,
                     "Scenario $name: Field '$field' should map to $expectedIndex but got " . ($actual ?? 'null') . "\nFull Mapping: " . json_encode($content['mapping'])
                 );
+            }
+            
+            // Check that certain key prefixes are NOT in the mapping
+            if (isset($data['not_expected_keys'])) {
+                foreach ($data['not_expected_keys'] as $prefix) {
+                    foreach ($content['mapping'] as $key => $val) {
+                        $this->assertFalse(
+                            str_starts_with($key, $prefix),
+                            "Scenario $name: Key '$key' should NOT be in mapping (prefix '$prefix' is excluded)\nFull Mapping: " . json_encode($content['mapping'])
+                        );
+                    }
+                }
             }
             
             echo "Scenario $name passed.\n";

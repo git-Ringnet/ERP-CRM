@@ -517,7 +517,54 @@
             }
         });
 
+        let pendingFile = null; // Store file when blocked by missing supplier
+
         function uploadFile(file) {
+            // Validate supplier is selected before uploading
+            const supplierId = document.getElementById('supplier_id').value;
+            if (!supplierId) {
+                // Store file for later auto-upload
+                pendingFile = file;
+
+                const supplierSelect = document.getElementById('supplier_id');
+                supplierSelect.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                supplierSelect.focus();
+
+                // Show inline error message
+                let errorMsg = document.getElementById('supplier_error');
+                if (!errorMsg) {
+                    errorMsg = document.createElement('p');
+                    errorMsg.id = 'supplier_error';
+                    errorMsg.className = 'text-red-500 text-sm mt-1';
+                    errorMsg.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i>Vui lòng chọn nhà cung cấp trước khi chọn file';
+                    supplierSelect.parentNode.appendChild(errorMsg);
+                }
+
+                // Show file name so user knows the file is "queued"
+                document.getElementById('file_info').innerHTML = `<i class="fas fa-file text-yellow-500"></i> <strong>${file.name}</strong> - <span class="text-yellow-600">Đang chờ chọn NCC...</span>`;
+
+                // Reset file input so same file can be re-selected
+                document.getElementById('excel_file').value = '';
+
+                // When user selects supplier, auto-upload the pending file
+                supplierSelect.addEventListener('change', function onFix() {
+                    if (this.value) {
+                        this.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+                        const err = document.getElementById('supplier_error');
+                        if (err) err.remove();
+                        this.removeEventListener('change', onFix);
+
+                        // Auto-upload the pending file
+                        if (pendingFile) {
+                            const fileToUpload = pendingFile;
+                            pendingFile = null;
+                            uploadFile(fileToUpload);
+                        }
+                    }
+                });
+                return;
+            }
+
             if (!file.name.match(/\.(xlsx|xls|pdf)$/i)) {
                 alert('Vui lòng chọn file Excel (.xlsx, .xls) hoặc PDF (.pdf)');
                 return;

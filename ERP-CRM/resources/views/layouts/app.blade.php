@@ -254,6 +254,12 @@
                         <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
                         <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
                     </a>
+
+                    <a href="{{ route('financial-transactions.index') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-wallet w-6 text-green-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
+                    </a>
                 </div>
 
                 <div class="mt-4">

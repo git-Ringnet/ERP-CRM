@@ -32,6 +32,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\FinancialTransactionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -260,6 +261,12 @@ Route::middleware(['auth'])->group(function () {
 
     // Activities (Tasks/CRM)
     Route::resource('activities', \App\Http\Controllers\ActivityController::class);
+
+    // Financial Transactions (Thu Chi)
+    Route::get('/financial-transactions/categories', [FinancialTransactionController::class, 'categories'])->name('financial-transactions.categories');
+    Route::post('/financial-transactions/categories', [FinancialTransactionController::class, 'storeCategory'])->name('financial-transactions.categories.store');
+    Route::delete('/financial-transactions/categories/{category}', [FinancialTransactionController::class, 'destroyCategory'])->name('financial-transactions.categories.destroy');
+    Route::resource('financial-transactions', FinancialTransactionController::class);
 
     // Work Schedule routes
     Route::get('/work-schedules/get-events', [\App\Http\Controllers\WorkScheduleController::class, 'getEvents'])->name('work-schedules.events');
