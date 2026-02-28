@@ -27,11 +27,11 @@ class SupplierPriceListController extends Controller
                 'description' => ['Description', 'Desc', 'Product Description', 'Description #1'],
                 'price' => ['Price', 'Unit Price', 'List Price', 'MSRP'],
                 'category' => ['Category', 'Product Category', 'Type'],
-                'price_1yr' => ['1yr Contract', '1 Year', '1Yr', 'Replace DD by 12', 'Replaces DD by 12'],
-                'price_2yr' => ['2yr Contract', '2 Year', '2Yr', 'Replace DD by 24', 'Replaces DD by 24'],
-                'price_3yr' => ['3yr Contract', '3 Year', '3Yr', 'Replace DD by 36', 'Replaces DD by 36'],
-                'price_4yr' => ['4yr Contract', '4 Year', '4Yr', 'Replace DD by 48', 'Replaces DD by 48'],
-                'price_5yr' => ['5yr Contract', '5 Year', '5Yr', 'Replace DD by 60', 'Replaces DD by 60'],
+                'price_1yr' => ['1yr Contract', '1 yr Contract', '1 Year', '1Yr', 'Replace DD by 12', 'Replaces DD by 12'],
+                'price_2yr' => ['2yr Contract', '2 yr Contract', '2 Year', '2Yr', 'Replace DD by 24', 'Replaces DD by 24'],
+                'price_3yr' => ['3yr Contract', '3 yr Contract', '3 Year', '3Yr', 'Replace DD by 36', 'Replaces DD by 36'],
+                'price_4yr' => ['4yr Contract', '4 yr Contract', '4 Year', '4Yr', 'Replace DD by 48', 'Replaces DD by 48'],
+                'price_5yr' => ['5yr Contract', '5 yr Contract', '5 Year', '5Yr', 'Replace DD by 60', 'Replaces DD by 60'],
             ],
         ],
         'cisco' => [
@@ -223,22 +223,26 @@ class SupplierPriceListController extends Controller
 
         // Xác định các cột động dựa trên custom_columns
         $priceColumns = [];
+        $standardFields = ['list_price', 'price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'];
+
         if ($supplierPriceList->custom_columns && is_array($supplierPriceList->custom_columns)) {
             foreach ($supplierPriceList->custom_columns as $col) {
+                // Check if this key is actually a standard field
+                $isStandard = in_array($col['key'], $standardFields);
+                
                 $priceColumns[] = [
                     'key' => $col['key'],
                     'label' => $col['label'],
-                    'is_custom' => true,
+                    'is_custom' => !$isStandard,
                     'type' => $col['type'] ?? (str_starts_with($col['key'], 'custom_') ? 'price' : 'text')
                 ];
             }
         } else {
             // Fallback: kiểm tra các cột cố định có dữ liệu không
-            $standardColumns = ['list_price', 'price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'];
             $sampleItem = $supplierPriceList->items()->first();
             
             if ($sampleItem) {
-                foreach ($standardColumns as $col) {
+                foreach ($standardFields as $col) {
                     if ($sampleItem->$col !== null) {
                         $label = match($col) {
                             'list_price' => 'Giá gốc',
@@ -1021,15 +1025,15 @@ class SupplierPriceListController extends Controller
                     }
                     $hasDynamicPrice = !empty($extraPrices);
 
-                    // Check all possible price columns
-                    $hasPrice = !!($listPrice || $price1yr || $hasDynamicPrice);
+                    // Check all possible price columns (Allow 0 price)
+                    $hasPrice = ($listPrice !== null || $price1yr !== null || $hasDynamicPrice);
                     
                     if (!$hasPrice) {
                         // Check other standard price columns (price_2yr..5yr)
                         foreach (['price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $priceCol) {
                             if (isset($mapping[$priceCol]) && $mapping[$priceCol] !== '') {
                                 $val = $this->parsePrice($rowData[$mapping[$priceCol]] ?? null);
-                                if ($val) {
+                                if ($val !== null) {
                                     $hasPrice = true;
                                     break;
                                 }
@@ -1239,24 +1243,56 @@ class SupplierPriceListController extends Controller
         };
 
         // Helper: score a set of values against keywords
-        $scoreValues = function (array $values) use ($headerKeywords): array {
-            $matches = 0;
-            $hasPriceKw = false;
-            foreach ($values as $value) {
-                if (empty($value)) continue;
-                $clean = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($value));
-                if (str_contains($clean, 'price') || str_contains($clean, 'msrp') ||
-                    str_contains($clean, 'purchase') || str_contains($clean, 'dealer')) {
-                    $hasPriceKw = true;
-                }
-                foreach ($headerKeywords as $kw) {
-                    $ckw = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($kw));
-                    if (str_contains($clean, $ckw)) { $matches++; break; }
+    $scoreValues = function (array $values) use ($headerKeywords): array {
+        $matches = 0;
+        $uniqueKeywords = [];
+        $hasPriceKw = false;
+        $hasSkuKw = false;
+        $nonEmptyValues = array_filter($values);
+        $totalNonEmpty = count($nonEmptyValues);
+        
+        if ($totalNonEmpty === 0) return ['matches' => 0, 'nonEmpty' => 0];
+
+        foreach ($nonEmptyValues as $value) {
+            $clean = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($value));
+            
+            if (str_contains($clean, 'sku') || str_contains($clean, 'partnumber') || 
+                str_contains($clean, 'partno') || str_contains($clean, 'pn')) {
+                $hasSkuKw = true;
+            }
+            if (str_contains($clean, 'price') || str_contains($clean, 'msrp') ||
+                str_contains($clean, 'purchase') || str_contains($clean, 'dealer') ||
+                str_contains($clean, 'contract') || str_contains($clean, 'usd')) {
+                $hasPriceKw = true;
+            }
+            
+            foreach ($headerKeywords as $kw) {
+                $ckw = preg_replace('/[^a-z0-9\p{L}]/u', '', mb_strtolower($kw));
+                if (str_contains($clean, $ckw)) {
+                    if (!isset($uniqueKeywords[$ckw])) {
+                        $matches++;
+                        $uniqueKeywords[$ckw] = true;
+                    }
+                    break;
                 }
             }
-            if ($hasPriceKw) $matches += 10;
-            return ['matches' => $matches, 'nonEmpty' => count(array_filter($values))];
-        };
+        }
+
+        $uniquenessRatio = count(array_unique($nonEmptyValues)) / $totalNonEmpty;
+        
+        // Base score = unique matches
+        $finalScore = (float)$matches;
+        if ($hasSkuKw) $finalScore += 15;
+        if ($hasPriceKw) $finalScore += 10;
+        
+        // Penalize highly repetitive rows (likely titles or decorations)
+        // A real header row should have unique labels across many columns
+        if ($uniquenessRatio < 0.4 && $totalNonEmpty > 3) {
+            $finalScore *= 0.1;
+        }
+
+        return ['matches' => $finalScore, 'nonEmpty' => $totalNonEmpty, 'uniqueness' => $uniquenessRatio];
+    };
 
         $rowsToCheck = range(1, 50);
         if ($suggestedRow > 0 && !in_array($suggestedRow, $rowsToCheck)) {
@@ -1333,7 +1369,8 @@ class SupplierPriceListController extends Controller
         }
 
         // Return best row if found
-        if ($maxMatches >= 1) {
+        // Use a higher threshold to avoid titles (typically score 1.5-2 after penalty)
+        if ($maxMatches >= 5) {
             Log::debug("Found best header at row {$bestRow} with score {$maxMatches}");
             return $bestRow;
         }
@@ -1531,6 +1568,35 @@ class SupplierPriceListController extends Controller
             }
         }
 
+        // Fortinet Specific Detect
+        if (str_contains($allHeaderStr, '1yrcontract') || str_contains($allHeaderStr, 'support1yr')) {
+            Log::info("Fortinet-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if ($sc === 'price') $mapping['price'] = $idx;
+                if ($sc === 'netprice') $mapping['custom_Net Price'] = $idx;
+                if ($sc === 'unit') $mapping['category'] = $idx;
+                if (str_contains($sc, 'sku') || $sc === 'partnumber') $mapping['sku'] = $idx;
+                if ($sc === 'description') $mapping['product_name'] = $idx;
+            }
+        }
+
+        // Fortinet Specific Detect
+        if (str_contains($allHeaderStr, '1yrcontract') || str_contains($allHeaderStr, 'support1yr') || 
+            (str_contains($allHeaderStr, 'fortigate') && str_contains($allHeaderStr, 'sku'))) {
+            Log::info("Fortinet-style headers detected. Applying specific mapping rules.");
+            foreach ($headerMap as $idx => $header) {
+                $sc = $superClean($header);
+                if ($sc === 'price' || $sc === 'msrp') $mapping['price'] = $idx;
+                if ($sc === 'netprice') $mapping['custom_Net Price'] = $idx;
+                if ($sc === 'unit' || $sc === 'identifier') $mapping['category'] = $idx;
+                if (str_contains($sc, 'sku') || $sc === 'partnumber') $mapping['sku'] = $idx;
+                if ($sc === 'product' || $sc === 'description' || str_contains($sc, 'description1')) {
+                    $mapping['product_name'] = $idx;
+                }
+            }
+        }
+
         // 1. Detect SKU (Quan trọng nhất)
         // First: Try preset columnPatterns for exact match
         $presetPatterns = $preset['columnPatterns'] ?? [];
@@ -1630,11 +1696,11 @@ class SupplierPriceListController extends Controller
         // 4. Detect warranty/contract price tiers FIRST (before primary price)
         // This ensures warranty columns are excluded from primary price detection
         $warrantyKeywords = [
-            'price_1yr' => ['1yr', '1 year', '1 năm', 'support 1yr', '12 months', '1y support', 'support 1y'],
-            'price_2yr' => ['2yr', '2 year', '2 năm', 'support 2yr', '24 months', '2y support', 'support 2y'],
-            'price_3yr' => ['3yr', '3 year', '3 năm', 'support 3yr', '36 months', '3y support', 'support 3y'],
-            'price_4yr' => ['4yr', '4 year', '4 năm', '48 months', '4y support', 'support 4y'],
-            'price_5yr' => ['5yr', '5 year', '5 năm', '60 months', '5y support', 'support 5y'],
+            'price_1yr' => ['1yr', '1 yr', '1 year', '1 năm', 'support 1yr', '12 months', '1y support', 'support 1y'],
+            'price_2yr' => ['2yr', '2 yr', '2 year', '2 năm', 'support 2yr', '24 months', '2y support', 'support 2y'],
+            'price_3yr' => ['3yr', '3 yr', '3 year', '3 năm', 'support 3yr', '36 months', '3y support', 'support 3y'],
+            'price_4yr' => ['4yr', '4 yr', '4 year', '4 năm', '48 months', '4y support', 'support 4y'],
+            'price_5yr' => ['5yr', '5 yr', '5 year', '5 năm', '60 months', '5y support', 'support 5y'],
         ];
 
         // First: Try preset columnPatterns for warranty
@@ -1764,12 +1830,12 @@ class SupplierPriceListController extends Controller
         if (!isset($mapping['price'])) {
             $pricePatterns = [
                 ['(chưa vat)', '(ex vat)', 'msrp (chưa vat)', 'ex-vat', 'exc vat', 'exc. vat', 'chua vat', 'chua v', 'cha v', 'chua vat', 'cha vat', 'giá gốc', 'giá nhập', 'giá mua'], // Tier 0
-                ['msrp', 'isrp', 'srp', 'list price', 'net price', 'base price', 'standard price', 'gpl', 'giá niêm yết', 'giá list'], // Tier 1
+                ['msrp', 'isrp', 'srp', 'list price', 'price', 'net price', 'base price', 'standard price', 'gpl', 'giá niêm yết', 'giá list'], // Tier 1
                 ['retail price', 'giá bán lẻ', 'giá lẻ', 'end-user', 'end user', 'giá user'], // Tier 2
                 ['purchase price', 'disti', 'distributor price', 'cost price', 'unit cost', 'giá nhập', 'giá vốn'], // Tier 3
                 ['reseller price', 'dealer price', 'partner price', 'giá đại lý', 'đại lý', 'dai ly', 'sales price',
                  'platinum', 'ec price', 'e-commerce', 'giá ec', 'silver', 'gold', 'bronze'], // Tier 4
-                ['price', 'giá'], // Tier 5
+                ['giá'], // Tier 5
             ];
             
             $priceExclusions = ['note', 'ghi chú', 'ghi chu', 'segment', 'category', 'danh mục', 'mô tả', 'description', 'update', 'product information', 'giới thiệu', 'đăng ký', 'cam kết', 'thông tin', 'sheet', 'warranty', 'bảo hành', 'remark'];
@@ -1820,6 +1886,17 @@ class SupplierPriceListController extends Controller
                 
                 foreach ($foundPriceIndices as $index => $info) {
                     if ($index === $firstPrice) continue;
+                    
+                    // Prevent standard warranty/year tiers from being added to custom_columns
+                    $isTier = false;
+                    foreach ($warrantyKeywords as $key => $kwList) {
+                        if (in_array($index, $mapping) && array_search($index, $mapping) === $key) {
+                            $isTier = true;
+                            break;
+                        }
+                    }
+                    if ($isTier) continue;
+
                     $label = mb_convert_case($info['header'], MB_CASE_TITLE, "UTF-8");
                     $label = preg_replace_callback('/\b(usd|msrp|vat)\b/i', fn($m) => strtoupper($m[0]), $label);
                     $mapping['custom_' . $label] = $index;
