@@ -15,7 +15,9 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $this->checkPermission($user, 'view_purchase_orders');
+        return $this->checkPermission($user, 'view_purchase_orders') ||
+               $this->checkPermission($user, 'view_all_purchase_orders') ||
+               $this->checkPermission($user, 'view_own_purchase_orders');
     }
 
     /**
@@ -27,7 +29,17 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function view(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $this->checkPermission($user, 'view_purchase_orders');
+        // If user has view_all_purchase_orders or general view_purchase_orders, allow
+        if ($this->checkPermission($user, 'view_all_purchase_orders') || $this->checkPermission($user, 'view_purchase_orders')) {
+            return true;
+        }
+
+        // If user has view_own_purchase_orders, only allow if they created the purchase order
+        if ($this->checkPermission($user, 'view_own_purchase_orders')) {
+            return $purchaseOrder->created_by === $user->id;
+        }
+
+        return false;
     }
 
     /**
@@ -75,5 +87,16 @@ class PurchaseOrderPolicy extends BasePolicy
     public function approve(User $user, PurchaseOrder $purchaseOrder): bool
     {
         return $this->checkPermission($user, 'approve_purchase_orders');
+    }
+
+    /**
+     * Determine whether the user can export purchase orders.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function export(User $user): bool
+    {
+        return $this->checkPermission($user, 'export_purchase_orders');
     }
 }

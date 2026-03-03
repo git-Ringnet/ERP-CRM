@@ -14,8 +14,10 @@ class MilestoneTemplateController extends Controller
     /**
      * Display a listing of milestone templates.
      */
-    public function index(Request $request): View
+    public function index(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\MilestoneTemplate::class);
+        
         $query = MilestoneTemplate::with(['creator', 'milestones']);
 
         if ($request->filled('stage_type')) {
@@ -32,6 +34,8 @@ class MilestoneTemplateController extends Controller
      */
     public function create(): View
     {
+        $this->authorize('create', MilestoneTemplate::class);
+        
         return view('milestone-templates.create');
     }
 
@@ -40,6 +44,8 @@ class MilestoneTemplateController extends Controller
      */
     public function store(MilestoneTemplateRequest $request): RedirectResponse
     {
+        $this->authorize('create', MilestoneTemplate::class);
+        
         $template = MilestoneTemplate::create([
             ...$request->validated(),
             'created_by' => auth()->id(),
@@ -66,6 +72,8 @@ class MilestoneTemplateController extends Controller
      */
     public function show(MilestoneTemplate $milestoneTemplate): View
     {
+        $this->authorize('view', $milestoneTemplate);
+        
         $milestoneTemplate->load(['creator', 'milestones']);
         
         return view('milestone-templates.show', compact('milestoneTemplate'));
@@ -76,6 +84,8 @@ class MilestoneTemplateController extends Controller
      */
     public function edit(MilestoneTemplate $milestoneTemplate): View
     {
+        $this->authorize('update', $milestoneTemplate);
+        
         $milestoneTemplate->load('milestones');
         
         return view('milestone-templates.edit', compact('milestoneTemplate'));
@@ -86,6 +96,8 @@ class MilestoneTemplateController extends Controller
      */
     public function update(MilestoneTemplateRequest $request, MilestoneTemplate $milestoneTemplate): RedirectResponse
     {
+        $this->authorize('update', $milestoneTemplate);
+        
         $milestoneTemplate->update($request->validated());
 
         return redirect()->route('milestone-templates.index')
@@ -97,6 +109,8 @@ class MilestoneTemplateController extends Controller
      */
     public function destroy(MilestoneTemplate $milestoneTemplate): RedirectResponse
     {
+        $this->authorize('delete', $milestoneTemplate);
+        
         $milestoneTemplate->delete();
 
         return redirect()->route('milestone-templates.index')

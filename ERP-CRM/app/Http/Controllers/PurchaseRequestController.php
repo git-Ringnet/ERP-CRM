@@ -16,6 +16,8 @@ class PurchaseRequestController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', PurchaseRequest::class);
+
         $query = PurchaseRequest::with(['suppliers', 'items', 'quotations']);
 
         if ($request->filled('search')) {
@@ -42,6 +44,8 @@ class PurchaseRequestController extends Controller
 
     public function create()
     {
+        $this->authorize('create', PurchaseRequest::class);
+
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = PurchaseRequest::generateCode();
@@ -51,6 +55,8 @@ class PurchaseRequestController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', PurchaseRequest::class);
+
         $validated = $request->validate([
             'code' => 'required|unique:purchase_requests,code',
             'title' => 'required|string|max:255',
@@ -116,12 +122,16 @@ class PurchaseRequestController extends Controller
 
     public function show(PurchaseRequest $purchaseRequest)
     {
+        $this->authorize('view', $purchaseRequest);
+
         $purchaseRequest->load(['suppliers', 'items.product', 'quotations.supplier', 'creator']);
         return view('purchase-requests.show', compact('purchaseRequest'));
     }
 
     public function edit(PurchaseRequest $purchaseRequest)
     {
+        $this->authorize('update', $purchaseRequest);
+
         if (!in_array($purchaseRequest->status, ['draft'])) {
             return back()->with('error', 'Chỉ có thể sửa yêu cầu ở trạng thái Nháp!');
         }
@@ -135,6 +145,8 @@ class PurchaseRequestController extends Controller
 
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $this->authorize('update', $purchaseRequest);
+
         if (!in_array($purchaseRequest->status, ['draft'])) {
             return back()->with('error', 'Chỉ có thể sửa yêu cầu ở trạng thái Nháp!');
         }
@@ -185,6 +197,8 @@ class PurchaseRequestController extends Controller
 
     public function destroy(PurchaseRequest $purchaseRequest)
     {
+        $this->authorize('delete', $purchaseRequest);
+
         if (!in_array($purchaseRequest->status, ['draft', 'cancelled'])) {
             return back()->with('error', 'Không thể xóa yêu cầu đã gửi!');
         }

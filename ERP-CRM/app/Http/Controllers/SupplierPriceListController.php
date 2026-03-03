@@ -120,6 +120,8 @@ class SupplierPriceListController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('viewAny', SupplierPriceList::class);
+        
         $query = SupplierPriceList::with('supplier', 'createdBy')
             ->withCount('items');
 
@@ -148,18 +150,24 @@ class SupplierPriceListController extends Controller
 
     public function create()
     {
+        $this->authorize('create', SupplierPriceList::class);
+        
         $suppliers = Supplier::orderBy('name')->get();
         return view('supplier-price-lists.create', compact('suppliers'));
     }
 
     public function edit(SupplierPriceList $supplierPriceList)
     {
+        $this->authorize('update', $supplierPriceList);
+        
         $suppliers = Supplier::orderBy('name')->get();
         return view('supplier-price-lists.edit', compact('supplierPriceList', 'suppliers'));
     }
 
     public function update(Request $request, SupplierPriceList $supplierPriceList)
     {
+        $this->authorize('update', $supplierPriceList);
+        
         $request->validate([
             'name' => 'required|string|max:255',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -187,6 +195,8 @@ class SupplierPriceListController extends Controller
 
     public function show(SupplierPriceList $supplierPriceList)
     {
+        $this->authorize('view', $supplierPriceList);
+        
         $supplierPriceList->load('supplier', 'createdBy');
 
         $items = $supplierPriceList->items()

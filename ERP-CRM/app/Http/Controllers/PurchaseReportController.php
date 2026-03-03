@@ -15,6 +15,8 @@ class PurchaseReportController extends Controller
 {
     public function index(Request $request): View
     {
+        $this->authorize('viewAny', \App\Models\PurchaseReport::class);
+        
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $supplierId = $request->input('supplier_id');
@@ -265,6 +267,8 @@ class PurchaseReportController extends Controller
 
     public function export(Request $request)
     {
+        $this->authorize('export', \App\Models\PurchaseReport::class);
+        
         // Export logic here
         return redirect()->back()->with('success', 'Đã xuất báo cáo thành công!');
     }

@@ -29,4 +29,15 @@ class InventoryPolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'view_inventory');
     }
+
+    /**
+     * Determine whether the user can export inventory data.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function export(User $user): bool
+    {
+        return $this->checkPermission($user, 'export_inventory');
+    }
 }

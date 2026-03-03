@@ -26,6 +26,8 @@ class WarrantyController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Warranty::class);
+        
         $filters = [
             'status' => $request->get('status'),
             'date_from' => $request->get('date_from'),
@@ -49,6 +51,8 @@ class WarrantyController extends Controller
      */
     public function expiring(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Warranty::class);
+        
         $days = $request->get('days', 30);
         $warranties = $this->warrantyService->getExpiringWarranties($days);
         $statusLabels = SaleItem::getWarrantyStatusLabels();
@@ -63,6 +67,8 @@ class WarrantyController extends Controller
      */
     public function show(SaleItem $saleItem)
     {
+        $this->authorize('view', [\App\Models\Warranty::class, $saleItem]);
+        
         $saleItem->load(['sale.customer', 'product']);
         $statusLabels = SaleItem::getWarrantyStatusLabels();
         $statusColors = SaleItem::getWarrantyStatusColors();
@@ -76,6 +82,8 @@ class WarrantyController extends Controller
      */
     public function report(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Warranty::class);
+        
         $filters = [
             'date_from' => $request->get('date_from'),
             'date_to' => $request->get('date_to'),
@@ -95,6 +103,8 @@ class WarrantyController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('export', \App\Models\Warranty::class);
+        
         $filters = [
             'status' => $request->get('status'),
             'date_from' => $request->get('date_from'),

@@ -16,6 +16,8 @@ class PriceListController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', PriceList::class);
+        
         $query = PriceList::with('customer');
 
         if ($request->filled('search')) {
@@ -43,6 +45,8 @@ class PriceListController extends Controller
 
     public function create()
     {
+        $this->authorize('create', PriceList::class);
+        
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
         $code = $this->generateCode();
@@ -66,6 +70,8 @@ class PriceListController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', PriceList::class);
+        
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:price_lists,code'],
             'name' => ['required', 'string', 'max:255'],
@@ -120,12 +126,16 @@ class PriceListController extends Controller
 
     public function show(PriceList $priceList)
     {
+        $this->authorize('view', $priceList);
+        
         $priceList->load('items.product', 'customer');
         return view('price-lists.show', compact('priceList'));
     }
 
     public function edit(PriceList $priceList)
     {
+        $this->authorize('update', $priceList);
+        
         $priceList->load('items');
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
@@ -135,6 +145,8 @@ class PriceListController extends Controller
 
     public function update(Request $request, PriceList $priceList)
     {
+        $this->authorize('update', $priceList);
+        
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('price_lists')->ignore($priceList->id)],
             'name' => ['required', 'string', 'max:255'],
@@ -190,6 +202,8 @@ class PriceListController extends Controller
 
     public function destroy(PriceList $priceList)
     {
+        $this->authorize('delete', $priceList);
+        
         DB::beginTransaction();
         try {
             $priceList->items()->delete();
@@ -230,6 +244,8 @@ class PriceListController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('export', PriceList::class);
+        
         $filters = $request->only(['search', 'type', 'status']);
         $filename = 'bang-gia-' . date('Y-m-d') . '.xlsx';
         

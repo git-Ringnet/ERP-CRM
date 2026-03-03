@@ -43,6 +43,8 @@ class TransferController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Transfer::class);
+
         $query = Transfer::with(['fromWarehouse', 'toWarehouse', 'employee', 'items']);
 
         if ($request->filled('warehouse_id')) {
@@ -81,6 +83,8 @@ class TransferController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Transfer::class);
+
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
@@ -94,6 +98,8 @@ class TransferController extends Controller
      */
     public function store(TransferRequest $request)
     {
+        $this->authorize('create', Transfer::class);
+
         try {
             $data = $request->validated();
 
@@ -121,6 +127,8 @@ class TransferController extends Controller
      */
     public function show(Transfer $transfer)
     {
+        $this->authorize('view', $transfer);
+
         $transfer->load(['fromWarehouse', 'toWarehouse', 'employee', 'items.product']);
 
         return view('transfers.show', compact('transfer'));
@@ -131,6 +139,8 @@ class TransferController extends Controller
      */
     public function edit(Transfer $transfer)
     {
+        $this->authorize('update', $transfer);
+
         if ($transfer->status !== 'pending') {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -169,6 +179,8 @@ class TransferController extends Controller
      */
     public function update(TransferRequest $request, Transfer $transfer)
     {
+        $this->authorize('update', $transfer);
+
         if ($transfer->status !== 'pending') {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -223,6 +235,8 @@ class TransferController extends Controller
      */
     public function destroy(Transfer $transfer)
     {
+        $this->authorize('delete', $transfer);
+
         // Only allow deleting pending or rejected transfers
         if (!in_array($transfer->status, ['pending', 'rejected'])) {
             return redirect()->route('transfers.index')
@@ -246,6 +260,8 @@ class TransferController extends Controller
      */
     public function approve(Transfer $transfer)
     {
+        $this->authorize('update', $transfer);
+
         if ($transfer->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -279,6 +295,8 @@ class TransferController extends Controller
      */
     public function reject(Request $request, Transfer $transfer)
     {
+        $this->authorize('update', $transfer);
+
         if ($transfer->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -318,6 +336,8 @@ class TransferController extends Controller
      */
     public function getAvailableItems(Request $request)
     {
+        $this->authorize('viewAny', Transfer::class);
+
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'warehouse_id' => 'required|exists:warehouses,id',
@@ -349,6 +369,8 @@ class TransferController extends Controller
      */
     public function exportToExcel(Request $request)
     {
+        $this->authorize('viewAny', Transfer::class);
+
         $filters = $request->only(['from_warehouse_id', 'to_warehouse_id', 'status', 'date_from', 'date_to']);
         return \Excel::download(new \App\Exports\TransfersExport($filters), 'phieu-chuyen-kho-' . date('Y-m-d') . '.xlsx');
     }

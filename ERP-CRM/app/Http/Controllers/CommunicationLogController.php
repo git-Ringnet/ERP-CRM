@@ -14,6 +14,8 @@ class CommunicationLogController extends Controller
      */
     public function store(CommunicationLogRequest $request, CustomerCareStage $stage): RedirectResponse
     {
+        $this->authorize('update', $stage);
+        
         $stage->communicationLogs()->create([
             'user_id' => auth()->id(),
             'type' => $request->type,
@@ -32,6 +34,8 @@ class CommunicationLogController extends Controller
      */
     public function update(CommunicationLogRequest $request, CommunicationLog $log): RedirectResponse
     {
+        $this->authorize('update', $log->customerCareStage);
+        
         $log->update($request->validated());
 
         return redirect()->back()->with('success', 'Đã cập nhật thông tin giao tiếp.');
@@ -42,6 +46,8 @@ class CommunicationLogController extends Controller
      */
     public function destroy(CommunicationLog $log): RedirectResponse
     {
+        $this->authorize('update', $log->customerCareStage);
+        
         $log->delete();
 
         return redirect()->back()->with('success', 'Đã xóa thông tin giao tiếp.');

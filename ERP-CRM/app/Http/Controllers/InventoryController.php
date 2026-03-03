@@ -22,6 +22,8 @@ class InventoryController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Inventory::class);
+
         $query = Inventory::with(['product', 'warehouse']);
 
         // Filter by warehouse
@@ -78,6 +80,8 @@ class InventoryController extends Controller
      */
     public function show(Inventory $inventory)
     {
+        $this->authorize('view', $inventory);
+
         $inventory->load(['product', 'warehouse']);
 
         return view('inventory.show', compact('inventory'));
@@ -88,6 +92,8 @@ class InventoryController extends Controller
      */
     public function lowStock()
     {
+        $this->authorize('viewAny', Inventory::class);
+
         $inventories = $this->inventoryService->getLowStockItems();
 
         return view('inventory.low-stock', compact('inventories'));
@@ -98,6 +104,8 @@ class InventoryController extends Controller
      */
     public function expiringSoon()
     {
+        $this->authorize('viewAny', Inventory::class);
+
         $inventories = $this->inventoryService->getExpiringItems(30);
 
         return view('inventory.expiring', compact('inventories'));
@@ -108,6 +116,8 @@ class InventoryController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('export', Inventory::class);
+
         $filters = $request->only(['warehouse_id', 'product_id']);
         return \Excel::download(new \App\Exports\InventoryExport($filters), 'ton-kho-' . date('Y-m-d') . '.xlsx');
     }

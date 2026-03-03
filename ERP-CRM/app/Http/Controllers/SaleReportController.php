@@ -17,6 +17,8 @@ class SaleReportController extends Controller
      */
     public function index(Request $request): View
     {
+        $this->authorize('viewAny', \App\Models\SaleReport::class);
+        
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $customerId = $request->input('customer_id');
@@ -240,6 +242,8 @@ class SaleReportController extends Controller
 
     public function export(Request $request)
     {
+        $this->authorize('export', \App\Models\SaleReport::class);
+        
         // Export logic here (Reuse existing export or create new one)
         return redirect()->back()->with('warning', 'Chức năng xuất báo cáo đang được phát triển.');
     }

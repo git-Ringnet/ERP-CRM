@@ -9,6 +9,14 @@ use Carbon\Carbon;
 class DashboardController extends Controller
 {
     /**
+     * Create a new DashboardController instance.
+     */
+    public function __construct()
+    {
+        $this->middleware('permission:view_dashboard');
+    }
+
+    /**
      * Display the dashboard with summary statistics and recent activities.
      * 
      * Requirements: 6.1, 6.5

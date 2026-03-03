@@ -34,7 +34,7 @@ class PermissionSeeder extends Seeder
             'activities' => ['view', 'create', 'edit', 'delete', 'export'],
             'customer_care_stages' => ['view', 'create', 'edit', 'delete'],
             'projects' => ['view', 'create', 'edit', 'delete', 'export'],
-            'customer_debts' => ['view', 'export'],
+            'customer_debts' => ['view', 'export', 'record_payment', 'delete_payment'],
             'cost_formulas' => ['view', 'create', 'edit', 'delete'],
             'sale_reports' => ['view', 'export'],
             'purchase_orders' => ['view', 'create', 'edit', 'delete', 'export'],
@@ -53,6 +53,13 @@ class PermissionSeeder extends Seeder
             'audit_logs' => ['view'],
             'user_roles' => ['view', 'assign', 'revoke'],
             'user_permissions' => ['view', 'assign', 'revoke'],
+            'price_lists' => ['view', 'create', 'edit', 'delete', 'export'],
+            'milestone_templates' => ['view', 'create', 'edit', 'delete'],
+            'warranties' => ['view', 'export'],
+            'excel_imports' => ['view', 'create'],
+            'reminders' => ['view', 'create', 'edit', 'delete'],
+            'notifications' => ['view'],
+            'dashboard' => ['view'],
         ];
         
         $permissions = [];
@@ -120,6 +127,34 @@ class PermissionSeeder extends Seeder
                 'module' => 'sales',
                 'action' => 'view',
             ],
+            [
+                'name' => 'Xem Tất cả Báo giá',
+                'slug' => 'view_all_quotations',
+                'description' => 'Quyền xem tất cả báo giá',
+                'module' => 'quotations',
+                'action' => 'view',
+            ],
+            [
+                'name' => 'Xem Báo giá Của mình',
+                'slug' => 'view_own_quotations',
+                'description' => 'Quyền chỉ xem báo giá của mình',
+                'module' => 'quotations',
+                'action' => 'view',
+            ],
+            [
+                'name' => 'Xem Tất cả Đơn mua hàng',
+                'slug' => 'view_all_purchase_orders',
+                'description' => 'Quyền xem tất cả đơn mua hàng',
+                'module' => 'purchase_orders',
+                'action' => 'view',
+            ],
+            [
+                'name' => 'Xem Đơn mua hàng Của mình',
+                'slug' => 'view_own_purchase_orders',
+                'description' => 'Quyền chỉ xem đơn mua hàng của mình',
+                'module' => 'purchase_orders',
+                'action' => 'view',
+            ],
         ];
         
         foreach ($specialPermissions as $permission) {
@@ -185,6 +220,13 @@ class PermissionSeeder extends Seeder
             'audit_logs' => 'Nhật ký Kiểm toán',
             'user_roles' => 'Vai trò Người dùng',
             'user_permissions' => 'Quyền Người dùng',
+            'price_lists' => 'Bảng giá',
+            'milestone_templates' => 'Mẫu mốc quan trọng',
+            'warranties' => 'Bảo hành',
+            'excel_imports' => 'Nhập Excel',
+            'reminders' => 'Nhắc nhở',
+            'notifications' => 'Thông báo',
+            'dashboard' => 'Trang chủ',
         ];
         
         $actionText = $actionMap[$action] ?? ucfirst($action);
@@ -245,6 +287,13 @@ class PermissionSeeder extends Seeder
             'audit_logs' => 'nhật ký kiểm toán',
             'user_roles' => 'vai trò người dùng',
             'user_permissions' => 'quyền người dùng',
+            'price_lists' => 'bảng giá',
+            'milestone_templates' => 'mẫu mốc quan trọng',
+            'warranties' => 'bảo hành',
+            'excel_imports' => 'nhập excel',
+            'reminders' => 'nhắc nhở',
+            'notifications' => 'thông báo',
+            'dashboard' => 'trang chủ',
         ];
         
         $actionText = $actionMap[$action] ?? $action;

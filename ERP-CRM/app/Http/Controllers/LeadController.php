@@ -11,6 +11,8 @@ class LeadController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', \App\Models\Lead::class);
+
         $leads = \App\Models\Lead::latest()->paginate(10);
         return view('leads.index', compact('leads'));
     }
@@ -20,6 +22,8 @@ class LeadController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', \App\Models\Lead::class);
+
         $users = \App\Models\User::all();
         return view('leads.create', compact('users'));
     }
@@ -29,6 +33,8 @@ class LeadController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', \App\Models\Lead::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'company_name' => 'nullable|string|max:255',
@@ -52,6 +58,8 @@ class LeadController extends Controller
      */
     public function show(\App\Models\Lead $lead)
     {
+        $this->authorize('view', $lead);
+
         return view('leads.show', compact('lead'));
     }
 
@@ -60,6 +68,8 @@ class LeadController extends Controller
      */
     public function edit(\App\Models\Lead $lead)
     {
+        $this->authorize('update', $lead);
+
         $users = \App\Models\User::all();
         return view('leads.edit', compact('lead', 'users'));
     }
@@ -69,6 +79,8 @@ class LeadController extends Controller
      */
     public function update(Request $request, \App\Models\Lead $lead)
     {
+        $this->authorize('update', $lead);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'company_name' => 'nullable|string|max:255',
@@ -90,6 +102,8 @@ class LeadController extends Controller
      */
     public function destroy(\App\Models\Lead $lead)
     {
+        $this->authorize('delete', $lead);
+
         $lead->delete();
         return redirect()->route('leads.index')->with('success', 'Đã xóa đấu mối.');
     }
@@ -99,6 +113,8 @@ class LeadController extends Controller
      */
     public function convert(Request $request, \App\Models\Lead $lead)
     {
+        $this->authorize('update', $lead);
+
         // 1. Check if already converted
         if ($lead->status === 'converted') {
             return back()->with('error', 'Đấu mối này đã được chuyển đổi.');

@@ -20,6 +20,8 @@ class ReportController extends Controller
 {
     public function inventorySummary(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Report::class);
+        
         $query = Inventory::with(['product', 'warehouse']);
 
         // Filter by warehouse
@@ -82,6 +84,8 @@ class ReportController extends Controller
 
     public function transactionReport(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Report::class);
+        
         // Build queries for each transaction type
         $importsQuery = Import::with(['warehouse', 'employee', 'items.product'])
             ->select('id', 'code', 'warehouse_id', 'date', 'employee_id', 'total_qty', 'status', 'note', 'created_at')
@@ -210,6 +214,8 @@ class ReportController extends Controller
 
     public function damagedGoodsReport(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Report::class);
+        
         $query = DamagedGood::with(['product', 'discoveredBy']);
 
         // Filter by type
@@ -292,6 +298,8 @@ class ReportController extends Controller
      */
     public function exportInventorySummary(Request $request)
     {
+        $this->authorize('export', \App\Models\Report::class);
+        
         $query = Inventory::with(['product', 'warehouse']);
 
         if ($request->filled('warehouse_id')) {
@@ -319,6 +327,8 @@ class ReportController extends Controller
      */
     public function exportTransactionReport(Request $request)
     {
+        $this->authorize('export', \App\Models\Report::class);
+        
         // Build queries for each transaction type
         $importsQuery = Import::with(['warehouse', 'employee']);
         $exportsQuery = Export::with(['warehouse', 'employee']);
@@ -395,6 +405,8 @@ class ReportController extends Controller
      */
     public function exportDamagedGoodsReport(Request $request)
     {
+        $this->authorize('export', \App\Models\Report::class);
+        
         $query = DamagedGood::with(['product', 'discoveredBy']);
 
         if ($request->filled('type')) {

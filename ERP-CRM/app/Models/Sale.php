@@ -17,6 +17,7 @@ class Sale extends Model
         'project_id',
         'customer_id',
         'customer_name',
+        'user_id',
         'date',
         'delivery_address',
         'subtotal',
@@ -52,6 +53,14 @@ class Sale extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Relationship with User (creator/salesperson)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**

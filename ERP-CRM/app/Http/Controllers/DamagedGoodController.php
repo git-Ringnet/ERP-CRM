@@ -19,6 +19,8 @@ class DamagedGoodController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', DamagedGood::class);
+
         $query = DamagedGood::with(['product', 'discoveredBy']);
 
         // Filter by type
@@ -55,6 +57,8 @@ class DamagedGoodController extends Controller
 
     public function create()
     {
+        $this->authorize('create', DamagedGood::class);
+
         $products = Product::orderBy('name')->get();
         $users = User::orderBy('name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
@@ -64,6 +68,8 @@ class DamagedGoodController extends Controller
 
     public function store(DamagedGoodRequest $request)
     {
+        $this->authorize('create', DamagedGood::class);
+
         $damagedGood = new DamagedGood($request->validated());
 
         if (!$request->filled('code')) {
@@ -144,6 +150,8 @@ class DamagedGoodController extends Controller
 
     public function show(DamagedGood $damagedGood)
     {
+        $this->authorize('view', $damagedGood);
+
         $damagedGood->load(['product', 'discoveredBy', 'items']);
 
         return view('damaged-goods.show', compact('damagedGood'));
@@ -151,6 +159,8 @@ class DamagedGoodController extends Controller
 
     public function edit(DamagedGood $damagedGood)
     {
+        $this->authorize('update', $damagedGood);
+
         if ($damagedGood->status !== 'pending') {
             return redirect()->route('damaged-goods.show', $damagedGood)
                 ->with('error', 'Không thể chỉnh sửa báo cáo đã được xử lý hoặc duyệt.');
@@ -165,6 +175,8 @@ class DamagedGoodController extends Controller
 
     public function update(DamagedGoodRequest $request, DamagedGood $damagedGood)
     {
+        $this->authorize('update', $damagedGood);
+
         if ($damagedGood->status !== 'pending') {
             return back()->with('error', 'Không thể chỉnh sửa báo cáo đã được xử lý hoặc duyệt.');
         }
@@ -178,6 +190,8 @@ class DamagedGoodController extends Controller
 
     public function destroy(DamagedGood $damagedGood)
     {
+        $this->authorize('delete', $damagedGood);
+
         if ($damagedGood->status !== 'pending') {
             return redirect()
                 ->route('damaged-goods.index')
@@ -193,6 +207,8 @@ class DamagedGoodController extends Controller
 
     public function updateStatus(Request $request, DamagedGood $damagedGood)
     {
+        $this->authorize('update', $damagedGood);
+
         if ($damagedGood->status !== 'pending') {
             // For now, allow approved -> processed if we decide later, but user asked for strict restriction.
             // "ban đầu tôi duyệt hàng hủy xong tôi lại cập nhật chờ duyệt được" -> Main complaint is reverting.
@@ -339,6 +355,8 @@ class DamagedGoodController extends Controller
      */
     public function getProductItems(Request $request)
     {
+        $this->authorize('create', DamagedGood::class);
+
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'warehouse_id' => 'required|exists:warehouses,id',
@@ -358,6 +376,8 @@ class DamagedGoodController extends Controller
 
     public function export(Request $request)
     {
+        $this->authorize('viewAny', DamagedGood::class);
+
         $filters = $request->only(['type', 'status', 'start_date', 'end_date', 'product_id', 'search']);
 
         return Excel::download(

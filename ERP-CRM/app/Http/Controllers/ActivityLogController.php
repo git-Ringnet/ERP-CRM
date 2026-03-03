@@ -13,6 +13,8 @@ class ActivityLogController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', ActivityLog::class);
+
         $query = ActivityLog::with('user')->latest();
 
         // Filter by user

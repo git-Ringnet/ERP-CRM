@@ -20,6 +20,8 @@ class WorkScheduleController extends Controller
 
     public function index()
     {
+        $this->authorize('viewAny', WorkSchedule::class);
+
         $users = User::all();
         return view('work-schedules.index', compact('users'));
     }
@@ -87,6 +89,8 @@ class WorkScheduleController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', WorkSchedule::class);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'start_datetime' => 'required|date',
@@ -103,17 +107,17 @@ class WorkScheduleController extends Controller
             $validationData = $validated;
             $validationData['created_by'] = Auth::id();
             $validationData['status'] = 'new';
-            
+
             // Remove participants from data to save model
             $participants = $request->participants ?? [];
             unset($validationData['participants']);
-            
+
             $schedule = WorkSchedule::create($validationData);
 
             if ($schedule->type === 'group' && !empty($participants)) {
                 $schedule->participants()->sync($participants);
             }
-            
+
             // Gửi thông báo
             $recipientIds = [];
             if ($schedule->type === 'group' && !empty($participants)) {
@@ -123,9 +127,9 @@ class WorkScheduleController extends Controller
                 // Gửi cho chính người tạo (lịch cá nhân)
                 $recipientIds = [Auth::id()];
             }
-            
+
             $this->notificationService->notifyWorkScheduleCreated($schedule, $recipientIds);
-            
+
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Tạo lịch làm việc thành công', 'data' => $schedule]);
         } catch (\Exception $e) {
@@ -136,6 +140,8 @@ class WorkScheduleController extends Controller
 
     public function update(Request $request, WorkSchedule $workSchedule)
     {
+        $this->authorize('update', $workSchedule);
+
         if ($workSchedule->created_by !== Auth::id()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền chỉnh sửa lịch này'], 403);
         }
@@ -176,6 +182,8 @@ class WorkScheduleController extends Controller
 
     public function destroy(WorkSchedule $workSchedule)
     {
+        $this->authorize('delete', $workSchedule);
+
         if ($workSchedule->created_by !== Auth::id()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa lịch này'], 403);
         }
