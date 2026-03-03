@@ -13,12 +13,12 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            // Admin user - chạy đầu tiên
-            AdminUserSeeder::class,
-            
-            // RBAC - Permissions and Roles
+            // RBAC - Permissions and Roles (phải chạy trước để tạo permissions và roles)
             PermissionSeeder::class,
             RoleSeeder::class,
+            
+            // Admin user - chạy sau khi đã có roles và permissions
+            AdminUserSeeder::class,
             
             // Base data - phải chạy trước
             // CustomerSeeder::class,
