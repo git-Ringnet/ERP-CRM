@@ -16,6 +16,8 @@ class CustomerCareStageController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', CustomerCareStage::class);
+        
         $query = CustomerCareStage::with(['customer', 'assignedTo', 'createdBy']);
 
         // Filter by stage
@@ -79,6 +81,8 @@ class CustomerCareStageController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', CustomerCareStage::class);
+        
         $customers = Customer::orderBy('name')->get();
         $users = User::orderBy('name')->get();
         $templates = \App\Models\MilestoneTemplate::with('milestones')->get()->groupBy('stage_type');
@@ -91,6 +95,8 @@ class CustomerCareStageController extends Controller
      */
     public function store(CustomerCareStageRequest $request)
     {
+        $this->authorize('create', CustomerCareStage::class);
+        
         $validated = $request->validated();
         $validated['created_by'] = auth()->id();
 
@@ -105,6 +111,8 @@ class CustomerCareStageController extends Controller
      */
     public function show(CustomerCareStage $customerCareStage)
     {
+        $this->authorize('view', $customerCareStage);
+        
         $customerCareStage->load([
             'customer',
             'assignedTo',
@@ -135,6 +143,8 @@ class CustomerCareStageController extends Controller
      */
     public function edit(CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $customers = Customer::orderBy('name')->get();
         $users = User::orderBy('name')->get();
 
@@ -146,6 +156,8 @@ class CustomerCareStageController extends Controller
      */
     public function update(CustomerCareStageRequest $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $validated = $request->validated();
 
         // Auto-set actual completion date when status changes to completed
@@ -165,6 +177,8 @@ class CustomerCareStageController extends Controller
      */
     public function destroy(CustomerCareStage $customerCareStage)
     {
+        $this->authorize('delete', $customerCareStage);
+        
         // Check if there are related activities
         if ($customerCareStage->activities()->exists()) {
             return redirect()->route('customer-care-stages.index')
@@ -182,6 +196,8 @@ class CustomerCareStageController extends Controller
      */
     public function updateProgress(Request $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $request->validate([
             'completion_percentage' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
@@ -206,6 +222,8 @@ class CustomerCareStageController extends Controller
      */
     public function assignUser(Request $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $request->validate([
             'assigned_to' => ['required', 'exists:users,id'],
         ]);
@@ -337,6 +355,8 @@ class CustomerCareStageController extends Controller
      */
     public function completeAction(Request $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $outcome = $request->input('outcome');
         
         // Mark action as completed
@@ -391,6 +411,8 @@ class CustomerCareStageController extends Controller
      */
     public function snoozeAction(Request $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $snooze = $request->input('snooze');
         
         $newDueDate = match($snooze) {

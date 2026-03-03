@@ -44,6 +44,8 @@ class ExportController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Export::class);
+
         $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer']);
 
         // Filter by warehouse
@@ -95,6 +97,8 @@ class ExportController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Export::class);
+
         $warehouses = Warehouse::active()->get();
         $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
@@ -111,6 +115,8 @@ class ExportController extends Controller
      */
     public function store(ExportRequest $request)
     {
+        $this->authorize('create', Export::class);
+
         try {
             $data = $request->validated();
 
@@ -138,6 +144,8 @@ class ExportController extends Controller
      */
     public function show(Export $export)
     {
+        $this->authorize('view', $export);
+
         $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
 
         // Get exported product items (serials) grouped by product_id
@@ -153,6 +161,8 @@ class ExportController extends Controller
      */
     public function edit(Export $export)
     {
+        $this->authorize('update', $export);
+
         if ($export->status !== 'pending') {
             return redirect()->route('exports.show', $export)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -192,6 +202,8 @@ class ExportController extends Controller
      */
     public function update(ExportRequest $request, Export $export)
     {
+        $this->authorize('update', $export);
+
         if ($export->status !== 'pending') {
             return redirect()->route('exports.show', $export)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
@@ -244,6 +256,8 @@ class ExportController extends Controller
      */
     public function destroy(Export $export)
     {
+        $this->authorize('delete', $export);
+
         // Only allow deleting pending or rejected exports
         if (!in_array($export->status, ['pending', 'rejected'])) {
             return redirect()->route('exports.index')
@@ -268,6 +282,8 @@ class ExportController extends Controller
      */
     public function approve(Export $export)
     {
+        $this->authorize('approve', $export);
+
         if ($export->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -311,6 +327,8 @@ class ExportController extends Controller
      */
     public function reject(Request $request, Export $export)
     {
+        $this->authorize('approve', $export);
+
         if ($export->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -352,6 +370,8 @@ class ExportController extends Controller
      */
     public function getAvailableItems(Request $request)
     {
+        $this->authorize('create', Export::class);
+
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'warehouse_id' => 'required|exists:warehouses,id',
@@ -383,6 +403,8 @@ class ExportController extends Controller
      */
     public function exportToExcel(Request $request)
     {
+        $this->authorize('viewAny', Export::class);
+
         $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
         return \Excel::download(new \App\Exports\ExportsExport($filters), 'phieu-xuat-kho-' . date('Y-m-d') . '.xlsx');
     }

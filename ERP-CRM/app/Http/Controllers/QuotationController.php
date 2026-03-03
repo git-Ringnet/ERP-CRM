@@ -20,7 +20,21 @@ class QuotationController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Quotation::class);
+
         $query = Quotation::with('customer');
+
+        // Apply data filtering based on permissions
+        $user = auth()->user();
+        if (!$user->can('view_all_quotations') && !$user->can('view_quotations')) {
+            // User only has view_own_quotations permission
+            if ($user->can('view_own_quotations')) {
+                $query->where('created_by', $user->id);
+            } else {
+                // User has no permission to view quotations
+                abort(403, 'Unauthorized action.');
+            }
+        }
 
         if ($request->filled('search')) {
             $query->search($request->search);
@@ -37,6 +51,8 @@ class QuotationController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', Quotation::class);
+
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
@@ -65,6 +81,8 @@ class QuotationController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', Quotation::class);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:quotations,code'],
             'customer_id' => ['required', 'exists:customers,id'],
@@ -147,6 +165,11 @@ class QuotationController extends Controller
 
     public function show(Quotation $quotation)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $quotation)) {
+            abort(404);
+        }
+
         $quotation->load('items', 'customer');
         $approvalHistories = $quotation->approvalHistories();
         $workflow = $quotation->getApprovalWorkflow();
@@ -156,6 +179,8 @@ class QuotationController extends Controller
 
     public function edit(Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         if (!in_array($quotation->status, ['draft', 'rejected'])) {
             return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
         }
@@ -169,6 +194,8 @@ class QuotationController extends Controller
 
     public function update(Request $request, Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         if (!in_array($quotation->status, ['draft', 'rejected'])) {
             return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
         }
@@ -261,6 +288,8 @@ class QuotationController extends Controller
 
     public function destroy(Quotation $quotation)
     {
+        $this->authorize('delete', $quotation);
+
         if (!in_array($quotation->status, ['draft', 'rejected', 'expired'])) {
             return back()->with('error', 'Không thể xóa báo giá ở trạng thái này.');
         }
@@ -287,6 +316,8 @@ class QuotationController extends Controller
      */
     public function submitForApproval(Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         if ($quotation->status !== 'draft') {
             return back()->with('error', 'Chỉ có thể gửi duyệt báo giá ở trạng thái Nháp.');
         }
@@ -329,6 +360,8 @@ class QuotationController extends Controller
      */
     public function approve(Request $request, Quotation $quotation)
     {
+        $this->authorize('approve', $quotation);
+
         $request->validate([
             'comment' => ['nullable', 'string', 'max:500'],
         ]);
@@ -411,6 +444,8 @@ class QuotationController extends Controller
      */
     public function reject(Request $request, Quotation $quotation)
     {
+        $this->authorize('approve', $quotation);
+
         $request->validate([
             'comment' => ['required', 'string', 'max:500'],
         ]);
@@ -454,6 +489,8 @@ class QuotationController extends Controller
      */
     public function markAsSent(Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         if ($quotation->status !== 'approved') {
             return back()->with('error', 'Chỉ có thể gửi báo giá đã được duyệt.');
         }
@@ -468,6 +505,8 @@ class QuotationController extends Controller
      */
     public function customerResponse(Request $request, Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         $request->validate([
             'response' => ['required', 'in:accepted,declined'],
         ]);
@@ -490,6 +529,8 @@ class QuotationController extends Controller
      */
     public function convertToSale(Quotation $quotation)
     {
+        $this->authorize('update', $quotation);
+
         if (!$quotation->canConvertToSale()) {
             return back()->with('error', 'Không thể chuyển báo giá này thành đơn hàng.');
         }
@@ -559,6 +600,11 @@ class QuotationController extends Controller
      */
     public function print(Quotation $quotation)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $quotation)) {
+            abort(404);
+        }
+
         $quotation->load('items', 'customer');
         return view('quotations.print', compact('quotation'));
     }
@@ -568,6 +614,8 @@ class QuotationController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('viewAny', Quotation::class);
+
         $filters = $request->only(['search', 'status']);
         $filename = 'bao-gia-' . date('Y-m-d') . '.xlsx';
 

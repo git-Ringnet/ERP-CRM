@@ -8,6 +8,8 @@ class ActivityController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Activity::class);
+
         $query = \App\Models\Activity::where('user_id', auth()->id())
             ->with(['opportunity', 'customer', 'lead']);
 
@@ -35,6 +37,8 @@ class ActivityController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', \App\Models\Activity::class);
+
         $validated = $request->validate([
             'subject' => 'required|string|max:255',
             'type' => 'required|in:call,meeting,email,task,note',
@@ -55,6 +59,8 @@ class ActivityController extends Controller
 
     public function update(Request $request, \App\Models\Activity $activity)
     {
+        $this->authorize('update', $activity);
+
         // Handle "Complete & Next Action" workflow
         if ($request->has('complete_with_result')) {
             $request->validate([
@@ -113,6 +119,8 @@ class ActivityController extends Controller
 
     public function destroy(\App\Models\Activity $activity)
     {
+        $this->authorize('delete', $activity);
+
         $activity->delete();
         return back()->with('success', 'Đã xóa hoạt động.');
     }

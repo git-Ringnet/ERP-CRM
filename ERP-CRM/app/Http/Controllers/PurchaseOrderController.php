@@ -28,7 +28,21 @@ class PurchaseOrderController extends Controller
     }
     public function index(Request $request)
     {
+        $this->authorize('viewAny', PurchaseOrder::class);
+
         $query = PurchaseOrder::with(['supplier', 'items', 'supplierQuotation']);
+
+        // Apply data filtering based on permissions
+        $user = auth()->user();
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_purchase_orders')) {
+            // User only has view_own_purchase_orders permission
+            if ($user->can('view_own_purchase_orders')) {
+                $query->where('created_by', $user->id);
+            } else {
+                // User has no permission to view purchase orders
+                abort(403, 'Unauthorized action.');
+            }
+        }
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -49,12 +63,19 @@ class PurchaseOrderController extends Controller
         $orders = $query->orderBy('created_at', 'desc')->paginate(15);
         $suppliers = Supplier::orderBy('name')->get();
 
-        // Thống kê
+        // Thống kê - apply same filtering
+        $statsQuery = PurchaseOrder::query();
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_purchase_orders')) {
+            if ($user->can('view_own_purchase_orders')) {
+                $statsQuery->where('created_by', $user->id);
+            }
+        }
+
         $stats = [
-            'pending' => PurchaseOrder::where('status', 'pending_approval')->count(),
-            'sent' => PurchaseOrder::whereIn('status', ['sent', 'confirmed', 'shipping'])->count(),
-            'received' => PurchaseOrder::where('status', 'received')->count(),
-            'total_value' => PurchaseOrder::whereIn('status', ['sent', 'confirmed', 'shipping', 'received'])->sum('total'),
+            'pending' => (clone $statsQuery)->where('status', 'pending_approval')->count(),
+            'sent' => (clone $statsQuery)->whereIn('status', ['sent', 'confirmed', 'shipping'])->count(),
+            'received' => (clone $statsQuery)->where('status', 'received')->count(),
+            'total_value' => (clone $statsQuery)->whereIn('status', ['sent', 'confirmed', 'shipping', 'received'])->sum('total'),
         ];
 
         return view('purchase-orders.index', compact('orders', 'suppliers', 'stats'));
@@ -62,6 +83,8 @@ class PurchaseOrderController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', PurchaseOrder::class);
+
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = PurchaseOrder::generateCode();
@@ -76,6 +99,8 @@ class PurchaseOrderController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', PurchaseOrder::class);
+
         $validated = $request->validate([
             'code' => 'required|unique:purchase_orders,code',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -103,6 +128,7 @@ class PurchaseOrderController extends Controller
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
                 'status' => 'draft',
+                'created_by' => auth()->id(),
             ]);
 
             $subtotal = 0;
@@ -154,12 +180,19 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $purchaseOrder)) {
+            abort(404);
+        }
+
         $purchaseOrder->load(['supplier', 'items.product', 'supplierQuotation', 'creator', 'approver']);
         return view('purchase-orders.show', compact('purchaseOrder'));
     }
 
     public function edit(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (!in_array($purchaseOrder->status, ['draft', 'pending_approval'])) {
             return back()->with('error', 'Không thể sửa đơn hàng đã được duyệt!');
         }
@@ -173,6 +206,8 @@ class PurchaseOrderController extends Controller
 
     public function update(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (!in_array($purchaseOrder->status, ['draft', 'pending_approval'])) {
             return back()->with('error', 'Không thể sửa đơn hàng đã được duyệt!');
         }
@@ -239,6 +274,8 @@ class PurchaseOrderController extends Controller
 
     public function destroy(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('delete', $purchaseOrder);
+
         if (!in_array($purchaseOrder->status, ['draft', 'cancelled'])) {
             return back()->with('error', 'Không thể xóa đơn hàng đã xử lý!');
         }
@@ -250,6 +287,8 @@ class PurchaseOrderController extends Controller
 
     public function submitApproval(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if ($purchaseOrder->status !== 'draft') {
             return back()->with('error', 'Đơn hàng không ở trạng thái nháp!');
         }
@@ -260,6 +299,8 @@ class PurchaseOrderController extends Controller
 
     public function approve(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('approve', $purchaseOrder);
+
         if ($purchaseOrder->status !== 'pending_approval') {
             return back()->with('error', 'Đơn hàng không ở trạng thái chờ duyệt!');
         }
@@ -267,6 +308,7 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->update([
             'status' => 'approved',
             'approved_at' => now(),
+            'approved_by' => auth()->id(),
         ]);
 
         return back()->with('success', 'Đã duyệt đơn mua hàng!');
@@ -274,6 +316,8 @@ class PurchaseOrderController extends Controller
 
     public function reject(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('approve', $purchaseOrder);
+
         if ($purchaseOrder->status !== 'pending_approval') {
             return back()->with('error', 'Đơn hàng không ở trạng thái chờ duyệt!');
         }
@@ -288,6 +332,8 @@ class PurchaseOrderController extends Controller
 
     public function send(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (!in_array($purchaseOrder->status, ['approved'])) {
             return back()->with('error', 'Đơn hàng chưa được duyệt!');
         }
@@ -318,6 +364,8 @@ class PurchaseOrderController extends Controller
 
     public function confirmBySupplier(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if ($purchaseOrder->status !== 'sent') {
             return back()->with('error', 'Đơn hàng chưa được gửi!');
         }
@@ -332,6 +380,8 @@ class PurchaseOrderController extends Controller
 
     public function receive(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (!in_array($purchaseOrder->status, ['confirmed', 'shipping', 'partial_received'])) {
             return back()->with('error', 'Đơn hàng chưa sẵn sàng để nhận!');
         }
@@ -376,6 +426,8 @@ class PurchaseOrderController extends Controller
 
     public function cancel(PurchaseOrder $purchaseOrder)
     {
+        $this->authorize('update', $purchaseOrder);
+
         if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
             return back()->with('error', 'Không thể hủy đơn hàng này!');
         }
@@ -386,6 +438,11 @@ class PurchaseOrderController extends Controller
 
     public function print(PurchaseOrder $purchaseOrder)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $purchaseOrder)) {
+            abort(404);
+        }
+
         $purchaseOrder->load(['supplier', 'items']);
         return view('purchase-orders.print', compact('purchaseOrder'));
     }
@@ -395,6 +452,8 @@ class PurchaseOrderController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('export', PurchaseOrder::class);
+
         $filters = $request->only(['search', 'status', 'supplier_id']);
         $filename = 'don-mua-hang-' . date('Y-m-d') . '.xlsx';
 
@@ -406,6 +465,11 @@ class PurchaseOrderController extends Controller
      */
     public function getImport(PurchaseOrder $purchaseOrder)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $purchaseOrder)) {
+            abort(404);
+        }
+
         $import = $this->purchaseImportSyncService->getImport($purchaseOrder);
 
         if (!$import) {

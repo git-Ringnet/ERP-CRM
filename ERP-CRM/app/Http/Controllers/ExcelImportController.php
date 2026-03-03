@@ -21,6 +21,8 @@ class ExcelImportController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', \App\Models\ExcelImport::class);
+        
         return view('import.index');
     }
 
@@ -53,6 +55,8 @@ class ExcelImportController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', \App\Models\ExcelImport::class);
+        
         $request->validate([
             'type' => 'required|in:products',
             'warehouse_id' => 'nullable|exists:warehouses,id', // Optional fallback warehouse

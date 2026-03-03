@@ -12,6 +12,8 @@ class CostFormulaController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', CostFormula::class);
+        
         $query = CostFormula::query();
 
         if ($request->filled('search')) {
@@ -33,6 +35,8 @@ class CostFormulaController extends Controller
 
     public function create()
     {
+        $this->authorize('create', CostFormula::class);
+        
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
 
@@ -41,6 +45,8 @@ class CostFormulaController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', CostFormula::class);
+        
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:cost_formulas,code'],
             'name' => ['required', 'string', 'max:255'],
@@ -63,6 +69,8 @@ class CostFormulaController extends Controller
 
     public function edit(CostFormula $costFormula)
     {
+        $this->authorize('update', $costFormula);
+        
         $products = Product::orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
 
@@ -71,6 +79,8 @@ class CostFormulaController extends Controller
 
     public function update(Request $request, CostFormula $costFormula)
     {
+        $this->authorize('update', $costFormula);
+        
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('cost_formulas')->ignore($costFormula->id)],
             'name' => ['required', 'string', 'max:255'],
@@ -93,6 +103,8 @@ class CostFormulaController extends Controller
 
     public function destroy(CostFormula $costFormula)
     {
+        $this->authorize('delete', $costFormula);
+        
         $costFormula->delete();
 
         return redirect()->route('cost-formulas.index')

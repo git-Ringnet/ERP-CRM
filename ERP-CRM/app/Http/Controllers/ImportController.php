@@ -40,6 +40,8 @@ class ImportController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Import::class);
+
         $query = Import::with(['warehouse', 'supplier', 'employee', 'items']);
 
         // Filter by warehouse
@@ -79,6 +81,8 @@ class ImportController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Import::class);
+
         $warehouses = Warehouse::active()->get();
         $products = Product::with(['supplierPriceListItems.priceList'])
             ->orderBy('name')
@@ -107,6 +111,8 @@ class ImportController extends Controller
      */
     public function store(ImportRequest $request)
     {
+        $this->authorize('create', Import::class);
+
         try {
             $data = $request->validated();
 
@@ -141,6 +147,8 @@ class ImportController extends Controller
      */
     public function show(Import $import)
     {
+        $this->authorize('view', $import);
+
         $import->load(['warehouse', 'employee', 'items.product', 'shippingAllocation.items.product']);
 
         // Get product items created from this import
@@ -154,6 +162,8 @@ class ImportController extends Controller
      */
     public function edit(Import $import)
     {
+        $this->authorize('update', $import);
+
         // Only allow editing pending imports
         if ($import->status !== 'pending') {
             return redirect()->route('imports.show', $import)
@@ -203,6 +213,8 @@ class ImportController extends Controller
      */
     public function update(ImportRequest $request, Import $import)
     {
+        $this->authorize('update', $import);
+
         // Only allow updating pending imports
         if ($import->status !== 'pending') {
             return redirect()->route('imports.show', $import)
@@ -269,6 +281,8 @@ class ImportController extends Controller
      */
     public function destroy(Import $import)
     {
+        $this->authorize('delete', $import);
+
         // Only allow deleting pending or rejected imports
         if (!in_array($import->status, ['pending', 'rejected'])) {
             return redirect()->route('imports.index')
@@ -293,6 +307,8 @@ class ImportController extends Controller
      */
     public function approve(Import $import)
     {
+        $this->authorize('approve', $import);
+
         // Only allow approving pending imports
         if ($import->status !== 'pending') {
             return response()->json([
@@ -338,6 +354,8 @@ class ImportController extends Controller
      */
     public function reject(Request $request, Import $import)
     {
+        $this->authorize('approve', $import);
+
         // Only allow rejecting pending imports
         if ($import->status !== 'pending') {
             return response()->json([
@@ -378,6 +396,8 @@ class ImportController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('viewAny', Import::class);
+
         $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
         return \Excel::download(new \App\Exports\ImportsExport($filters), 'phieu-nhap-kho-' . date('Y-m-d') . '.xlsx');
     }

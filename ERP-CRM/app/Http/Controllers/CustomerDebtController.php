@@ -22,6 +22,8 @@ class CustomerDebtController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', CustomerDebt::class);
+
         $search = $request->input('search');
         $debtStatus = $request->input('debt_status');
         $sortBy = $request->input('sort_by', 'debt_amount');
@@ -104,6 +106,8 @@ class CustomerDebtController extends Controller
      */
     public function show(Customer $customer)
     {
+        $this->authorize('viewAny', CustomerDebt::class);
+
         $sales = Sale::where('customer_id', $customer->id)
             ->whereIn('status', ['approved', 'shipping', 'completed'])
             ->orderBy('date', 'desc')
@@ -129,6 +133,8 @@ class CustomerDebtController extends Controller
      */
     public function recordPayment(Request $request, Sale $sale)
     {
+        $this->authorize('recordPayment', CustomerDebt::class);
+
         $request->validate([
             'amount' => 'required|numeric|min:0.01|max:' . $sale->debt_amount,
             'payment_method' => 'required|in:cash,bank_transfer,card,other',
@@ -176,6 +182,8 @@ class CustomerDebtController extends Controller
      */
     public function deletePayment(PaymentHistory $payment)
     {
+        $this->authorize('deletePayment', CustomerDebt::class);
+
         DB::beginTransaction();
         try {
             $sale = $payment->sale;
@@ -202,49 +210,27 @@ class CustomerDebtController extends Controller
      */
     public function export()
     {
+        $this->authorize('export', CustomerDebt::class);
+
         $customers = Customer::select([
             'customers.id',
             'customers.code',
             'customers.name',
             'customers.phone',
             'customers.debt_limit',
+            'customers.debt_days',
         ])
             ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_sales')
             ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_paid')
             ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_debt')
-            ->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")) > 0')
+            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed") AND s.debt_amount > 0), 0) as unpaid_orders')
             ->orderByRaw('total_debt DESC')
             ->get();
 
-        $filename = 'cong-no-khach-hang-' . date('Y-m-d') . '.csv';
-
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($customers) {
-            $file = fopen('php://output', 'w');
-            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
-
-            fputcsv($file, ['Mã KH', 'Tên khách hàng', 'Điện thoại', 'Tổng mua', 'Đã thanh toán', 'Công nợ', 'Hạn mức nợ']);
-
-            foreach ($customers as $customer) {
-                fputcsv($file, [
-                    $customer->code,
-                    $customer->name,
-                    $customer->phone,
-                    number_format($customer->total_sales, 0, ',', '.'),
-                    number_format($customer->total_paid, 0, ',', '.'),
-                    number_format($customer->total_debt, 0, ',', '.'),
-                    number_format($customer->debt_limit ?? 0, 0, ',', '.'),
-                ]);
-            }
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        return \Excel::download(
+            new \App\Exports\CustomerDebtsExport($customers),
+            'cong-no-khach-hang-' . date('Y-m-d') . '.xlsx'
+        );
     }
 
     /**
@@ -270,6 +256,8 @@ class CustomerDebtController extends Controller
      */
     public function agingReport(Request $request)
     {
+        $this->authorize('viewAny', CustomerDebt::class);
+
         $filters = [
             'search' => $request->input('search'),
             'customer_id' => $request->input('customer_id'),
@@ -286,6 +274,8 @@ class CustomerDebtController extends Controller
      */
     public function exportAgingReport(Request $request)
     {
+        $this->authorize('export', CustomerDebt::class);
+
         $filters = [
             'search' => $request->input('search'),
             'customer_id' => $request->input('customer_id'),

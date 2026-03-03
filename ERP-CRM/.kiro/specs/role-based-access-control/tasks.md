@@ -350,57 +350,57 @@ The implementation uses PHP/Laravel with the following tech stack:
 
 
 - [ ] 11. Integration with Existing Controllers
-  - [ ] 11.1 Add authorization to CustomerController
+  - [x] 11.1 Add authorization to CustomerController
     - Add authorize() calls or middleware to each action (index, show, create, store, edit, update, destroy)
     - Use CustomerPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.2 Add authorization to SupplierController
+  - [x] 11.2 Add authorization to SupplierController
     - Add authorize() calls or middleware to each action
     - Use SupplierPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.3 Add authorization to EmployeeController
+  - [x] 11.3 Add authorization to EmployeeController
     - Add authorize() calls or middleware to each action
     - Use EmployeePolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.4 Add authorization to ProductController
+  - [x] 11.4 Add authorization to ProductController
     - Add authorize() calls or middleware to each action
     - Use ProductPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.5 Add authorization to WarehouseController
+  - [x] 11.5 Add authorization to WarehouseController
     - Add authorize() calls or middleware to each action
     - Use WarehousePolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.6 Add authorization to InventoryController
+  - [x] 11.6 Add authorization to InventoryController
     - Add authorize() calls or middleware to each action
     - Use InventoryPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.7 Add authorization to ImportController
+  - [x] 11.7 Add authorization to ImportController
     - Add authorize() calls or middleware to each action
     - Use ImportPolicy for authorization (including approve action)
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.8 Add authorization to ExportController
+  - [x] 11.8 Add authorization to ExportController
     - Add authorize() calls or middleware to each action
     - Use ExportPolicy for authorization (including approve action)
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.9 Add authorization to TransferController
+  - [x] 11.9 Add authorization to TransferController
     - Add authorize() calls or middleware to each action
     - Use TransferPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.10 Add authorization to DamagedGoodController
+  - [x] 11.10 Add authorization to DamagedGoodController
     - Add authorize() calls or middleware to each action
     - Use DamagedGoodPolicy for authorization
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.11 Add authorization and data filtering to SaleController
+  - [x] 11.11 Add authorization and data filtering to SaleController
     - Add authorize() calls or middleware to each action
     - Use SalePolicy for authorization
     - Implement data filtering: if user has view_own_sales but not view_all_sales, filter query to show only user's sales
@@ -414,24 +414,24 @@ The implementation uses PHP/Laravel with the following tech stack:
     - **Property 27: Unauthorized Record Access Response** - Verify 404 returned (not 403) for unauthorized record access
     - **Validates: Requirements 8.1-8.7**
 
-  - [ ] 11.13 Add authorization and data filtering to QuotationController
+  - [x] 11.13 Add authorization and data filtering to QuotationController
     - Add authorize() calls or middleware to each action
     - Use QuotationPolicy for authorization (including approve action)
     - Implement data filtering similar to SaleController
     - _Requirements: 6.1-6.7, 8.1-8.7_
 
-  - [ ] 11.14 Add authorization and data filtering to PurchaseOrderController
+  - [x] 11.14 Add authorization and data filtering to PurchaseOrderController
     - Add authorize() calls or middleware to each action
     - Use PurchaseOrderPolicy for authorization (including approve action)
     - Implement data filtering similar to SaleController
     - _Requirements: 6.1-6.7, 8.1-8.7_
 
-  - [ ] 11.15 Add authorization to ReportController
+  - [x] 11.15 Add authorization to ReportController
     - Add authorize() calls or middleware to each action
     - Use ReportPolicy for authorization (view and export)
     - _Requirements: 6.1-6.7_
 
-  - [ ] 11.16 Add authorization to SettingController
+  - [x] 11.16 Add authorization to SettingController
     - Add authorize() calls or middleware to each action
     - Use SettingPolicy for authorization
     - _Requirements: 6.1-6.7_

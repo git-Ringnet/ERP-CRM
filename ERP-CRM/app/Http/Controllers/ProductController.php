@@ -19,6 +19,8 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Product::class);
+        
         $query = Product::query();
 
         // Search functionality
@@ -45,6 +47,8 @@ class ProductController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Product::class);
+        
         $categories = Product::CATEGORIES;
         return view('products.create', compact('categories'));
     }
@@ -55,6 +59,8 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Product::class);
+        
         // Validation - only basic fields
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:products,code'],
@@ -81,6 +87,8 @@ class ProductController extends Controller
         $product = Product::with(['items' => function ($query) {
             $query->orderBy('created_at', 'desc');
         }])->findOrFail($id);
+        
+        $this->authorize('view', $product);
 
         return view('products.show', compact('product'));
     }
@@ -92,6 +100,8 @@ class ProductController extends Controller
     public function edit($id)
     {
         $product = Product::findOrFail($id);
+        $this->authorize('update', $product);
+        
         $categories = Product::CATEGORIES;
 
         return view('products.edit', compact('product', 'categories'));
@@ -104,6 +114,7 @@ class ProductController extends Controller
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+        $this->authorize('update', $product);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -128,6 +139,8 @@ class ProductController extends Controller
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
+        $this->authorize('delete', $product);
+        
         $product->delete();
 
         return redirect()->route('products.index')
@@ -141,6 +154,8 @@ class ProductController extends Controller
     public function items($id)
     {
         $product = Product::findOrFail($id);
+        $this->authorize('view', $product);
+        
         $items = $product->items()
             ->with('warehouse')
             ->orderBy('created_at', 'desc')
@@ -159,6 +174,8 @@ class ProductController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
+        $this->authorize('viewAny', Product::class);
+        
         $query = Product::query();
 
         // Apply filters if present
@@ -183,6 +200,8 @@ class ProductController extends Controller
      */
     public function importTemplate()
     {
+        $this->authorize('create', Product::class);
+        
         $filepath = ProductsImport::generateTemplate();
         return response()->download($filepath, 'mau-import-san-pham.xlsx')->deleteFileAfterSend(true);
     }
@@ -192,6 +211,8 @@ class ProductController extends Controller
      */
     public function import(Request $request)
     {
+        $this->authorize('create', Product::class);
+        
         $request->validate([
             'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);

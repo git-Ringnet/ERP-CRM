@@ -11,6 +11,8 @@ class SettingController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Setting::class);
+        
         $emailSettings = Setting::where('group', 'email')->get();
         
         return view('settings.index', compact('emailSettings'));
@@ -18,6 +20,8 @@ class SettingController extends Controller
 
     public function updateEmail(Request $request)
     {
+        $this->authorize('update', Setting::class);
+        
         $validated = $request->validate([
             'mail_host' => ['required', 'string'],
             'mail_port' => ['required', 'integer'],
@@ -45,6 +49,8 @@ class SettingController extends Controller
 
     public function testEmail(Request $request)
     {
+        $this->authorize('update', Setting::class);
+        
         $validated = $request->validate([
             'test_email' => ['required', 'email'],
         ]);

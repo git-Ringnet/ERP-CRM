@@ -98,6 +98,9 @@ class RoleSeeder extends Seeder
         // Get all roles
         $roles = DB::table('roles')->pluck('id', 'slug')->toArray();
         
+        // XÓA TẤT CẢ QUYỀN CŨ TRƯỚC KHI GÁN MỚI
+        DB::table('role_permissions')->truncate();
+        
         // Super Admin - all permissions
         if (isset($roles['super_admin'])) {
             $superAdminPermissions = [];
@@ -108,93 +111,102 @@ class RoleSeeder extends Seeder
                     'created_at' => $now,
                 ];
             }
-            DB::table('role_permissions')->insertOrIgnore($superAdminPermissions);
+            DB::table('role_permissions')->insert($superAdminPermissions);
         }
         
         // Warehouse Manager - all warehouse, inventory, imports, exports, transfers, damaged_goods permissions
         if (isset($roles['warehouse_manager'])) {
             $warehouseManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
-                ['warehouses', 'inventory', 'imports', 'exports', 'transfers', 'damaged_goods']
+                ['warehouses', 'inventory', 'imports', 'exports', 'transfers', 'damaged_goods', 'products', 'excel_imports', 'work_schedules']
             );
             // Add approve permissions
-            $warehouseManagerPerms = array_merge($warehouseManagerPerms, 
-                $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports'])
-            );
+            $approvePerms = $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports']);
+            $warehouseManagerPerms = array_unique(array_merge($warehouseManagerPerms, $approvePerms));
             $this->attachPermissionsToRole($roles['warehouse_manager'], $warehouseManagerPerms, $now);
         }
         
         // Warehouse Staff - view, create, edit for imports, exports, transfers, and view for inventory
         if (isset($roles['warehouse_staff'])) {
             $warehouseStaffPerms = array_merge(
-                $this->getPermissionsByModulesAndActions($allPermissions, ['imports', 'exports', 'transfers'], ['view', 'create', 'edit']),
-                $this->getPermissionsByModulesAndActions($allPermissions, ['inventory'], ['view'])
+                $this->getPermissionsByModulesAndActions($allPermissions, ['imports', 'exports', 'transfers', 'damaged_goods'], ['view', 'create', 'edit']),
+                $this->getPermissionsByModulesAndActions($allPermissions, ['inventory', 'products', 'warehouses', 'work_schedules'], ['view'])
             );
+            $warehouseStaffPerms = array_unique($warehouseStaffPerms);
             $this->attachPermissionsToRole($roles['warehouse_staff'], $warehouseStaffPerms, $now);
         }
         
-        // Sales Manager - all customers, sales, quotations permissions
+        // Sales Manager - all customers, sales, quotations, leads, opportunities, activities, projects permissions
         if (isset($roles['sales_manager'])) {
             $salesManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
-                ['customers', 'sales', 'quotations']
+                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
+                 'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
+                 'milestone_templates', 'work_schedules']
             );
-            // Add approve_quotations and view_all_sales
-            $salesManagerPerms = array_merge($salesManagerPerms,
-                $this->getPermissionsBySlugs($allPermissions, ['approve_quotations', 'view_all_sales'])
-            );
+            // Add approve_quotations and view_all_sales, view_all_quotations
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_quotations', 'view_all_sales', 'view_all_quotations']);
+            $salesManagerPerms = array_unique(array_merge($salesManagerPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['sales_manager'], $salesManagerPerms, $now);
         }
         
-        // Sales Staff - view, create, edit for customers, sales, quotations, and view_own_sales
+        // Sales Staff - view, create, edit for customers, sales, quotations, leads, opportunities, activities
         if (isset($roles['sales_staff'])) {
             $salesStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
-                ['customers', 'sales', 'quotations'],
+                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 
+                 'customer_care_stages', 'projects'],
                 ['view', 'create', 'edit']
             );
-            // Add view_own_sales
-            $salesStaffPerms = array_merge($salesStaffPerms,
-                $this->getPermissionsBySlugs($allPermissions, ['view_own_sales'])
-            );
+            // Add view_own_sales, view_own_quotations
+            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_sales', 'view_own_quotations']);
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['customer_debts', 'warranties', 'price_lists', 'work_schedules'], ['view']);
+            $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $ownPerms, $viewPerms));
             $this->attachPermissionsToRole($roles['sales_staff'], $salesStaffPerms, $now);
         }
         
-        // Purchase Manager - all suppliers, purchase_orders permissions
+        // Purchase Manager - all suppliers, purchase_orders, purchase_requests, supplier_quotations permissions
         if (isset($roles['purchase_manager'])) {
             $purchaseManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
-                ['suppliers', 'purchase_orders']
+                ['suppliers', 'purchase_orders', 'purchase_requests', 'supplier_quotations', 
+                 'supplier_price_lists', 'shipping_allocations', 'purchase_reports', 'cost_formulas', 'work_schedules']
             );
-            // Add approve_purchase_orders
-            $purchaseManagerPerms = array_merge($purchaseManagerPerms,
-                $this->getPermissionsBySlugs($allPermissions, ['approve_purchase_orders'])
-            );
+            // Add approve_purchase_orders and view_all_purchase_orders
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_purchase_orders', 'view_all_purchase_orders']);
+            $purchaseManagerPerms = array_unique(array_merge($purchaseManagerPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['purchase_manager'], $purchaseManagerPerms, $now);
         }
         
-        // Purchase Staff - view, create, edit for suppliers and purchase_orders
+        // Purchase Staff - view, create, edit for suppliers, purchase_orders, purchase_requests, supplier_quotations
         if (isset($roles['purchase_staff'])) {
             $purchaseStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
-                ['suppliers', 'purchase_orders'],
+                ['suppliers', 'purchase_orders', 'purchase_requests', 'supplier_quotations', 
+                 'supplier_price_lists', 'shipping_allocations'],
                 ['view', 'create', 'edit']
             );
+            // Add view_own_purchase_orders
+            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_purchase_orders']);
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['cost_formulas', 'work_schedules'], ['view']);
+            $purchaseStaffPerms = array_unique(array_merge($purchaseStaffPerms, $ownPerms, $viewPerms));
             $this->attachPermissionsToRole($roles['purchase_staff'], $purchaseStaffPerms, $now);
         }
         
-        // Accountant - view and export for all modules
+        // Accountant - view and export for all modules, plus view all sales/purchases
         if (isset($roles['accountant'])) {
             $accountantPerms = $this->getPermissionsByActions($allPermissions, ['view', 'export']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders']);
+            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['accountant'], $accountantPerms, $now);
         }
         
-        // Director - view and approve for all modules, and all report permissions
+        // Director - view, approve, export for all modules, and all report permissions
         if (isset($roles['director'])) {
-            $directorPerms = array_merge(
-                $this->getPermissionsByActions($allPermissions, ['view', 'approve']),
-                $this->getPermissionsByModules($allPermissions, ['reports'])
-            );
+            $directorPerms = $this->getPermissionsByActions($allPermissions, ['view', 'approve', 'export']);
+            $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders']);
+            $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['director'], $directorPerms, $now);
         }
     }
@@ -268,7 +280,7 @@ class RoleSeeder extends Seeder
         }
         
         if (!empty($rolePermissions)) {
-            DB::table('role_permissions')->insertOrIgnore($rolePermissions);
+            DB::table('role_permissions')->insert($rolePermissions);
         }
     }
 }

@@ -30,7 +30,21 @@ class SaleController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Sale::class);
+
         $query = Sale::query();
+
+        // Apply data filtering based on permissions
+        $user = auth()->user();
+        if (!$user->can('view_all_sales') && !$user->can('view_sales')) {
+            // User only has view_own_sales permission
+            if ($user->can('view_own_sales')) {
+                $query->where('user_id', $user->id);
+            } else {
+                // User has no permission to view sales
+                abort(403, 'Unauthorized action.');
+            }
+        }
 
         // Search functionality
         if ($request->filled('search')) {
@@ -92,6 +106,8 @@ class SaleController extends Controller
      */
     public function create(Request $request)
     {
+        $this->authorize('create', Sale::class);
+
         $customers = Customer::orderBy('name')->get();
         // Get products with liquidation count to display in UI
         $baseProducts = Product::with(['supplierPriceListItems.priceList'])
@@ -169,6 +185,8 @@ class SaleController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Sale::class);
+
         // Convert price values from string to numeric (remove formatting)
         $products = $request->input('products', []);
         foreach ($products as $key => $product) {
@@ -265,6 +283,7 @@ class SaleController extends Controller
                 'project_id' => $validated['project_id'] ?? null,
                 'customer_id' => $validated['customer_id'],
                 'customer_name' => $customer->name,
+                'user_id' => auth()->id(),
                 'date' => $validated['date'],
                 'delivery_address' => $validated['delivery_address'],
                 'subtotal' => $subtotal,
@@ -348,6 +367,11 @@ class SaleController extends Controller
      */
     public function show(Sale $sale)
     {
+        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
         $sale->load(['items.product', 'customer', 'expenses', 'project']);
         return view('sales.show', compact('sale'));
     }
@@ -357,6 +381,8 @@ class SaleController extends Controller
      */
     public function edit(Sale $sale)
     {
+        $this->authorize('update', $sale);
+
         $sale->load(['items', 'expenses']);
         $customers = Customer::orderBy('name')->get();
         // Get products with liquidation count to display in UI
@@ -404,6 +430,8 @@ class SaleController extends Controller
      */
     public function update(Request $request, Sale $sale)
     {
+        $this->authorize('update', $sale);
+
         // Convert price values from string to numeric (remove formatting)
         $products = $request->input('products', []);
         foreach ($products as $key => $product) {
@@ -581,6 +609,8 @@ class SaleController extends Controller
      */
     public function destroy(Sale $sale)
     {
+        $this->authorize('delete', $sale);
+
         DB::beginTransaction();
         try {
             $sale->items()->delete();
@@ -600,6 +630,8 @@ class SaleController extends Controller
      */
     public function export(Request $request)
     {
+        $this->authorize('export', Sale::class);
+
         $filters = $request->only(['search', 'status', 'type', 'project_id']);
         $filename = 'don-hang-ban-' . date('Y-m-d') . '.xlsx';
 
@@ -611,6 +643,11 @@ class SaleController extends Controller
      */
     public function generatePdf(Sale $sale)
     {
+        // Return 404 instead of 403 if user lacks permission
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
         $sale->load('items', 'customer');
 
         // TODO: Implement PDF generation with DomPDF or similar
@@ -623,6 +660,11 @@ class SaleController extends Controller
      */
     public function sendEmail(Sale $sale)
     {
+        // Return 404 instead of 403 if user lacks permission
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
         $sale->load('items', 'customer');
 
         if (!$sale->customer || !$sale->customer->email) {
@@ -643,6 +685,8 @@ class SaleController extends Controller
      */
     public function sendBulkEmail(Request $request)
     {
+        $this->authorize('export', Sale::class);
+
         $validated = $request->validate([
             'sale_ids' => ['required', 'array', 'min:1'],
             'sale_ids.*' => ['exists:sales,id'],
@@ -691,6 +735,8 @@ class SaleController extends Controller
      */
     public function recordPayment(Request $request, Sale $sale)
     {
+        $this->authorize('update', $sale);
+
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['required', 'date'],
@@ -726,6 +772,8 @@ class SaleController extends Controller
      */
     public function updateStatus(Request $request, Sale $sale)
     {
+        $this->authorize('update', $sale);
+
         $validated = $request->validate([
             'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
             'warehouse_id' => ['nullable', 'exists:warehouses,id'],
@@ -812,6 +860,11 @@ class SaleController extends Controller
      */
     public function getExport(Sale $sale)
     {
+        // Return 404 instead of 403 if user lacks permission
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
         $export = $this->saleExportSyncService->getExport($sale);
 
         if (!$export) {

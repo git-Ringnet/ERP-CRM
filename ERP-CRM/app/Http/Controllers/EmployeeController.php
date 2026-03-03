@@ -19,6 +19,8 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', User::class);
+        
         $query = User::whereNotNull('employee_code');
 
         // Search functionality (Requirement 3.9)
@@ -60,6 +62,8 @@ class EmployeeController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', User::class);
+        
         return view('employees.create');
     }
 
@@ -69,6 +73,8 @@ class EmployeeController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', User::class);
+        
         // Validation (Requirement 3.4)
         $validated = $request->validate([
             'employee_code' => ['required', 'string', 'max:50', 'unique:users,employee_code'],
@@ -107,6 +113,8 @@ class EmployeeController extends Controller
     {
         $employee = User::whereNotNull('employee_code')
             ->findOrFail($id);
+        
+        $this->authorize('view', $employee);
 
         return view('employees.show', compact('employee'));
     }
@@ -119,6 +127,8 @@ class EmployeeController extends Controller
     {
         $employee = User::whereNotNull('employee_code')
             ->findOrFail($id);
+        
+        $this->authorize('update', $employee);
 
         return view('employees.edit', compact('employee'));
     }
@@ -131,6 +141,8 @@ class EmployeeController extends Controller
     {
         $employee = User::whereNotNull('employee_code')
             ->findOrFail($id);
+        
+        $this->authorize('update', $employee);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -174,6 +186,8 @@ class EmployeeController extends Controller
     {
         $employee = User::whereNotNull('employee_code')
             ->findOrFail($id);
+        
+        $this->authorize('delete', $employee);
 
         // Use delete method on model instance to trigger events
         $employee->delete();
@@ -188,6 +202,8 @@ class EmployeeController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
+        $this->authorize('viewAny', User::class);
+        
         $query = User::whereNotNull('employee_code');
 
         // Apply filters if present (Requirement 7.6)
@@ -223,6 +239,8 @@ class EmployeeController extends Controller
      */
     public function importTemplate()
     {
+        $this->authorize('create', User::class);
+        
         // Create sample data for template
         $sampleData = collect([
             (object)[
@@ -255,6 +273,8 @@ class EmployeeController extends Controller
      */
     public function import(Request $request)
     {
+        $this->authorize('create', User::class);
+        
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
         ], [
@@ -299,6 +319,8 @@ class EmployeeController extends Controller
     {
         $employee = User::whereNotNull('employee_code')
             ->findOrFail($id);
+        
+        $this->authorize('update', $employee);
 
         $newLockStatus = !$employee->is_locked;
         

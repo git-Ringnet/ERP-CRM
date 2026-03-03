@@ -17,6 +17,8 @@ class SupplierQuotationController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', SupplierQuotation::class);
+
         $query = SupplierQuotation::with(['supplier', 'purchaseRequest', 'items']);
 
         if ($request->filled('search')) {
@@ -44,6 +46,8 @@ class SupplierQuotationController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', SupplierQuotation::class);
+
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $purchaseRequests = PurchaseRequest::whereIn('status', ['sent', 'received'])->with('items')->get();
@@ -59,6 +63,8 @@ class SupplierQuotationController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', SupplierQuotation::class);
+        
         $validated = $request->validate([
             'code' => 'required|unique:supplier_quotations,code',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -138,29 +144,31 @@ class SupplierQuotationController extends Controller
 
     public function show(SupplierQuotation $supplierQuotation)
     {
-        $supplierQuotation->load(['supplier', 'purchaseRequest', 'items.product']);
+        $this->authorize('view', $supplierQuotation);
 
-        // Lấy các báo giá khác cùng yêu cầu để so sánh
-        $compareQuotations = [];
-        if ($supplierQuotation->purchase_request_id) {
-            $compareQuotations = SupplierQuotation::where('purchase_request_id', $supplierQuotation->purchase_request_id)
-                ->where('id', '!=', $supplierQuotation->id)
-                ->with('supplier')
-                ->get();
-        }
+        $supplierQuotation->load(['supplier', 'purchaseRequest.items', 'items.product']);
 
-        return view('supplier-quotations.show', compact('supplierQuotation', 'compareQuotations'));
+        // Calculate totals
+        $subtotal = $supplierQuotation->items->sum(fn($item) => $item->quantity * $item->unit_price);
+        $discount = $subtotal * ($supplierQuotation->discount_percent / 100);
+        $afterDiscount = $subtotal - $discount;
+        $vat = $afterDiscount * ($supplierQuotation->vat_percent / 100);
+        $total = $afterDiscount + $vat + $supplierQuotation->shipping_cost;
+
+        return view('supplier-quotations.show', compact('supplierQuotation', 'subtotal', 'discount', 'afterDiscount', 'vat', 'total'));
     }
 
     public function edit(SupplierQuotation $supplierQuotation)
     {
-        if ($supplierQuotation->status !== 'pending') {
-            return back()->with('error', 'Chỉ có thể sửa báo giá đang chờ xử lý!');
+        $this->authorize('update', $supplierQuotation);
+
+        if (!in_array($supplierQuotation->status, ['draft', 'pending'])) {
+            return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Chờ duyệt!');
         }
 
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
-        $supplierQuotation->load(['items']);
+        $supplierQuotation->load('items');
 
         return view('supplier-quotations.edit', compact('supplierQuotation', 'suppliers', 'products'));
     }
@@ -233,8 +241,10 @@ class SupplierQuotationController extends Controller
 
     public function destroy(SupplierQuotation $supplierQuotation)
     {
-        if ($supplierQuotation->status === 'selected') {
-            return back()->with('error', 'Không thể xóa báo giá đã được chọn!');
+        $this->authorize('delete', $supplierQuotation);
+
+        if (!in_array($supplierQuotation->status, ['draft', 'rejected'])) {
+            return back()->with('error', 'Không thể xóa báo giá đã được chọn hoặc đang chờ duyệt!');
         }
 
         $supplierQuotation->delete();

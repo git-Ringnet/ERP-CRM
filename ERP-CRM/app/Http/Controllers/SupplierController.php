@@ -17,6 +17,8 @@ class SupplierController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Supplier::class);
+
         $query = DB::table('suppliers');
 
         // Search functionality (Requirement 2.9)
@@ -41,6 +43,8 @@ class SupplierController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', \App\Models\Supplier::class);
+
         return view('suppliers.create');
     }
 
@@ -50,6 +54,8 @@ class SupplierController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', \App\Models\Supplier::class);
+
         // Validation (Requirement 2.4)
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:suppliers,code'],
@@ -94,6 +100,8 @@ class SupplierController extends Controller
             'imports' => fn($q) => $q->latest()->limit(10),
         ])->findOrFail($id);
 
+        $this->authorize('view', $supplier);
+
         // Statistics
         $stats = [
             'total_purchase_orders' => $supplier->purchaseOrders()->count(),
@@ -118,6 +126,10 @@ class SupplierController extends Controller
             abort(404);
         }
 
+        // Convert stdClass to Supplier model for authorization
+        $supplierModel = \App\Models\Supplier::findOrFail($id);
+        $this->authorize('update', $supplierModel);
+
         return view('suppliers.edit', compact('supplier'));
     }
 
@@ -132,6 +144,10 @@ class SupplierController extends Controller
         if (!$supplier) {
             abort(404);
         }
+
+        // Convert stdClass to Supplier model for authorization
+        $supplierModel = \App\Models\Supplier::findOrFail($id);
+        $this->authorize('update', $supplierModel);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -175,6 +191,10 @@ class SupplierController extends Controller
             abort(404);
         }
 
+        // Convert stdClass to Supplier model for authorization
+        $supplierModel = \App\Models\Supplier::findOrFail($id);
+        $this->authorize('delete', $supplierModel);
+
         DB::table('suppliers')->where('id', $id)->delete();
 
         return redirect()->route('suppliers.index')
@@ -187,6 +207,8 @@ class SupplierController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
+        $this->authorize('viewAny', \App\Models\Supplier::class);
+
         $query = DB::table('suppliers');
 
         // Apply filters if present (Requirement 7.6)
@@ -213,6 +235,8 @@ class SupplierController extends Controller
      */
     public function importTemplate()
     {
+        $this->authorize('create', \App\Models\Supplier::class);
+
         $filepath = SuppliersImport::generateTemplate();
         return response()->download($filepath, 'mau-import-nha-cung-cap.xlsx')->deleteFileAfterSend(true);
     }
@@ -222,6 +246,8 @@ class SupplierController extends Controller
      */
     public function import(Request $request)
     {
+        $this->authorize('create', \App\Models\Supplier::class);
+
         $request->validate([
             'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);

@@ -11,6 +11,8 @@ class OpportunityController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', \App\Models\Opportunity::class);
+
         $viewType = $request->get('view', 'kanban'); // 'kanban' or 'list'
 
         if ($viewType === 'list') {
@@ -42,6 +44,8 @@ class OpportunityController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', \App\Models\Opportunity::class);
+
         $customers = \App\Models\Customer::all();
         $users = \App\Models\User::all();
         return view('opportunities.create', compact('customers', 'users'));
@@ -52,6 +56,8 @@ class OpportunityController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', \App\Models\Opportunity::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'customer_id' => 'required|exists:customers,id',
@@ -89,6 +95,8 @@ class OpportunityController extends Controller
      */
     public function show(\App\Models\Opportunity $opportunity)
     {
+        $this->authorize('view', $opportunity);
+
         $opportunity->load(['activities.user', 'activities.createdBy', 'customer', 'assignedTo']);
         return view('opportunities.show', compact('opportunity'));
     }
@@ -98,6 +106,8 @@ class OpportunityController extends Controller
      */
     public function edit(\App\Models\Opportunity $opportunity)
     {
+        $this->authorize('update', $opportunity);
+
         $customers = \App\Models\Customer::all();
         $users = \App\Models\User::all();
         return view('opportunities.edit', compact('opportunity', 'customers', 'users'));
@@ -108,6 +118,8 @@ class OpportunityController extends Controller
      */
     public function update(Request $request, \App\Models\Opportunity $opportunity)
     {
+        $this->authorize('update', $opportunity);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'customer_id' => 'required|exists:customers,id',
@@ -145,6 +157,8 @@ class OpportunityController extends Controller
      */
     public function destroy(\App\Models\Opportunity $opportunity)
     {
+        $this->authorize('delete', $opportunity);
+
         $opportunity->delete();
         return redirect()->route('opportunities.index')->with('success', 'Đã xóa cơ hội.');
     }
@@ -154,6 +168,8 @@ class OpportunityController extends Controller
      */
     public function updateStage(Request $request, \App\Models\Opportunity $opportunity)
     {
+        $this->authorize('update', $opportunity);
+
         $validated = $request->validate([
             'stage' => 'required|string',
         ]);

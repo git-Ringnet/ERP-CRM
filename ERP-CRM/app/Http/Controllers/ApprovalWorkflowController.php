@@ -12,6 +12,8 @@ class ApprovalWorkflowController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', ApprovalWorkflow::class);
+
         $workflows = ApprovalWorkflow::with('levels')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
@@ -20,14 +22,18 @@ class ApprovalWorkflowController extends Controller
 
     public function create()
     {
+        $this->authorize('create', ApprovalWorkflow::class);
+
         $users = User::orderBy('name')->get();
         $documentTypes = $this->getDocumentTypes();
-        
+
         return view('approval-workflows.create', compact('users', 'documentTypes'));
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', ApprovalWorkflow::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'document_type' => ['required', 'string', 'unique:approval_workflows,document_type'],
@@ -76,6 +82,8 @@ class ApprovalWorkflowController extends Controller
 
     public function edit(ApprovalWorkflow $approvalWorkflow)
     {
+        $this->authorize('update', $approvalWorkflow);
+
         $approvalWorkflow->load('levels');
         $users = User::orderBy('name')->get();
         $documentTypes = $this->getDocumentTypes();
@@ -85,6 +93,8 @@ class ApprovalWorkflowController extends Controller
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
     {
+        $this->authorize('update', $approvalWorkflow);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -134,6 +144,8 @@ class ApprovalWorkflowController extends Controller
 
     public function destroy(ApprovalWorkflow $approvalWorkflow)
     {
+        $this->authorize('delete', $approvalWorkflow);
+
         DB::beginTransaction();
         try {
             $approvalWorkflow->levels()->delete();

@@ -18,6 +18,8 @@ class CustomerController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Customer::class);
+        
         $query = Customer::query();
 
         // Search functionality (Requirement 1.9)
@@ -66,6 +68,8 @@ class CustomerController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Customer::class);
+        
         return view('customers.create');
     }
 
@@ -75,6 +79,8 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Customer::class);
+        
         // Validation (Requirement 1.4)
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:customers,code'],
@@ -105,6 +111,8 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
+        $this->authorize('view', $customer);
+        
         $customer->load([
             'projects' => function($query) {
                 $query->with('exports')->latest();
@@ -126,6 +134,8 @@ class CustomerController extends Controller
      */
     public function edit(Customer $customer)
     {
+        $this->authorize('update', $customer);
+        
         return view('customers.edit', compact('customer'));
     }
 
@@ -135,6 +145,8 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer)
     {
+        $this->authorize('update', $customer);
+        
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('customers')->ignore($customer->id)],
@@ -165,6 +177,8 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
+        $this->authorize('delete', $customer);
+        
         // Check if customer has related projects
         if ($customer->projects()->exists()) {
             return redirect()->route('customers.index')
@@ -193,6 +207,8 @@ class CustomerController extends Controller
      */
     public function export(Request $request, ExportService $exportService)
     {
+        $this->authorize('viewAny', Customer::class);
+        
         $query = Customer::query();
 
         // Apply filters if present (Requirement 7.6)
@@ -223,6 +239,8 @@ class CustomerController extends Controller
      */
     public function importTemplate()
     {
+        $this->authorize('create', Customer::class);
+        
         $tempFile = CustomersImport::generateTemplate();
         $filename = 'customer_import_template_' . date('Y-m-d') . '.xlsx';
 
@@ -234,6 +252,8 @@ class CustomerController extends Controller
      */
     public function import(Request $request)
     {
+        $this->authorize('create', Customer::class);
+        
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);

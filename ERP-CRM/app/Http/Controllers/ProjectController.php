@@ -17,6 +17,8 @@ class ProjectController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Project::class);
+
         $query = Project::with(['customer', 'manager']);
 
         // Search
@@ -56,6 +58,8 @@ class ProjectController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Project::class);
+
         $customers = Customer::orderBy('name')->get();
         $managers = User::orderBy('name')->get();
         $code = $this->generateProjectCode();
@@ -88,6 +92,8 @@ class ProjectController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Project::class);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:projects,code'],
             'name' => ['required', 'string', 'max:255'],
@@ -119,6 +125,8 @@ class ProjectController extends Controller
      */
     public function show(Project $project)
     {
+        $this->authorize('view', $project);
+
         $project->load(['customer', 'manager', 'sales.items', 'saleItems.sale', 'exports.warehouse']);
 
         // Get sales statistics
@@ -159,6 +167,8 @@ class ProjectController extends Controller
      */
     public function edit(Project $project)
     {
+        $this->authorize('update', $project);
+
         $customers = Customer::orderBy('name')->get();
         $managers = User::orderBy('name')->get();
 
@@ -170,6 +180,8 @@ class ProjectController extends Controller
      */
     public function update(Request $request, Project $project)
     {
+        $this->authorize('update', $project);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('projects')->ignore($project->id)],
             'name' => ['required', 'string', 'max:255'],
@@ -203,6 +215,8 @@ class ProjectController extends Controller
      */
     public function destroy(Project $project)
     {
+        $this->authorize('delete', $project);
+
         // Check if project has sales
         if ($project->sales()->exists() || $project->saleItems()->exists()) {
             return back()->with('error', 'Không thể xóa dự án đã có đơn hàng.');

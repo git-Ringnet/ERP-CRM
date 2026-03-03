@@ -14,6 +14,8 @@ class WarehouseController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Warehouse::class);
+        
         $query = Warehouse::with('manager');
 
         // Filter by status
@@ -45,6 +47,8 @@ class WarehouseController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Warehouse::class);
+        
         $managers = User::whereNotNull('employee_code')->get();
         $code = Warehouse::generateCode();
         
@@ -56,6 +60,8 @@ class WarehouseController extends Controller
      */
     public function store(WarehouseRequest $request)
     {
+        $this->authorize('create', Warehouse::class);
+        
         $data = $request->validated();
         $data['has_temperature_control'] = $request->boolean('has_temperature_control');
         $data['has_security_system'] = $request->boolean('has_security_system');
@@ -71,6 +77,8 @@ class WarehouseController extends Controller
      */
     public function show(Request $request, Warehouse $warehouse)
     {
+        $this->authorize('view', $warehouse);
+        
         $warehouse->load('manager');
         
         // Get inventory items for this warehouse with search
@@ -113,6 +121,8 @@ class WarehouseController extends Controller
      */
     public function edit(Warehouse $warehouse)
     {
+        $this->authorize('update', $warehouse);
+        
         $managers = User::whereNotNull('employee_code')->get();
         
         return view('warehouses.edit', compact('warehouse', 'managers'));
@@ -123,6 +133,8 @@ class WarehouseController extends Controller
      */
     public function update(WarehouseRequest $request, Warehouse $warehouse)
     {
+        $this->authorize('update', $warehouse);
+        
         $data = $request->validated();
         $data['has_temperature_control'] = $request->boolean('has_temperature_control');
         $data['has_security_system'] = $request->boolean('has_security_system');
@@ -138,6 +150,8 @@ class WarehouseController extends Controller
      */
     public function destroy(Warehouse $warehouse)
     {
+        $this->authorize('delete', $warehouse);
+        
         // Check if warehouse has inventory
         if ($warehouse->hasInventory()) {
             return redirect()->route('warehouses.index')
@@ -155,6 +169,8 @@ class WarehouseController extends Controller
      */
     public function export()
     {
+        $this->authorize('viewAny', Warehouse::class);
+        
         return \Excel::download(new \App\Exports\WarehousesExport(), 'danh-sach-kho-' . date('Y-m-d') . '.xlsx');
     }
 }

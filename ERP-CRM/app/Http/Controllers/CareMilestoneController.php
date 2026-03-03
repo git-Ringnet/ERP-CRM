@@ -14,6 +14,8 @@ class CareMilestoneController extends Controller
      */
     public function store(CareMilestoneRequest $request, CustomerCareStage $customerCareStage)
     {
+        $this->authorize('update', $customerCareStage);
+        
         $validated = $request->validated();
         $validated['customer_care_stage_id'] = $customerCareStage->id;
 
@@ -33,6 +35,8 @@ class CareMilestoneController extends Controller
      */
     public function update(CareMilestoneRequest $request, CareMilestone $careMilestone)
     {
+        $this->authorize('update', $careMilestone->customerCareStage);
+        
         $validated = $request->validated();
         $careMilestone->update($validated);
 
@@ -44,6 +48,8 @@ class CareMilestoneController extends Controller
      */
     public function destroy(CareMilestone $careMilestone)
     {
+        $this->authorize('update', $careMilestone->customerCareStage);
+        
         $careMilestone->delete();
 
         return back()->with('success', 'Mốc quan trọng đã được xóa.');
@@ -54,6 +60,8 @@ class CareMilestoneController extends Controller
      */
     public function toggleComplete(Request $request, CareMilestone $careMilestone)
     {
+        $this->authorize('update', $careMilestone->customerCareStage);
+        
         if ($careMilestone->is_completed) {
             $careMilestone->markAsPending();
             $message = 'Mốc quan trọng đã được đánh dấu chưa hoàn thành.';
