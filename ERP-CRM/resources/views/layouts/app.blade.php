@@ -15,9 +15,6 @@
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -28,6 +25,9 @@
 
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    
+    <!-- Chart.js CDN - Load after Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
     <style>
         /* Sidebar collapsed state - hide text, show only icons */
@@ -108,6 +108,14 @@
                     <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
                 </a>
+
+                @can('view_business_dashboard')
+                <a href="{{ route('dashboard.business-activity') }}"
+                    class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
+                    <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
+                    <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
+                </a>
+                @endcan
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                 <div class="mt-4">
@@ -275,17 +283,6 @@
                         <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-sales"></i>
                     </div>
 
-                    <a href="{{ route('sale-reports.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sale-reports.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
-                    </a>
-
-                    <a href="{{ route('financial-transactions.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-wallet w-6 text-green-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
-                    </a>
                     <div class="dropdown-section" id="dropdown-sales">
                         @can('view_leads')
                         <a href="{{ route('leads.index') }}"
@@ -366,6 +363,12 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
                         </a>
                         @endcan
+
+                        <a href="{{ route('financial-transactions.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-wallet w-6 text-green-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
+                        </a>
                     </div>
                 </div>
                 @endcanany

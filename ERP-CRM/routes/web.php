@@ -33,6 +33,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\FinancialTransactionController;
+use App\Http\Controllers\BusinessDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,6 +50,11 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Business Activity Dashboard
+    Route::get('/dashboard/business-activity', [BusinessDashboardController::class, 'index'])->name('dashboard.business-activity');
+    Route::post('/dashboard/business-activity/export', [BusinessDashboardController::class, 'export'])->name('dashboard.business-activity.export');
+    Route::post('/dashboard/business-activity/refresh', [BusinessDashboardController::class, 'refresh'])->name('dashboard.business-activity.refresh');
 
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);

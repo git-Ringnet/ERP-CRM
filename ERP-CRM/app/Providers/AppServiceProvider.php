@@ -26,6 +26,12 @@ class AppServiceProvider extends ServiceProvider
         
         // Register RoleService
         $this->app->singleton(\App\Services\RoleServiceInterface::class, \App\Services\RoleService::class);
+        
+        // Register DashboardService
+        $this->app->singleton(\App\Services\DashboardService::class);
+        
+        // Register MetricsCalculationService
+        $this->app->singleton(\App\Services\MetricsCalculationService::class);
     }
 
     /**
