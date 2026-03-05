@@ -155,6 +155,20 @@ class PermissionSeeder extends Seeder
                 'module' => 'purchase_orders',
                 'action' => 'view',
             ],
+            [
+                'name' => 'Xem Dashboard Kinh Doanh',
+                'slug' => 'view_business_dashboard',
+                'description' => 'Quyền xem dashboard tổng quan hoạt động kinh doanh',
+                'module' => 'dashboard',
+                'action' => 'view',
+            ],
+            [
+                'name' => 'Xuất Báo cáo Kinh Doanh',
+                'slug' => 'export_business_reports',
+                'description' => 'Quyền xuất báo cáo từ dashboard kinh doanh',
+                'module' => 'dashboard',
+                'action' => 'export',
+            ],
         ];
         
         foreach ($specialPermissions as $permission) {

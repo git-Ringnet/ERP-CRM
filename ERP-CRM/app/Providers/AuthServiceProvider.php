@@ -60,6 +60,9 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\PurchaseReport::class => \App\Policies\PurchaseReportPolicy::class,
         \App\Models\Warranty::class => \App\Policies\WarrantyPolicy::class,
         \App\Models\ExcelImport::class => \App\Policies\ExcelImportPolicy::class,
+        
+        // Dashboard Policies
+        'business-dashboard' => \App\Policies\BusinessDashboardPolicy::class,
     ];
 
     /**

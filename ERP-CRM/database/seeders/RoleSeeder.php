@@ -121,7 +121,7 @@ class RoleSeeder extends Seeder
                 ['warehouses', 'inventory', 'imports', 'exports', 'transfers', 'damaged_goods', 'products', 'excel_imports', 'work_schedules']
             );
             // Add approve permissions and dashboard
-            $approvePerms = $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports', 'view_dashboard']);
+            $approvePerms = $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
             $warehouseManagerPerms = array_unique(array_merge($warehouseManagerPerms, $approvePerms));
             $this->attachPermissionsToRole($roles['warehouse_manager'], $warehouseManagerPerms, $now);
         }
@@ -146,7 +146,7 @@ class RoleSeeder extends Seeder
                  'milestone_templates', 'work_schedules']
             );
             // Add approve_quotations, view_all_sales, view_all_quotations, and dashboard
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_quotations', 'view_all_sales', 'view_all_quotations', 'view_dashboard']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_quotations', 'view_all_sales', 'view_all_quotations', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
             $salesManagerPerms = array_unique(array_merge($salesManagerPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['sales_manager'], $salesManagerPerms, $now);
         }
@@ -174,7 +174,7 @@ class RoleSeeder extends Seeder
                  'supplier_price_lists', 'shipping_allocations', 'purchase_reports', 'cost_formulas', 'work_schedules']
             );
             // Add approve_purchase_orders, view_all_purchase_orders, and dashboard
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_purchase_orders', 'view_all_purchase_orders', 'view_dashboard']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_purchase_orders', 'view_all_purchase_orders', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
             $purchaseManagerPerms = array_unique(array_merge($purchaseManagerPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['purchase_manager'], $purchaseManagerPerms, $now);
         }
@@ -206,7 +206,7 @@ class RoleSeeder extends Seeder
         if (isset($roles['director'])) {
             $directorPerms = $this->getPermissionsByActions($allPermissions, ['view', 'approve', 'export']);
             $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports']);
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_business_dashboard', 'export_business_reports']);
             $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['director'], $directorPerms, $now);
         }
