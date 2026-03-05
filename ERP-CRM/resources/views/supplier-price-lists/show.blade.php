@@ -25,6 +25,42 @@
                             @endif
                         </div>
                         <div><i class="fas fa-tag w-5"></i> {{ $supplierPriceList->price_type_label }}</div>
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-bullseye w-5"></i>
+                            <span>Cột giá chính:</span>
+                            <select id="primaryPriceColumnSelect" onchange="updatePrimaryPriceColumn(this.value)"
+                                class="border border-gray-300 rounded px-2 py-0.5 text-sm font-semibold text-blue-700 bg-blue-50"
+                                style="max-width: 300px;">
+                                @php
+                                    $currentPrimary = $supplierPriceList->primary_price_column;
+                                    $availableCols = [];
+                                    // Standard columns
+                                    $standardMap = [
+                                        'list_price' => 'Giá gốc (List Price)',
+                                        'price_1yr' => '1yr', 'price_2yr' => '2yr', 
+                                        'price_3yr' => '3yr', 'price_4yr' => '4yr', 'price_5yr' => '5yr'
+                                    ];
+                                    foreach ($standardMap as $key => $label) {
+                                        if ($supplierPriceList->items()->whereNotNull($key)->where($key, '>', 0)->exists()) {
+                                            $availableCols[$key] = $label;
+                                        }
+                                    }
+                                    // Custom price columns
+                                    if ($supplierPriceList->custom_columns) {
+                                        foreach ($supplierPriceList->custom_columns as $col) {
+                                            if (($col['type'] ?? 'price') === 'price') {
+                                                $availableCols[$col['key']] = $col['label'];
+                                            }
+                                        }
+                                    }
+                                @endphp
+                                @foreach($availableCols as $key => $label)
+                                    <option value="{{ $key }}" {{ $currentPrimary === $key ? 'selected' : '' }} title="{{ $label }}">
+                                        {{ Str::limit($label, 60) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -34,6 +70,10 @@
                     <button onclick="openApplyPricesModal()"
                         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         <i class="fas fa-sync-alt mr-2"></i>Áp dụng giá
+                    </button>
+                    <button id="syncProductsBtn" onclick="syncSelectedToProducts()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 hidden">
+                        <i class="fas fa-plus mr-2"></i>Đồng bộ <span id="selectedCount">0</span> SP
                     </button>
                     <a href="{{ route('supplier-price-lists.index') }}"
                         class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
@@ -112,6 +152,9 @@
                 <table class="w-full text-sm min-w-max">
                     <thead class="bg-gray-50 sticky top-0 z-10">
                         <tr>
+                            <th class="px-3 py-2 text-left w-8">
+                                <input type="checkbox" id="selectAllItems" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                            </th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">SKU</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[200px]">Tên sản phẩm</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">Danh mục</th>
@@ -145,11 +188,15 @@
                         @endphp
                         @forelse($items as $item)
                             @php
-                                // Calculate final price using formula
-                                $basePrice = $item->list_price ?? 0;
+                                // Calculate final price using primary price column
+                                $basePrice = $supplierPriceList->getPrimaryPriceForItem($item) ?? 0;
                                 $finalPriceData = $basePrice > 0 ? $supplierPriceList->calculateFinalPrice($basePrice) : null;
                             @endphp
                             <tr class="hover:bg-gray-50">
+                                <td class="px-3 py-2">
+                                    <input type="checkbox" name="item_ids[]" value="{{ $item->id }}" 
+                                           class="item-checkbox rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                </td>
                                 <td class="px-3 py-2 font-mono text-blue-600 whitespace-nowrap">
                                     {{ $item->sku }}
                                 </td>
@@ -355,9 +402,11 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Chọn loại giá áp dụng</label>
-                    <select id="priceField" class="w-full border border-gray-300 rounded-lg px-3 py-2" onchange="loadPreview()">
+                    <select id="priceField" class="w-full border border-gray-300 rounded-lg px-3 py-2" onchange="loadPreview()" style="max-width: 100%;">
                         @foreach($priceColumns as $col)
-                            <option value="{{ $col['key'] }}">{{ $col['label'] }}</option>
+                            <option value="{{ $col['key'] }}" title="{{ $col['label'] }}">
+                                {{ Str::limit($col['label'], 80) }}
+                            </option>
                         @endforeach
                     </select>
                 </div>
@@ -873,4 +922,99 @@ document.getElementById('pricingConfigModal')?.addEventListener('click', functio
         </div>
     </div>
 </div>
+
+<script>
+// ===== PRODUCT SYNC LOGIC =====
+function updateSyncButton() {
+    const checked = document.querySelectorAll('.item-checkbox:checked');
+    const btn = document.getElementById('syncProductsBtn');
+    const countSpan = document.getElementById('selectedCount');
+    
+    if (checked.length > 0) {
+        btn.classList.remove('hidden');
+        countSpan.textContent = checked.length;
+    } else {
+        btn.classList.add('hidden');
+    }
+}
+
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'selectAllItems') {
+        const checkboxes = document.querySelectorAll('.item-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = e.target.checked;
+        });
+        updateSyncButton();
+    }
+    
+    if (e.target.classList.contains('item-checkbox')) {
+        updateSyncButton();
+    }
+});
+
+function syncSelectedToProducts() {
+    const checked = document.querySelectorAll('.item-checkbox:checked');
+    const itemIds = Array.from(checked).map(cb => cb.value);
+    
+    if (itemIds.length === 0) return;
+    
+    if (!confirm('Bạn có chắc muốn đồng bộ ' + itemIds.length + ' sản phẩm này vào danh mục kho không?')) {
+        return;
+    }
+
+    const btn = document.getElementById('syncProductsBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý...';
+
+    fetch('{{ route("supplier-price-lists.sync-to-products") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ item_ids: itemIds })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    })
+    .catch(err => {
+        alert('Lỗi kết nối: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
+function updatePrimaryPriceColumn(column) {
+    fetch('{{ route("supplier-price-lists.update-primary-column", $supplierPriceList->id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ primary_price_column: column })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    })
+    .catch(err => alert('Lỗi kết nối: ' + err.message));
+}
+</script>
 @endsection

@@ -33,6 +33,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\FinancialTransactionController;
+use App\Http\Controllers\BusinessReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -220,6 +221,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/shipping-allocations/{shippingAllocation}/approve', [ShippingAllocationController::class, 'approve'])->name('shipping-allocations.approve');
     Route::post('/shipping-allocations/{shippingAllocation}/complete', [ShippingAllocationController::class, 'complete'])->name('shipping-allocations.complete');
 
+    // Business Overview Report (Báo cáo tổng hợp kinh doanh)
+    Route::get('/reports/business-overview', [\App\Http\Controllers\BusinessReportController::class, 'index'])->name('reports.business-overview');
+
     // Purchase Reports routes (Báo cáo mua hàng nâng cao)
     Route::get('/purchase-reports', [PurchaseReportController::class, 'index'])->name('purchase-reports.index');
     Route::get('/purchase-reports/export', [PurchaseReportController::class, 'export'])->name('purchase-reports.export');
@@ -244,6 +248,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/supplier-price-lists/{supplierPriceList}/apply-prices', [\App\Http\Controllers\SupplierPriceListController::class, 'applyPrices'])->name('supplier-price-lists.apply-prices');
     Route::get('/supplier-price-lists/{supplierPriceList}/preview-apply', [\App\Http\Controllers\SupplierPriceListController::class, 'previewApplyPrices'])->name('supplier-price-lists.preview-apply');
     Route::post('/supplier-price-lists/{supplierPriceList}/update-pricing-config', [\App\Http\Controllers\SupplierPriceListController::class, 'updatePricingConfig'])->name('supplier-price-lists.update-pricing-config');
+    Route::post('/supplier-price-lists/sync-to-products', [\App\Http\Controllers\SupplierPriceListController::class, 'syncToProducts'])->name('supplier-price-lists.sync-to-products');
+    Route::post('/supplier-price-lists/{supplierPriceList}/update-primary-column', [\App\Http\Controllers\SupplierPriceListController::class, 'updatePrimaryColumn'])->name('supplier-price-lists.update-primary-column');
+
+    // Quotation enhanced methods
+    Route::get('/api/quotations/search-catalog', [\App\Http\Controllers\QuotationController::class, 'searchCatalog'])->name('quotations.search-catalog');
 
     // Notification routes (Thông báo)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -333,6 +342,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Customer AJAX API
     Route::get('/api/customers/{customer}/details', [\App\Http\Controllers\CustomerCareStageController::class, 'getCustomerDetails'])->name('customers.details');
+
+    // Business Reports
+    Route::get('/reports/business-overview', [BusinessReportController::class, 'index'])->name('reports.business-overview');
+    Route::get('/reports/balance-sheet', [BusinessReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
+    Route::get('/reports/detailed-pnl', [BusinessReportController::class, 'detailedPnL'])->name('reports.detailed-pnl');
 });
 
 // Auth routes (login, logout, etc.)

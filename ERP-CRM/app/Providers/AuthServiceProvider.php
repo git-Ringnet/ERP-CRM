@@ -2,7 +2,8 @@
 
 namespace App\Providers;
 
-// use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Gate;
+use App\Services\PermissionServiceInterface;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -66,6 +67,11 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $this->registerPolicies();
+
+        // Integrate custom RBAC with Laravel's Gate
+        Gate::before(function ($user, $ability) {
+            return app(PermissionServiceInterface::class)->checkPermission($user->id, $ability) ?: null;
+        });
     }
 }

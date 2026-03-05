@@ -181,6 +181,26 @@
                 </div>
             </div>
 
+            <!-- Giá hãng niêm yết -->
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-tags mr-2 text-primary"></i>Giá từ Hãng (Catalog)</h2>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Giá bán (VND):</span>
+                        <span class="text-sm font-bold text-blue-600">{{ number_format($product->calculated_selling_price, 0) }} đ</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Giá nhập (VND):</span>
+                        <span class="text-sm font-bold text-gray-700">{{ number_format($product->calculated_cost, 0) }} đ</span>
+                    </div>
+                    <p class="text-[10px] text-gray-400 italic mt-2 border-t pt-2">
+                        <i class="fas fa-info-circle mr-1"></i>Tính từ bảng giá hãng mới nhất đang kích hoạt.
+                    </p>
+                </div>
+            </div>
+
             <!-- Thông tin thời gian -->
             <div class="bg-white rounded-lg shadow-sm">
                 <div class="px-4 py-3 border-b border-gray-200">

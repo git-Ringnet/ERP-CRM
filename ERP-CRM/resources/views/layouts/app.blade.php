@@ -110,154 +110,158 @@
                 </a>
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('masterData')">
-                        <div class="flex items-center">
-                            <i class="fas fa-database w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Master Data</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('masterData')">
+                            <div class="flex items-center">
+                                <i class="fas fa-database w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Master Data</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-masterData"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-masterData"></i>
+
+                        <div class="dropdown-section" id="dropdown-masterData">
+                            @can('view_customers')
+                                <a href="{{ route('customers.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customers.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-users w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Khách hàng</span>
+                                </a>
+                            @endcan
+
+                            @can('view_suppliers')
+                                <a href="{{ route('suppliers.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-truck w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhà cung cấp</span>
+                                </a>
+                            @endcan
+
+                            @can('view_employees')
+                                <a href="{{ route('employees.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employees.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-user-tie w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhân viên</span>
+                                </a>
+                            @endcan
+
+                            @can('view_products')
+                                <a href="{{ route('products.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('products.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-box w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Sản phẩm</span>
+                                </a>
+                            @endcan
+                        </div>
                     </div>
-
-                    <div class="dropdown-section" id="dropdown-masterData">
-                        @can('view_customers')
-                        <a href="{{ route('customers.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customers.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-users w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Khách hàng</span>
-                        </a>
-                        @endcan
-
-                        @can('view_suppliers')
-                        <a href="{{ route('suppliers.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-truck w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhà cung cấp</span>
-                        </a>
-                        @endcan
-
-                        @can('view_employees')
-                        <a href="{{ route('employees.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employees.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-user-tie w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhân viên</span>
-                        </a>
-                        @endcan
-
-                        @can('view_products')
-                        <a href="{{ route('products.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('products.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-box w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Sản phẩm</span>
-                        </a>
-                        @endcan
-                    </div>
-                </div>
                 @endcanany
 
                 @canany(['view_warehouses', 'view_inventory', 'view_imports', 'view_exports', 'view_transfers', 'view_damaged_goods'])
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('warehouse')">
-                        <div class="flex items-center">
-                            <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Kho hàng</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('warehouse')">
+                            <div class="flex items-center">
+                                <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Kho hàng</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-warehouse"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-warehouse"></i>
+
+                        <div class="dropdown-section" id="dropdown-warehouse">
+                            @can('view_warehouses')
+                                <a href="{{ route('warehouses.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
+                                </a>
+                            @endcan
+
+                            @can('view_inventory')
+                                <a href="{{ route('inventory.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-boxes w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
+                                </a>
+                            @endcan
+
+                            @can('view_imports')
+                                <a href="{{ route('imports.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
+                                </a>
+                            @endcan
+
+                            @can('view_exports')
+                                <a href="{{ route('exports.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
+                                </a>
+                            @endcan
+
+                            @can('view_transfers')
+                                <a href="{{ route('transfers.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
+                                </a>
+                            @endcan
+
+                            @can('view_damaged_goods')
+                                <a href="{{ route('damaged-goods.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
+                                </a>
+                            @endcan
+                        </div>
                     </div>
-
-                    <div class="dropdown-section" id="dropdown-warehouse">
-                        @can('view_warehouses')
-                        <a href="{{ route('warehouses.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warehouses.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-warehouse w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý kho</span>
-                        </a>
-                        @endcan
-
-                        @can('view_inventory')
-                        <a href="{{ route('inventory.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('inventory.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-boxes w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Tồn kho</span>
-                        </a>
-                        @endcan
-
-                        @can('view_imports')
-                        <a href="{{ route('imports.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('imports.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-arrow-down w-6 text-blue-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhập kho</span>
-                        </a>
-                        @endcan
-
-                        @can('view_exports')
-                        <a href="{{ route('exports.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('exports.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-arrow-up w-6 text-orange-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Xuất kho</span>
-                        </a>
-                        @endcan
-
-                        @can('view_transfers')
-                        <a href="{{ route('transfers.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('transfers.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-exchange-alt w-6 text-purple-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Chuyển kho</span>
-                        </a>
-                        @endcan
-
-                        @can('view_damaged_goods')
-                        <a href="{{ route('damaged-goods.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('damaged-goods.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-exclamation-triangle w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
-                        </a>
-                        @endcan
-                    </div>
-                </div>
                 @endcanany
 
                 @can('view_reports')
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('reports')">
-                        <div class="flex items-center">
-                            <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Báo cáo</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('reports')">
+                            <div class="flex items-center">
+                                <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Báo cáo</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-reports"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-reports"></i>
+
+                        <div class="dropdown-section" id="dropdown-reports">
+                            <a href="{{ route('reports.inventory-summary') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Tổng hợp tồn kho</span>
+                            </a>
+
+                            <a href="{{ route('reports.transaction-report') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-chart-line w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo xuất nhập</span>
+                            </a>
+
+                            <a href="{{ route('reports.damaged-goods-report') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-chart-pie w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo hư hỏng</span>
+                            </a>
+
+                            <a href="{{ route('warranties.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-shield-alt w-6 text-green-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi bảo hành</span>
+                            </a>
+                        </div>
                     </div>
-
-                    <div class="dropdown-section" id="dropdown-reports">
-                        <a href="{{ route('reports.inventory-summary') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Tổng hợp tồn kho</span>
-                        </a>
-
-                        <a href="{{ route('reports.transaction-report') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-line w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo xuất nhập</span>
-                        </a>
-
-                        <a href="{{ route('reports.damaged-goods-report') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-pie w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo hư hỏng</span>
-                        </a>
-
-                        <a href="{{ route('warranties.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-shield-alt w-6 text-green-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi bảo hành</span>
-                        </a>
-                    </div>
-                </div>
                 @endcan
 
                 <div class="mt-4">
-                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Lịch biểu</p>
-                    
+                    <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Lịch biểu
+                    </p>
+
                     <a href="{{ route('work-schedules.index') }}"
                         class="flex items-center px-4 py-3 mt-2 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-schedules.*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-calendar-alt w-6 flex-shrink-0"></i>
@@ -266,254 +270,284 @@
                 </div>
 
                 @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports'])
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('sales')">
-                        <div class="flex items-center">
-                            <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Bán hàng</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('sales')">
+                            <div class="flex items-center">
+                                <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Bán hàng</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-sales"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-sales"></i>
+
+                        <div class="dropdown-section" id="dropdown-sales">
+                            @can('view_leads')
+                                <a href="{{ route('leads.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('leads.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-bullseye w-6 text-cyan-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đấu mối</span>
+                                </a>
+                            @endcan
+
+                            @can('view_opportunities')
+                                <a href="{{ route('opportunities.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                </a>
+                            @endcan
+
+                            @can('view_activities')
+                                <a href="{{ route('activities.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
+                                </a>
+                            @endcan
+
+                            @can('view_customer_care_stages')
+                                <a href="{{ route('customer-care-stages.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
+                                </a>
+                            @endcan
+
+                            @can('view_quotations')
+                                <a href="{{ route('quotations.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
+                                </a>
+                            @endcan
+
+                            @can('view_sales')
+                                <a href="{{ route('sales.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
+                                </a>
+                            @endcan
+
+                            @can('view_projects')
+                                <a href="{{ route('projects.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý dự án</span>
+                                </a>
+                            @endcan
+
+                            @can('view_customer_debts')
+                                <a href="{{ route('customer-debts.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
+                                </a>
+                            @endcan
+
+                            @can('view_cost_formulas')
+                                <a href="{{ route('cost-formulas.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cost-formulas.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-calculator w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Công thức chi phí</span>
+                                </a>
+                            @endcan
+
+                            @can('view_sale_reports')
+                                <a href="{{ route('sale-reports.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sale-reports.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
+                                </a>
+                            @endcan
+                        </div>
                     </div>
-
-                    <a href="{{ route('sale-reports.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sale-reports.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
-                    </a>
-
-                    <a href="{{ route('financial-transactions.index') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-wallet w-6 text-green-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
-                    </a>
-                    <div class="dropdown-section" id="dropdown-sales">
-                        @can('view_leads')
-                        <a href="{{ route('leads.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('leads.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-bullseye w-6 text-cyan-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Đấu mối</span>
-                        </a>
-                        @endcan
-
-                        @can('view_opportunities')
-                        <a href="{{ route('opportunities.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
-                        </a>
-                        @endcan
-
-                        @can('view_activities')
-                        <a href="{{ route('activities.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
-                        </a>
-                        @endcan
-
-                        @can('view_customer_care_stages')
-                        <a href="{{ route('customer-care-stages.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
-                        </a>
-                        @endcan
-
-                        @can('view_quotations')
-                        <a href="{{ route('quotations.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-file-alt w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá</span>
-                        </a>
-                        @endcan
-
-                        @can('view_sales')
-                        <a href="{{ route('sales.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
-                        </a>
-                        @endcan
-
-                        @can('view_projects')
-                        <a href="{{ route('projects.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý dự án</span>
-                        </a>
-                        @endcan
-
-                        @can('view_customer_debts')
-                        <a href="{{ route('customer-debts.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-debts.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ khách hàng</span>
-                        </a>
-                        @endcan
-
-                        @can('view_cost_formulas')
-                        <a href="{{ route('cost-formulas.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cost-formulas.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-calculator w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Công thức chi phí</span>
-                        </a>
-                        @endcan
-
-                        @can('view_sale_reports')
-                        <a href="{{ route('sale-reports.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sale-reports.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
-                        </a>
-                        @endcan
-                    </div>
-                </div>
                 @endcanany
 
                 @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports'])
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('purchasing')">
-                        <div class="flex items-center">
-                            <i class="fas fa-file-contract w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Mua hàng</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('purchasing')">
+                            <div class="flex items-center">
+                                <i class="fas fa-file-contract w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Mua hàng</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-purchasing"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-purchasing"></i>
+
+                        <div class="dropdown-section" id="dropdown-purchasing">
+                            @can('view_supplier_price_lists')
+                                <a href="{{ route('supplier-price-lists.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-price-lists.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-tags w-6 text-green-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Bảng giá</span>
+                                </a>
+                            @endcan
+
+                            @can('view_purchase_requests')
+                                <a href="{{ route('purchase-requests.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-clipboard-list w-6"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá</span>
+                                </a>
+                            @endcan
+
+                            @can('view_supplier_quotations')
+                                <a href="{{ route('supplier-quotations.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-file-invoice w-6"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá NCC</span>
+                                </a>
+                            @endcan
+
+                            @can('view_purchase_orders')
+                                <a href="{{ route('purchase-orders.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-file-contract w-6 text-blue-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đơn mua hàng (PO)</span>
+                                </a>
+                            @endcan
+
+                            @can('view_shipping_allocations')
+                                <a href="{{ route('shipping-allocations.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                </a>
+                            @endcan
+
+                            @can('view_purchase_reports')
+                                <a href="{{ route('purchase-reports.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-reports.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-chart-pie w-6 text-purple-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo mua hàng</span>
+                                </a>
+                            @endcan
+                        </div>
                     </div>
-
-                    <div class="dropdown-section" id="dropdown-purchasing">
-                        @can('view_supplier_price_lists')
-                        <a href="{{ route('supplier-price-lists.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-price-lists.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-tags w-6 text-green-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Bảng giá</span>
-                        </a>
-                        @endcan
-
-                        @can('view_purchase_requests')
-                        <a href="{{ route('purchase-requests.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-clipboard-list w-6"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá</span>
-                        </a>
-                        @endcan
-
-                        @can('view_supplier_quotations')
-                        <a href="{{ route('supplier-quotations.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-file-invoice w-6"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá NCC</span>
-                        </a>
-                        @endcan
-
-                        @can('view_purchase_orders')
-                        <a href="{{ route('purchase-orders.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-file-contract w-6 text-blue-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Đơn mua hàng (PO)</span>
-                        </a>
-                        @endcan
-
-                        @can('view_shipping_allocations')
-                        <a href="{{ route('shipping-allocations.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                        </a>
-                        @endcan
-
-                        @can('view_purchase_reports')
-                        <a href="{{ route('purchase-reports.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-reports.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-pie w-6 text-purple-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo mua hàng</span>
-                        </a>
-                        @endcan
-                    </div>
-                </div>
                 @endcanany
 
-                @canany(['view_approval_workflows', 'view_activity_logs', 'view_settings'])
+                {{-- Quản trị Kế toán - Rút gọn theo yêu cầu --}}
                 <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('system')">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        onclick="toggleDropdown('accounting')">
                         <div class="flex items-center">
-                            <i class="fas fa-cog w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Hệ thống</span>
+                            <i class="fas fa-calculator w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Quản trị Kế toán</span>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-system"></i>
+                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-accounting"></i>
                     </div>
 
-                    <div class="dropdown-section" id="dropdown-system">
-                        @can('view_approval_workflows')
-                        <a href="{{ route('approval-workflows.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
+                    <div class="dropdown-section" id="dropdown-accounting">
+                        <a href="{{ route('reports.business-overview') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.business-overview') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-list-alt w-6 flex-shrink-0 text-blue-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng Bán/Nhập</span>
                         </a>
-                        @endcan
+                        <a href="{{ route('financial-transactions.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-wallet w-6 flex-shrink-0 text-green-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
+                        </a>
 
-                        @can('view_activity_logs')
-                        <a href="{{ route('activity-logs.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activity-logs.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-history w-6 text-purple-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hoạt động</span>
+                        <a href="{{ route('reports.detailed-pnl') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.detailed-pnl') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-line w-6 flex-shrink-0 text-cyan-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo Lãi lỗ</span>
                         </a>
-                        @endcan
 
-                        @can('view_settings')
-                        <a href="{{ route('settings.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('settings.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-cog w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Cài đặt</span>
+                        <a href="{{ route('reports.balance-sheet') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.balance-sheet') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-balance-scale w-6 flex-shrink-0 text-indigo-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Bảng cân đối kế toán</span>
                         </a>
-                        @endcan
                     </div>
                 </div>
+
+                @canany(['view_approval_workflows', 'view_activity_logs', 'view_settings'])
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('system')">
+                            <div class="flex items-center">
+                                <i class="fas fa-cog w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Hệ thống</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-system"></i>
+                        </div>
+
+                        <div class="dropdown-section" id="dropdown-system">
+                            @can('view_approval_workflows')
+                                <a href="{{ route('approval-workflows.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-project-diagram w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quy trình duyệt</span>
+                                </a>
+                            @endcan
+
+                            @can('view_activity_logs')
+                                <a href="{{ route('activity-logs.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activity-logs.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-history w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hoạt động</span>
+                                </a>
+                            @endcan
+
+                            @can('view_settings')
+                                <a href="{{ route('settings.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('settings.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-cog w-6 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Cài đặt</span>
+                                </a>
+                            @endcan
+                        </div>
+                    </div>
                 @endcanany
 
                 @can('view_roles')
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors" onclick="toggleDropdown('access')">
-                        <div class="flex items-center">
-                            <i class="fas fa-user-shield w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Quản lý Truy cập</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('access')">
+                            <div class="flex items-center">
+                                <i class="fas fa-user-shield w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Quản lý Truy cập</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-access"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-access"></i>
+
+                        <div class="dropdown-section" id="dropdown-access">
+                            @can('view_user_roles')
+                                <a href="{{ route('users.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('users.index') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-users w-6 text-cyan-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Người dùng</span>
+                                </a>
+                            @endcan
+
+                            @can('view_roles')
+                                <a href="{{ route('roles.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('roles.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-user-tag w-6 text-blue-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Vai trò</span>
+                                </a>
+                            @endcan
+
+                            @can('view_permissions')
+                                <a href="{{ route('permissions.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('permissions.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-key w-6 text-yellow-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quyền</span>
+                                </a>
+                            @endcan
+
+                            @can('view_audit_logs')
+                                <a href="{{ route('audit-logs.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('audit-logs.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-clipboard-list w-6 text-red-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký Kiểm toán</span>
+                                </a>
+                            @endcan
+                        </div>
                     </div>
-
-                    <div class="dropdown-section" id="dropdown-access">
-                        @can('view_user_roles')
-                        <a href="{{ route('users.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('users.index') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-users w-6 text-cyan-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Người dùng</span>
-                        </a>
-                        @endcan
-
-                        @can('view_roles')
-                        <a href="{{ route('roles.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('roles.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-user-tag w-6 text-blue-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Vai trò</span>
-                        </a>
-                        @endcan
-
-                        @can('view_permissions')
-                        <a href="{{ route('permissions.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('permissions.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-key w-6 text-yellow-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Quyền</span>
-                        </a>
-                        @endcan
-
-                        @can('view_audit_logs')
-                        <a href="{{ route('audit-logs.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('audit-logs.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-clipboard-list w-6 text-red-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký Kiểm toán</span>
-                        </a>
-                        @endcan
-                    </div>
-                </div>
                 @endcan
             </nav>
         </aside>
@@ -789,10 +823,10 @@
             });
 
             // Dropdown toggle functionality
-            window.toggleDropdown = function(sectionId) {
+            window.toggleDropdown = function (sectionId) {
                 const dropdown = document.getElementById('dropdown-' + sectionId);
                 const arrow = document.getElementById('arrow-' + sectionId);
-                
+
                 if (dropdown.classList.contains('collapsed')) {
                     // Open dropdown
                     dropdown.classList.remove('collapsed');
@@ -809,14 +843,14 @@
             };
 
             // Initialize dropdown states from localStorage
-            const sections = ['masterData', 'warehouse', 'reports', 'sales', 'purchasing', 'system', 'access'];
-            sections.forEach(function(sectionId) {
+            const sections = ['masterData', 'warehouse', 'reports', 'accounting', 'sales', 'purchasing', 'system', 'access'];
+            sections.forEach(function (sectionId) {
                 const dropdown = document.getElementById('dropdown-' + sectionId);
                 const arrow = document.getElementById('arrow-' + sectionId);
-                
+
                 if (dropdown && arrow) {
                     const savedState = localStorage.getItem('dropdown-' + sectionId);
-                    
+
                     if (savedState === 'closed') {
                         dropdown.style.maxHeight = '0';
                         dropdown.classList.add('collapsed');
@@ -831,7 +865,7 @@
             });
 
             // Auto-open the section containing the active page
-            sections.forEach(function(sectionId) {
+            sections.forEach(function (sectionId) {
                 const dropdown = document.getElementById('dropdown-' + sectionId);
                 if (dropdown) {
                     const activeLink = dropdown.querySelector('a.bg-primary');
