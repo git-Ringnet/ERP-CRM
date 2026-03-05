@@ -26,6 +26,12 @@ class AppServiceProvider extends ServiceProvider
         
         // Register RoleService
         $this->app->singleton(\App\Services\RoleServiceInterface::class, \App\Services\RoleService::class);
+        
+        // Register DashboardService
+        $this->app->singleton(\App\Services\DashboardService::class);
+        
+        // Register MetricsCalculationService
+        $this->app->singleton(\App\Services\MetricsCalculationService::class);
     }
 
     /**
@@ -34,9 +40,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // // Ép buộc toàn bộ link phải chạy HTTPS
-        if ($this->app->environment('production') || true) {
-            URL::forceScheme('https');
-        }
+        // if ($this->app->environment('production') || true) {
+        //     URL::forceScheme('https');
+        // }
         // Use custom Tailwind pagination view
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.tailwind');
         \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.simple-tailwind');

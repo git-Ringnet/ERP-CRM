@@ -83,15 +83,10 @@ class CheckPermissionTest extends TestCase
         };
 
         // Act & Assert
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
-        $this->expectExceptionMessage('Unauthorized action.');
+        $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
+        $this->expectExceptionMessage("Bạn không có quyền '{$permission}'. Vui lòng liên hệ quản trị viên để được cấp quyền.");
 
-        try {
-            $this->middleware->handle($request, $next, $permission);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-            $this->assertEquals(403, $e->getStatusCode());
-            throw $e;
-        }
+        $this->middleware->handle($request, $next, $permission);
     }
 
     public function test_logs_unauthorized_access_attempt(): void
@@ -121,10 +116,10 @@ class CheckPermissionTest extends TestCase
         // Act & Assert
         try {
             $this->middleware->handle($request, $next, $permission);
-            $this->fail('Expected HttpException was not thrown');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->fail('Expected AuthorizationException was not thrown');
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
             // Expected exception - test passes
-            $this->assertEquals(403, $e->getStatusCode());
+            $this->assertStringContainsString($permission, $e->getMessage());
         }
     }
 

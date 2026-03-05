@@ -107,11 +107,6 @@
                                     <select name="products[0][product_id]" required
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary product-select">
                                         <option value="">Chọn sản phẩm</option>
-                                        @foreach($products as $product)
-                                            <option value="{{ $product->id }}" data-price="{{ $product->price }}">
-                                                {{ $product->name }} ({{ $product->code }})
-                                            </option>
-                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="md:col-span-2">
@@ -251,17 +246,41 @@
 
         function initializeSelect2(elements) {
             elements.select2({
-                placeholder: "Chọn sản phẩm",
+                placeholder: "Tìm mã hoặc tên (Kho/Hãng)...",
                 allowClear: true,
-                width: '100%'
-            }).on('change', function () {
-                // Trigger the updatePrice logic
+                width: '100%',
+                ajax: {
+                    url: '{{ route("quotations.search-catalog") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return { results: data };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 0
+            }).on('select2:select', function (e) {
+                const data = e.params.data;
                 const name = $(this).attr('name');
                 const match = name.match(/products\[(\d+)\]/);
                 if (match) {
-                    updatePrice(this, match[1]);
+                    const index = match[1];
+                    updateProductData(index, data);
                 }
             });
+        }
+
+        function updateProductData(index, data) {
+            const priceInput = document.querySelector(`input[name="products[${index}][price]"]`);
+            if (priceInput) {
+                // For Catalog items, data.price is already calculated
+                // For Products, data.price is calculated_selling_price
+                priceInput.value = formatNumber(data.price);
+            }
+            calculateRowTotal(index);
         }
 
         function formatCurrency(input) {
@@ -290,7 +309,6 @@
                                     <select name="products[${productIndex}][product_id]" required
                                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary product-select">
                                         <option value="">Chọn sản phẩm</option>
-                                        ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} (${p.code})</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="md:col-span-2">
@@ -336,16 +354,7 @@
             }
         }
 
-        function updatePrice(select, index) {
-            // With Select2, the select element value works as normal
-            const option = select.options[select.selectedIndex];
-            // Safety check if no option selected
-            if (!option) return;
 
-            const price = option.dataset.price || 0;
-            document.querySelector(`input[name="products[${index}][price]"]`).value = formatNumber(price);
-            calculateRowTotal(index);
-        }
 
         function calculateRowTotal(index) {
             const qtyInput = document.querySelector(`input[name="products[${index}][quantity]"]`);

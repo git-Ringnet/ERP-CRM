@@ -32,6 +32,7 @@ class SupplierPriceList extends Model
         'notes',
         'import_log',
         'custom_columns',
+        'primary_price_column',
         'is_active',
         'created_by',
     ];
@@ -195,5 +196,47 @@ class SupplierPriceList extends Model
         $number = $last ? intval(substr($last->code, -3)) + 1 : 1;
 
         return "{$prefix}-{$date}-" . str_pad($number, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Get the primary price value from a SupplierPriceListItem
+     * Uses primary_price_column setting, with smart fallbacks
+     */
+    public function getPrimaryPriceForItem(SupplierPriceListItem $item): ?float
+    {
+        $col = $this->primary_price_column;
+
+        // If a primary column is set, try to get its value
+        if ($col) {
+            // Standard DB columns
+            $standardCols = ['list_price', 'price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'];
+            if (in_array($col, $standardCols)) {
+                $value = $item->{$col};
+                if ($value !== null && $value > 0) return (float) $value;
+            }
+
+            // Custom/meta columns stored in extra_data
+            if (str_starts_with($col, 'custom_') && $item->extra_data) {
+                $value = $item->extra_data['prices'][$col] ?? null;
+                if ($value !== null && $value > 0) return (float) $value;
+            }
+        }
+
+        // Fallback: try standard columns in order of priority
+        if ($item->list_price > 0) return (float) $item->list_price;
+        if ($item->price_1yr > 0) return (float) $item->price_1yr;
+        if ($item->price_2yr > 0) return (float) $item->price_2yr;
+        if ($item->price_3yr > 0) return (float) $item->price_3yr;
+        if ($item->price_4yr > 0) return (float) $item->price_4yr;
+        if ($item->price_5yr > 0) return (float) $item->price_5yr;
+
+        // Fallback: first custom price
+        if ($item->extra_data && !empty($item->extra_data['prices'])) {
+            foreach ($item->extra_data['prices'] as $price) {
+                if ($price > 0) return (float) $price;
+            }
+        }
+
+        return null;
     }
 }

@@ -121,12 +121,9 @@
                                 <td class="px-4 py-2">
                                     <select name="products[{{ $index }}][product_id]" required
                                         class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 product-select">
-                                        <option value="">Chọn sản phẩm</option>
-                                        @foreach($products as $product)
-                                            <option value="{{ $product->id }}" data-price="{{ $product->price }}" {{ $item->product_id == $product->id ? 'selected' : '' }}>
-                                                {{ $product->name }} ({{ $product->code }})
-                                            </option>
-                                        @endforeach
+                                        <option value="{{ $item->product_id }}" selected>
+                                            {{ $item->product_name }} ({{ $item->product_code }})
+                                        </option>
                                     </select>
                                 </td>
                                 <td class="px-4 py-2">
@@ -259,17 +256,39 @@
 
         function initializeSelect2(elements) {
             elements.select2({
-                placeholder: "Chọn sản phẩm",
+                placeholder: "Tìm mã hoặc tên (Kho/Hãng)...",
                 allowClear: true,
-                width: '100%'
-            }).on('change', function () {
-                // Trigger the updatePrice logic
+                width: '100%',
+                ajax: {
+                    url: '{{ route("quotations.search-catalog") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return { results: data };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2
+            }).on('select2:select', function (e) {
+                const data = e.params.data;
                 const name = $(this).attr('name');
                 const match = name.match(/products\[(\d+)\]/);
                 if (match) {
-                    updatePrice(this, match[1]);
+                    const index = match[1];
+                    updateProductData(index, data);
                 }
             });
+        }
+
+        function updateProductData(index, data) {
+            const priceInput = document.querySelector(`input[name="products[${index}][price]"]`);
+            if (priceInput) {
+                priceInput.value = formatNumber(data.price);
+            }
+            calculateRowTotal(index);
         }
 
         function formatCurrency(input) {
@@ -296,7 +315,6 @@
                         <select name="products[${rowIndex}][product_id]" required
                             class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 product-select">
                             <option value="">Chọn sản phẩm</option>
-                            ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} (${p.code})</option>`).join('')}
                         </select>
                     </td>
                     <td class="px-4 py-2">
@@ -335,14 +353,7 @@
             }
         }
 
-        function updatePrice(select, index) {
-            const option = select.options[select.selectedIndex];
-            if (!option) return;
 
-            const price = option.dataset.price || 0;
-            document.querySelector(`input[name="products[${index}][price]"]`).value = formatNumber(price);
-            calculateRowTotal(index);
-        }
 
         function calculateRowTotal(index) {
             const qtyInput = document.querySelector(`input[name="products[${index}][quantity]"]`);

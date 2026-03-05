@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Quotation;
 use App\Models\QuotationItem;
+use App\Models\SupplierPriceList;
+use App\Models\SupplierPriceListItem;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
@@ -95,7 +97,7 @@ class QuotationController extends Controller
             'delivery_time' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'exists:products,id'],
+            'products.*.product_id' => ['required', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
         ], [
@@ -141,10 +143,10 @@ class QuotationController extends Controller
             ]);
 
             foreach ($validated['products'] as $item) {
-                $product = Product::find($item['product_id']);
+                $product = $this->getOrSyncProduct($item['product_id']);
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $item['product_id'],
+                    'product_id' => $product->id,
                     'product_name' => $product->name,
                     'product_code' => $product->code,
                     'quantity' => $item['quantity'],
@@ -212,7 +214,7 @@ class QuotationController extends Controller
             'delivery_time' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'exists:products,id'],
+            'products.*.product_id' => ['required', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
         ], [
@@ -259,10 +261,10 @@ class QuotationController extends Controller
             $quotation->items()->delete();
 
             foreach ($validated['products'] as $item) {
-                $product = Product::find($item['product_id']);
+                $product = $this->getOrSyncProduct($item['product_id']);
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $item['product_id'],
+                    'product_id' => $product->id,
                     'product_name' => $product->name,
                     'product_code' => $product->code,
                     'quantity' => $item['quantity'],
@@ -485,6 +487,75 @@ class QuotationController extends Controller
     }
 
     /**
+     * Enhanced search for Quotation - Search both Products and Master Catalog
+     */
+    public function searchCatalog(Request $request)
+    {
+        $search = $request->get('q');
+
+        // 1. Search in local Products
+        $productQuery = Product::query();
+        if (!empty($search)) {
+            $productQuery->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+        $products = $productQuery->limit(15)
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id' => 'p-' . $p->id,
+                    'text' => "[KHO] {$p->code} - {$p->name}",
+                    'sku' => $p->code,
+                    'name' => $p->name,
+                    'description' => $p->description,
+                    'price' => $p->calculated_selling_price ?: 0,
+                    'unit' => $p->unit,
+                    'type' => 'product',
+                    'original_id' => $p->id
+                ];
+            });
+
+        // 2. Search in Active Price Lists (Catalog)
+        // Only include items that don't match existing product codes to avoid duplicates
+        $productCodes = $products->pluck('sku')->toArray();
+
+        $catalogQuery = SupplierPriceListItem::whereHas('priceList', function ($q) {
+                $q->where('is_active', true);
+            });
+        if (!empty($search)) {
+            $catalogQuery->where(function ($q) use ($search) {
+                $q->where('sku', 'like', "%{$search}%")
+                  ->orWhere('product_name', 'like', "%{$search}%");
+            });
+        }
+        $catalogItems = $catalogQuery->whereNotIn('sku', $productCodes) 
+            ->limit(15)
+            ->get()
+            ->map(function ($item) {
+                $pl = $item->priceList;
+                // Use primary price column instead of best_price
+                $primaryPrice = $pl->getPrimaryPriceForItem($item);
+                $calculated = $primaryPrice > 0 ? $pl->calculateFinalPrice($primaryPrice) : null;
+                return [
+                    'id' => 'c-' . $item->id,
+                    'text' => "[HÃNG] {$item->sku} - {$item->product_name}",
+                    'sku' => $item->sku,
+                    'name' => $item->product_name,
+                    'description' => $item->description,
+                    'price' => $calculated ? $calculated['final_price_vnd'] : 0,
+                    'unit' => $item->unit ?: 'Bộ',
+                    'type' => 'catalog',
+                    'original_id' => $item->id,
+                    'is_catalog' => true
+                ];
+            });
+
+        return response()->json($products->concat($catalogItems));
+    }
+
+    /**
      * Mark as sent to customer
      */
     public function markAsSent(Quotation $quotation)
@@ -620,5 +691,49 @@ class QuotationController extends Controller
         $filename = 'bao-gia-' . date('Y-m-d') . '.xlsx';
 
         return Excel::download(new QuotationsExport($filters), $filename);
+    }
+
+    /**
+     * Helper to get local product or create from catalog
+     */
+    private function getOrSyncProduct($productIdRaw)
+    {
+        if (str_starts_with($productIdRaw, 'c-')) {
+            $catalogId = substr($productIdRaw, 2);
+            $catalogItem = SupplierPriceListItem::find($catalogId);
+            
+            if (!$catalogItem) {
+                throw new \Exception("Không tìm thấy hàng trong Catalog với ID: {$catalogId}");
+            }
+
+            $sku = $this->cleanSku($catalogItem->sku);
+            $product = Product::where('code', $sku)->first();
+
+            if (!$product) {
+                $product = Product::create([
+                    'code' => $sku,
+                    'name' => $catalogItem->product_name,
+                    'description' => $catalogItem->description,
+                    'unit' => $catalogItem->unit ?: 'Bộ',
+                    'category' => 'Z',
+                ]);
+            }
+            return $product;
+        }
+
+        // Handle 'p-1' or just '1'
+        $id = str_starts_with($productIdRaw, 'p-') ? substr($productIdRaw, 2) : $productIdRaw;
+        return Product::findOrFail($id);
+    }
+
+    /**
+     * Clean SKU matching SupplierPriceListController
+     */
+    private function cleanSku($sku)
+    {
+        if (empty($sku)) return '';
+        $clean = strtoupper(trim($sku));
+        $clean = preg_replace('/[^A-Z0-9\-_]/', '', $clean);
+        return $clean;
     }
 }

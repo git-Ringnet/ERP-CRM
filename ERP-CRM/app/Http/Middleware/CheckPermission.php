@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\AuditServiceInterface;
 use App\Services\PermissionServiceInterface;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -46,8 +47,10 @@ class CheckPermission
                 $request->path()
             );
 
-            // Return 403 Forbidden
-            abort(403, 'Unauthorized action.');
+            // Throw AuthorizationException with descriptive message
+            throw new AuthorizationException(
+                "Bạn không có quyền '{$permission}'. Vui lòng liên hệ quản trị viên để được cấp quyền."
+            );
         }
 
         return $next($request);
