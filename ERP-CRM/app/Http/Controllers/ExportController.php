@@ -7,6 +7,7 @@ use App\Models\Export;
 use App\Models\ExportItem;
 use App\Models\Product;
 use App\Models\ProductItem;
+use Maatwebsite\Excel\Facades\Excel;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\TransactionService;
@@ -407,5 +408,45 @@ class ExportController extends Controller
 
         $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
         return \Excel::download(new \App\Exports\ExportsExport($filters), 'phieu-xuat-kho-' . date('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Print export voucher
+     */
+    public function print(Export $export)
+    {
+        $this->authorize('view', $export);
+        $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
+        return view('reports.vouchers.phieu-xuat-kho', compact('export'));
+    }
+
+    /**
+     * Export to Misa Excel
+     */
+    public function exportMisa(Request $request)
+    {
+        $this->authorize('viewAny', Export::class);
+        $filters = $request->only(['date_from', 'date_to', 'warehouse_id']);
+        
+        $query = \App\Models\ExportItem::with(['export.warehouse', 'product'])
+            ->whereHas('export', function($q) use ($filters) {
+                $q->where('status', 'completed');
+                if (!empty($filters['date_from'])) $q->whereDate('date', '>=', $filters['date_from']);
+                if (!empty($filters['date_to'])) $q->whereDate('date', '<=', $filters['date_to']);
+                if (!empty($filters['warehouse_id'])) $q->where('warehouse_id', $filters['warehouse_id']);
+            });
+
+        return \Excel::download(new \App\Exports\MisaInventoryExport($query->get(), 'export'), 'phieu-xuat-kho-' . date('Ymd') . '.xlsx');
+    }
+
+    public function exportMisaSingle(Export $export)
+    {
+        $this->authorize('view', $export);
+        
+        $items = \App\Models\ExportItem::with(['export.warehouse', 'product', 'export.customer', 'export.project'])
+            ->where('export_id', $export->id)
+            ->get();
+
+        return \Excel::download(new \App\Exports\MisaInventoryExport($items, 'export'), 'phieu-xuat-kho-' . $export->code . '.xlsx');
     }
 }

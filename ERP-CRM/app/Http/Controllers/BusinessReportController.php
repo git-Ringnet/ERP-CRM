@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Exports\BalanceSheetExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BusinessReportController extends Controller
 {
@@ -64,114 +66,154 @@ class BusinessReportController extends Controller
     }
 
     /**
-     * Display the Balance Sheet according to MISA standards.
+     * Display the Balance Sheet according to Circular 200/2014/TT-BTC (Form B 01 - DN).
      */
     public function balanceSheet(Request $request): View
     {
-        // Default to end of today if no date provided
-        $date = $request->input('date', now()->format('Y-m-d'));
-
-        // Assets (Tài sản)
-        $cash = FinancialTransaction::where('date', '<=', $date)
-            ->where('payment_method', 'cash')
-            ->selectRaw('SUM(CASE WHEN type = "income" THEN amount ELSE -amount END) as balance')
-            ->value('balance') ?? 0;
-
-        $bank = FinancialTransaction::where('date', '<=', $date)
-            ->where('payment_method', 'bank_transfer')
-            ->selectRaw('SUM(CASE WHEN type = "income" THEN amount ELSE -amount END) as balance')
-            ->value('balance') ?? 0;
-
-        $receivables = Sale::where('date', '<=', $date)
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
-            ->sum('debt_amount');
-
-        $inventoryValue = DB::table('inventories')
-            ->selectRaw('SUM(stock * avg_cost) as total')
-            ->value('total') ?? 0;
-
-        // Liabilities (Nguồn vốn)
-        // 311. Phải trả người bán ngắn hạn
-        $payables = PurchaseOrder::where('order_date', '<=', $date)
-            ->whereIn('status', ['sent', 'confirmed', 'shipping', 'received', 'partial_received'])
-            ->sum('total');
-            
-        // 313. Thuế và các khoản phải nộp Nhà nước (Ước tính doanh thu - đầu vào)
-        $vatPayable = Sale::where('date', '<=', $date)
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
-            ->sum('vat');
+        $date = $request->get('date', date('Y-m-d'));
+        $reportData = $this->getBalanceSheetData($date);
         
-        $vatDeductible = PurchaseOrder::where('order_date', '<=', $date)
-            ->whereIn('status', ['received', 'confirmed'])
-            ->sum('vat_amount');
-            
-        $netVat = max(0, $vatPayable - $vatDeductible);
+        return view('reports.balance-sheet', compact('reportData', 'date'));
+    }
 
-        $totalAssetsValue = $cash + $bank + $receivables + $inventoryValue;
-        $totalLiabilitiesValue = $payables + $netVat;
-        $equityBalance = $totalAssetsValue - $totalLiabilitiesValue;
+    /**
+     * Export the Balance Sheet to Excel.
+     */
+    public function exportBalanceSheet(Request $request)
+    {
+        $date = $request->get('date', date('Y-m-d'));
+        $reportData = $this->getBalanceSheetData($date);
+        
+        return Excel::download(new BalanceSheetExport($reportData, $date), 'Bao-cao-can-doi-ke-toan-' . $date . '.xlsx');
+    }
 
-        $assets = [
-            'short_term' => [
-                'code' => '100',
-                'items' => [
-                    ['name' => 'I. Tiền và các khoản tương đương tiền', 'code' => '110', 'value' => $cash + $bank, 'sub' => [
-                        ['name' => '1. Tiền mặt', 'code' => '111', 'value' => $cash],
-                        ['name' => '2. Tiền gửi ngân hàng', 'code' => '112', 'value' => $bank],
-                    ]],
-                    ['name' => 'II. Đầu tư tài chính ngắn hạn', 'code' => '120', 'value' => 0],
-                    ['name' => 'III. Các khoản phải thu ngắn hạn', 'code' => '130', 'value' => $receivables, 'sub' => [
-                        ['name' => '1. Phải thu khách hàng', 'code' => '131', 'value' => $receivables],
-                        ['name' => '2. Trả trước cho người bán', 'code' => '132', 'value' => 0],
-                    ]],
-                    ['name' => 'IV. Hàng tồn kho', 'code' => '140', 'value' => $inventoryValue, 'sub' => [
-                        ['name' => '1. Hàng tồn kho', 'code' => '141', 'value' => $inventoryValue],
-                    ]],
-                    ['name' => 'V. Tài sản ngắn hạn khác', 'code' => '150', 'value' => 0],
+    /**
+     * Helper to get balance sheet data
+     */
+    private function getBalanceSheetData($date)
+    {
+        $beginningOfYear = Carbon::parse($date)->startOfYear()->toDateString();
+        
+        $getBalances = function($targetDate) {
+            $cash = FinancialTransaction::where('date', '<=', $targetDate)
+                ->whereHas('category', fn($q) => $q->where('type', 'income'))
+                ->sum('amount') 
+                - FinancialTransaction::where('date', '<=', $targetDate)
+                ->whereHas('category', fn($q) => $q->where('type', 'expense'))
+                ->sum('amount');
+
+            // Simplified mapping for now
+            $receivables_short = Sale::where('date', '<=', $targetDate)
+                ->whereIn('status', ['approved', 'shipping', 'completed'])
+                ->sum('debt_amount');
+
+            $inventory = DB::table('inventories')
+                ->selectRaw('SUM(stock * avg_cost) as total')
+                ->value('total') ?? 0;
+
+            $payables_short = PurchaseOrder::where('order_date', '<=', $targetDate)
+                ->whereIn('status', ['sent', 'confirmed', 'shipping', 'received', 'partial_received'])
+                ->get()
+                ->sum(fn($po) => $po->total - ($po->paid_amount ?? 0));
+
+            $undistributed_profit = ($cash + $receivables_short + $inventory) - $payables_short;
+
+            return [
+                'cash' => $cash,
+                'cash_and_equiv' => $cash,
+                'receivables_short' => $receivables_short,
+                'receivables_cust_short' => $receivables_short,
+                'inventory' => $inventory,
+                'inventory_net' => $inventory,
+                'payables_short' => $payables_short,
+                'taxes_payable' => 0,
+                'undistributed_profit' => $undistributed_profit,
+                'equity' => $undistributed_profit,
+                'total_assets' => $cash + $receivables_short + $inventory,
+                'total_liabilities' => $payables_short,
+                'total_equity' => $undistributed_profit,
+                'total_resources' => $payables_short + $undistributed_profit,
+            ];
+        };
+
+        $endBalances = $getBalances($date);
+        $startBalances = $getBalances($beginningOfYear);
+
+        $reportData = [
+            'A' => [
+                'name' => 'TÀI SẢN NGẮN HẠN', 'code' => '100', 'end' => $endBalances['total_assets'], 'start' => $startBalances['total_assets'],
+                'sub' => [
+                    'I' => [
+                        'name' => 'Tiền và các khoản tương đương tiền', 'code' => '110', 'end' => $endBalances['cash_and_equiv'], 'start' => $startBalances['cash_and_equiv'],
+                        'items' => [
+                            ['name' => '1. Tiền', 'code' => '111', 'end' => $endBalances['cash'], 'start' => $startBalances['cash'], 'note' => 'V.01'],
+                            ['name' => '2. Các khoản tương đương tiền', 'code' => '112', 'end' => 0, 'start' => 0],
+                        ]
+                    ],
+                    'III' => [
+                        'name' => 'Các khoản phải thu ngắn hạn', 'code' => '130', 'end' => $endBalances['receivables_short'], 'start' => $startBalances['receivables_short'],
+                        'items' => [
+                            ['name' => '1. Phải thu ngắn hạn của khách hàng', 'code' => '131', 'end' => $endBalances['receivables_cust_short'], 'start' => $startBalances['receivables_cust_short'], 'note' => 'V.03'],
+                        ]
+                    ],
+                    'IV' => [
+                        'name' => 'Hàng tồn kho', 'code' => '140', 'end' => $endBalances['inventory'], 'start' => $startBalances['inventory'],
+                        'items' => [
+                            ['name' => '1. Hàng tồn kho', 'code' => '141', 'end' => $endBalances['inventory_net'], 'start' => $startBalances['inventory_net'], 'note' => 'V.04'],
+                        ]
+                    ]
                 ]
             ],
-            'long_term' => [
-                'code' => '200',
-                'items' => [
-                    ['name' => 'I. Các khoản phải thu dài hạn', 'code' => '210', 'value' => 0],
-                    ['name' => 'II. Tài sản cố định', 'code' => '220', 'value' => 0, 'sub' => [
-                        ['name' => '1. Tài sản cố định hữu hình', 'code' => '221', 'value' => 0],
-                        ['name' => '2. Tài sản cố định vô hình', 'code' => '227', 'value' => 0],
-                    ]],
-                    ['name' => 'III. Bất động sản đầu tư', 'code' => '230', 'value' => 0],
-                    ['name' => 'IV. Tài sản dở dang dài hạn', 'code' => '240', 'value' => 0],
-                    ['name' => 'V. Đầu tư tài chính dài hạn', 'code' => '250', 'value' => 0],
-                    ['name' => 'VI. Tài sản dài hạn khác', 'code' => '260', 'value' => 0],
+            'B' => [
+                'name' => 'TÀI SẢN DÀI HẠN', 'code' => '200', 'end' => 0, 'start' => 0,
+                'sub' => []
+            ],
+            'C' => [
+                'name' => 'NỢ PHẢI TRẢ', 'code' => '300', 'end' => $endBalances['total_liabilities'], 'start' => $startBalances['total_liabilities'],
+                'sub' => [
+                    'I' => [
+                        'name' => 'Nợ ngắn hạn', 'code' => '310', 'end' => $endBalances['payables_short'], 'start' => $startBalances['payables_short'],
+                        'items' => [
+                            ['name' => '1. Phải trả người bán ngắn hạn', 'code' => '311', 'end' => $endBalances['payables_short'], 'start' => $startBalances['payables_short'], 'note' => 'V.11'],
+                            ['name' => '3. Thuế và các khoản phải nộp Nhà nước', 'code' => '313', 'end' => 0, 'start' => 0, 'note' => 'V.13'],
+                        ]
+                    ]
                 ]
             ],
-            'total' => ['name' => 'TỔNG CỘNG TÀI SẢN', 'code' => '270', 'value' => $cash + $bank + $receivables + $inventoryValue]
+            'D' => [
+                'name' => 'VỐN CHỦ SỞ HỮU', 'code' => '400', 'end' => $endBalances['total_equity'], 'start' => $startBalances['total_equity'],
+                'sub' => [
+                    'I' => [
+                        'name' => 'Vốn chủ sở hữu', 'code' => '410', 'end' => $endBalances['equity'], 'start' => $startBalances['equity'],
+                        'items' => [
+                            ['name' => '11. Lợi nhuận sau thuế chưa phân phối', 'code' => '421', 'end' => $endBalances['undistributed_profit'], 'start' => $startBalances['undistributed_profit'], 'note' => 'V.21'],
+                        ]
+                    ]
+                ]
+            ],
+            'TOTAL_ASSETS' => ['name' => 'TỔNG CỘNG TÀI SẢN', 'code' => '270', 'end' => $endBalances['total_assets'], 'start' => $startBalances['total_assets']],
+            'TOTAL_RESOURCES' => ['name' => 'TỔNG CỘNG NGUỒN VỐN', 'code' => '440', 'end' => $endBalances['total_resources'], 'start' => $startBalances['total_resources']],
         ];
 
-        $liabilities = [
-            'liabilities' => [
-                'code' => '300',
-                'items' => [
-                    ['name' => 'I. Nợ ngắn hạn', 'code' => '310', 'value' => $payables, 'sub' => [
-                        ['name' => '1. Phải trả người bán ngắn hạn', 'code' => '311', 'value' => $payables],
-                        ['name' => '2. Người mua trả tiền trước ngắn hạn', 'code' => '312', 'value' => 0],
-                        ['name' => '3. Thuế và các khoản phải nộp Nhà nước', 'code' => '313', 'value' => $netVat],
-                    ]],
-                    ['name' => 'II. Nợ dài hạn', 'code' => '330', 'value' => 0],
-                ]
-            ],
-            'equity' => [
-                'code' => '400',
-                'items' => [
-                    ['name' => 'I. Vốn chủ sở hữu', 'code' => '410', 'value' => $equityBalance, 'sub' => [
-                        ['name' => '1. Vốn góp của chủ sở hữu', 'code' => '411', 'value' => 0],
-                        ['name' => '2. Lợi nhuận sau thuế chưa phân phối', 'code' => '421', 'value' => $equityBalance],
-                    ]],
-                ]
-            ],
-            'total' => ['name' => 'TỔNG CỘNG NGUỒN VỐN', 'code' => '440', 'value' => $totalAssetsValue]
-        ];
+        // Filter out zero entries
+        $hasData = ($endBalances['total_assets'] != 0 || $startBalances['total_assets'] != 0);
+        
+        foreach (['A', 'B', 'C', 'D'] as $sectionKey) {
+            foreach ($reportData[$sectionKey]['sub'] as $subKey => $sub) {
+                $reportData[$sectionKey]['sub'][$subKey]['items'] = array_filter($sub['items'], function($item) use ($hasData) {
+                    return $item['end'] != 0 || $item['start'] != 0 || !$hasData;
+                });
+                
+                if (empty($reportData[$sectionKey]['sub'][$subKey]['items']) && $sub['end'] == 0 && $sub['start'] == 0 && $hasData) {
+                    unset($reportData[$sectionKey]['sub'][$subKey]);
+                }
+            }
+            if (empty($reportData[$sectionKey]['sub']) && $reportData[$sectionKey]['end'] == 0 && $reportData[$sectionKey]['start'] == 0 && $hasData) {
+                unset($reportData[$sectionKey]);
+            }
+        }
 
-        return view('reports.balance-sheet', compact('assets', 'liabilities', 'date'));
+        return $reportData;
     }
 
     /**

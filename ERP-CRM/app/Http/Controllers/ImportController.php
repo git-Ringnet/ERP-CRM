@@ -7,6 +7,7 @@ use App\Models\Import;
 use App\Models\ImportItem;
 use App\Models\Product;
 use App\Models\ProductItem;
+use Maatwebsite\Excel\Facades\Excel;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\TransactionService;
@@ -84,13 +85,31 @@ class ImportController extends Controller
         $this->authorize('create', Import::class);
 
         $warehouses = Warehouse::active()->get();
-        $products = Product::with(['supplierPriceListItems.priceList'])
+        
+        // Load products with calculated cost but optimize the query
+        // Only eager load the relationships needed for cost calculation
+        $products = Product::with(['supplierPriceListItems' => function($query) {
+                $query->with(['priceList' => function($q) {
+                    $q->where('is_active', true)
+                      ->where(function($q2) {
+                          $q2->whereNull('effective_date')
+                             ->orWhere('effective_date', '<=', now());
+                      });
+                }]);
+            }])
+            ->select('id', 'code', 'name', 'unit', 'category')
             ->orderBy('name')
             ->get()
             ->map(function ($product) {
-                $product->default_cost = $product->calculated_cost;
+                // Only calculate cost if there are price list items
+                $product->default_cost = $product->supplierPriceListItems->isNotEmpty() 
+                    ? $product->calculated_cost 
+                    : 0;
+                // Unset the relationship to reduce memory
+                unset($product->supplierPriceListItems);
                 return $product;
             });
+            
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
         $code = Import::generateCode();
@@ -172,13 +191,31 @@ class ImportController extends Controller
 
         $import->load(['items.product', 'items.warehouse']);
         $warehouses = Warehouse::active()->get();
-        $products = Product::with(['supplierPriceListItems.priceList'])
+        
+        // Load products with calculated cost but optimize the query
+        // Only eager load the relationships needed for cost calculation
+        $products = Product::with(['supplierPriceListItems' => function($query) {
+                $query->with(['priceList' => function($q) {
+                    $q->where('is_active', true)
+                      ->where(function($q2) {
+                          $q2->whereNull('effective_date')
+                             ->orWhere('effective_date', '<=', now());
+                      });
+                }]);
+            }])
+            ->select('id', 'code', 'name', 'unit', 'category')
             ->orderBy('name')
             ->get()
             ->map(function ($product) {
-                $product->default_cost = $product->calculated_cost;
+                // Only calculate cost if there are price list items
+                $product->default_cost = $product->supplierPriceListItems->isNotEmpty() 
+                    ? $product->calculated_cost 
+                    : 0;
+                // Unset the relationship to reduce memory
+                unset($product->supplierPriceListItems);
                 return $product;
             });
+            
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
 
@@ -400,5 +437,51 @@ class ImportController extends Controller
 
         $filters = $request->only(['warehouse_id', 'status', 'date_from', 'date_to']);
         return \Excel::download(new \App\Exports\ImportsExport($filters), 'phieu-nhap-kho-' . date('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Print import voucher
+     */
+    public function print(Import $import)
+    {
+        $this->authorize('view', $import);
+        $import->load(['warehouse', 'employee', 'items.product']);
+        return view('reports.vouchers.phieu-nhap-kho', compact('import'));
+    }
+
+    /**
+     * Export to Misa Excel
+     */
+    public function exportMisa(Request $request)
+    {
+        $this->authorize('viewAny', Import::class);
+        $filters = $request->only(['date_from', 'date_to', 'warehouse_id']);
+        
+        $query = \App\Models\ImportItem::with(['import.warehouse', 'product'])
+            ->whereHas('import', function($q) use ($filters) {
+                $q->where('status', 'completed');
+                if (!empty($filters['date_from'])) $q->whereDate('date', '>=', $filters['date_from']);
+                if (!empty($filters['date_to'])) $q->whereDate('date', '<=', $filters['date_to']);
+                if (!empty($filters['warehouse_id'])) $q->where('warehouse_id', $filters['warehouse_id']);
+            });
+
+        $items = $query->get();
+        
+        // Debug: Check if we have data
+        if ($items->isEmpty()) {
+            return back()->with('error', 'Không có dữ liệu phiếu nhập đã hoàn thành trong khoảng thời gian này.');
+        }
+
+        return \Excel::download(new \App\Exports\MisaInventoryExport($items, 'import'), 'phieu-nhap-kho-' . date('Ymd') . '.xlsx');
+    }
+    public function exportMisaSingle(Import $import)
+    {
+        $this->authorize('view', $import);
+        
+        $items = \App\Models\ImportItem::with(['import.warehouse', 'product', 'import.supplier'])
+            ->where('import_id', $import->id)
+            ->get();
+
+        return \Excel::download(new \App\Exports\MisaInventoryExport($items, 'import'), 'phieu-nhap-kho-' . $import->code . '.xlsx');
     }
 }

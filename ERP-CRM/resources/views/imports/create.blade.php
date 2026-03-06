@@ -3,6 +3,24 @@
 @section('title', 'Tạo phiếu nhập kho')
 @section('page-title', 'Tạo Phiếu Nhập Kho')
 
+@push('styles')
+<style>
+    /* Prevent select dropdowns from overflowing */
+    .product-select, .warehouse-select {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .product-select option, .warehouse-select option {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+@endpush
+
 @section('content')
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200 flex justify-between items-center">
@@ -225,9 +243,11 @@
                 itemDiv.className = 'item-card bg-gray-50 rounded-lg p-4 border border-gray-200';
                 itemDiv.dataset.index = itemIndex;
 
-                const productOptions = products.map(p =>
-                    `<option value="${p.id}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" data-cost="${p.default_cost || 0}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${p.name}</option>`
-                ).join('');
+                const productOptions = products.map(p => {
+                    // Truncate long product names to prevent overflow
+                    const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
+                    return `<option value="${p.id}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" data-cost="${p.default_cost || 0}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${displayName}</option>`;
+                }).join('');
 
                 const warehouseOptions = warehouses.map(w =>
                     `<option value="${w.id}" ${existingData && existingData.warehouse_id == w.id ? 'selected' : ''}>${w.name}</option>`

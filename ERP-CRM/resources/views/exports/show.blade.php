@@ -7,7 +7,10 @@
 <div class="bg-white rounded-lg shadow-sm">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-800">{{ $export->code }}</h2>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('exports.print', $export) }}" target="_blank" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
+                <i class="fas fa-print mr-2"></i> In chứng từ
+            </a>
             @if($export->status === 'pending')
                 <a href="{{ route('exports.edit', $export) }}" 
                    class="px-3 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600">

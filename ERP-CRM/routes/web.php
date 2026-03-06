@@ -84,17 +84,23 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/excel-import', [ExcelImportController::class, 'store'])->name('excel-import.store');
 
     // Import Module Routes (Nhập kho)
+    Route::get('/imports/export-misa', [ImportController::class, 'exportMisa'])->name('imports.export-misa');
+    Route::get('/imports/export', [ImportController::class, 'export'])->name('imports.export');
     Route::resource('imports', ImportController::class);
     Route::post('/imports/{import}/approve', [ImportController::class, 'approve'])->name('imports.approve');
     Route::post('/imports/{import}/reject', [ImportController::class, 'reject'])->name('imports.reject');
-    Route::get('/imports-export', [ImportController::class, 'export'])->name('imports.export');
+    Route::get('/imports/{import}/export-misa', [ImportController::class, 'exportMisaSingle'])->name('imports.export-misa-single');
+    Route::get('/imports/{import}/print', [ImportController::class, 'print'])->name('imports.print');
 
     // Export Module Routes (Xuất kho)
     Route::get('/exports/available-items', [ExportController::class, 'getAvailableItems'])->name('exports.available-items');
+    Route::get('/exports/export-misa', [ExportController::class, 'exportMisa'])->name('exports.export-misa');
+    Route::get('/exports/export', [ExportController::class, 'exportToExcel'])->name('exports.export');
     Route::resource('exports', ExportController::class);
     Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
     Route::post('/exports/{export}/reject', [ExportController::class, 'reject'])->name('exports.reject');
-    Route::get('/exports-export', [ExportController::class, 'exportToExcel'])->name('exports.export');
+    Route::get('/exports/{export}/export-misa-single', [ExportController::class, 'exportMisaSingle'])->name('exports.export-misa-single');
+    Route::get('/exports/{export}/print', [ExportController::class, 'print'])->name('exports.print');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
@@ -281,6 +287,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/financial-transactions/categories', [FinancialTransactionController::class, 'categories'])->name('financial-transactions.categories');
     Route::post('/financial-transactions/categories', [FinancialTransactionController::class, 'storeCategory'])->name('financial-transactions.categories.store');
     Route::delete('/financial-transactions/categories/{category}', [FinancialTransactionController::class, 'destroyCategory'])->name('financial-transactions.categories.destroy');
+    Route::get('/financial-transactions/{transaction}/print', [FinancialTransactionController::class, 'print'])->name('financial-transactions.print');
+    Route::get('/financial-transactions/export-misa', [FinancialTransactionController::class, 'exportMisa'])->name('financial-transactions.export-misa');
     Route::resource('financial-transactions', FinancialTransactionController::class);
 
     // Work Schedule routes
@@ -352,6 +360,7 @@ Route::middleware(['auth'])->group(function () {
     // Business Reports
     Route::get('/reports/business-overview', [BusinessReportController::class, 'index'])->name('reports.business-overview');
     Route::get('/reports/balance-sheet', [BusinessReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
+    Route::get('/reports/balance-sheet/export', [BusinessReportController::class, 'exportBalanceSheet'])->name('reports.balance-sheet.export');
     Route::get('/reports/detailed-pnl', [BusinessReportController::class, 'detailedPnL'])->name('reports.detailed-pnl');
 
     // Reconciliation (Đối soát giữa các Module)
