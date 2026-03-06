@@ -137,6 +137,7 @@ class SaleExportSyncService
                 'code' => Export::generateCode(),
                 'warehouse_id' => $warehouseId,
                 'project_id' => $sale->project_id,
+                'customer_id' => $sale->customer_id,
                 'date' => $sale->date,
                 'employee_id' => auth()->id(),
                 'total_qty' => 0,

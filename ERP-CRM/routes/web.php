@@ -353,6 +353,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/business-overview', [BusinessReportController::class, 'index'])->name('reports.business-overview');
     Route::get('/reports/balance-sheet', [BusinessReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
     Route::get('/reports/detailed-pnl', [BusinessReportController::class, 'detailedPnL'])->name('reports.detailed-pnl');
+
+    // Reconciliation (Đối soát giữa các Module)
+    Route::get('/reconciliation', [\App\Http\Controllers\ReconciliationController::class, 'index'])->name('reconciliation.index');
+    Route::get('/reconciliation/sale-export', [\App\Http\Controllers\ReconciliationController::class, 'saleExport'])->name('reconciliation.sale-export');
+    Route::get('/reconciliation/purchase-import', [\App\Http\Controllers\ReconciliationController::class, 'purchaseImport'])->name('reconciliation.purchase-import');
+    Route::get('/reconciliation/inventory', [\App\Http\Controllers\ReconciliationController::class, 'inventory'])->name('reconciliation.inventory');
+    Route::get('/reconciliation/debt-payment', [\App\Http\Controllers\ReconciliationController::class, 'debtPayment'])->name('reconciliation.debt-payment');
 });
 
 // Auth routes (login, logout, etc.)

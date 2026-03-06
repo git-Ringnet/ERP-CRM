@@ -64,6 +64,7 @@ class PurchaseImportSyncService
             $import = Import::create([
                 'code' => Import::generateCode(),
                 'warehouse_id' => $warehouseId,
+                'supplier_id' => $purchaseOrder->supplier_id,
                 'date' => $purchaseOrder->actual_delivery ?? now(),
                 'employee_id' => auth()->id(),
                 'total_qty' => 0,
