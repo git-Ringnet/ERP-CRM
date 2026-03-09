@@ -7,6 +7,7 @@ use App\Models\FinancialTransaction;
 use App\Models\TransactionCategory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FinancialTransactionController extends Controller
 {
@@ -166,5 +167,24 @@ class FinancialTransactionController extends Controller
         
         $category->delete();
         return redirect()->back()->with('success', 'Đã xóa danh mục!');
+    }
+
+    /**
+     * Print financial transaction voucher
+     */
+    public function print(FinancialTransaction $transaction)
+    {
+        $transaction->load('category');
+        $view = $transaction->type === 'income' ? 'phieu-thu' : 'phieu-chi';
+        return view('reports.vouchers.' . $view, compact('transaction'));
+    }
+
+    /**
+     * Export to Misa Excel
+     */
+    public function exportMisa(Request $request)
+    {
+        $filters = $request->only(['date_from', 'date_to', 'type']);
+        return Excel::download(new \App\Exports\MisaReceiptsExport($filters), 'Misa_ThuChi_' . date('Ymd') . '.xlsx');
     }
 }
