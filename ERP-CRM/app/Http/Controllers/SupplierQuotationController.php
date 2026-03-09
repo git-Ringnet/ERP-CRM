@@ -411,7 +411,7 @@ class SupplierQuotationController extends Controller
                             $matchedTypes['sku'] = true;
 
                         // NAME
-                        if (str_contains($val, 'tên') || str_contains($val, 'name') || str_contains($val, 'product') || str_contains($val, 'mô tả') || str_contains($val, 'diễn giải') || str_contains($val, 'kích thước') || str_contains($val, 'ghi chú'))
+                        if (str_contains($val, 'tên') || str_contains($val, 'name') || str_contains($val, 'product') || str_contains($val, 'mô tả') || str_contains($val, 'nội dung') || str_contains($val, 'kích thước') || str_contains($val, 'ghi chú'))
                             $matchedTypes['name'] = true;
 
                         // QTY
@@ -511,7 +511,7 @@ class SupplierQuotationController extends Controller
         $patterns = [
 
             'sku' => ['sku', 'part number', 'part no', 'part #', 'code', 'mã', 'ma ', 'ma.', 'model', 'ký hiệu', 'ky hieu', 'ref', 'item no', 'article'],
-            'product_name' => ['product', 'name', 'tên', 'ten ', 'ten.', 'description', 'mô tả', 'mo ta', 'diễn giải', 'dien giai', 'hạng mục', 'hang muc', 'chi tiết', 'chi tiet', 'spec', 'hàng', 'hang ', 'vật tư', 'vat tu', 'item'],
+            'product_name' => ['product', 'name', 'tên', 'ten ', 'ten.', 'description', 'mô tả', 'mo ta', 'nội dung', 'dien giai', 'hạng mục', 'hang muc', 'chi tiết', 'chi tiet', 'spec', 'hàng', 'hang ', 'vật tư', 'vat tu', 'item'],
             'quantity' => ['qty', 'quantity', 'số lượng', 'so luong', 'sl', 'vol', 'khối lượng', 'khoi luong'],
             'unit_price' => ['unit price', 'đơn giá', 'don gia', 'giá', 'gia ', 'gia.', 'price', 'rate'],
             'unit' => ['unit', 'uom', 'đvt', 'dvt', 'đơn vị', 'don vi', 'tính'],

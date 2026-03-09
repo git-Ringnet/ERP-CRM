@@ -453,7 +453,7 @@ class CustomerDebtController extends Controller
             fputcsv($file, ["KH: {$customer->name} ({$customer->code})"]);
             fputcsv($file, ["Kỳ: {$dateFrom} đến {$dateTo}"]);
             fputcsv($file, []);
-            fputcsv($file, ['Ngày', 'Loại', 'Mã chứng từ', 'Diễn giải', 'Phát sinh Nợ', 'Phát sinh Có', 'Lũy kế']);
+            fputcsv($file, ['Ngày', 'Loại', 'Mã chứng từ', 'Nội dung', 'Phát sinh Nợ', 'Phát sinh Có', 'Lũy kế']);
 
             $balance = (float) $openingBalance;
             fputcsv($file, ['', '', '', 'Dư đầu kỳ', '', '', number_format($balance, 0, ',', '.')]);

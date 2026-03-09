@@ -253,4 +253,6 @@
         </div>
     </div>
 </div>
+
+@include('accounting.journal._widget', ['journalType' => 'export', 'journalReferenceId' => $export->id])
 @endsection

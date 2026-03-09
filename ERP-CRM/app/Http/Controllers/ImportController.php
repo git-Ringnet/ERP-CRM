@@ -13,6 +13,7 @@ use App\Models\Warehouse;
 use App\Services\TransactionService;
 use App\Services\ProductItemService;
 use App\Services\NotificationService;
+use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
 
 /**
@@ -24,15 +25,18 @@ class ImportController extends Controller
     protected TransactionService $transactionService;
     protected ProductItemService $productItemService;
     protected NotificationService $notificationService;
+    protected WarehouseJournalService $journalService;
 
     public function __construct(
         TransactionService $transactionService,
         ProductItemService $productItemService,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        WarehouseJournalService $journalService
     ) {
         $this->transactionService = $transactionService;
         $this->productItemService = $productItemService;
         $this->notificationService = $notificationService;
+        $this->journalService = $journalService;
     }
 
     /**
@@ -368,6 +372,14 @@ class ImportController extends Controller
                     'cost' => $item->cost,
                 ])->toArray(),
             ], $import);
+
+            // Tạo bút toán kế toán tự động
+            try {
+                $import->load(['items', 'supplier', 'warehouse']);
+                $this->journalService->createForImport($import);
+            } catch (\Exception $journalEx) {
+                \Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ': ' . $journalEx->getMessage());
+            }
 
             // Tạo thông báo cho người tạo phiếu
             if ($import->employee_id) {

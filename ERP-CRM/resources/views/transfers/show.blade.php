@@ -164,4 +164,6 @@
         </div>
     </div>
 </div>
+
+@include('accounting.journal._widget', ['journalType' => 'transfer', 'journalReferenceId' => $transfer->id])
 @endsection

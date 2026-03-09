@@ -78,7 +78,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chứng từ</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Diễn giải</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nội dung</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Phát sinh Nợ</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Phát sinh Có</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Lũy kế</th>
