@@ -1714,7 +1714,7 @@ class SupplierPriceListController extends Controller
         if (!isset($mapping['product_name'])) {
             $nameKeywords = [
                 'information in english', 'name', 'product name', 'description', 'thong tin san pham',
-                'item description', 'model name', 'tên sản phẩm', 'mô tả', 'diễn giải'
+                'item description', 'model name', 'tên sản phẩm', 'mô tả', 'nội dung'
             ];
             $nameExclusions = ['segment', 'category', 'group', 'loại', 'nhóm', 'phần khúc', 'note', 'ghi chú'];
 

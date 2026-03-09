@@ -303,6 +303,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/financial-transactions/export-misa', [FinancialTransactionController::class, 'exportMisa'])->name('financial-transactions.export-misa');
     Route::resource('financial-transactions', FinancialTransactionController::class);
 
+    // Warehouse Accounting Journal (Nhật ký kế toán kho)
+    Route::get('/accounting/journal', [\App\Http\Controllers\AccountingJournalController::class, 'index'])->name('accounting.journal.index');
+
     // Work Schedule routes
     Route::get('/work-schedules/get-events', [\App\Http\Controllers\WorkScheduleController::class, 'getEvents'])->name('work-schedules.events');
     Route::resource('work-schedules', \App\Http\Controllers\WorkScheduleController::class);

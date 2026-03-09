@@ -13,6 +13,7 @@ use App\Services\TransactionService;
 use App\Services\ProductItemService;
 use App\Services\InventoryService;
 use App\Services\NotificationService;
+use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
 
 /**
@@ -25,17 +26,20 @@ class TransferController extends Controller
     protected ProductItemService $productItemService;
     protected InventoryService $inventoryService;
     protected NotificationService $notificationService;
+    protected WarehouseJournalService $journalService;
 
     public function __construct(
         TransactionService $transactionService,
         ProductItemService $productItemService,
         InventoryService $inventoryService,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        WarehouseJournalService $journalService
     ) {
         $this->transactionService = $transactionService;
         $this->productItemService = $productItemService;
         $this->inventoryService = $inventoryService;
         $this->notificationService = $notificationService;
+        $this->journalService = $journalService;
     }
 
     /**
@@ -272,6 +276,14 @@ class TransferController extends Controller
         try {
             // Pass existing transaction to processTransfer for approval
             $this->transactionService->processTransfer([], $transfer);
+
+            // Tạo bút toán kế toán tự động
+            try {
+                $transfer->load(['items', 'fromWarehouse', 'toWarehouse']);
+                $this->journalService->createForTransfer($transfer);
+            } catch (\Exception $journalEx) {
+                \Log::warning('Không thể tạo bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
+            }
 
             // Tạo thông báo cho người tạo phiếu
             if ($transfer->employee_id) {

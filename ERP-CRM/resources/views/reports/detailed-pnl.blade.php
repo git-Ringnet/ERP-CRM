@@ -139,7 +139,7 @@
             <div class="mt-10 flex gap-6 font-normal-misa">
                 <div class="flex-1 bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                     <h4 class="font-bold-misa text-blue-900 mb-3 flex items-center">
-                        <i class="fas fa-info-circle mr-2 text-blue-500"></i> Diễn giải nghiệp vụ:
+                        <i class="fas fa-info-circle mr-2 text-blue-500"></i> Nội dung nghiệp vụ:
                     </h4>
                     <ul class="text-[11px] text-blue-800 space-y-2 leading-relaxed font-medium-misa">
                         <li>• <strong>Lợi nhuận gộp (Gross Profit):</strong> Doanh thu thuần trừ đi giá vốn hàng bán trực tiếp.</li>

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('customer_id')->nullable()->constrained()->nullOnDelete(); // Khách hàng/Chủ đầu tư
             $table->string('customer_name')->nullable(); // Cache tên khách hàng
             $table->text('address')->nullable(); // Địa chỉ dự án
-            $table->text('description')->nullable(); // Mô tả/Diễn giải
+            $table->text('description')->nullable(); // Mô tả/Nội dung
             $table->decimal('budget', 18, 2)->default(0); // Dự toán/Ngân sách
             $table->date('start_date')->nullable(); // Ngày bắt đầu
             $table->date('end_date')->nullable(); // Ngày kết thúc dự kiến
