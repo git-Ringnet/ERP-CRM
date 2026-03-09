@@ -15,7 +15,8 @@ class PurchaseOrder extends Model
     protected $fillable = [
         'code', 'supplier_id', 'supplier_quotation_id', 'order_date', 'expected_delivery',
         'actual_delivery', 'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
-        'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'payment_terms',
+        'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
+        'debt_amount', 'payment_status', 'payment_terms',
         'status', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at'
     ];
 
@@ -31,6 +32,8 @@ class PurchaseOrder extends Model
         'vat_percent' => 'decimal:2',
         'vat_amount' => 'decimal:2',
         'total' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
+        'debt_amount' => 'decimal:2',
         'approved_at' => 'datetime',
         'sent_at' => 'datetime',
         'confirmed_at' => 'datetime',
@@ -49,6 +52,11 @@ class PurchaseOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function supplierPaymentHistories(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentHistory::class);
     }
 
     public function creator(): BelongsTo
@@ -113,5 +121,47 @@ class PurchaseOrder extends Model
         $beforeVat = $afterDiscount + $this->shipping_cost + $this->other_cost;
         $this->vat_amount = $beforeVat * ($this->vat_percent / 100);
         $this->total = $beforeVat + $this->vat_amount;
+    }
+
+    /**
+     * Update debt amount and payment status
+     */
+    public function updateDebt(): void
+    {
+        $this->debt_amount = $this->total - $this->paid_amount;
+
+        if ($this->paid_amount <= 0) {
+            $this->payment_status = 'unpaid';
+        } elseif ($this->paid_amount >= $this->total) {
+            $this->payment_status = 'paid';
+        } else {
+            $this->payment_status = 'partial';
+        }
+    }
+
+    /**
+     * Get payment status label
+     */
+    public function getPaymentStatusLabelAttribute(): string
+    {
+        return match($this->payment_status) {
+            'unpaid' => 'Chưa thanh toán',
+            'partial' => 'Thanh toán một phần',
+            'paid' => 'Đã thanh toán',
+            default => 'Chưa thanh toán',
+        };
+    }
+
+    /**
+     * Get payment status color class
+     */
+    public function getPaymentStatusColorAttribute(): string
+    {
+        return match($this->payment_status) {
+            'unpaid' => 'bg-red-100 text-red-800',
+            'partial' => 'bg-yellow-100 text-yellow-800',
+            'paid' => 'bg-green-100 text-green-800',
+            default => 'bg-gray-100 text-gray-800',
+        };
     }
 }

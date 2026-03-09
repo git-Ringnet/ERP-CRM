@@ -91,7 +91,7 @@ class ReconciliationController extends Controller
      */
     public function debtPayment(Request $request)
     {
-        $filters = $request->only(['date_from', 'date_to', 'customer_id']);
+        $filters = $request->only(['date_from', 'date_to', 'customer_id', 'supplier_id', 'party']);
         $results = $this->debtPaymentReconciliation->run($filters);
 
         return view('reconciliation.debt-payment', compact('results', 'filters'));

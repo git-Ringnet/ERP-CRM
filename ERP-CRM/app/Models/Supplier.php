@@ -43,6 +43,18 @@ class Supplier extends Model
         return $this->hasMany(SupplierQuotation::class);
     }
 
+    public function supplierPaymentHistories(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentHistory::class);
+    }
+
+    public function getTotalDebtAttribute(): float
+    {
+        return $this->purchaseOrders()
+            ->whereNotIn('status', ['cancelled', 'draft'])
+            ->sum('debt_amount');
+    }
+
     public function supplierPriceLists(): HasMany
     {
         return $this->hasMany(SupplierPriceList::class);
