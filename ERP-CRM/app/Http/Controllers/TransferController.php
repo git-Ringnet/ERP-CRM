@@ -370,9 +370,15 @@ class TransferController extends Controller
             ->where('sku', 'like', 'NOSKU%')
             ->count();
 
+        // Get avg_cost from inventory
+        $inventory = \App\Models\Inventory::where('product_id', $request->product_id)
+            ->where('warehouse_id', $request->warehouse_id)
+            ->first();
+
         return response()->json([
             'items' => $itemsWithSerial,
             'noSkuCount' => $noSkuCount,
+            'avg_cost' => $inventory ? $inventory->avg_cost : 0,
         ]);
     }
 

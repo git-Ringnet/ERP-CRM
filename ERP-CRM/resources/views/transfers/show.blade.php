@@ -91,11 +91,14 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial chuyển</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
+                        @php $transferGrandTotal = 0; @endphp
                         @foreach($transfer->items as $item)
                         @php
                             // Get serials from serial_number JSON
@@ -111,6 +114,13 @@
                             // Calculate noSkuCount
                             $noSkuCount = $item->quantity - $serialsWithSku->count();
                         @endphp
+                        @php
+                            $trItemAvgCost = \App\Models\Inventory::where('product_id', $item->product_id)
+                                ->where('warehouse_id', $transfer->from_warehouse_id)
+                                ->value('avg_cost') ?? 0;
+                            $trItemTotal = $trItemAvgCost * $item->quantity;
+                            $transferGrandTotal += $trItemTotal;
+                        @endphp
                         <tr>
                             <td class="px-4 py-3">
                                 <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
@@ -122,6 +132,20 @@
                                 <span class="px-3 py-1 text-sm font-bold bg-purple-100 text-purple-800 rounded-full">
                                     {{ number_format($item->quantity) }}
                                 </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+                                @if($trItemAvgCost > 0)
+                                    <span class="font-medium text-gray-800">{{ number_format($trItemAvgCost, 0, ',', '.') }} đ</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+                                @if($trItemTotal > 0)
+                                    <span class="font-semibold text-blue-700">{{ number_format($trItemTotal, 0, ',', '.') }} đ</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3">
                                 @if($serialsWithSku->count() > 0)
@@ -145,6 +169,13 @@
                             <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
                         </tr>
                         @endforeach
+                        @if($transferGrandTotal > 0)
+                        <tr class="bg-blue-50 border-t-2 border-blue-200">
+                            <td colspan="3" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị chuyển:</td>
+                            <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($transferGrandTotal, 0, ',', '.') }} đ</td>
+                            <td colspan="3"></td>
+                        </tr>
+                        @endif
                     </tbody>
                 </table>
             </div>

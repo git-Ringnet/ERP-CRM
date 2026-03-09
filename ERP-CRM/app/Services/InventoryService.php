@@ -55,15 +55,14 @@ class InventoryService
             return $newCost;
         }
 
-        $currentValue = $inventory->stock * $inventory->avg_cost;
+        // Note: This method is called AFTER updateStock, so $inventory->stock already 
+        // includes the $newQuantity. We need to calculate the old stock.
+        $oldStock = max(0, $inventory->stock - $newQuantity);
+
+        $currentValue = $oldStock * $inventory->avg_cost;
         $newValue = $newQuantity * $newCost;
-        $totalQuantity = $inventory->stock + $newQuantity;
 
-        if ($totalQuantity == 0) {
-            return 0;
-        }
-
-        return ($currentValue + $newValue) / $totalQuantity;
+        return ($currentValue + $newValue) / $inventory->stock;
     }
 
     /**

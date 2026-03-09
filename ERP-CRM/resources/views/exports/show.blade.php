@@ -162,14 +162,22 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial đã xuất</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @php $stt = 1; @endphp
+                            @php $stt = 1; $grandTotal = 0; @endphp
                             @foreach($warehouseData['items'] as $item)
                             @php
+                                // Get avg_cost for this item – use warehouseId from the current group
+                                $itemAvgCost = \App\Models\Inventory::where('product_id', $item->product_id)
+                                    ->where('warehouse_id', $warehouseId)
+                                    ->value('avg_cost') ?? 0;
+                                $itemTotal = $itemAvgCost * $item->quantity;
+                                $grandTotal += $itemTotal;
                                 // Get serials: from serial_number JSON (pending) or ProductItem (completed)
                                 $serialsWithSku = collect();
                                 $noSkuCount = 0;
@@ -209,6 +217,20 @@
                                         {{ number_format($item->quantity) }}
                                     </span>
                                 </td>
+                                <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+                                    @if($itemAvgCost > 0)
+                                        <span class="font-medium text-gray-800">{{ number_format($itemAvgCost, 0, ',', '.') }} đ</span>
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+                                    @if($itemTotal > 0)
+                                        <span class="font-semibold text-blue-700">{{ number_format($itemTotal, 0, ',', '.') }} đ</span>
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">
                                     @if($serialsWithSku->count() > 0)
                                         <div class="flex flex-wrap gap-1 max-w-md">
@@ -231,6 +253,13 @@
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
                             </tr>
                             @endforeach
+                            @if($grandTotal > 0)
+                            <tr class="bg-blue-50 border-t-2 border-blue-200">
+                                <td colspan="5" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị xuất:</td>
+                                <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($grandTotal, 0, ',', '.') }} đ</td>
+                                <td colspan="2"></td>
+                            </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
