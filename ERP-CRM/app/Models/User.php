@@ -107,4 +107,18 @@ class User extends Authenticatable
 
         return $query->where('status', $status);
     }
+
+    /**
+     * Tài sản / dụng cụ được cấp phát cho nhân viên này.
+     */
+    public function assetAssignments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\EmployeeAssetAssignment::class, 'user_id');
+    }
+
+    public function activeAssets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\EmployeeAssetAssignment::class, 'user_id')
+                    ->where('status', 'active');
+    }
 }

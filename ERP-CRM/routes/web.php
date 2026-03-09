@@ -384,6 +384,20 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reconciliation/purchase-import', [\App\Http\Controllers\ReconciliationController::class, 'purchaseImport'])->name('reconciliation.purchase-import');
     Route::get('/reconciliation/inventory', [\App\Http\Controllers\ReconciliationController::class, 'inventory'])->name('reconciliation.inventory');
     Route::get('/reconciliation/debt-payment', [\App\Http\Controllers\ReconciliationController::class, 'debtPayment'])->name('reconciliation.debt-payment');
+
+    // =========================================================================
+    // Employee Asset Management — Quản lý Tài sản / Công cụ Dụng cụ Nội bộ
+    // =========================================================================
+    Route::get('/employee-assets-export', [\App\Http\Controllers\EmployeeAssetController::class, 'export'])->name('employee-assets.export');
+    Route::resource('employee-assets', \App\Http\Controllers\EmployeeAssetController::class);
+
+    Route::resource('employee-asset-assignments', \App\Http\Controllers\EmployeeAssetAssignmentController::class)
+        ->only(['index', 'create', 'store', 'show']);
+    Route::post('/employee-asset-assignments/{employeeAssetAssignment}/return', [\App\Http\Controllers\EmployeeAssetAssignmentController::class, 'returnAsset'])
+        ->name('employee-asset-assignments.return');
+
+    Route::get('/employee-asset-reports', [\App\Http\Controllers\EmployeeAssetReportController::class, 'index'])->name('employee-asset-reports.index');
+    Route::get('/employee-asset-reports/export', [\App\Http\Controllers\EmployeeAssetReportController::class, 'export'])->name('employee-asset-reports.export');
 });
 
 // Auth routes (login, logout, etc.)
