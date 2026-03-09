@@ -344,5 +344,144 @@ class CustomerDebtController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    /**
+     * Statement of Account for a customer
+     */
+    public function statement(Request $request, Customer $customer)
+    {
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+
+        $openingBalance = Sale::where('customer_id', $customer->id)
+            ->where('status', '!=', 'cancelled')
+            ->where('date', '<', $dateFrom)
+            ->sum('debt_amount');
+
+        $sales = Sale::where('customer_id', $customer->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereBetween('date', [$dateFrom, $dateTo])
+            ->orderBy('date')
+            ->get();
+
+        $payments = PaymentHistory::where('customer_id', $customer->id)
+            ->whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->orderBy('payment_date')
+            ->get();
+
+        $transactions = collect();
+
+        foreach ($sales as $sale) {
+            $transactions->push([
+                'date' => $sale->date->format('Y-m-d'),
+                'type' => 'debit',
+                'code' => $sale->code,
+                'description' => 'Đơn hàng bán',
+                'debit' => (float) $sale->total,
+                'credit' => 0,
+            ]);
+        }
+
+        foreach ($payments as $payment) {
+            $description = 'Thanh toán';
+            if ($payment->payment_method) {
+                $methodLabels = ['cash' => 'Tiền mặt', 'bank_transfer' => 'Chuyển khoản', 'card' => 'Thẻ', 'other' => 'Khác'];
+                $description .= ' - ' . ($methodLabels[$payment->payment_method] ?? $payment->payment_method);
+            }
+            $transactions->push([
+                'date' => $payment->payment_date->format('Y-m-d'),
+                'type' => 'credit',
+                'code' => $payment->sale?->code ?? 'TT',
+                'description' => $description,
+                'debit' => 0,
+                'credit' => (float) $payment->amount,
+            ]);
+        }
+
+        $transactions = $transactions->sortBy('date')->values();
+
+        $runningBalance = (float) $openingBalance;
+        $transactions = $transactions->map(function ($item) use (&$runningBalance) {
+            $runningBalance += $item['debit'] - $item['credit'];
+            $item['balance'] = $runningBalance;
+            return $item;
+        });
+
+        $closingBalance = $runningBalance;
+
+        return view('customer-debts.statement', compact(
+            'customer', 'transactions', 'openingBalance', 'closingBalance',
+            'dateFrom', 'dateTo'
+        ));
+    }
+
+    /**
+     * Export customer statement to CSV
+     */
+    public function exportStatement(Request $request, Customer $customer)
+    {
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+
+        $openingBalance = Sale::where('customer_id', $customer->id)
+            ->where('status', '!=', 'cancelled')
+            ->where('date', '<', $dateFrom)
+            ->sum('debt_amount');
+
+        $sales = Sale::where('customer_id', $customer->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereBetween('date', [$dateFrom, $dateTo])
+            ->orderBy('date')
+            ->get();
+
+        $payments = PaymentHistory::where('customer_id', $customer->id)
+            ->whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->orderBy('payment_date')
+            ->get();
+
+        $filename = "sao-ke-kh-{$customer->code}-{$dateFrom}-{$dateTo}.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($customer, $sales, $payments, $openingBalance, $dateFrom, $dateTo) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($file, ["SAO KÊ CÔNG NỢ KHÁCH HÀNG"]);
+            fputcsv($file, ["KH: {$customer->name} ({$customer->code})"]);
+            fputcsv($file, ["Kỳ: {$dateFrom} đến {$dateTo}"]);
+            fputcsv($file, []);
+            fputcsv($file, ['Ngày', 'Loại', 'Mã chứng từ', 'Diễn giải', 'Phát sinh Nợ', 'Phát sinh Có', 'Lũy kế']);
+
+            $balance = (float) $openingBalance;
+            fputcsv($file, ['', '', '', 'Dư đầu kỳ', '', '', number_format($balance, 0, ',', '.')]);
+
+            $transactions = collect();
+            foreach ($sales as $sale) {
+                $transactions->push(['date' => $sale->date->format('Y-m-d'), 'type' => 'Bán hàng', 'code' => $sale->code, 'desc' => 'Đơn hàng bán', 'debit' => (float)$sale->total, 'credit' => 0]);
+            }
+            foreach ($payments as $payment) {
+                $transactions->push(['date' => $payment->payment_date->format('Y-m-d'), 'type' => 'Thanh toán', 'code' => $payment->sale?->code ?? 'TT', 'desc' => 'Thanh toán', 'debit' => 0, 'credit' => (float)$payment->amount]);
+            }
+            $transactions = $transactions->sortBy('date');
+
+            foreach ($transactions as $t) {
+                $balance += $t['debit'] - $t['credit'];
+                fputcsv($file, [
+                    $t['date'], $t['type'], $t['code'], $t['desc'],
+                    $t['debit'] > 0 ? number_format($t['debit'], 0, ',', '.') : '',
+                    $t['credit'] > 0 ? number_format($t['credit'], 0, ',', '.') : '',
+                    number_format($balance, 0, ',', '.'),
+                ]);
+            }
+
+            fputcsv($file, ['', '', '', 'Dư cuối kỳ', '', '', number_format($balance, 0, ',', '.')]);
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }
 

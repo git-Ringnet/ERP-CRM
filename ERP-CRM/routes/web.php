@@ -161,6 +161,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/customer-debts/{customer}', [CustomerDebtController::class, 'show'])->name('customer-debts.show');
     Route::post('/customer-debts/payment/{sale}', [CustomerDebtController::class, 'recordPayment'])->name('customer-debts.record-payment');
     Route::delete('/customer-debts/payment/{payment}', [CustomerDebtController::class, 'deletePayment'])->name('customer-debts.delete-payment');
+    Route::get('/customer-debts/{customer}/statement', [CustomerDebtController::class, 'statement'])->name('customer-debts.statement');
+    Route::get('/customer-debts/{customer}/statement/export', [CustomerDebtController::class, 'exportStatement'])->name('customer-debts.export-statement');
+
+    // Supplier Debt Management routes (Công nợ NCC)
+    Route::get('/supplier-debts', [\App\Http\Controllers\SupplierDebtController::class, 'index'])->name('supplier-debts.index');
+    Route::get('/supplier-debts/aging', [\App\Http\Controllers\SupplierDebtController::class, 'agingReport'])->name('supplier-debts.aging');
+    Route::get('/supplier-debts/export', [\App\Http\Controllers\SupplierDebtController::class, 'export'])->name('supplier-debts.export');
+    Route::get('/supplier-debts/{supplier}', [\App\Http\Controllers\SupplierDebtController::class, 'show'])->name('supplier-debts.show');
+    Route::get('/supplier-debts/{supplier}/statement', [\App\Http\Controllers\SupplierDebtController::class, 'statement'])->name('supplier-debts.statement');
+    Route::get('/supplier-debts/{supplier}/statement/export', [\App\Http\Controllers\SupplierDebtController::class, 'exportStatement'])->name('supplier-debts.export-statement');
+    Route::post('/supplier-debts/{purchaseOrder}/payment', [\App\Http\Controllers\SupplierDebtController::class, 'recordPayment'])->name('supplier-debts.record-payment');
+    Route::delete('/supplier-debts/payment/{payment}', [\App\Http\Controllers\SupplierDebtController::class, 'deletePayment'])->name('supplier-debts.delete-payment');
 
     // Sale-to-Export sync route
     Route::get('/sales/{sale}/export', [SaleController::class, 'getExport'])->name('sales.export.link');
