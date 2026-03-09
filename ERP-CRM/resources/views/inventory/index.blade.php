@@ -87,6 +87,8 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn sử
                             dụng</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn giá TB</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng giá trị</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng
                             thái</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
@@ -137,6 +139,20 @@
                                     <span class="text-gray-400">-</span>
                                 @endif
                             </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                                @if($inventory->avg_cost > 0)
+                                    <span class="font-medium text-gray-800">{{ number_format($inventory->avg_cost, 0, ',', '.') }} đ</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                                @if($inventory->stock > 0 && $inventory->avg_cost > 0)
+                                    <span class="font-semibold text-blue-700">{{ number_format($inventory->stock * $inventory->avg_cost, 0, ',', '.') }} đ</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 @if($inventory->stock <= 0)
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
@@ -168,6 +184,17 @@
                             </td>
                         </tr>
                     @endforelse
+                    @if($inventories->count() > 0)
+                        <tr class="bg-blue-50 border-t-2 border-blue-200">
+                            <td colspan="5" class="px-4 py-3 text-right text-sm font-bold text-blue-800">
+                                Tổng giá trị tồn kho:
+                            </td>
+                            <td colspan="2" class="px-4 py-3 text-right text-sm font-bold text-blue-800">
+                                {{ number_format($inventories->sum(fn($inv) => $inv->stock * $inv->avg_cost), 0, ',', '.') }} đ
+                            </td>
+                            <td colspan="2"></td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>

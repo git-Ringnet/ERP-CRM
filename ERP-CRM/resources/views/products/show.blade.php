@@ -85,7 +85,7 @@
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mô tả</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập (USD)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gói giá</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
@@ -100,7 +100,22 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ Str::limit($item->description, 30) }}</td>
-                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">${{ number_format($item->cost_usd, 2) }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                                    @if($item->cost_usd > 0)
+                                        <div class="font-medium text-gray-800">${{ number_format($item->cost_usd, 2) }}</div>
+                                    @endif
+                                    @php
+                                        $inv = \App\Models\Inventory::where('product_id', $product->id)
+                                            ->where('warehouse_id', $item->warehouse_id)
+                                            ->first();
+                                        $avgCostVnd = $inv ? $inv->avg_cost : 0;
+                                    @endphp
+                                    @if($avgCostVnd > 0)
+                                        <div class="text-xs text-green-700">{{ number_format($avgCostVnd, 0, ',', '.') }} đ</div>
+                                    @elseif($item->cost_usd <= 0)
+                                        <span class="text-gray-400">-</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-sm">
                                     @if($item->price_tiers && is_array($item->price_tiers))
                                         <div class="flex flex-wrap gap-1">

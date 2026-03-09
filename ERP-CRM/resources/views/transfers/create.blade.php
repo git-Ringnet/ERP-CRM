@@ -259,6 +259,13 @@ async function loadStockInfo(itemIdx) {
         if (noSkuCount > 0) summaryHtml += serialItems.length > 0 ? `, ` : ` (`;
         if (noSkuCount > 0) summaryHtml += `<span class="text-gray-600">${noSkuCount} không serial</span>`;
         if (serialItems.length > 0 || noSkuCount > 0) summaryHtml += `)`;
+        
+        // Show avg_cost
+        const avgCost = data.avg_cost || 0;
+        if (avgCost > 0) {
+            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('vi-VN')} đ</span>`;
+        }
+        
         stockSummary.innerHTML = summaryHtml;
         
         if (serialItems.length > 0) {
