@@ -398,6 +398,19 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/employee-asset-reports', [\App\Http\Controllers\EmployeeAssetReportController::class, 'index'])->name('employee-asset-reports.index');
     Route::get('/employee-asset-reports/export', [\App\Http\Controllers\EmployeeAssetReportController::class, 'export'])->name('employee-asset-reports.export');
+
+    // =========================================================================
+    // Skill Management — Quản lý Kỹ năng / Skillset
+    // =========================================================================
+    Route::resource('skills', \App\Http\Controllers\SkillController::class);
+    Route::get('/skills/{skill}/employees', [\App\Http\Controllers\SkillController::class, 'employees'])->name('skills.employees');
+    Route::put('/skills/{skill}/employees', [\App\Http\Controllers\SkillController::class, 'updateEmployees'])->name('skills.employees.update');
+    Route::delete('/skill-categories/{category}', [\App\Http\Controllers\SkillController::class, 'destroyCategory'])->name('skill-categories.destroy');
+
+    // Employee Skillset (Đánh giá năng lực nhân viên)
+    Route::get('/employees/{employee}/skills', [\App\Http\Controllers\EmployeeSkillController::class, 'show'])->name('employee-skills.show');
+    Route::get('/employees/{employee}/skills/edit', [\App\Http\Controllers\EmployeeSkillController::class, 'edit'])->name('employee-skills.edit');
+    Route::put('/employees/{employee}/skills', [\App\Http\Controllers\EmployeeSkillController::class, 'update'])->name('employee-skills.update');
 });
 
 // Auth routes (login, logout, etc.)

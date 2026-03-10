@@ -240,6 +240,10 @@
                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                         <i class="fas fa-list mr-2"></i>Danh sách
                     </a>
+                    <a href="{{ route('employee-skills.show', $employee->id) }}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                        <i class="fas fa-graduation-cap mr-2"></i>Xem kỹ năng
+                    </a>
                 </div>
             </div>
         </div>

@@ -121,4 +121,12 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\EmployeeAssetAssignment::class, 'user_id')
                     ->where('status', 'active');
     }
+
+    /**
+     * Kỹ năng của nhân viên (Skillset).
+     */
+    public function employeeSkills(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(EmployeeSkill::class, 'user_id');
+    }
 }

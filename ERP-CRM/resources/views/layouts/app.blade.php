@@ -303,6 +303,11 @@
                             <i class="fas fa-chart-pie w-6 text-pink-400 flex-shrink-0"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tổng hợp</span>
                         </a>
+                        <a href="{{ route('skills.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('skills.*') || request()->routeIs('employee-skills.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-graduation-cap w-6 text-yellow-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Kỹ năng</span>
+                        </a>
                     </div>
                 </div>
 
