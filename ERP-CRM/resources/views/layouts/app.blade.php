@@ -11,6 +11,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -496,6 +497,11 @@
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('financial-transactions.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-wallet w-6 flex-shrink-0 text-green-400"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Thu Chi</span>
+                        </a>
+                        <a href="{{ route('cash-flow-report.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cash-flow-report.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-area w-6 flex-shrink-0 text-teal-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo Dòng tiền</span>
                         </a>
 
                         <a href="{{ route('reports.detailed-pnl') }}"

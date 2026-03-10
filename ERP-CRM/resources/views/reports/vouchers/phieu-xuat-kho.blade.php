@@ -77,7 +77,7 @@
                 <td style="text-align: left;">{{ $item->product->name }}</td>
                 <td>{{ $item->product->code }}</td>
                 <td>{{ $item->product->unit ?? 'Cái' }}</td>
-                <td>{{ number_format($item->quantity) }}</td>
+                <td>{{ $item->requested_quantity ? number_format($item->requested_quantity) : number_format($item->quantity) }}</td>
                 <td>{{ number_format($item->quantity) }}</td>
                 <td>{{ number_format($item->price ?? 0) }}</td>
                 <td>{{ number_format(($item->price ?? 0) * $item->quantity) }}</td>
@@ -85,7 +85,7 @@
             @endforeach
             <tr>
                 <td colspan="4"><strong>Cộng</strong></td>
-                <td><strong>{{ number_format($export->items->sum('quantity')) }}</strong></td>
+                <td><strong>{{ number_format($export->items->sum(function($i){ return $i->requested_quantity ?: $i->quantity; })) }}</strong></td>
                 <td><strong>{{ number_format($export->items->sum('quantity')) }}</strong></td>
                 <td>x</td>
                 <td><strong>{{ number_format($export->items->sum(function($i){ return ($i->price ?? 0) * $i->quantity; })) }}</strong></td>

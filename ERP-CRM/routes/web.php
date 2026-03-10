@@ -101,6 +101,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/exports/{export}/reject', [ExportController::class, 'reject'])->name('exports.reject');
     Route::get('/exports/{export}/export-misa-single', [ExportController::class, 'exportMisaSingle'])->name('exports.export-misa-single');
     Route::get('/exports/{export}/print', [ExportController::class, 'print'])->name('exports.print');
+    Route::get('/exports/{export}/export-excel', [ExportController::class, 'exportVoucherToExcel'])->name('exports.export-excel');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
@@ -302,6 +303,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/financial-transactions/{transaction}/print', [FinancialTransactionController::class, 'print'])->name('financial-transactions.print');
     Route::get('/financial-transactions/export-misa', [FinancialTransactionController::class, 'exportMisa'])->name('financial-transactions.export-misa');
     Route::resource('financial-transactions', FinancialTransactionController::class);
+
+    // Cash Flow Report (Báo cáo Dòng tiền)
+    Route::get('/cash-flow-report', [\App\Http\Controllers\CashFlowReportController::class, 'index'])->name('cash-flow-report.index');
+    Route::get('/cash-flow-report/export', [\App\Http\Controllers\CashFlowReportController::class, 'export'])->name('cash-flow-report.export');
+    Route::get('/cash-flow-report/config', [\App\Http\Controllers\CashFlowReportController::class, 'config'])->name('cash-flow-report.config');
+    Route::post('/cash-flow-report/config', [\App\Http\Controllers\CashFlowReportController::class, 'storeConfig'])->name('cash-flow-report.config.store');
+    Route::delete('/cash-flow-report/config/{configItem}', [\App\Http\Controllers\CashFlowReportController::class, 'destroyConfig'])->name('cash-flow-report.config.destroy');
 
     // Warehouse Accounting Journal (Nhật ký kế toán kho)
     Route::get('/accounting/journal', [\App\Http\Controllers\AccountingJournalController::class, 'index'])->name('accounting.journal.index');

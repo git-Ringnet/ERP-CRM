@@ -194,6 +194,7 @@ class ExportController extends Controller
                 'product_id' => $item->product_id,
                 'warehouse_id' => $export->warehouse_id,
                 'quantity' => $item->quantity,
+                'requested_quantity' => $item->requested_quantity,
                 'comments' => $item->comments ?? '',
                 'product_item_ids' => $productItemIds,
             ];
@@ -239,6 +240,7 @@ class ExportController extends Controller
                 $export->items()->create([
                     'product_id' => $itemData['product_id'],
                     'quantity' => $itemData['quantity'],
+                    'requested_quantity' => $itemData['requested_quantity'] ?? null,
                     'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                     'comments' => $itemData['comments'] ?? null,
                 ]);
@@ -437,6 +439,18 @@ class ExportController extends Controller
         $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
         return view('reports.vouchers.phieu-xuat-kho', compact('export'));
     }
+
+    public function exportVoucherToExcel(Export $export)
+    {
+        $this->authorize('view', $export);
+        $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
+
+        return \Excel::download(
+            new \App\Exports\ExportVoucherExport($export),
+            'phieu-xuat-kho-' . $export->code . '.xlsx'
+        );
+    }
+
 
     /**
      * Export to Misa Excel

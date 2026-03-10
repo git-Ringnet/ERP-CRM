@@ -264,6 +264,7 @@ class TransactionService
                         'export_id' => $transaction->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
+                        'requested_quantity' => $item['requested_quantity'] ?? null,
                         'unit' => $item['unit'] ?? null,
                         // Store selected serial IDs as JSON
                         'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,

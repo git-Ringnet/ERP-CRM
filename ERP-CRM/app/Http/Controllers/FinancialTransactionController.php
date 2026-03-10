@@ -143,7 +143,8 @@ class FinancialTransactionController extends Controller
     public function categories()
     {
         $categories = TransactionCategory::orderBy('type')->orderBy('name')->get();
-        return view('financial-transactions.categories', compact('categories'));
+        $standardItems = \App\Http\Controllers\CashFlowReportController::getStandardItems();
+        return view('financial-transactions.categories', compact('categories', 'standardItems'));
     }
 
     public function storeCategory(Request $request)
@@ -151,6 +152,7 @@ class FinancialTransactionController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'type' => 'required|in:income,expense',
+            'cash_flow_code' => 'nullable|string|max:10',
             'description' => 'nullable|string|max:500',
         ]);
 

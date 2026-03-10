@@ -31,6 +31,7 @@ class ExportRequest extends FormRequest
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.requested_quantity' => 'nullable|integer|min:1',
             'items.*.comments' => 'nullable|string|max:500',
             'items.*.product_item_ids' => 'nullable|array',
             'items.*.product_item_ids.*' => 'nullable|exists:product_items,id',

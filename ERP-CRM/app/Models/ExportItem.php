@@ -14,6 +14,7 @@ class ExportItem extends Model
         'export_id',
         'product_id',
         'quantity',
+        'requested_quantity',
         'unit',
         'serial_number',
         'comments',
@@ -22,6 +23,7 @@ class ExportItem extends Model
 
     protected $casts = [
         'quantity' => 'integer',
+        'requested_quantity' => 'integer',
         'is_liquidation' => 'boolean',
     ];
 
