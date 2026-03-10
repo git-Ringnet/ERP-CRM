@@ -311,6 +311,30 @@
                     </div>
                 </div>
 
+                <div class="mt-4">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        onclick="toggleDropdown('kpis')">
+                        <div class="flex items-center">
+                            <i class="fas fa-star w-6 text-yellow-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Đánh giá & KPI</span>
+                        </div>
+                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-kpis"></i>
+                    </div>
+
+                    <div class="dropdown-section" id="dropdown-kpis">
+                        <a href="{{ route('department-kpis.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpis.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Kỳ đánh giá KPI</span>
+                        </a>
+                        <a href="{{ route('department-kpi-criteria.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpi-criteria.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-list-check w-6 text-green-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Tiêu chí chuẩn</span>
+                        </a>
+                    </div>
+                </div>
+
                 @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"

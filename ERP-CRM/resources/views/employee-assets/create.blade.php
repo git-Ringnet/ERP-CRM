@@ -34,19 +34,25 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Danh mục <span class="text-red-500">*</span></label>
-                    <input type="text" name="category" value="{{ old('category') }}"
-                        list="category-list" placeholder="VD: Thiết bị IT, Văn phòng..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('category') border-red-500 @enderror">
-                    <datalist id="category-list">
-                        @foreach($categories as $cat)
-                            <option value="{{ $cat }}">
+                    <select name="category" id="category_select" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('category') border-red-500 @enderror">
+                        <option value="">-- Chọn danh mục --</option>
+                        @php
+                            $currentCat = old('category');
+                            // predefined list
+                            $staticList = ['Thiết bị IT', 'Văn phòng phẩm', 'Dụng cụ sản xuất', 'Đồ bảo hộ lao động', 'Thiết bị văn phòng'];
+                            // merge with existing categories from DB
+                            $allCats = collect($staticList)->merge($categories ?? [])->unique()->values();
+                            $isCustom = $currentCat && !$allCats->contains($currentCat);
+                        @endphp
+                        @foreach($allCats as $cat)
+                            <option value="{{ $cat }}" {{ $currentCat == $cat ? 'selected' : '' }}>{{ $cat }}</option>
                         @endforeach
-                        <option value="Thiết bị IT">
-                        <option value="Văn phòng phẩm">
-                        <option value="Dụng cụ sản xuất">
-                        <option value="Đồ bảo hộ lao động">
-                        <option value="Thiết bị văn phòng">
-                    </datalist>
+                        @if($isCustom && $currentCat !== 'other')
+                            <option value="{{ $currentCat }}" selected>{{ $currentCat }}</option>
+                        @endif
+                        <option value="other">Danh mục khác (Sẽ gõ tay)</option>
+                    </select>
+                    <input type="text" name="category_manual" id="category_manual" placeholder="Nhập tên danh mục..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-2 hidden" disabled>
                     @error('category') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
@@ -166,6 +172,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial call
     updateSerialInfo();
+
+    // Handle category layout switch
+    const catSelect = document.getElementById('category_select');
+    const catManual = document.getElementById('category_manual');
+
+    catSelect.addEventListener('change', function() {
+        if (this.value === 'other') {
+            catManual.classList.remove('hidden');
+            catManual.disabled = false;
+            catSelect.name = 'category_ignore';
+            catManual.name = 'category';
+        } else {
+            catManual.classList.add('hidden');
+            catManual.disabled = true;
+            catSelect.name = 'category';
+            catManual.name = 'category_manual';
+        }
+    });
+
+    if (catSelect.value === 'other') {
+        catSelect.dispatchEvent(new Event('change'));
+    }
 });
 </script>
 @endpush

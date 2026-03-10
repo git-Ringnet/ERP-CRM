@@ -411,6 +411,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/employees/{employee}/skills', [\App\Http\Controllers\EmployeeSkillController::class, 'show'])->name('employee-skills.show');
     Route::get('/employees/{employee}/skills/edit', [\App\Http\Controllers\EmployeeSkillController::class, 'edit'])->name('employee-skills.edit');
     Route::put('/employees/{employee}/skills', [\App\Http\Controllers\EmployeeSkillController::class, 'update'])->name('employee-skills.update');
+
+    // =========================================================================
+    // Department KPI - Ghi nhận KPI Bộ phận
+    // =========================================================================
+    Route::get('/api/department-kpi-criteria', [\App\Http\Controllers\DepartmentKpiCriterionController::class, 'getByDepartment'])->name('api.department-kpi-criteria');
+    Route::resource('department-kpi-criteria', \App\Http\Controllers\DepartmentKpiCriterionController::class);
+    Route::resource('department-kpis', \App\Http\Controllers\DepartmentKpiController::class);
 });
 
 // Auth routes (login, logout, etc.)
