@@ -123,6 +123,20 @@
                             </p>
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Loại hình chấm công</label>
+                            <p class="text-base font-semibold text-gray-900">
+                                @if($employee->timekeeping_type == 'regular')
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                        <i class="fas fa-calendar-check mr-1"></i>Thường xuyên
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        <i class="fas fa-calendar-minus mr-1"></i>Không thường xuyên
+                                    </span>
+                                @endif
+                            </p>
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Thời gian làm việc</label>
                             <p class="text-base text-gray-900">
                                 @if($employee->join_date)

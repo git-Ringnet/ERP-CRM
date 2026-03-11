@@ -74,6 +74,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhân viên</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chức vụ</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phòng ban</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chấm công</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điện thoại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
@@ -100,6 +101,17 @@
                         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                             {{ $employee->department }}
                         </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        @if($employee->timekeeping_type == 'regular')
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                                <i class="fas fa-calendar-check mr-1"></i>Thường xuyên
+                            </span>
+                        @else
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                                <i class="fas fa-calendar-minus mr-1"></i>Linh hoạt
+                            </span>
+                        @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $employee->email }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $employee->phone }}</td>
@@ -172,7 +184,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu nhân viên</p>
                     </td>

@@ -38,6 +38,7 @@ class EmployeeRequest extends FormRequest
             'bank_name' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
+            'timekeeping_type' => ['required', 'in:regular,irregular'],
         ];
     }
 
