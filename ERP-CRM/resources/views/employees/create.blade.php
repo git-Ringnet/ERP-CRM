@@ -144,6 +144,19 @@
             </div>
 
             <div class="space-y-4">
+                <!-- Loại hình chấm công -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-clock mr-2 text-primary"></i>Phân loại chấm công</h2>
+                    </div>
+                    <div class="p-4">
+                        <select name="timekeeping_type" id="timekeeping_type" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="regular" {{ old('timekeeping_type', 'regular') == 'regular' ? 'selected' : '' }}>Thường xuyên (Cố định)</option>
+                            <option value="irregular" {{ old('timekeeping_type') == 'irregular' ? 'selected' : '' }}>Không thường xuyên (Linh hoạt)</option>
+                        </select>
+                    </div>
+                </div>
+
                 <!-- Trạng thái -->
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">

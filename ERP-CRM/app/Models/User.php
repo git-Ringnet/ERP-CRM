@@ -39,6 +39,7 @@ class User extends Authenticatable
         'is_locked',
         'note',
         'avatar',
+        'timekeeping_type',
     ];
 
     /**
