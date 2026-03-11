@@ -8,6 +8,9 @@
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-800">{{ $export->code }}</h2>
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('exports.export-excel', $export) }}" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150">
+                <i class="fas fa-file-excel mr-2"></i> Xuất Excel
+            </a>
             <a href="{{ route('exports.print', $export) }}" target="_blank" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
                 <i class="fas fa-print mr-2"></i> In chứng từ
             </a>
@@ -154,18 +157,19 @@
             @foreach($itemsByWarehouse as $warehouseId => $warehouseData)
             <div class="mb-6 {{ !$loop->last ? 'pb-6 border-b border-gray-200' : '' }}">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table class="w-full table-fixed">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-16">STT</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho xuất</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">Kho xuất</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">Mã sản phẩm</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
-                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial đã xuất</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">SL Yêu cầu</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">SL Thực xuất</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-32">Đơn giá</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-32">Thành tiền</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-48">Serial đã xuất</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">Ghi chú</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -204,13 +208,22 @@
                                     <span class="text-sm font-medium text-gray-600">{{ $stt++ }}</span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span class="text-sm font-medium text-gray-700">{{ $warehouseData['name'] }}</span>
+                                    <span class="text-sm font-medium text-gray-700 truncate block">{{ $warehouseData['name'] }}</span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
+                                    <span class="font-mono text-sm font-medium text-blue-600 truncate block">{{ $item->product->code }}</span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
+                                    <div class="text-sm font-medium text-gray-900 break-words">{{ $item->product->name }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    @if($item->requested_quantity)
+                                        <span class="px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
+                                            {{ number_format($item->requested_quantity) }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <span class="px-3 py-1 text-sm font-bold bg-orange-100 text-orange-800 rounded-full">
@@ -255,9 +268,9 @@
                             @endforeach
                             @if($grandTotal > 0)
                             <tr class="bg-blue-50 border-t-2 border-blue-200">
-                                <td colspan="5" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị xuất:</td>
+                                <td colspan="6" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị xuất:</td>
                                 <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($grandTotal, 0, ',', '.') }} đ</td>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                             </tr>
                             @endif
                         </tbody>

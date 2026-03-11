@@ -5,19 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class TransactionCategory extends Model
+class CashFlowConfigItem extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'code',
         'name',
         'type',
-        'cash_flow_code',
-        'description',
+        'sort_order',
     ];
-
-    public function transactions()
-    {
-        return $this->hasMany(FinancialTransaction::class);
-    }
 }

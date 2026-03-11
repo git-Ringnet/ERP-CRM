@@ -756,10 +756,17 @@ class SaleController extends Controller
             $sale->updateDebt();
             $sale->save();
 
-            // TODO: Create payment record in payments table
+            // Tạo giao dịch thu vào financial_transactions
+            $financialService = app(\App\Services\FinancialTransactionService::class);
+            $financialService->createFromSale(
+                $sale,
+                $validated['amount'],
+                $validated['payment_method'],
+                $validated['note']
+            );
 
             DB::commit();
-            return back()->with('success', 'Đã ghi nhận thanh toán ' . number_format($validated['amount']) . ' đ');
+            return back()->with('success', 'Đã ghi nhận thanh toán ' . number_format($validated['amount']) . ' đ và tạo phiếu thu');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());

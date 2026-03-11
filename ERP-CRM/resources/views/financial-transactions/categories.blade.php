@@ -21,10 +21,23 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Loại <span class="text-red-500">*</span></label>
-                        <select name="type" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                        <select name="type" id="category_type" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
                             <option value="expense">Chi (Expense)</option>
                             <option value="income">Thu (Income)</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ánh xạ Báo cáo Dòng tiền</label>
+                        <select name="cash_flow_code" id="cash_flow_code" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                            <option value="">-- Không ánh xạ --</option>
+                            @foreach($standardItems['expense'] as $name => $code)
+                                <option value="{{ $code }}" data-type="expense">{{ $name }}</option>
+                            @endforeach
+                            @foreach($standardItems['income'] as $name => $code)
+                                <option value="{{ $code }}" data-type="income" style="display:none;">{{ $name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[10px] text-gray-500 mt-1">Chọn dòng tương ứng trên mẫu báo cáo Dòng tiền 12 tháng.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
@@ -37,6 +50,26 @@
             </form>
         </div>
     </div>
+
+    <script>
+        document.getElementById('category_type').addEventListener('change', function() {
+            const type = this.value;
+            const select = document.getElementById('cash_flow_code');
+            const options = select.querySelectorAll('option');
+            
+            select.value = ""; // Reset value
+            
+            options.forEach(option => {
+                if (!option.dataset.type) return; // Skip empty option
+                
+                if (option.dataset.type === type) {
+                    option.style.display = 'block';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        });
+    </script>
 
     <!-- Category List -->
     <div class="lg:col-span-2">
@@ -52,6 +85,7 @@
                     <thead class="bg-white">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên danh mục</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã Lưu chuyển</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
                             <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
@@ -61,6 +95,13 @@
                         @forelse($categories as $category)
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $category->name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                @if($category->cash_flow_code)
+                                    <span class="font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{{ $category->cash_flow_code }}</span>
+                                @else
+                                    <span class="text-gray-300 italic">Chưa gán</span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $category->type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
                                     {{ $category->type === 'income' ? 'Thu' : 'Chi' }}

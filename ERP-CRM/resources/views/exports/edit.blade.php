@@ -206,7 +206,13 @@ function addItem(existingData = null) {
                 </select>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng yêu cầu</label>
+                <input type="number" name="items[${itemIndex}][requested_quantity]" value="${existingData ? existingData.requested_quantity || '' : ''}" 
+                       min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                       placeholder="Số lượng yêu cầu">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng thực xuất *</label>
                 <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
                        required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                        placeholder="1" onchange="onQuantityChange(${itemIndex})">
