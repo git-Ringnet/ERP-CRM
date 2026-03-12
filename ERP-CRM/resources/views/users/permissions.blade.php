@@ -75,7 +75,7 @@
                                 id="permission_id" name="permission_id" required>
                             <option value="">-- Chọn quyền --</option>
                             @foreach($availablePermissions as $module => $permissions)
-                            <optgroup label="{{ ucfirst($module) }}" class="font-semibold">
+                            <optgroup label="{{ config('permissions.modules.' . $module, ucfirst($module)) }}" class="font-semibold">
                                 @foreach($permissions as $permission)
                                 <option value="{{ $permission->id }}" {{ old('permission_id') == $permission->id ? 'selected' : '' }}>
                                     {{ $permission->name }}

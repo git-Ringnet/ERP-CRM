@@ -60,6 +60,18 @@ class PermissionSeeder extends Seeder
             'reminders' => ['view', 'create', 'edit', 'delete'],
             'notifications' => ['view'],
             'dashboard' => ['view'],
+            'skills' => ['view', 'create', 'edit', 'delete'],
+            'employee_skills' => ['view', 'assign', 'revoke'],
+            'employee_assets' => ['view', 'create', 'edit', 'delete', 'export'],
+            'department_kpi_criteria' => ['view', 'create', 'edit', 'delete'],
+            'department_kpi_results' => ['view', 'create', 'edit', 'delete'],
+            'financial_transactions' => ['view', 'create', 'edit', 'delete', 'export'],
+            'transaction_categories' => ['view', 'create', 'edit', 'delete'],
+            'communication_logs' => ['view', 'create', 'edit', 'delete'],
+            'reconciliations' => ['view', 'create', 'edit', 'delete', 'export'],
+            'warehouse_journal_entries' => ['view', 'create', 'export'],
+            'employee_asset_assignments' => ['view', 'create', 'edit', 'delete'],
+            'employee_asset_reports' => ['view', 'export'],
         ];
         
         $permissions = [];
@@ -241,6 +253,18 @@ class PermissionSeeder extends Seeder
             'reminders' => 'Nhắc nhở',
             'notifications' => 'Thông báo',
             'dashboard' => 'Trang chủ',
+            'skills' => 'Kỹ năng',
+            'employee_skills' => 'Kỹ năng nhân viên',
+            'employee_assets' => 'Tài sản nhân viên',
+            'department_kpi_criteria' => 'Tiêu chí KPI Phòng ban',
+            'department_kpi_results' => 'Kết quả KPI Phòng ban',
+            'financial_transactions' => 'Giao dịch Tài chính',
+            'transaction_categories' => 'Danh mục thu chi',
+            'communication_logs' => 'Nhật ký giao tiếp',
+            'reconciliations' => 'Đối soát',
+            'warehouse_journal_entries' => 'Nhật ký kế toán kho',
+            'employee_asset_assignments' => 'Cấp phát tài sản',
+            'employee_asset_reports' => 'Báo cáo tài sản',
         ];
         
         $actionText = $actionMap[$action] ?? ucfirst($action);
@@ -308,6 +332,18 @@ class PermissionSeeder extends Seeder
             'reminders' => 'nhắc nhở',
             'notifications' => 'thông báo',
             'dashboard' => 'trang chủ',
+            'skills' => 'kỹ năng',
+            'employee_skills' => 'kỹ năng nhân viên',
+            'employee_assets' => 'tài sản nhân viên',
+            'department_kpi_criteria' => 'tiêu chí kpi phòng ban',
+            'department_kpi_results' => 'kết quả kpi phòng ban',
+            'financial_transactions' => 'giao dịch tài chính',
+            'transaction_categories' => 'danh mục thu chi',
+            'communication_logs' => 'nhật ký giao tiếp',
+            'reconciliations' => 'đối soát',
+            'warehouse_journal_entries' => 'nhật ký kế toán kho',
+            'employee_asset_assignments' => 'cấp phát tài sản',
+            'employee_asset_reports' => 'báo cáo tài sản',
         ];
         
         $actionText = $actionMap[$action] ?? $action;

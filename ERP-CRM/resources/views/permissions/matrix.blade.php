@@ -31,7 +31,7 @@
 
             @foreach($groupedPermissions as $module => $permissions)
             <div class="mb-6">
-                <h5 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-3">{{ ucfirst($module) }}</h5>
+                <h5 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-3">{{ config('permissions.modules.' . $module, ucfirst($module)) }}</h5>
                 <div class="overflow-x-auto">
                     <table class="min-w-full border border-gray-200">
                         <thead class="bg-gray-50">

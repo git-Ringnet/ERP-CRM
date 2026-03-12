@@ -122,7 +122,8 @@ class RoleSeeder extends Seeder
             );
             // Add approve permissions and dashboard
             $approvePerms = $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
-            $warehouseManagerPerms = array_unique(array_merge($warehouseManagerPerms, $approvePerms));
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['warehouse_journal_entries'], ['view']);
+            $warehouseManagerPerms = array_unique(array_merge($warehouseManagerPerms, $approvePerms, $viewPerms));
             $this->attachPermissionsToRole($roles['warehouse_manager'], $warehouseManagerPerms, $now);
         }
         
@@ -198,16 +199,18 @@ class RoleSeeder extends Seeder
         if (isset($roles['accountant'])) {
             $accountantPerms = $this->getPermissionsByActions($allPermissions, ['view', 'export']);
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders']);
-            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms));
+            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['financial_transactions', 'transaction_categories', 'reconciliations', 'warehouse_journal_entries', 'employee_asset_assignments'], ['create', 'edit']);
+            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms, $financialPerms));
             $this->attachPermissionsToRole($roles['accountant'], $accountantPerms, $now);
         }
         
         // Director - view, approve, export for all modules, and all report permissions
         if (isset($roles['director'])) {
             $directorPerms = $this->getPermissionsByActions($allPermissions, ['view', 'approve', 'export']);
-            $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports']);
+            $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports', 'employee_asset_reports']);
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_business_dashboard', 'export_business_reports']);
-            $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms));
+            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['financial_transactions', 'transaction_categories', 'reconciliations', 'warehouse_journal_entries', 'employee_asset_assignments'], ['create', 'edit', 'delete']);
+            $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms, $financialPerms));
             $this->attachPermissionsToRole($roles['director'], $directorPerms, $now);
         }
     }

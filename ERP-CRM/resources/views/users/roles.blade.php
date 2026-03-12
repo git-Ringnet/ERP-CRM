@@ -139,7 +139,7 @@
             <div class="space-y-4">
                 @foreach($groupedPermissions as $module => $permissions)
                 <div>
-                    <h6 class="text-md font-semibold text-blue-600 mb-2">{{ ucfirst($module) }}</h6>
+                    <h6 class="text-md font-semibold text-blue-600 mb-2">{{ config('permissions.modules.' . $module, ucfirst($module)) }}</h6>
                     <div class="flex flex-wrap gap-2">
                         @foreach($permissions as $permission)
                         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">{{ $permission->name }}</span>
