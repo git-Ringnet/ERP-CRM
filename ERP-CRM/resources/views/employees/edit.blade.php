@@ -150,13 +150,28 @@
                 <!-- Loại hình chấm công -->
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
-                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-clock mr-2 text-primary"></i>Phân loại chấm công</h2>
+                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-clock mr-2 text-primary"></i>Chấm công & Địa điểm</h2>
                     </div>
-                    <div class="p-4">
-                        <select name="timekeeping_type" id="timekeeping_type" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            <option value="regular" {{ old('timekeeping_type', $employee->timekeeping_type) == 'regular' ? 'selected' : '' }}>Thường xuyên (Cố định)</option>
-                            <option value="irregular" {{ old('timekeeping_type', $employee->timekeeping_type) == 'irregular' ? 'selected' : '' }}>Không thường xuyên (Linh hoạt)</option>
-                        </select>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label for="timekeeping_type" class="block text-sm font-medium text-gray-700 mb-1">Loại hình chấm công <span class="text-red-500">*</span></label>
+                            <select name="timekeeping_type" id="timekeeping_type" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <option value="regular" {{ old('timekeeping_type', $employee->timekeeping_type) == 'regular' ? 'selected' : '' }}>Thường xuyên (Cố định)</option>
+                                <option value="irregular" {{ old('timekeeping_type', $employee->timekeeping_type) == 'irregular' ? 'selected' : '' }}>Không thường xuyên (Linh hoạt)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="work_location_id" class="block text-sm font-medium text-gray-700 mb-1">Địa điểm làm việc chính</label>
+                            <select name="work_location_id" id="work_location_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <option value="">-- Không giới hạn địa điểm --</option>
+                                @foreach($workLocations as $location)
+                                    <option value="{{ $location->id }}" {{ old('work_location_id', $employee->work_location_id) == $location->id ? 'selected' : '' }}>
+                                        {{ $location->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 italic">Dùng để giới hạn phạm vi chấm công cho nhân viên này.</p>
+                        </div>
                     </div>
                 </div>
 

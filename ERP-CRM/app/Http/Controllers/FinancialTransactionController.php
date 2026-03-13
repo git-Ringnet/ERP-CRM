@@ -171,6 +171,20 @@ class FinancialTransactionController extends Controller
         return redirect()->back()->with('success', 'Đã xóa danh mục!');
     }
 
+    public function updateCategory(Request $request, TransactionCategory $category)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:income,expense',
+            'cash_flow_code' => 'nullable|string|max:10',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        $category->update($request->all());
+
+        return redirect()->back()->with('success', 'Cập nhật danh mục thành công!');
+    }
+
     /**
      * Print financial transaction voucher
      */

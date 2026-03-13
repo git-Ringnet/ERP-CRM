@@ -64,7 +64,8 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', User::class);
         
-        return view('employees.create');
+        $workLocations = \App\Models\WorkLocation::where('is_active', true)->get();
+        return view('employees.create', compact('workLocations'));
     }
 
     /**
@@ -93,6 +94,8 @@ class EmployeeController extends Controller
             'bank_name' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
+            'timekeeping_type' => ['required', 'in:regular,irregular'],
         ]);
 
         // Hash password
@@ -130,7 +133,8 @@ class EmployeeController extends Controller
         
         $this->authorize('update', $employee);
 
-        return view('employees.edit', compact('employee'));
+        $workLocations = \App\Models\WorkLocation::where('is_active', true)->get();
+        return view('employees.edit', compact('employee', 'workLocations'));
     }
 
     /**
@@ -162,6 +166,8 @@ class EmployeeController extends Controller
             'bank_name' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
+            'timekeeping_type' => ['required', 'in:regular,irregular'],
         ]);
 
         // Only update password if provided

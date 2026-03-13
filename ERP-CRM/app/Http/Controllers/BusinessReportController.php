@@ -224,8 +224,8 @@ class BusinessReportController extends Controller
         $dateFrom = $request->input('date_from', now()->startOfYear()->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
 
-        // Detailed Sales Data with Expenses
-        $sales = Sale::with(['customer', 'items', 'expenses'])
+        // Detailed Sales Data with Expenses and Items
+        $sales = Sale::with(['items.product.supplierPriceListItems.priceList.supplier'])
             ->whereBetween('date', [$dateFrom, $dateTo])
             ->where('status', '!=', 'cancelled')
             ->get();
@@ -233,24 +233,47 @@ class BusinessReportController extends Controller
         $rows = [];
         foreach ($sales as $sale) {
             foreach ($sale->items as $item) {
+                // Try to resolve supplier from product
+                $supplierName = 'N/A';
+                if ($item->product && $item->product->supplierPriceListItems->isNotEmpty()) {
+                    $supplierName = $item->product->supplierPriceListItems->first()->priceList->supplier->name ?? 'N/A';
+                }
+
                 $rows[] = [
-                    'supplier' => 'N/A', // Need to link item to its purchase/supplier
+                    'supplier' => $supplierName,
                     'product_name' => $item->product_name,
                     'qty' => $item->quantity,
-                    'unit_price' => $item->unit_price,
+                    
+                    // USD fields
+                    'usd_price' => $item->usd_price,
+                    'exchange_rate' => $item->exchange_rate,
+                    'discount_rate' => $item->discount_rate,
+                    'import_cost_rate' => $item->import_cost_rate,
+                    'estimated_cost_usd' => $item->usd_price * (1 - ($item->discount_rate / 100)) * (1 + ($item->import_cost_rate / 100)),
+                    
+                    'unit_price' => $item->price,
                     'revenue' => $item->total,
                     'cost' => $item->cost_total,
                     'gross_profit' => $item->total - $item->cost_total,
+                    
+                    // Expenses from item fields
                     'expenses' => [
-                        'shipping' => $sale->getExpensesByType('shipping'),
-                        'marketing' => $sale->getExpensesByType('marketing'),
-                        'commission' => $sale->getExpensesByType('commission'),
-                        'other' => $sale->getExpensesByType('other'),
+                        'finance' => $item->finance_cost,
+                        'management' => $item->management_cost,
+                        'support_247' => $item->support_247_cost,
+                        'other_support' => $item->other_support_cost,
+                        'technical_poc' => $item->technical_poc_cost,
+                        'implementation' => $item->implementation_cost,
+                        'contractor_tax' => $item->contractor_tax,
                     ],
-                    'margin' => $sale->margin,
+                    'net_profit' => $item->net_profit,
+                    'margin_percent' => $item->net_profit_percent,
                 ];
             }
         }
+
+        // Sort rows by supplier
+        usort($rows, fn($a, $b) => strcmp($a['supplier'], $b['supplier']));
 
         return view('reports.detailed-pnl', compact('rows', 'dateFrom', 'dateTo'));
     }

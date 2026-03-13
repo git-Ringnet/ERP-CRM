@@ -164,6 +164,10 @@
                         <dt class="w-32 text-gray-500">Khách hàng:</dt>
                         <dd class="font-medium text-gray-900">{{ $sale->customer_name }}</dd>
                     </div>
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Nhân viên kinh doanh:</dt>
+                        <dd class="font-medium text-primary">{{ $sale->user->name ?? 'N/A' }}</dd>
+                    </div>
                     @if($sale->customer)
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Email:</dt>

@@ -24,7 +24,7 @@ class QuotationController extends Controller
     {
         $this->authorize('viewAny', Quotation::class);
 
-        $query = Quotation::with('customer');
+        $query = Quotation::with(['customer', 'creator']);
 
         // Apply data filtering based on permissions
         $user = auth()->user();

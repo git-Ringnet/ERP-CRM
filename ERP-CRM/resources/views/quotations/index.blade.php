@@ -72,6 +72,8 @@
                             hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiêu đề
                         </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người tạo
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn BG
@@ -101,6 +103,9 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm text-gray-900 max-w-xs truncate">{{ $quotation->title }}</div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ $quotation->creator->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {{ $quotation->date->format('d/m/Y') }}

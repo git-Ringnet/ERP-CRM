@@ -80,6 +80,7 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhà cung cấp</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian đặt</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao DK</th>
@@ -111,6 +112,9 @@
                     <tr class="{{ $rowClass }}">
                         <td class="px-4 py-3 font-medium text-primary">{{ $order->code }}</td>
                         <td class="px-4 py-3">{{ $order->supplier->name }}</td>
+                        <td class="px-4 py-3">
+                            <div class="text-sm text-gray-900">{{ $order->creator->name ?? 'N/A' }}</div>
+                        </td>
                         <td class="px-4 py-3">{{ $order->order_date->format('d/m/Y') }}</td>
                         <td class="px-4 py-3">
                             @if($order->status !== 'received' && $order->status !== 'cancelled')

@@ -93,7 +93,7 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with('project')->orderBy('created_at', 'desc')->paginate(10);
+        $sales = $query->with(['project', 'user'])->orderBy('created_at', 'desc')->paginate(10);
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
