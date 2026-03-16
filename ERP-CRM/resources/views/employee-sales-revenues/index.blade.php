@@ -32,7 +32,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Năm</label>
                 <select name="year" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
                     <option value="">-- Tất cả --</option>
-                    @for($y = date('Y'); $y >= 2023; $y--)
+                    @for($y = date('Y'); $y >= 2020; $y--)
                         <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
                     @endfor
                 </select>

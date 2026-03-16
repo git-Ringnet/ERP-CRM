@@ -6,41 +6,76 @@
 @section('content')
     <div class="bg-white rounded-lg shadow-sm">
         <!-- Header -->
-        <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div class="flex flex-col sm:flex-row gap-4 flex-1">
-                <!-- Search -->
-                <div class="relative flex-1 max-w-md">
-                    <form action="{{ route('suppliers.index') }}" method="GET" class="flex">
-                        <input type="text" name="search" value="{{ request('search') }}"
-                            placeholder="Tìm kiếm theo mã, tên, email, SĐT..."
-                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+        <div class="p-4 border-b border-gray-200">
+            <form action="{{ route('suppliers.index') }}" method="GET">
+                <div class="grid grid-cols-1 mb-3">
+                    <!-- Search -->
+                    <div class="relative">
+                        <input type="text" name="search" value="{{ request('search') }}" 
+                               placeholder="Tìm kiếm theo mã, tên, email, SĐT..." 
+                               class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                         <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                    </form>
+                    </div>
                 </div>
-            </div>
 
-            <div class="flex gap-2">
-                <a href="{{ route('suppliers.import.template') }}"
-                    class="inline-flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
-                    <i class="fas fa-download mr-2"></i>
-                    Mẫu Import
-                </a>
-                <button type="button" onclick="document.getElementById('importModal').classList.remove('hidden')"
-                    class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    <i class="fas fa-upload mr-2"></i>
-                    Import Excel
-                </button>
-                <a href="{{ route('suppliers.export') }}?{{ http_build_query(request()->query()) }}"
-                    class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
-                    <i class="fas fa-file-excel mr-2"></i>
-                    Xuất Excel
-                </a>
-                <a href="{{ route('suppliers.create') }}"
-                    class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
-                    <i class="fas fa-plus mr-2"></i>
-                    Thêm NCC
-                </a>
-            </div>
+                <div class="flex flex-wrap items-end gap-3">
+                    <!-- Date From -->
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                        <input type="text" id="supplierDateFrom" name="date_from" value="{{ request('date_from') }}" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                               placeholder="Từ ngày">
+                    </div>
+
+                    <!-- Date To -->
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                        <input type="text" id="supplierDateTo" name="date_to" value="{{ request('date_to') }}" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                               placeholder="Đến ngày">
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex gap-2">
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm whitespace-nowrap">
+                            <i class="fas fa-filter mr-1"></i>Lọc
+                        </button>
+                        <a href="{{ route('suppliers.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm whitespace-nowrap">
+                            <i class="fas fa-redo mr-1"></i>Đặt lại
+                        </a>
+                    </div>
+
+                    <!-- Export/Import & Add buttons -->
+                    <div class="flex gap-2 ml-auto">
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" type="button"
+                                    class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm whitespace-nowrap">
+                                <i class="fas fa-file-excel mr-2"></i>Excel
+                                <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                            </button>
+                            <div x-show="open" @click.away="open = false" x-cloak
+                                 class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <a href="{{ route('suppliers.export') }}?{{ http_build_query(request()->query()) }}" 
+                                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
+                                    <i class="fas fa-download mr-2 text-green-600"></i>Export Excel
+                                </a>
+                                <button type="button" onclick="document.getElementById('importModal').classList.remove('hidden')"
+                                        class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-upload mr-2 text-blue-600"></i>Import Excel
+                                </button>
+                                <a href="{{ route('suppliers.import.template') }}" 
+                                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg border-t border-gray-100">
+                                    <i class="fas fa-file-download mr-2 text-gray-600"></i>Tải mẫu Import
+                                </a>
+                            </div>
+                        </div>
+                        <a href="{{ route('suppliers.create') }}" 
+                           class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm whitespace-nowrap">
+                            <i class="fas fa-plus mr-2"></i>Thêm NCC
+                        </a>
+                    </div>
+                </div>
+            </form>
         </div>
 
         <!-- Table -->
@@ -168,3 +203,35 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof flatpickr !== 'undefined') {
+            if (document.getElementById('supplierDateFrom')) {
+                flatpickr("#supplierDateFrom", {
+                    dateFormat: "Y-m-d",
+                    altInput: true,
+                    altFormat: "d/m/Y",
+                    locale: "vn"
+                });
+            }
+            if (document.getElementById('supplierDateTo')) {
+                flatpickr("#supplierDateTo", {
+                    dateFormat: "Y-m-d",
+                    altInput: true,
+                    altFormat: "d/m/Y",
+                    locale: "vn"
+                });
+            }
+        }
+    });
+
+    function confirmDelete(form, message) {
+        if (confirm(message)) {
+            form.submit();
+        }
+        return false;
+    }
+</script>
+@endpush

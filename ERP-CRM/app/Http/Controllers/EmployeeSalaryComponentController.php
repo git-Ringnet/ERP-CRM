@@ -36,6 +36,19 @@ class EmployeeSalaryComponentController extends Controller
         
         $this->authorize('update', $employee);
 
+        // Pre-process numeric inputs to remove commas
+        if ($request->has('salary') && is_string($request->salary)) {
+            $request->merge(['salary' => str_replace(',', '', $request->salary)]);
+        }
+        
+        if ($request->has('components')) {
+            $cleanedComponents = [];
+            foreach ($request->components as $compId => $val) {
+                $cleanedComponents[$compId] = is_string($val) ? str_replace(',', '', $val) : $val;
+            }
+            $request->merge(['components' => $cleanedComponents]);
+        }
+
         $request->validate([
             'salary' => 'nullable|numeric|min:0',
             'components' => 'array',

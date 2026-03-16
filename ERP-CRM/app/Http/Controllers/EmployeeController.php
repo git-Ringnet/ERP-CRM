@@ -76,6 +76,11 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', User::class);
         
+        // Pre-process numeric inputs to remove commas
+        if ($request->has('salary') && is_string($request->salary)) {
+            $request->merge(['salary' => str_replace(',', '', $request->salary)]);
+        }
+
         // Validation (Requirement 3.4)
         $validated = $request->validate([
             'employee_code' => ['required', 'string', 'max:50', 'unique:users,employee_code'],
@@ -147,6 +152,11 @@ class EmployeeController extends Controller
             ->findOrFail($id);
         
         $this->authorize('update', $employee);
+
+        // Pre-process numeric inputs to remove commas
+        if ($request->has('salary') && is_string($request->salary)) {
+            $request->merge(['salary' => str_replace(',', '', $request->salary)]);
+        }
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([

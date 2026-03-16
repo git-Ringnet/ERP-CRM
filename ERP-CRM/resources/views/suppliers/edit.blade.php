@@ -78,51 +78,6 @@
                     </div>
                 </div>
 
-                <!-- Discount Policy -->
-                <div class="bg-white rounded-lg shadow-sm">
-                    <div class="px-4 py-3 border-b border-gray-200">
-                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-percent mr-2 text-primary"></i>Chính sách chiết khấu</h2>
-                    </div>
-                    <div class="p-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="base_discount" class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu cơ bản (%)</label>
-                                <input type="number" name="base_discount" id="base_discount" value="{{ old('base_discount', $supplier->base_discount) }}" min="0" max="100" step="0.1"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="volume_discount" class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu theo số lượng (%)</label>
-                                <input type="number" name="volume_discount" id="volume_discount" value="{{ old('volume_discount', $supplier->volume_discount) }}" min="0" max="100" step="0.1"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="volume_threshold" class="block text-sm font-medium text-gray-700 mb-1">Ngưỡng số lượng (VNĐ)</label>
-                                <input type="number" name="volume_threshold" id="volume_threshold" value="{{ old('volume_threshold', $supplier->volume_threshold) }}" min="0"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="early_payment_discount" class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu thanh toán sớm (%)</label>
-                                <input type="number" name="early_payment_discount" id="early_payment_discount" value="{{ old('early_payment_discount', $supplier->early_payment_discount) }}" min="0" max="100" step="0.1"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="early_payment_days" class="block text-sm font-medium text-gray-700 mb-1">Số ngày thanh toán sớm</label>
-                                <input type="number" name="early_payment_days" id="early_payment_days" value="{{ old('early_payment_days', $supplier->early_payment_days) }}" min="0"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="special_discount" class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu đặc biệt (%)</label>
-                                <input type="number" name="special_discount" id="special_discount" value="{{ old('special_discount', $supplier->special_discount) }}" min="0" max="100" step="0.1"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label for="special_discount_condition" class="block text-sm font-medium text-gray-700 mb-1">Điều kiện CK đặc biệt</label>
-                                <input type="text" name="special_discount_condition" id="special_discount_condition" value="{{ old('special_discount_condition', $supplier->special_discount_condition) }}"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
@@ -137,12 +92,64 @@
             <div class="space-y-4">
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
+                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-percent mr-2 text-green-600"></i>Chính sách chiết khấu</h2>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="base_discount" class="block text-sm font-medium text-gray-700 mb-1">Chiết khấu cơ bản (%)</label>
+                                <input type="number" name="base_discount" id="base_discount" value="{{ old('base_discount', $supplier->base_discount) }}" min="0" max="100" step="0.1"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <p class="mt-1 text-xs text-gray-500">Áp dụng cho mọi đơn hàng</p>
+                            </div>
+                            <div>
+                                <label for="volume_discount" class="block text-sm font-medium text-gray-700 mb-1">CK theo số lượng (%)</label>
+                                <input type="number" name="volume_discount" id="volume_discount" value="{{ old('volume_discount', $supplier->volume_discount) }}" min="0" max="100" step="0.1"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="volume_threshold" class="block text-sm font-medium text-gray-700 mb-1">Ngưỡng số lượng</label>
+                                <input type="number" name="volume_threshold" id="volume_threshold" value="{{ old('volume_threshold', $supplier->volume_threshold) }}" min="0"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <p class="mt-1 text-xs text-gray-500">Số SP tối thiểu để áp dụng CK số lượng</p>
+                            </div>
+                            <div>
+                                <label for="early_payment_discount" class="block text-sm font-medium text-gray-700 mb-1">CK thanh toán sớm (%)</label>
+                                <input type="number" name="early_payment_discount" id="early_payment_discount" value="{{ old('early_payment_discount', $supplier->early_payment_discount) }}" min="0" max="100" step="0.1"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="early_payment_days" class="block text-sm font-medium text-gray-700 mb-1">Số ngày TT sớm</label>
+                                <input type="number" name="early_payment_days" id="early_payment_days" value="{{ old('early_payment_days', $supplier->early_payment_days) }}" min="0"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            </div>
+                            <div>
+                                <label for="special_discount" class="block text-sm font-medium text-gray-700 mb-1">CK đặc biệt (%)</label>
+                                <input type="number" name="special_discount" id="special_discount" value="{{ old('special_discount', $supplier->special_discount) }}" min="0" max="100" step="0.1"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="special_discount_condition" class="block text-sm font-medium text-gray-700 mb-1">Điều kiện CK đặc biệt</label>
+                            <textarea name="special_discount_condition" id="special_discount_condition" rows="2" placeholder="VD: Đơn hàng trên 500 triệu..."
+                                      class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('special_discount_condition', $supplier->special_discount_condition) }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="px-4 py-3 border-b border-gray-200">
                         <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-credit-card mr-2 text-primary"></i>Thanh toán</h2>
                     </div>
                     <div class="p-4">
                         <label for="payment_terms" class="block text-sm font-medium text-gray-700 mb-1">Điều khoản thanh toán (ngày)</label>
                         <input type="number" name="payment_terms" id="payment_terms" value="{{ old('payment_terms', $supplier->payment_terms) }}" min="0"
                                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                        <p class="mt-1 text-xs text-gray-500">Số ngày được phép thanh toán sau khi nhận hàng</p>
                     </div>
                 </div>
 
@@ -170,3 +177,31 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        if (!form) return;
+
+        form.addEventListener('submit', function() {
+            const numericInputs = [
+                'payment_terms', 
+                'base_discount', 
+                'volume_discount', 
+                'volume_threshold', 
+                'early_payment_discount', 
+                'early_payment_days', 
+                'special_discount'
+            ];
+            
+            numericInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input && input.value.trim() === '') {
+                    input.value = '0'; // Default to 0 format to avoid SQL null constraints.
+                }
+            });
+        });
+    });
+</script>
+@endpush

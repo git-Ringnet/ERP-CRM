@@ -55,7 +55,7 @@
                             </div>
                             <div>
                                 <label for="birth_date" class="block text-sm font-medium text-gray-700 mb-1">Ngày sinh</label>
-                                <input type="date" name="birth_date" id="birth_date" value="{{ old('birth_date') }}"
+                                <input type="text" name="birth_date" id="birth_date" value="{{ old('birth_date') }}" placeholder="Ngày sinh"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                             </div>
                             <div>
@@ -98,13 +98,13 @@
                             </div>
                             <div>
                                 <label for="join_date" class="block text-sm font-medium text-gray-700 mb-1">Ngày vào làm</label>
-                                <input type="date" name="join_date" id="join_date" value="{{ old('join_date') }}"
+                                <input type="text" name="join_date" id="join_date" value="{{ old('join_date') }}" placeholder="Ngày vào làm"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                             </div>
                             <div>
                                 <label for="salary" class="block text-sm font-medium text-gray-700 mb-1">Lương (VNĐ)</label>
-                                <input type="number" name="salary" id="salary" value="{{ old('salary', 0) }}" min="0" step="100000"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <input type="text" name="salary" id="salary" value="{{ old('salary', 0) }}" placeholder="0"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary currency-input">
                             </div>
                         </div>
                     </div>
@@ -199,4 +199,52 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('birth_date')) {
+        flatpickr("#birth_date", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+    if (document.getElementById('join_date')) {
+        flatpickr("#join_date", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+
+    // Format currency input
+    const currencyInputs = document.querySelectorAll('.currency-input');
+    currencyInputs.forEach(input => {
+        const formatNumber = (value) => {
+            if (!value) return '';
+            const cleanValue = value.toString().replace(/\D/g, '');
+            if (!cleanValue) return '';
+            return parseInt(cleanValue, 10).toLocaleString('en-US');
+        };
+
+        input.addEventListener('input', function(e) {
+            const cursorPosition = this.selectionStart;
+            const originalLength = this.value.length;
+            this.value = formatNumber(this.value);
+            const newLength = this.value.length;
+            const diff = newLength - originalLength;
+            let newCursorPos = cursorPosition + diff;
+            this.setSelectionRange(newCursorPos, newCursorPos);
+        });
+
+        if (input.value) {
+            input.value = formatNumber(input.value);
+        }
+    });
+});
+</script>
+@endpush
 @endsection

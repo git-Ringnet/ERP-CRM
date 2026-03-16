@@ -168,3 +168,52 @@ button:disabled {
 .btn-secondary {
     @apply w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm;
 }
+
+/* Fix Flatpickr UI overridden by Tailwind Forms */
+.flatpickr-calendar .flatpickr-current-month {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    padding: 0 !important;
+}
+
+.flatpickr-calendar select,
+.flatpickr-calendar input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+.flatpickr-calendar select.flatpickr-monthDropdown-months {
+    padding: 0 0.5ch 0 0 !important;
+    margin: 0 !important;
+    width: auto !important;
+    max-width: 65% !important;
+    height: auto !important;
+    line-height: inherit !important;
+    background-image: none !important;
+    appearance: menulist !important;
+    -webkit-appearance: menulist !important;
+    -moz-appearance: menulist !important;
+}
+
+.flatpickr-calendar input.cur-year {
+    padding: 0 0 0 0.5ex !important;
+    margin: 0 !important;
+    width: 6ch !important;
+    height: auto !important;
+    display: inline-block !important;
+    line-height: inherit !important;
+    font-weight: 600 !important;
+    appearance: textfield !important;
+    -webkit-appearance: textfield !important;
+    -moz-appearance: textfield !important;
+}
+
+.flatpickr-calendar .numInputWrapper {
+    width: auto !important;
+    display: inline-block !important;
+    flex-shrink: 0 !important;
+}

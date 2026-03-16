@@ -4,7 +4,7 @@
 @section('page-title', 'Ghi nhận doanh số nhân viên kinh doanh')
 
 @section('content')
-<div class="max-w-4xl mx-auto">
+<div class="">
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="p-6 border-b border-gray-200">
             <h3 class="text-lg font-medium text-gray-900">Thông tin doanh số ghi nhận</h3>
@@ -37,7 +37,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Năm <span class="text-red-500">*</span></label>
                     <select name="year" id="year" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
-                        @for($y = date('Y'); $y >= 2023; $y--)
+                        @for($y = date('Y'); $y >= 2020; $y--)
                             <option value="{{ $y }}" {{ (old('year', $currentYear) == $y) ? 'selected' : '' }}>{{ $y }}</option>
                         @endfor
                     </select>
@@ -91,45 +91,59 @@
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    $('#btn-suggest').on('click', function() {
-        const userId = $('#user_id').val();
-        const month = $('#month').val();
-        const year = $('#year').val();
+document.addEventListener('DOMContentLoaded', function() {
+    const btnSuggest = document.getElementById('btn-suggest');
+    if (btnSuggest) {
+        btnSuggest.addEventListener('click', function() {
+            const userId = document.getElementById('user_id').value;
+            const month = document.getElementById('month').value;
+            const year = document.getElementById('year').value;
 
-        if (!userId) {
-            alert('Vui lòng chọn nhân viên trước!');
-            return;
-        }
+            if (!userId) {
+                alert('Vui lòng chọn nhân viên trước!');
+                return;
+            }
 
-        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lấy dữ liệu...');
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang lấy dữ liệu...';
 
-        $.ajax({
-            url: "{{ route('employee-sales-revenues.suggested') }}",
-            type: "GET",
-            data: {
-                user_id: userId,
-                month: month,
-                year: year
-            },
-            success: function(response) {
-                $('#total_revenue').val(response.revenue);
-                $('#total_profit').val(response.profit);
-                $('#quantity_on_target').val(response.count);
+            const url = new URL("{{ route('employee-sales-revenues.suggested') }}", window.location.origin);
+            url.searchParams.append('user_id', userId);
+            url.searchParams.append('month', month);
+            url.searchParams.append('year', year);
+
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('total_revenue').value = data.revenue;
+                document.getElementById('total_profit').value = data.profit;
+                document.getElementById('quantity_on_target').value = data.count;
                 
-                if (response.count === 0) {
+                if (data.count === 0) {
                     alert('Hệ thống không tìm thấy đơn hàng nào cho nhân viên này trong khoảng thời gian đã chọn.');
                 }
-            },
-            error: function(xhr) {
+            })
+            .catch(error => {
                 alert('Có lỗi xảy ra khi lấy dữ liệu gợi ý.');
-                console.error(xhr);
-            },
-            complete: function() {
-                $('#btn-suggest').prop('disabled', false).html('<i class="fas fa-magic mr-2"></i> Lấy dữ liệu gợi ý từ hệ thống');
-            }
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-magic mr-2"></i> Lấy dữ liệu gợi ý từ hệ thống';
+            });
         });
-    });
+    }
 });
 </script>
 @endpush

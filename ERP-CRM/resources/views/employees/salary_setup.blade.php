@@ -4,7 +4,7 @@
 @section('page-title', 'Cấu hình Lương & Phụ cấp')
 
 @section('content')
-<div class="max-w-4xl mx-auto space-y-6">
+<div class="space-y-6">
     <div class="flex items-center justify-between">
         <a href="{{ route('employees.show', $employee->id) }}" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
             <i class="fas fa-arrow-left mr-2"></i>Quay lại hồ sơ
@@ -25,8 +25,9 @@
             <div class="p-6">
                 <p class="text-sm text-gray-500 mb-3">Lương cố định được dùng làm cơ sở tính tỷ lệ ngày công, phần trăm phụ cấp (nếu có).</p>
                 <div class="max-w-md">
-                    <input type="number" name="salary" id="salary" value="{{ old('salary', $employee->salary) }}" min="0" step="1000"
-                           class="w-full px-4 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary font-semibold text-green-700">
+                    <input type="text" name="salary" id="salary" value="{{ old('salary', $employee->salary ? number_format($employee->salary) : '') }}"
+                           class="w-full px-4 py-2 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary font-semibold text-green-700 currency-input"
+                           placeholder="0">
                 </div>
             </div>
         </div>
@@ -77,12 +78,12 @@
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="relative max-w-[200px]">
-                                        <input type="number" step="any" min="0" 
+                                        <input type="text" 
                                                name="components[{{ $comp->id }}]" 
                                                id="input_{{ $comp->id }}" 
-                                               value="{{ old('components.'.$comp->id, $currentAmount) }}"
+                                               value="{{ old('components.'.$comp->id, $comp->amount_type == 'percentage' ? $currentAmount : number_format($currentAmount)) }}"
                                                {{ !$isApplied ? 'disabled' : '' }}
-                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400">
+                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400 {{ $comp->amount_type == 'fixed' ? 'currency-input' : '' }}">
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-sm {{ $isApplied ? 'text-gray-700' : 'text-gray-400' }}" id="suffix_{{ $comp->id }}">
                                                 {{ $comp->amount_type == 'percentage' ? '%' : 'đ' }}
@@ -139,6 +140,40 @@
                     row.classList.remove('bg-blue-50/30');
                 }
             });
+        });
+
+        // Format currency input
+        const currencyInputs = document.querySelectorAll('.currency-input');
+        currencyInputs.forEach(input => {
+            // Function to format number with commas
+            const formatNumber = (value) => {
+                if (!value) return '';
+                // Remove non-digit chars
+                const cleanValue = value.replace(/\D/g, '');
+                if (!cleanValue) return '';
+                // Format with commas
+                return parseInt(cleanValue, 10).toLocaleString('en-US');
+            };
+
+            // Format on input
+            input.addEventListener('input', function(e) {
+                const cursorPosition = this.selectionStart;
+                const originalLength = this.value.length;
+                
+                this.value = formatNumber(this.value);
+                
+                // Adjust cursor position
+                const newLength = this.value.length;
+                const diff = newLength - originalLength;
+                
+                let newCursorPos = cursorPosition + diff;
+                this.setSelectionRange(newCursorPos, newCursorPos);
+            });
+            
+            // Format existing value on load if needed
+            if (this.value && this.value.indexOf(',') === -1) {
+                 this.value = formatNumber(this.value);
+            }
         });
     });
 </script>

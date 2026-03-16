@@ -23,14 +23,16 @@
             
             <div class="flex items-center gap-2">
                 <label class="text-sm text-gray-600">Từ ngày</label>
-                <input type="date" name="date_from" id="dateFrom" value="{{ request('date_from', $startDate->format('Y-m-d')) }}" 
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                <input type="text" name="date_from" id="dateFrom" value="{{ request('date_from', $startDate->format('Y-m-d')) }}" 
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                       placeholder="Từ ngày">
             </div>
             
             <div class="flex items-center gap-2">
                 <label class="text-sm text-gray-600">Đến ngày</label>
-                <input type="date" name="date_to" id="dateTo" value="{{ request('date_to', $endDate->format('Y-m-d')) }}" 
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                <input type="text" name="date_to" id="dateTo" value="{{ request('date_to', $endDate->format('Y-m-d')) }}" 
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                       placeholder="Đến ngày">
             </div>
             
             <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
@@ -473,8 +475,13 @@ function handleFilterChange() {
             return;
     }
     
-    dateFrom.value = formatDate(startDate);
-    dateTo.value = formatDate(endDate);
+    if (dateFrom._flatpickr && dateTo._flatpickr) {
+        dateFrom._flatpickr.setDate(startDate);
+        dateTo._flatpickr.setDate(endDate);
+    } else {
+        dateFrom.value = formatDate(startDate);
+        dateTo.value = formatDate(endDate);
+    }
 }
 
 function formatDate(date) {
@@ -493,6 +500,24 @@ document.getElementById('dateTo')?.addEventListener('change', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize date pickers
+    if (document.getElementById('dateFrom')) {
+        flatpickr("#dateFrom", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+    if (document.getElementById('dateTo')) {
+        flatpickr("#dateTo", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+
     // Transactions Line Chart
     const transactionsLineCtx = document.getElementById('transactionsLineChart');
     if (transactionsLineCtx) {

@@ -111,7 +111,7 @@
                     <div class="p-4 space-y-3">
                         <div>
                             <label for="debt_limit" class="block text-sm font-medium text-gray-700 mb-1">Hạn mức nợ (VNĐ)</label>
-                            <input type="number" name="debt_limit" id="debt_limit" value="{{ old('debt_limit', $customer->debt_limit) }}" min="0" step="1000"
+                            <input type="text" name="debt_limit" id="debt_limit" value="{{ old('debt_limit', $customer->debt_limit) }}"
                                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                         </div>
                         <div>
@@ -148,3 +148,41 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const debtLimitInput = document.getElementById('debt_limit');
+        if (!debtLimitInput) return;
+        
+        const form = debtLimitInput.closest('form');
+
+        // Initial format if value exists
+        if (debtLimitInput.value) {
+            formatDebtLimit(debtLimitInput);
+        }
+
+        // Format on input
+        debtLimitInput.addEventListener('input', function() {
+            formatDebtLimit(this);
+        });
+
+        // Strip commas before form submisssion
+        if (form) {
+            form.addEventListener('submit', function() {
+                let val = debtLimitInput.value.replace(/,/g, '');
+                debtLimitInput.value = val === '' ? '0' : val;
+            });
+        }
+
+        function formatDebtLimit(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value === '') {
+                input.value = '';
+                return;
+            }
+            input.value = new Intl.NumberFormat('en-US').format(parseInt(value));
+        }
+    });
+</script>
+@endpush

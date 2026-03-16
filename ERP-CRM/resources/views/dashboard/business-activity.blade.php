@@ -168,16 +168,18 @@
             <!-- Custom Date Range -->
             <div class="flex items-center gap-2">
                 <label class="text-sm text-gray-600">Từ ngày</label>
-                <input type="date" name="start_date" x-model="startDate" 
+                <input type="text" name="start_date" x-model="startDate" x-ref="startDatePicker"
+                    x-init="flatpickr($refs.startDatePicker, { dateFormat: 'Y-m-d', altInput: true, altFormat: 'd/m/Y', locale: 'vn', defaultDate: startDate })"
                     class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    aria-label="Ngày bắt đầu">
+                    aria-label="Ngày bắt đầu" placeholder="Từ ngày">
             </div>
             
             <div class="flex items-center gap-2">
                 <label class="text-sm text-gray-600">đến</label>
-                <input type="date" name="end_date" x-model="endDate" 
+                <input type="text" name="end_date" x-model="endDate" x-ref="endDatePicker"
+                    x-init="flatpickr($refs.endDatePicker, { dateFormat: 'Y-m-d', altInput: true, altFormat: 'd/m/Y', locale: 'vn', defaultDate: endDate })"
                     class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    aria-label="Ngày kết thúc">
+                    aria-label="Ngày kết thúc" placeholder="Đến ngày">
             </div>
             
             <!-- Apply Button -->
@@ -788,6 +790,12 @@ function dashboardApp() {
             // Clear custom dates when selecting predefined period
             this.startDate = '';
             this.endDate = '';
+            if (this.$refs.startDatePicker && this.$refs.startDatePicker._flatpickr) {
+                this.$refs.startDatePicker._flatpickr.clear();
+            }
+            if (this.$refs.endDatePicker && this.$refs.endDatePicker._flatpickr) {
+                this.$refs.endDatePicker._flatpickr.clear();
+            }
             // Wait for Alpine to update the DOM before submitting
             this.$nextTick(() => {
                 document.getElementById('filterForm').submit();

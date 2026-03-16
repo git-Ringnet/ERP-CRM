@@ -19,13 +19,13 @@
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- Flatpickr -->
+    <!-- Scripts and Base Styles -->
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Flatpickr (Loaded after app.css to prevent Tailwind Forms base override) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
-
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
     
     <!-- Chart.js CDN - Load after Alpine.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
