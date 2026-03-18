@@ -34,15 +34,22 @@ class AccountingJournalController extends Controller
             });
         }
 
-        $entries = $query->orderBy('entry_date', 'desc')
-            ->orderBy('created_at', 'desc')
+        $entries = $query->orderBy('created_at', 'desc')
             ->paginate(20)
             ->withQueryString();
 
-        // Totals
-        $totalQuery = WarehouseJournalEntry::whereBetween('entry_date', [$dateFrom, $dateTo]);
-        if ($type) $totalQuery->where('reference_type', $type);
-        $totalAmount = $totalQuery->sum('amount');
+        // Totals: Chỉ cộng giá trị mới nhất của mỗi mã phiếu để tránh trùng lặp do lưu lịch sử
+        $totalAmount = WarehouseJournalEntry::whereIn('id', function($q) use ($dateFrom, $dateTo, $type) {
+                $q->selectRaw('MAX(id)')
+                    ->from('warehouse_journal_entries')
+                    ->whereBetween('entry_date', [$dateFrom, $dateTo]);
+                
+                if ($type) $q->where('reference_type', $type);
+                
+                $q->groupBy('reference_code');
+            })
+            ->where('status', '!=', 'deleted')
+            ->sum('amount');
 
         return view('accounting.journal.index', compact(
             'entries', 'dateFrom', 'dateTo', 'type', 'search', 'totalAmount'

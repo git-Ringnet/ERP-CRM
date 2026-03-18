@@ -82,7 +82,8 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ngày</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Số phiếu</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Loại</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hoạt động</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Trạng thái</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Số tiền</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nội dung</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Người tạo</th>
@@ -113,26 +114,47 @@
                             </td>
                             <td class="px-4 py-3 text-sm whitespace-nowrap">
                                 @php
-                                    $badgeColor = match($entry->reference_type) {
-                                        'import' => 'bg-blue-100 text-blue-700',
-                                        'export' => 'bg-orange-100 text-orange-700',
-                                        'transfer' => 'bg-purple-100 text-purple-700',
-                                        default => 'bg-gray-100 text-gray-700',
-                                    };
-                                    $icon = match($entry->reference_type) {
-                                        'import' => 'fa-arrow-down',
-                                        'export' => 'fa-arrow-up',
-                                        'transfer' => 'fa-exchange-alt',
-                                        default => 'fa-file',
+                                    $actionLabels = [
+                                        'create' => 'Tạo mới',
+                                        'update' => 'Cập nhật',
+                                        'approve' => 'Duyệt',
+                                        'reject' => 'Từ chối',
+                                        'delete' => 'Xoá',
+                                    ];
+                                    $actionLabel = $actionLabels[$entry->action] ?? $entry->action;
+                                    $actionColor = match($entry->action) {
+                                        'create' => 'text-blue-600',
+                                        'update' => 'text-orange-600',
+                                        'approve' => 'text-green-600',
+                                        'reject' => 'text-red-600',
+                                        'delete' => 'text-gray-600',
+                                        default => 'text-gray-600',
                                     };
                                 @endphp
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $badgeColor }}">
-                                    <i class="fas {{ $icon }} mr-1"></i>
-                                    {{ $entry->type_label }}
+                                <span class="font-medium {{ $actionColor }}">
+                                    {{ $actionLabel }} {{ $entry->type_label }}
                                 </span>
-                                @if($entry->sub_type_label)
-                                    <span class="text-xs text-gray-400 ml-1">({{ $entry->sub_type_label }})</span>
-                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                @php
+                                    $statusLabels = [
+                                        'pending' => 'Chờ xử lý',
+                                        'completed' => 'Hoàn thành',
+                                        'rejected' => 'Từ chối',
+                                        'deleted' => 'Đã xoá',
+                                    ];
+                                    $statusLabel = $statusLabels[$entry->status] ?? $entry->status;
+                                    $statusBg = match($entry->status) {
+                                        'pending' => 'bg-yellow-100 text-yellow-700',
+                                        'completed' => 'bg-green-100 text-green-700',
+                                        'rejected' => 'bg-red-100 text-red-700',
+                                        'deleted' => 'bg-gray-100 text-gray-700',
+                                        default => 'bg-gray-100 text-gray-700',
+                                    };
+                                @endphp
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $statusBg }}">
+                                    {{ $statusLabel }}
+                                </span>
                             </td>
                             <td class="px-4 py-3 text-sm text-right font-semibold text-gray-800 whitespace-nowrap">
                                 {{ number_format($entry->amount, 0, ',', '.') }} đ
@@ -146,10 +168,10 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                            <td colspan="7" class="px-4 py-12 text-center text-gray-400">
                                 <i class="fas fa-book-open text-4xl mb-3 block"></i>
                                 <p class="text-lg font-medium">Chưa có nhật ký vận chuyển</p>
-                                <p class="text-sm mt-1">Sẽ được tạo tự động khi phiếu nhập/xuất/chuyển kho được duyệt.</p>
+                                <p class="text-sm mt-1">Mọi thay đổi của phiếu nhập/xuất/chuyển kho sẽ được ghi lại tại đây.</p>
                             </td>
                         </tr>
                     @endforelse

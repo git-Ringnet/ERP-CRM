@@ -167,12 +167,12 @@ class TransactionService
                         'add'
                     );
 
-                    // Update average cost if cost is provided
-                    if ($item->cost > 0) {
+                    // Update average cost if cost is provided (using warehouse_price to include service costs)
+                    if ($item->warehouse_price > 0) {
                         $avgCost = $this->inventoryService->calculateAverageCost(
                             $item->product_id,
                             $warehouseId,
-                            $item->cost,
+                            $item->warehouse_price,
                             $item->quantity
                         );
                         $this->inventoryService->updateAverageCost(

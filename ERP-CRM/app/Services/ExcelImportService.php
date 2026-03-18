@@ -36,25 +36,25 @@ class ExcelImportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Sản Phẩm');
 
-        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Kho', 'Nhà cung cấp', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Ghi chú'];
+        $headers = ['STT', 'Part Number / FRU', 'Tổng Slg kho vật lý', 'Slg. Chi tiết', 'Số Serial', 'Ngày nhập kho', 'Kho', 'Nhà cung cấp', 'Tên sản phẩm', 'Danh mục', 'Đơn vị', 'Bảo hành (tháng)', 'Giá nhập', 'Phí vận chuyển', 'Phí bốc dỡ', 'Phí kiểm định', 'Phí khác', 'Ghi chú'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:M1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:M1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
-        $sheet->getStyle('A1:M1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:R1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:R1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A1:R1')->getFont()->getColor()->setRGB('FFFFFF');
 
         $examples = [
-            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 'Nhập bên Maxlink 2'],
-            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', '', '', '', '', ''],
-            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, ''],
-            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', '', '', '', '', ''],
-            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', ''],
-            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', ''],
-            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'WH0001', 'Zyxel Vietnam', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, ''],
-            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', 'WH0001', 'Zyxel Vietnam', '', '', '', '', ''],
-            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', ''],
-            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', ''],
-            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', ''],
-            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', ''],
+            [1, 'ST4000VN006', 2, 1, 'WW67EWKA', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', 'Seagate IronWolf 4TB', 'A', 'Cái', 36, 1200000, 50000, 0, 0, 0, 'Nhập bên Maxlink 2'],
+            [2, 'ST4000VN006', '', 1, 'WW67H60T', '12/3/2025', 'WH0001', 'Công ty Maxlink 2', '', '', '', '', 1200000, 0, 0, 0, 0, ''],
+            [3, 'XGS2220-30F-US0101F', 4, 1, 'S242L02014561', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', 'Zyxel XGS2220-30F Switch', 'A', 'Cái', 24, 5000000, 100000, 20000, 0, 0, ''],
+            [4, 'XGS2220-30F-US0101F', '', 1, 'S242L02014573', '12/4/2025', 'Kho Hà Nội', 'Zyxel Vietnam', '', '', '', '', 5000000, 0, 0, 0, 0, ''],
+            [5, 'XGS2220-30F-US0101F', '', 1, 'S242L02014518', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', 5000000, 0, 0, 0, 0, ''],
+            [6, 'XGS2220-30F-US0101F', '', 1, 'S242L02014515', '12/4/2025', 'WH0002', 'Zyxel Vietnam', '', '', '', '', 5000000, 0, 0, 0, 0, ''],
+            [7, 'WAX510D-EU0101F', 28, 1, 'S252L14101325', '12/4/2025', 'WH0001', 'Zyxel Vietnam', 'Zyxel WAX510D Access Point', 'A', 'Cái', 12, 3500000, 0, 0, 0, 0, ''],
+            [8, 'WAX510D-EU0101F', '', 1, 'S252L14100502', '12/4/2025', 'WH0001', 'Zyxel Vietnam', '', '', '', '', 3500000, 0, 0, 0, 0, ''],
+            [9, 'WAX510D-EU0101F', '', 1, 'S252L14101273', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', 3500000, 0, 0, 0, 0, ''],
+            [10, 'WAX510D-EU0101F', '', 1, 'S252L14101019', '12/4/2025', 'Kho Đà Nẵng', 'Zyxel Vietnam', '', '', '', '', 3500000, 0, 0, 0, 0, ''],
+            [11, 'WAX510D-EU0101F', '', 1, 'S252L14101012', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', 3500000, 0, 0, 0, 0, ''],
+            [12, 'WAX510D-EU0101F', '', 1, 'S252L14100702', '12/4/2025', 'WH0003', 'Zyxel Vietnam', '', '', '', '', 3500000, 0, 0, 0, 0, ''],
         ];
 
         $row = 2;
@@ -63,12 +63,12 @@ class ExcelImportService
             $row++;
         }
 
-        foreach (range('A', 'M') as $col) {
+        foreach (range('A', 'R') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $sheet->getStyle("A1:M{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $sheet->getStyle("A1:R{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'product_template_') . '.xlsx';
         $writer = new Xlsx($spreadsheet);
@@ -194,7 +194,12 @@ class ExcelImportService
                 // 9: Danh mục
                 // 10: Đơn vị
                 // 11: Bảo hành (tháng)
-                // 12: Ghi chú
+                // 12: Giá nhập
+                // 13: Phí vận chuyển
+                // 14: Phí bốc dỡ
+                // 15: Phí kiểm định
+                // 16: Phí khác
+                // 17: Ghi chú
                 
                 $productCode = trim($row[1] ?? '');
                 $quantity = $row[3] ?? 1;
@@ -206,7 +211,12 @@ class ExcelImportService
                 $category = strtoupper(trim($row[9] ?? 'A'));
                 $unit = trim($row[10] ?? 'Cái');
                 $warrantyMonths = $row[11] ?? null;
-                $note = trim($row[12] ?? '');
+                $cost = isset($row[12]) && is_numeric($row[12]) ? (float)$row[12] : 0;
+                $shippingCost = isset($row[13]) && is_numeric($row[13]) ? (float)$row[13] : 0;
+                $loadingCost = isset($row[14]) && is_numeric($row[14]) ? (float)$row[14] : 0;
+                $inspectionCost = isset($row[15]) && is_numeric($row[15]) ? (float)$row[15] : 0;
+                $otherCost = isset($row[16]) && is_numeric($row[16]) ? (float)$row[16] : 0;
+                $note = trim($row[17] ?? '');
                 
                 // Skip if no product code
                 if (empty($productCode)) {
@@ -320,14 +330,25 @@ class ExcelImportService
                         'date' => $importDate,
                         'warehouse_id' => $warehouse->id,
                         'supplier_id' => $supplier ? $supplier->id : null,
+                        'shipping_cost' => 0,
+                        'loading_cost' => 0,
+                        'inspection_cost' => 0,
+                        'other_cost' => 0,
                         'items' => [],
                     ];
                 }
+                
+                // Aggregate max cost for fees per group (assuming user might enter them on one row or repeat them)
+                $groupedItems[$groupKey]['shipping_cost'] = max($groupedItems[$groupKey]['shipping_cost'], $shippingCost);
+                $groupedItems[$groupKey]['loading_cost'] = max($groupedItems[$groupKey]['loading_cost'], $loadingCost);
+                $groupedItems[$groupKey]['inspection_cost'] = max($groupedItems[$groupKey]['inspection_cost'], $inspectionCost);
+                $groupedItems[$groupKey]['other_cost'] = max($groupedItems[$groupKey]['other_cost'], $otherCost);
                 
                 $groupedItems[$groupKey]['items'][] = [
                     'product_id' => $product->id,
                     'product_code' => $productCode,
                     'quantity' => $quantity,
+                    'cost' => $cost,
                     'serial' => $serial,
                     'note' => $note,
                     'row_number' => $rowNumber,
@@ -396,6 +417,11 @@ class ExcelImportService
                     'warehouse_id' => $group['warehouse_id'],
                     'supplier_id' => $group['supplier_id'],
                     'date' => $group['date'],
+                    'shipping_cost' => $group['shipping_cost'],
+                    'loading_cost' => $group['loading_cost'],
+                    'inspection_cost' => $group['inspection_cost'],
+                    'other_cost' => $group['other_cost'],
+                    'total_service_cost' => $group['shipping_cost'] + $group['loading_cost'] + $group['inspection_cost'] + $group['other_cost'],
                     'note' => 'Import từ Excel',
                     'items' => [],
                 ];
@@ -408,6 +434,7 @@ class ExcelImportService
                         $productItems[$productId] = [
                             'product_id' => $productId,
                             'quantity' => 0,
+                            'cost' => $item['cost'],
                             'skus' => [],
                             'comments' => [],
                         ];
@@ -427,7 +454,7 @@ class ExcelImportService
                         'warehouse_id' => $group['warehouse_id'],
                         'quantity' => $productItem['quantity'],
                         'serials' => $productItem['skus'],
-                        'cost' => 0,
+                        'cost' => $productItem['cost'],
                         'comments' => !empty($productItem['comments']) ? implode('; ', array_unique($productItem['comments'])) : null,
                     ];
                 }

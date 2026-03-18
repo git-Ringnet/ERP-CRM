@@ -15,6 +15,7 @@ use App\Services\ProductItemService;
 use App\Services\NotificationService;
 use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * ImportController - Handles all import (nhập kho) operations
@@ -154,6 +155,14 @@ class ImportController extends Controller
                 ->toArray();
             if (!empty($recipientIds)) {
                 $this->notificationService->notifyImportCreated($import, $recipientIds);
+            }
+
+            // Ghi nhật ký kế toán (Lịch sử: Tạo mới)
+            try {
+                $import->load(['items', 'supplier', 'warehouse']);
+                $this->journalService->createForImport($import, 'create');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ': ' . $journalEx->getMessage());
             }
 
             return redirect()->route('imports.show', $import)
@@ -308,6 +317,14 @@ class ImportController extends Controller
 
             $import->update(['total_qty' => $totalQty]);
 
+            // Ghi nhật ký kế toán (Lịch sử: Cập nhật)
+            try {
+                $import->refresh()->load(['items', 'supplier', 'warehouse']);
+                $this->journalService->createForImport($import, 'update');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể cập nhật bút toán cho phiếu nhập ' . $import->code . ': ' . $journalEx->getMessage());
+            }
+
             return redirect()->route('imports.show', $import)
                 ->with('success', 'Cập nhật phiếu nhập kho thành công.');
         } catch (\Exception $e) {
@@ -331,6 +348,13 @@ class ImportController extends Controller
         }
 
         try {
+            // Ghi nhật ký trước khi xoá (Lịch sử: Xoá)
+            try {
+                $this->journalService->createForImport($import, 'delete');
+            } catch (\Exception $journalEx) {
+                \Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ' khi xóa: ' . $journalEx->getMessage());
+            }
+
             ProductItem::where('import_id', $import->id)->delete();
             $import->items()->delete();
             $import->delete();
@@ -373,12 +397,12 @@ class ImportController extends Controller
                 ])->toArray(),
             ], $import);
 
-            // Tạo bút toán kế toán tự động
+            // Tạo bút toán kế toán tự động (Lịch sử: Duyệt)
             try {
                 $import->load(['items', 'supplier', 'warehouse']);
-                $this->journalService->createForImport($import);
+                $this->journalService->createForImport($import, 'approve');
             } catch (\Exception $journalEx) {
-                \Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ': ' . $journalEx->getMessage());
+                Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ' khi duyệt: ' . $journalEx->getMessage());
             }
 
             // Tạo thông báo cho người tạo phiếu
@@ -422,6 +446,11 @@ class ImportController extends Controller
                 'status' => 'rejected',
                 'note' => ($import->note ? $import->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
             ]);
+
+            // Ghi nhật ký kế toán (Lịch sử: Từ chối)
+            try {
+                $this->journalService->createForImport($import, 'reject');
+            } catch (\Exception $journalEx) {}
 
             // Tạo thông báo cho người tạo phiếu
             if ($import->employee_id) {

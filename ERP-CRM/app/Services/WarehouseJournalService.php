@@ -31,10 +31,19 @@ class WarehouseJournalService
     }
 
     /**
-     * Create journal entry for an approved Import.
+     * Create journal entry for an Import action.
      */
-    public function createForImport(Import $import): WarehouseJournalEntry
+    public function createForImport(Import $import, string $action = 'create'): WarehouseJournalEntry
     {
+        $actionLabels = [
+            'create' => 'Tạo mới',
+            'update' => 'Cập nhật',
+            'approve' => 'Đã duyệt',
+            'reject'  => 'Từ chối',
+            'delete'  => 'Xóa phiếu',
+        ];
+        $label = $actionLabels[$action] ?? $action;
+
         // Determine sub-type based on whether import has a supplier
         $subType = $import->supplier_id ? 'from_supplier' : 'direct';
         $accountKey = $import->supplier_id ? 'import_from_supplier' : 'import_direct';
@@ -52,7 +61,7 @@ class WarehouseJournalService
         $warehouseName = $import->warehouse ? $import->warehouse->name : '';
 
         return WarehouseJournalEntry::create([
-            'entry_date' => $import->date,
+            'entry_date' => now(), // Ghi nhận thời điểm thực hiện hành động
             'reference_type' => 'import',
             'reference_id' => $import->id,
             'reference_code' => $import->code,
@@ -60,16 +69,27 @@ class WarehouseJournalService
             'debit_account' => $accounts['debit'],
             'credit_account' => $accounts['credit'],
             'amount' => $totalAmount,
-            'description' => "Nhập kho {$warehouseName}" . ($supplierName ? " từ NCC {$supplierName}" : '') . " - Phiếu {$import->code}",
+            'action' => $action,
+            'status' => $import->status,
+            'description' => "[{$label}] Nhập kho {$warehouseName}" . ($supplierName ? " từ NCC {$supplierName}" : '') . " - Phiếu {$import->code}",
             'created_by' => Auth::user()->name ?? 'System',
         ]);
     }
 
     /**
-     * Create journal entry for an approved Export.
+     * Create journal entry for an Export action.
      */
-    public function createForExport(Export $export): WarehouseJournalEntry
+    public function createForExport(Export $export, string $action = 'create'): WarehouseJournalEntry
     {
+        $actionLabels = [
+            'create' => 'Tạo mới',
+            'update' => 'Cập nhật',
+            'approve' => 'Đã duyệt',
+            'reject'  => 'Từ chối',
+            'delete'  => 'Xóa phiếu',
+        ];
+        $label = $actionLabels[$action] ?? $action;
+
         // Determine sub-type: check if any item is liquidation
         $hasLiquidation = $export->items->contains('is_liquidation', true);
         $subType = $hasLiquidation ? 'liquidation' : 'project';
@@ -90,13 +110,13 @@ class WarehouseJournalService
         $projectName = $export->project ? $export->project->name : '';
         $customerName = $export->customer ? $export->customer->name : '';
 
-        $desc = "Xuất kho {$warehouseName}";
+        $desc = "[{$label}] Xuất kho {$warehouseName}";
         if ($projectName) $desc .= " cho DA {$projectName}";
         if ($customerName) $desc .= " - KH {$customerName}";
         $desc .= " - Phiếu {$export->code}";
 
         return WarehouseJournalEntry::create([
-            'entry_date' => $export->date,
+            'entry_date' => now(), // Ghi nhận thời điểm thực hiện hành động
             'reference_type' => 'export',
             'reference_id' => $export->id,
             'reference_code' => $export->code,
@@ -104,16 +124,27 @@ class WarehouseJournalService
             'debit_account' => $accounts['debit'],
             'credit_account' => $accounts['credit'],
             'amount' => $totalAmount,
+            'action' => $action,
+            'status' => $export->status,
             'description' => $desc,
             'created_by' => Auth::user()->name ?? 'System',
         ]);
     }
 
     /**
-     * Create journal entry for an approved Transfer.
+     * Create journal entry for a Transfer action.
      */
-    public function createForTransfer(Transfer $transfer): WarehouseJournalEntry
+    public function createForTransfer(Transfer $transfer, string $action = 'create'): WarehouseJournalEntry
     {
+        $actionLabels = [
+            'create' => 'Tạo mới',
+            'update' => 'Cập nhật',
+            'approve' => 'Đã duyệt',
+            'reject'  => 'Từ chối',
+            'delete'  => 'Xóa phiếu',
+        ];
+        $label = $actionLabels[$action] ?? $action;
+
         $accounts = $this->getAccounts('transfer_internal');
 
         // Calculate total amount: use average cost from source warehouse
@@ -130,7 +161,7 @@ class WarehouseJournalService
         $toName = $transfer->toWarehouse ? $transfer->toWarehouse->name : '';
 
         return WarehouseJournalEntry::create([
-            'entry_date' => $transfer->date,
+            'entry_date' => now(), // Ghi nhận thời điểm thực hiện hành động
             'reference_type' => 'transfer',
             'reference_id' => $transfer->id,
             'reference_code' => $transfer->code,
@@ -138,7 +169,9 @@ class WarehouseJournalService
             'debit_account' => $accounts['debit'],
             'credit_account' => $accounts['credit'],
             'amount' => $totalAmount,
-            'description' => "Chuyển kho từ {$fromName} đến {$toName} - Phiếu {$transfer->code}",
+            'action' => $action,
+            'status' => $transfer->status,
+            'description' => "[{$label}] Chuyển kho từ {$fromName} đến {$toName} - Phiếu {$transfer->code}",
             'created_by' => Auth::user()->name ?? 'System',
         ]);
     }
