@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Gate;
 use App\Services\PermissionServiceInterface;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
+use App\Models\Payroll;
+use App\Policies\PayrollPolicy;
+
 class AuthServiceProvider extends ServiceProvider
 {
     /**
@@ -14,6 +17,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        Payroll::class => PayrollPolicy::class,
         // Master Data
         \App\Models\Customer::class => \App\Policies\CustomerPolicy::class,
         \App\Models\Supplier::class => \App\Policies\SupplierPolicy::class,

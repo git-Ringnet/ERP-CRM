@@ -40,6 +40,7 @@ class User extends Authenticatable
         'note',
         'avatar',
         'timekeeping_type',
+        'work_location_id',
     ];
 
     /**
@@ -129,5 +130,37 @@ class User extends Authenticatable
     public function employeeSkills(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(EmployeeSkill::class, 'user_id');
+    }
+
+    /**
+     * Lịch sử chấm công.
+     */
+    public function attendances(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Attendance::class, 'user_id');
+    }
+
+    /**
+     * Chi tiết các kỳ lương.
+     */
+    public function payrollItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PayrollItem::class, 'user_id');
+    }
+
+    /**
+     * Cấu hình phụ cấp/khấu trừ riêng.
+     */
+    public function employeeSalaryComponents(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(EmployeeSalaryComponent::class, 'user_id');
+    }
+
+    /**
+     * Địa điểm làm việc của nhân viên.
+     */
+    public function workLocation(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(WorkLocation::class, 'work_location_id');
     }
 }

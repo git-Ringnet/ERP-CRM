@@ -140,6 +140,8 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách
                             hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo
                         </th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng
@@ -186,6 +188,9 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $sale->customer_name }}</div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ $sale->user->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {{ $sale->date->format('d/m/Y') }}

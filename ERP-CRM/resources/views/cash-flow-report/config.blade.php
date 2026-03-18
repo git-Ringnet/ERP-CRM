@@ -12,6 +12,24 @@
         </a>
     </div>
 
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded shadow-sm">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-blue-700">
+                    <strong>Hướng dẫn Mapping dữ liệu:</strong> Để dữ liệu giao dịch hiển thị trên báo cáo, bạn cần thực hiện 2 bước:
+                    <ol class="list-decimal ml-5 mt-1 space-y-1">
+                        <li><strong>Cấu hình hàng báo cáo:</strong> Thêm các "Mã lưu chuyển" (VD: 1, 2, 3...) tại trang này.</li>
+                        <li><strong>Gán mã cho Danh mục:</strong> Truy cập <a href="{{ route('financial-transactions.categories') }}" class="font-bold underline">Quản lý danh mục Thu Chi</a>, chỉnh sửa danh mục và chọn "Mã lưu chuyển" tương ứng.</li>
+                    </ol>
+                    <span class="mt-2 block italic text-xs">* Giao dịch thuộc loại Thu/Chi sẽ tự động được cộng dồn vào hàng báo cáo có mã tương ứng hàng tháng.</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
     @if (session('success'))
     <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4">
         {{ session('success') }}

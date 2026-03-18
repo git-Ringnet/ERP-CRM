@@ -38,15 +38,17 @@
                 <!-- Date From -->
                 <div class="flex-1 min-w-[150px]">
                     <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <input type="text" id="customerDateFrom" name="date_from" value="{{ request('date_from') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                           placeholder="Từ ngày">
                 </div>
 
                 <!-- Date To -->
                 <div class="flex-1 min-w-[150px]">
                     <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
-                    <input type="date" name="date_to" value="{{ request('date_to') }}" 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <input type="text" id="customerDateTo" name="date_to" value="{{ request('date_to') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                           placeholder="Đến ngày">
                 </div>
 
                 <!-- Buttons -->
@@ -342,6 +344,25 @@ const fileInput = document.getElementById('fileInput');
 const submitBtn = document.getElementById('submitBtn');
 const dropZoneContent = document.getElementById('dropZoneContent');
 const fileInfo = document.getElementById('fileInfo');
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('customerDateFrom')) {
+        flatpickr("#customerDateFrom", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+    if (document.getElementById('customerDateTo')) {
+        flatpickr("#customerDateTo", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    }
+});
 
 if (fileInput) {
     fileInput.addEventListener('change', function(e) {

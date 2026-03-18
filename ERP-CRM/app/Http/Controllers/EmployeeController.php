@@ -64,7 +64,8 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', User::class);
         
-        return view('employees.create');
+        $workLocations = \App\Models\WorkLocation::where('is_active', true)->get();
+        return view('employees.create', compact('workLocations'));
     }
 
     /**
@@ -75,6 +76,11 @@ class EmployeeController extends Controller
     {
         $this->authorize('create', User::class);
         
+        // Pre-process numeric inputs to remove commas
+        if ($request->has('salary') && is_string($request->salary)) {
+            $request->merge(['salary' => str_replace(',', '', $request->salary)]);
+        }
+
         // Validation (Requirement 3.4)
         $validated = $request->validate([
             'employee_code' => ['required', 'string', 'max:50', 'unique:users,employee_code'],
@@ -93,6 +99,8 @@ class EmployeeController extends Controller
             'bank_name' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
+            'timekeeping_type' => ['required', 'in:regular,irregular'],
         ]);
 
         // Hash password
@@ -130,7 +138,8 @@ class EmployeeController extends Controller
         
         $this->authorize('update', $employee);
 
-        return view('employees.edit', compact('employee'));
+        $workLocations = \App\Models\WorkLocation::where('is_active', true)->get();
+        return view('employees.edit', compact('employee', 'workLocations'));
     }
 
     /**
@@ -143,6 +152,11 @@ class EmployeeController extends Controller
             ->findOrFail($id);
         
         $this->authorize('update', $employee);
+
+        // Pre-process numeric inputs to remove commas
+        if ($request->has('salary') && is_string($request->salary)) {
+            $request->merge(['salary' => str_replace(',', '', $request->salary)]);
+        }
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -162,6 +176,8 @@ class EmployeeController extends Controller
             'bank_name' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'in:active,leave,resigned'],
             'note' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
+            'timekeeping_type' => ['required', 'in:regular,irregular'],
         ]);
 
         // Only update password if provided

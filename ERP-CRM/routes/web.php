@@ -35,6 +35,11 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\FinancialTransactionController;
 use App\Http\Controllers\BusinessReportController;
 use App\Http\Controllers\BusinessDashboardController;
+use App\Http\Controllers\WorkLocationController;
+use App\Http\Controllers\SalaryComponentController;
+use App\Http\Controllers\EmployeeSalaryComponentController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\PayrollController;
 
 /*
 |--------------------------------------------------------------------------
@@ -299,6 +304,7 @@ Route::middleware(['auth'])->group(function () {
     // Financial Transactions (Thu Chi)
     Route::get('/financial-transactions/categories', [FinancialTransactionController::class, 'categories'])->name('financial-transactions.categories');
     Route::post('/financial-transactions/categories', [FinancialTransactionController::class, 'storeCategory'])->name('financial-transactions.categories.store');
+    Route::put('/financial-transactions/categories/{category}', [FinancialTransactionController::class, 'updateCategory'])->name('financial-transactions.categories.update');
     Route::delete('/financial-transactions/categories/{category}', [FinancialTransactionController::class, 'destroyCategory'])->name('financial-transactions.categories.destroy');
     Route::get('/financial-transactions/{transaction}/print', [FinancialTransactionController::class, 'print'])->name('financial-transactions.print');
     Route::get('/financial-transactions/export-misa', [FinancialTransactionController::class, 'exportMisa'])->name('financial-transactions.export-misa');
@@ -426,6 +432,28 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/department-kpi-criteria', [\App\Http\Controllers\DepartmentKpiCriterionController::class, 'getByDepartment'])->name('api.department-kpi-criteria');
     Route::resource('department-kpi-criteria', \App\Http\Controllers\DepartmentKpiCriterionController::class);
     Route::resource('department-kpis', \App\Http\Controllers\DepartmentKpiController::class);
+    // =========================================================================
+    // Employee Sale Revenue - Ghi nhận doanh số nhân viên kinh doanh
+    // =========================================================================
+    Route::get('/employee-sales-revenues/get-suggested', [\App\Http\Controllers\EmployeeSaleRevenueController::class, 'getSuggestedRevenue'])->name('employee-sales-revenues.suggested');
+    Route::resource('employee-sales-revenues', \App\Http\Controllers\EmployeeSaleRevenueController::class);
+
+    // =========================================================================
+    // Payroll & Attendance - Lương và chấm công
+    // =========================================================================
+    Route::resource('work-locations', WorkLocationController::class);
+    Route::resource('salary-components', SalaryComponentController::class);
+    Route::get('employees/{employee}/salary-setup', [EmployeeSalaryComponentController::class, 'edit'])->name('employees.salary-setup');
+    Route::put('employees/{employee}/salary-setup', [EmployeeSalaryComponentController::class, 'update'])->name('employees.salary-setup.update');
+    
+    Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::post('attendance/check-in', [AttendanceController::class, 'checkIn'])->name('attendance.check-in');
+    Route::post('attendance/check-out', [AttendanceController::class, 'checkOut'])->name('attendance.check-out');
+    Route::post('/attendance/resolve-location', [AttendanceController::class, 'resolveLocation'])->name('attendance.resolve-location');
+    Route::get('attendances/manage', [AttendanceController::class, 'manage'])->name('attendance.manage');
+    
+    Route::resource('payrolls', PayrollController::class);
+    Route::patch('payrolls/{payroll}/status', [PayrollController::class, 'updateStatus'])->name('payrolls.updateStatus');
 });
 
 // Auth routes (login, logout, etc.)

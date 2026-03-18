@@ -42,7 +42,7 @@
             <p class="text-sm italic text-gray-500">Người lập: {{ auth()->user()->name }} | Ngày lập: {{ now()->format('d/m/Y') }}</p>
         </div>
 
-        <table class="w-full text-sm border-collapse border border-gray-300 min-w-[1800px]">
+        <table class="w-full text-sm border-collapse border border-gray-300 min-w-[1800px] table-cashflow">
             <thead>
                 <tr class="bg-orange-100 text-gray-700">
                     <th class="border border-gray-300 p-2 text-left w-80 sticky left-0 bg-orange-100 z-10">Nội dung</th>
@@ -162,6 +162,23 @@
         .no-print { display: none !important; }
         .printable-area { border: none !important; box-shadow: none !important; width: 100% !important; max-width: none !important; }
         @page { size: landscape; margin: 1cm; }
+    }
+    .printable-area {
+        font-family: 'Be Vietnam Pro', sans-serif;
+    }
+    .table-cashflow th, .table-cashflow td {
+        font-family: 'Be Vietnam Pro', sans-serif;
+        border: 1px solid #d1d5db;
+    }
+    .table-cashflow th {
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .table-cashflow td {
+        font-weight: 400;
+    }
+    .table-cashflow .font-bold td, .table-cashflow .font-bold {
+        font-weight: 700;
     }
     .sticky { position: sticky; left: 0; }
 </style>

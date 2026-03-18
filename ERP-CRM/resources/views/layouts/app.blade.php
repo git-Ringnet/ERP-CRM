@@ -19,13 +19,13 @@
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- Flatpickr -->
+    <!-- Scripts and Base Styles -->
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Flatpickr (Loaded after app.css to prevent Tailwind Forms base override) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
-
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
     
     <!-- Chart.js CDN - Load after Alpine.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
@@ -117,6 +117,25 @@
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
                 </a>
                 @endcan
+
+                <!-- <div class="mt-4">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        onclick="toggleDropdown('personal')">
+                        <div class="flex items-center">
+                            <i class="fas fa-user-circle w-6 text-pink-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Cá nhân</span>
+                        </div>
+                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-personal"></i>
+                    </div>
+
+                    <div class="dropdown-section" id="dropdown-personal">
+                        <a href="{{ route('attendance.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-map-marker-alt w-6 text-green-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Chấm công GPS</span>
+                        </a>
+                    </div>
+                </div> -->
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                     <div class="mt-4">
@@ -332,6 +351,46 @@
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpi-criteria.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-list-check w-6 text-green-400 flex-shrink-0"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Tiêu chí chuẩn</span>
+                        </a>
+
+                        <a href="{{ route('employee-sales-revenues.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-sales-revenues.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-money-bill-trend-up w-6 text-cyan-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Ghi nhận doanh số</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        onclick="toggleDropdown('hr_payroll')">
+                        <div class="flex items-center">
+                            <i class="fas fa-users-cog w-6 text-indigo-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Nhân sự & Tiền lương</span>
+                        </div>
+                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-hr_payroll"></i>
+                    </div>
+
+                    <div class="dropdown-section" id="dropdown-hr_payroll">
+                        <!-- <a href="{{ route('work-locations.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-locations.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-map-marker-alt w-6 text-red-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
+                        </a> -->
+                        <a href="{{ route('salary-components.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('salary-components.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-list-ul w-6 text-orange-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục Phụ cấp</span>
+                        </a>
+                        <!-- <a href="{{ route('attendance.manage') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.manage') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-clipboard-check w-6 text-green-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Lịch sử Chấm công</span>
+                        </a> -->
+                        <a href="{{ route('payrolls.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('payrolls.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-money-check-alt w-6 text-yellow-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Bảng lương</span>
                         </a>
                     </div>
                 </div>

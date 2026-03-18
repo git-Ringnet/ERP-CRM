@@ -30,6 +30,18 @@ class SaleItem extends Model
         'warranty_months',
         'warranty_start_date',
         'is_liquidation',
+        'usd_price',
+        'exchange_rate',
+        'discount_rate',
+        'import_cost_rate',
+        'estimated_cost_usd',
+        'finance_cost_percent',
+        'management_cost_percent',
+        'support_247_cost_percent',
+        'other_support_cost',
+        'technical_poc_cost',
+        'implementation_cost',
+        'contractor_tax',
     ];
 
     protected $casts = [
@@ -41,7 +53,85 @@ class SaleItem extends Model
         'warranty_months' => 'integer',
         'warranty_start_date' => 'date',
         'is_liquidation' => 'boolean',
+        'usd_price' => 'decimal:2',
+        'exchange_rate' => 'decimal:2',
+        'discount_rate' => 'decimal:2',
+        'import_cost_rate' => 'decimal:2',
+        'estimated_cost_usd' => 'decimal:2',
+        'finance_cost_percent' => 'decimal:2',
+        'management_cost_percent' => 'decimal:2',
+        'support_247_cost_percent' => 'decimal:2',
+        'other_support_cost' => 'decimal:2',
+        'technical_poc_cost' => 'decimal:2',
+        'implementation_cost' => 'decimal:2',
+        'contractor_tax' => 'decimal:2',
     ];
+
+    /**
+     * Calculate Price VND from USD fields
+     */
+    public function calculateVndCost(): float
+    {
+        $estimatedCostUsd = $this->usd_price * (1 - ($this->discount_rate / 100)) * (1 + ($this->import_cost_rate / 100));
+        return $estimatedCostUsd * $this->exchange_rate;
+    }
+
+    /**
+     * Get calculated financial cost
+     */
+    public function getFinanceCostAttribute(): float
+    {
+        return $this->cost_total * ($this->finance_cost_percent / 100);
+    }
+
+    /**
+     * Get calculated management cost
+     */
+    public function getManagementCostAttribute(): float
+    {
+        return $this->cost_total * ($this->management_cost_percent / 100);
+    }
+
+    /**
+     * Get calculated support 24/7 cost
+     */
+    public function getSupport247CostAttribute(): float
+    {
+        return $this->cost_total * ($this->support_247_cost_percent / 100);
+    }
+
+    /**
+     * Get total expenses for this item
+     */
+    public function getTotalExpensesAttribute(): float
+    {
+        return $this->finance_cost + 
+               $this->management_cost + 
+               $this->support_247_cost + 
+               $this->other_support_cost + 
+               $this->technical_poc_cost + 
+               $this->implementation_cost + 
+               $this->contractor_tax;
+    }
+
+    /**
+     * Get net profit for this item
+     */
+    public function getNetProfitAttribute(): float
+    {
+        return $this->profit - $this->total_expenses;
+    }
+
+    /**
+     * Get net profit percent
+     */
+    public function getNetProfitPercentAttribute(): float
+    {
+        if ($this->total > 0) {
+            return ($this->net_profit / $this->total) * 100;
+        }
+        return 0;
+    }
 
     /**
      * Get profit for this item

@@ -162,3 +162,31 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        if (!form) return;
+
+        form.addEventListener('submit', function() {
+            const numericInputs = [
+                'payment_terms', 
+                'base_discount', 
+                'volume_discount', 
+                'volume_threshold', 
+                'early_payment_discount', 
+                'early_payment_days', 
+                'special_discount'
+            ];
+            
+            numericInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input && input.value.trim() === '') {
+                    input.value = '0'; // Default to 0 format to avoid SQL null constraints.
+                }
+            });
+        });
+    });
+</script>
+@endpush

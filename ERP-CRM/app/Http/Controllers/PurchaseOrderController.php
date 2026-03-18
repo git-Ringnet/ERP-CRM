@@ -30,7 +30,7 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('viewAny', PurchaseOrder::class);
 
-        $query = PurchaseOrder::with(['supplier', 'items', 'supplierQuotation']);
+        $query = PurchaseOrder::with(['supplier', 'items', 'supplierQuotation', 'creator']);
 
         // Apply data filtering based on permissions
         $user = auth()->user();
