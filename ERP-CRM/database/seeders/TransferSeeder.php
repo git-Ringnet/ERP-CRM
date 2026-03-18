@@ -66,6 +66,18 @@ class TransferSeeder extends Seeder
             
             // Update total quantity
             $transfer->update(['total_qty' => $totalQty]);
+
+            // Tạo bút toán kế toán cho seeder (Lịch sử: Tạo mới & Duyệt)
+            try {
+                $transfer->load(['items', 'fromWarehouse', 'toWarehouse']);
+                $journalService = app(\App\Services\WarehouseJournalService::class);
+                $journalService->createForTransfer($transfer, 'create');
+                if ($transfer->status === 'completed') {
+                    $journalService->createForTransfer($transfer, 'approve');
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning("Seeder error for transfer {$transfer->code}: " . $e->getMessage());
+            }
         }
 
         $this->command->info('Created 10 sample transfers with items.');

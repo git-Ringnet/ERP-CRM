@@ -45,7 +45,7 @@
         <h1>PHIẾU NHẬP KHO</h1>
         <p>Ngày {{ $import->date->format('d') }} tháng {{ $import->date->format('m') }} năm {{ $import->date->format('Y') }}</p>
         <p>Số: {{ $import->code }}</p>
-        <p>Nợ: 156<br>Có: 331</p>
+        
     </div>
 
     <table class="info-table">
@@ -61,6 +61,7 @@
                 <th rowspan="2">Tên, nhãn hiệu, quy cách, phẩm chất vật tư, dụng cụ sản phẩm, hàng hóa</th>
                 <th rowspan="2">Mã số</th>
                 <th rowspan="2">Đơn vị tính</th>
+                <th rowspan="2">Số Serial</th>
                 <th colspan="2">Số lượng</th>
                 <th rowspan="2">Đơn giá</th>
                 <th rowspan="2">Thành tiền</th>
@@ -77,6 +78,22 @@
                 <td style="text-align: left;">{{ $item->product->name }}</td>
                 <td>{{ $item->product->code }}</td>
                 <td>{{ $item->unit ?? 'Cái' }}</td>
+                <td style="text-align: left; font-size: 10pt; word-break: break-all;">
+                    @php
+                        $serials = [];
+                        if (!empty($item->serial_number)) {
+                            $decoded = json_decode($item->serial_number, true);
+                            if (is_array($decoded)) {
+                                $serials = $decoded;
+                            } elseif (is_string($item->serial_number)) {
+                                $serials = [$item->serial_number];
+                            }
+                        }
+                    @endphp
+                    @if(!empty($serials))
+                        {{ implode(', ', $serials) }}
+                    @endif
+                </td>
                 <td>{{ number_format($item->quantity) }}</td>
                 <td>{{ number_format($item->quantity) }}</td>
                 <td>{{ number_format($item->cost ?? 0) }}</td>
@@ -84,7 +101,7 @@
             </tr>
             @endforeach
             <tr>
-                <td colspan="4"><strong>Cộng</strong></td>
+                <td colspan="5"><strong>Cộng</strong></td>
                 <td><strong>{{ number_format($import->items->sum('quantity')) }}</strong></td>
                 <td><strong>{{ number_format($import->items->sum('quantity')) }}</strong></td>
                 <td>x</td>

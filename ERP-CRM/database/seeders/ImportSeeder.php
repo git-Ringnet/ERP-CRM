@@ -64,6 +64,18 @@ class ImportSeeder extends Seeder
             
             // Update total quantity
             $import->update(['total_qty' => $totalQty]);
+
+            // Tạo bút toán kế toán cho seeder (Lịch sử: Tạo mới & Duyệt)
+            try {
+                $import->refresh()->load(['items', 'supplier', 'warehouse']);
+                $journalService = app(\App\Services\WarehouseJournalService::class);
+                $journalService->createForImport($import, 'create');
+                if ($import->status === 'completed') {
+                    $journalService->createForImport($import, 'approve');
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning("Seeder error for import {$import->code}: " . $e->getMessage());
+            }
         }
 
         $this->command->info('Created 20 sample imports with items.');

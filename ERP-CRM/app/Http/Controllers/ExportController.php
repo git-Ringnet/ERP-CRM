@@ -16,6 +16,7 @@ use App\Services\InventoryService;
 use App\Services\NotificationService;
 use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * ExportController - Handles all export (xuất kho) operations
@@ -135,6 +136,14 @@ class ExportController extends Controller
                 $this->notificationService->notifyExportCreated($export, $recipientIds);
             }
 
+            // Ghi nhật ký kế toán (Lịch sử: Tạo mới)
+            try {
+                $export->load(['items', 'warehouse', 'project', 'customer']);
+                $this->journalService->createForExport($export, 'create');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
+            }
+
             return redirect()->route('exports.show', $export)
                 ->with('success', 'Tạo phiếu xuất kho thành công.');
         } catch (\Exception $e) {
@@ -249,6 +258,14 @@ class ExportController extends Controller
 
             $export->update(['total_qty' => $totalQty]);
 
+            // Ghi nhật ký kế toán (Lịch sử: Cập nhật)
+            try {
+                $export->refresh()->load(['items', 'warehouse', 'project', 'customer']);
+                $this->journalService->createForExport($export, 'update');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể cập nhật bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
+            }
+
             return redirect()->route('exports.show', $export)
                 ->with('success', 'Cập nhật phiếu xuất kho thành công.');
         } catch (\Exception $e) {
@@ -274,6 +291,13 @@ class ExportController extends Controller
         try {
             $export->items()->delete();
             $export->delete();
+
+            // Ghi nhật ký kế toán (Lịch sử: Xóa)
+            try {
+                $this->journalService->createForExport($export, 'delete');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
+            }
 
             return redirect()->route('exports.index')
                 ->with('success', 'Xóa phiếu xuất kho thành công.');
@@ -315,9 +339,9 @@ class ExportController extends Controller
             // Tạo bút toán kế toán tự động
             try {
                 $export->load(['items', 'warehouse', 'project', 'customer']);
-                $this->journalService->createForExport($export);
+                $this->journalService->createForExport($export, 'approve');
             } catch (\Exception $journalEx) {
-                \Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
+                Log::warning('Không thể tạo bút toán cho phiếu xuất ' . $export->code . ': ' . $journalEx->getMessage());
             }
 
             // Tạo thông báo cho người tạo phiếu
@@ -360,6 +384,11 @@ class ExportController extends Controller
                 'status' => 'rejected',
                 'note' => ($export->note ? $export->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
             ]);
+
+            // Ghi nhật ký (Lịch sử: Từ chối)
+            try {
+                $this->journalService->createForExport($export, 'reject');
+            } catch (\Exception $journalEx) {}
 
             // Tạo thông báo cho người tạo phiếu
             if ($export->employee_id) {

@@ -15,6 +15,7 @@ use App\Services\InventoryService;
 use App\Services\NotificationService;
 use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * TransferController - Handles all transfer (chuyển kho) operations
@@ -115,6 +116,14 @@ class TransferController extends Controller
                 ->toArray();
             if (!empty($recipientIds)) {
                 $this->notificationService->notifyTransferCreated($transfer, $recipientIds);
+            }
+
+            // Ghi nhật ký kế toán (Lịch sử: Tạo mới)
+            try {
+                $transfer->load(['items', 'fromWarehouse', 'toWarehouse']);
+                $this->journalService->createForTransfer($transfer, 'create');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
             }
 
             return redirect()->route('transfers.show', $transfer)
@@ -225,6 +234,14 @@ class TransferController extends Controller
 
             $transfer->update(['total_qty' => $totalQty]);
 
+            // Ghi nhật ký kế toán (Lịch sử: Cập nhật)
+            try {
+                $transfer->refresh()->load(['items', 'fromWarehouse', 'toWarehouse']);
+                $this->journalService->createForTransfer($transfer, 'update');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể cập nhật bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
+            }
+
             return redirect()->route('transfers.show', $transfer)
                 ->with('success', 'Cập nhật phiếu chuyển kho thành công.');
         } catch (\Exception $e) {
@@ -248,6 +265,13 @@ class TransferController extends Controller
         }
 
         try {
+            // Ghi nhật ký trước khi xoá (Lịch sử: Xoá)
+            try {
+                $this->journalService->createForTransfer($transfer, 'delete');
+            } catch (\Exception $journalEx) {
+                Log::warning('Không thể tạo bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
+            }
+
             $transfer->items()->delete();
             $transfer->delete();
 
@@ -277,12 +301,12 @@ class TransferController extends Controller
             // Pass existing transaction to processTransfer for approval
             $this->transactionService->processTransfer([], $transfer);
 
-            // Tạo bút toán kế toán tự động
+            // Ghi nhật ký kế toán (Lịch sử: Duyệt)
             try {
                 $transfer->load(['items', 'fromWarehouse', 'toWarehouse']);
-                $this->journalService->createForTransfer($transfer);
+                $this->journalService->createForTransfer($transfer, 'approve');
             } catch (\Exception $journalEx) {
-                \Log::warning('Không thể tạo bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
+                Log::warning('Không thể tạo bút toán cho phiếu chuyển ' . $transfer->code . ': ' . $journalEx->getMessage());
             }
 
             // Tạo thông báo cho người tạo phiếu
@@ -325,6 +349,11 @@ class TransferController extends Controller
                 'status' => 'rejected',
                 'note' => ($transfer->note ? $transfer->note . "\n\n" : '') . "Lý do từ chối: " . $request->reason,
             ]);
+
+            // Ghi nhật ký (Lịch sử: Từ chối)
+            try {
+                $this->journalService->createForTransfer($transfer, 'reject');
+            } catch (\Exception $journalEx) {}
 
             // Tạo thông báo cho người tạo phiếu
             if ($transfer->employee_id) {

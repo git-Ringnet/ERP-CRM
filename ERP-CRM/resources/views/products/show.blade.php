@@ -86,7 +86,6 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mô tả</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gói giá</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                             </tr>
@@ -113,19 +112,6 @@
                                     @if($avgCostVnd > 0)
                                         <div class="text-xs text-green-700">{{ number_format($avgCostVnd, 0, ',', '.') }} đ</div>
                                     @elseif($item->cost_usd <= 0)
-                                        <span class="text-gray-400">-</span>
-                                    @endif
-                                </td>
-                                <td class="px-4 py-3 text-sm">
-                                    @if($item->price_tiers && is_array($item->price_tiers))
-                                        <div class="flex flex-wrap gap-1">
-                                            @foreach($item->price_tiers as $tier)
-                                                <span class="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">
-                                                    {{ $tier['name'] ?? 'N/A' }}: ${{ number_format($tier['price'] ?? 0, 2) }}
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </td>

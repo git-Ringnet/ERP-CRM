@@ -67,6 +67,18 @@ class ExportSeeder extends Seeder
             
             // Update total quantity
             $export->update(['total_qty' => $totalQty]);
+
+            // Tạo bút toán kế toán cho seeder (Lịch sử: Tạo mới & Duyệt)
+            try {
+                $export->refresh()->load(['items', 'warehouse', 'project', 'customer']);
+                $journalService = app(\App\Services\WarehouseJournalService::class);
+                $journalService->createForExport($export, 'create');
+                if ($export->status === 'completed') {
+                    $journalService->createForExport($export, 'approve');
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning("Seeder error for export {$export->code}: " . $e->getMessage());
+            }
         }
 
         $this->command->info('Created 15 sample exports with items.');

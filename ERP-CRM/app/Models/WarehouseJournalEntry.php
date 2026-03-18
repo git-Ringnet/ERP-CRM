@@ -18,6 +18,8 @@ class WarehouseJournalEntry extends Model
         'debit_account',
         'credit_account',
         'amount',
+        'action',
+        'status',
         'description',
         'created_by',
     ];
@@ -25,6 +27,8 @@ class WarehouseJournalEntry extends Model
     protected $casts = [
         'entry_date' => 'date',
         'amount' => 'decimal:2',
+        'action' => 'string',
+        'status' => 'string',
     ];
 
     /**
