@@ -118,7 +118,7 @@
                 </a>
                 @endcan
 
-                <!-- <div class="mt-4">
+                <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('personal')">
                         <div class="flex items-center">
@@ -135,7 +135,7 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Chấm công GPS</span>
                         </a>
                     </div>
-                </div> -->
+                </div>
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                     <div class="mt-4">
@@ -372,21 +372,21 @@
                     </div>
 
                     <div class="dropdown-section" id="dropdown-hr_payroll">
-                        <!-- <a href="{{ route('work-locations.index') }}"
+                        <a href="{{ route('work-locations.index') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-locations.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-map-marker-alt w-6 text-red-400 flex-shrink-0"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
-                        </a> -->
+                        </a>
                         <a href="{{ route('salary-components.index') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('salary-components.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-list-ul w-6 text-orange-400 flex-shrink-0"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục Phụ cấp</span>
                         </a>
-                        <!-- <a href="{{ route('attendance.manage') }}"
+                        <a href="{{ route('attendance.manage') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.manage') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-clipboard-check w-6 text-green-400 flex-shrink-0"></i>
                             <span class="ml-3 sidebar-text whitespace-nowrap">Lịch sử Chấm công</span>
-                        </a> -->
+                        </a>
                         <a href="{{ route('payrolls.index') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('payrolls.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-money-check-alt w-6 text-yellow-400 flex-shrink-0"></i>
