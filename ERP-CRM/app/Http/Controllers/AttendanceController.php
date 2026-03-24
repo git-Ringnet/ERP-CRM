@@ -49,7 +49,7 @@ class AttendanceController extends Controller
         $lng = $request->longitude;
         $user = Auth::user();
 
-        $matchedLocation = $this->findMatchingWorkLocation($lat, $lng);
+        $matchedLocation = $this->findMatchingWorkLocation($lat, $lng, $user);
 
         if (!$matchedLocation && $user->timekeeping_type != 'irregular') {
             return response()->json([
@@ -119,7 +119,7 @@ class AttendanceController extends Controller
             return response()->json(['success' => false, 'message' => 'Bạn đã check-out hôm nay rồi.']);
         }
 
-        $matchedLocation = $this->findMatchingWorkLocation($lat, $lng);
+        $matchedLocation = $this->findMatchingWorkLocation($lat, $lng, $user);
 
         if (!$matchedLocation && $user->timekeeping_type != 'irregular') {
             return response()->json([
@@ -146,8 +146,25 @@ class AttendanceController extends Controller
      * Find if current lat/lng is within radius of any active WorkLocation
      * Using Haversine formula
      */
-    private function findMatchingWorkLocation($lat, $lng)
+    private function findMatchingWorkLocation($lat, $lng, $user = null)
     {
+        // 1. Nếu nhân viên có địa điểm làm việc cụ thể được gán, chỉ kiểm tra địa điểm đó
+        if ($user && $user->work_location_id) {
+            $location = WorkLocation::where('id', $user->work_location_id)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($location) {
+                $distance = $this->calculateDistance($lat, $lng, $location->latitude, $location->longitude);
+                if ($distance <= $location->radius) {
+                    return $location;
+                }
+                // Nếu có gán địa điểm nhưng không ở đúng vị trí đó thì không cho khớp với địa điểm khác
+                return null;
+            }
+        }
+
+        // 2. Nếu không có địa điểm gán (hoặc địa điểm gán không tìm thấy), kiểm tra tất cả các văn phòng đang hoạt động
         $locations = WorkLocation::where('is_active', true)->get();
 
         foreach ($locations as $location) {

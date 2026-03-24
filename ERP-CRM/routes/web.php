@@ -391,6 +391,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/balance-sheet', [BusinessReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
     Route::get('/reports/balance-sheet/export', [BusinessReportController::class, 'exportBalanceSheet'])->name('reports.balance-sheet.export');
     Route::get('/reports/detailed-pnl', [BusinessReportController::class, 'detailedPnL'])->name('reports.detailed-pnl');
+    Route::get('/reports/misa-margin', [BusinessReportController::class, 'misaMargin'])->name('reports.misa-margin');
+    Route::get('/reports/export-misa-margin', [BusinessReportController::class, 'exportMisaMargin'])->name('reports.export-misa-margin');
 
     // Reconciliation (Đối soát giữa các Module)
     Route::get('/reconciliation', [\App\Http\Controllers\ReconciliationController::class, 'index'])->name('reconciliation.index');

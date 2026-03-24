@@ -587,10 +587,16 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo Dòng tiền</span>
                         </a>
 
+                        <a href="{{ route('reports.misa-margin') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.misa-margin') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0 text-green-400"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Margin theo đơn hàng</span>
+                        </a>
+
                         <a href="{{ route('reports.detailed-pnl') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.detailed-pnl') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-chart-line w-6 flex-shrink-0 text-cyan-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo Lãi lỗ</span>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">P&L Chi tiết</span>
                         </a>
 
                         <a href="{{ route('reports.balance-sheet') }}"

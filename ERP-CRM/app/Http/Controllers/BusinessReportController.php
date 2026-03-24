@@ -217,7 +217,7 @@ class BusinessReportController extends Controller
     }
 
     /**
-     * Display the Detailed P&L report.
+     * Display the Detailed P&L report (Image 2).
      */
     public function detailedPnL(Request $request): View
     {
@@ -276,6 +276,110 @@ class BusinessReportController extends Controller
         usort($rows, fn($a, $b) => strcmp($a['supplier'], $b['supplier']));
 
         return view('reports.detailed-pnl', compact('rows', 'dateFrom', 'dateTo'));
+    }
+
+    /**
+     * Display the Misa Margin Report (Image 1).
+     */
+    public function misaMargin(Request $request): View
+    {
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+
+        $sales = Sale::with(['user', 'items.product.supplierPriceListItems.priceList.supplier'])
+            ->whereBetween('date', [$dateFrom, $dateTo])
+            ->where('status', '!=', 'cancelled')
+            ->get();
+
+        $rows = $this->processPnLRows($sales);
+        
+        // Sort by date then customer
+        usort($rows, function($a, $b) {
+            $dateCmp = $a['sale_date']->timestamp <=> $b['sale_date']->timestamp;
+            if ($dateCmp !== 0) return $dateCmp;
+            return strcmp($a['customer_name'], $b['customer_name']);
+        });
+
+        return view('reports.misa-margin', compact('rows', 'dateFrom', 'dateTo'));
+    }
+
+    /**
+     * Process sales into PnL rows (Used for Misa Margin Report)
+     */
+    private function processPnLRows($sales)
+    {
+        $rows = [];
+        foreach ($sales as $sale) {
+            foreach ($sale->items as $item) {
+                // Try to resolve supplier from product
+                $supplierName = 'N/A';
+                if ($item->product && $item->product->supplierPriceListItems->isNotEmpty()) {
+                    $supplierName = $item->product->supplierPriceListItems->first()->priceList->supplier->name ?? 'N/A';
+                }
+
+                // Try to resolve category/license from product/extra_data
+                $itemType = 'N/A';
+                $isLicense = false;
+                if ($item->product && $item->product->supplierPriceListItems->isNotEmpty()) {
+                    $spli = $item->product->supplierPriceListItems->first();
+                    $itemType = $spli->category ?? 'N/A';
+                    
+                    if (str_contains(strtolower($itemType), 'license') || 
+                        str_contains(strtolower($item->product_name), 'license') ||
+                        (isset($spli->extra_data['is_license']) && $spli->extra_data['is_license'])) {
+                        $isLicense = true;
+                    }
+                }
+
+                $rows[] = [
+                    'sale_code' => $sale->code,
+                    'sale_date' => $sale->date,
+                    'customer_name' => $sale->customer_name,
+                    'salesperson' => $sale->user->name ?? 'N/A',
+                    'paid_amount' => $sale->paid_amount,
+                    'total_amount' => $sale->total,
+                    'payment_percent' => $sale->total > 0 ? ($sale->paid_amount / $sale->total) * 100 : 0,
+                    
+                    'supplier' => $supplierName,
+                    'item_type' => $itemType,
+                    'is_license' => $isLicense,
+                    'product_code' => $item->product->code ?? 'N/A',
+                    'product_name' => $item->product_name,
+                    'qty' => $item->quantity,
+                    
+                    'revenue' => $item->total,
+                    'cost' => $item->cost_total,
+                    'net_profit' => $item->net_profit,
+                    'margin_percent' => $item->net_profit_percent,
+                ];
+            }
+        }
+        return $rows;
+    }
+
+    /**
+     * Export Misa Margin Report
+     */
+    public function exportMisaMargin(Request $request)
+    {
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+
+        $sales = Sale::with(['user', 'items.product.supplierPriceListItems.priceList.supplier'])
+            ->whereBetween('date', [$dateFrom, $dateTo])
+            ->where('status', '!=', 'cancelled')
+            ->get();
+
+        $rows = $this->processPnLRows($sales);
+        
+        // Sort by date then customer
+        usort($rows, function($a, $b) {
+            $dateCmp = $a['sale_date']->timestamp <=> $b['sale_date']->timestamp;
+            if ($dateCmp !== 0) return $dateCmp;
+            return strcmp($a['customer_name'], $b['customer_name']);
+        });
+
+        return Excel::download(new \App\Exports\MisaMarginReportExport($rows, $dateFrom, $dateTo), 'Bao-cao-Margin-Misa-' . date('Ymd') . '.xlsx');
     }
 
     /**
