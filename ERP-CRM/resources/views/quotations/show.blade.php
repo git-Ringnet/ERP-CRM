@@ -72,8 +72,22 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-center">{{ $item->quantity }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($item->price, 0, ',', '.') }} đ</td>
-                            <td class="px-4 py-3 text-right font-medium">{{ number_format($item->total, 0, ',', '.') }} đ</td>
+                            <td class="px-4 py-3 text-right">
+                                @if($quotation->currency && !$quotation->currency->is_base)
+                                    <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->price * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
+                                @else
+                                    {{ number_format($item->price, 0, ',', '.') }} đ
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium">
+                                @if($quotation->currency && !$quotation->currency->is_base)
+                                    <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
+                                @else
+                                    {{ number_format($item->total, 0, ',', '.') }} đ
+                                @endif
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -86,36 +100,91 @@
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
                     <div class="text-sm text-gray-500 mt-1">
-                        SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
+                        @if($quotation->currency && !$quotation->currency->is_base)
+                            SL: {{ $item->quantity }} x {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }} <span class="text-xs">({{ number_format($item->price * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ)</span>
+                        @else
+                            SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
+                        @endif
                     </div>
                     <div class="text-sm font-medium text-right mt-2">
-                        = {{ number_format($item->total, 0, ',', '.') }} đ
+                        @if($quotation->currency && !$quotation->currency->is_base)
+                            = {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }} <div class="text-xs text-gray-500">({{ number_format($item->total * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ)</div>
+                        @else
+                            = {{ number_format($item->total, 0, ',', '.') }} đ
+                        @endif
                     </div>
                 </div>
                 @endforeach
             </div>
 
             <!-- Totals -->
+            @php
+                $isForeign = $quotation->currency && !$quotation->currency->is_base;
+                $rate = $quotation->exchange_rate ?: 1;
+                $decimals = $quotation->currency->decimal_places ?? 2;
+                $symbol = $quotation->currency->symbol ?? $quotation->currency->code ?? '';
+
+                $subtotalVnd = $quotation->subtotal;
+                $subtotalForeign = $isForeign ? round($quotation->subtotal / $rate, $decimals) : $subtotalVnd;
+
+                $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);
+                $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($quotation->discount / 100));
+
+                $afterDiscountForeign = $subtotalForeign - $discountForeign;
+                $vatForeign = round($afterDiscountForeign * ($quotation->vat / 100), $decimals);
+                $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($quotation->vat / 100));
+
+                $totalForeign = $quotation->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $quotation->total);
+                $totalVnd = $quotation->total;
+            @endphp
             <div class="mt-4 border-t pt-4">
                 <div class="flex justify-end">
                     <div class="w-full md:w-64 space-y-2 text-sm">
-                        <div class="flex justify-between">
+                        <div class="flex justify-between items-start">
                             <span class="text-gray-500">Tổng tiền hàng:</span>
-                            <span>{{ number_format($quotation->subtotal, 0, ',', '.') }} đ</span>
+                            <div class="text-right">
+                                @if($isForeign)
+                                    <div>{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
+                                    <div class="text-xs text-gray-400">{{ number_format($subtotalVnd, 0, ',', '.') }} đ</div>
+                                @else
+                                    <span>{{ number_format($subtotalVnd, 0, ',', '.') }} đ</span>
+                                @endif
+                            </div>
                         </div>
                         @if($quotation->discount > 0)
-                        <div class="flex justify-between">
+                        <div class="flex justify-between items-start">
                             <span class="text-gray-500">Chiết khấu ({{ $quotation->discount }}%):</span>
-                            <span>-{{ number_format($quotation->subtotal * $quotation->discount / 100, 0, ',', '.') }} đ</span>
+                            <div class="text-right text-red-600">
+                                @if($isForeign)
+                                    <div>-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
+                                    <div class="text-xs text-red-400">-{{ number_format($discountVnd, 0, ',', '.') }} đ</div>
+                                @else
+                                    <span>-{{ number_format($discountVnd, 0, ',', '.') }} đ</span>
+                                @endif
+                            </div>
                         </div>
                         @endif
-                        <div class="flex justify-between">
+                        <div class="flex justify-between items-start">
                             <span class="text-gray-500">VAT ({{ $quotation->vat }}%):</span>
-                            <span>{{ number_format(($quotation->subtotal - $quotation->subtotal * $quotation->discount / 100) * $quotation->vat / 100, 0, ',', '.') }} đ</span>
+                            <div class="text-right">
+                                @if($isForeign)
+                                    <div>{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
+                                    <div class="text-xs text-gray-400">{{ number_format($vatVnd, 0, ',', '.') }} đ</div>
+                                @else
+                                    <span>{{ number_format($vatVnd, 0, ',', '.') }} đ</span>
+                                @endif
+                            </div>
                         </div>
-                        <div class="flex justify-between font-bold text-lg border-t pt-2">
+                        <div class="flex justify-between items-start font-bold text-lg border-t pt-2">
                             <span>Tổng cộng:</span>
-                            <span class="text-primary">{{ number_format($quotation->total, 0, ',', '.') }} đ</span>
+                            <div class="text-right text-primary">
+                                @if($isForeign)
+                                    <div>{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
+                                    <div class="text-sm font-normal text-blue-500">≈ {{ number_format($totalVnd, 0, ',', '.') }} đ</div>
+                                @else
+                                    <span>{{ number_format($totalVnd, 0, ',', '.') }} đ</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 </div>

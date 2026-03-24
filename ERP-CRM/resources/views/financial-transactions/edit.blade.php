@@ -27,10 +27,10 @@
                         @error('transaction_category_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền <span class="text-red-500">*</span></label>
-                            <input type="number" name="amount" value="{{ old('amount', $financialTransaction->amount ?? '') }}" required step="0.01" min="0" placeholder="0"
+                            <input type="number" name="amount" value="{{ old('amount', $financialTransaction->amount_foreign ?? $financialTransaction->amount) }}" required step="0.01" min="0" placeholder="0"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary font-bold text-lg">
                             @error('amount') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                         </div>
@@ -39,6 +39,27 @@
                             <input type="date" name="date" value="{{ old('date', isset($financialTransaction) ? $financialTransaction->date->format('Y-m-d') : date('Y-m-d')) }}" required
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
                             @error('date') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tiền tệ <span class="text-red-500">*</span></label>
+                            <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
+                                @foreach($currencies as $currency)
+                                    <option value="{{ $currency->id }}" 
+                                        data-is-base="{{ $currency->is_base ? '1' : '0' }}"
+                                        data-symbol="{{ $currency->symbol }}"
+                                        {{ old('currency_id', $financialTransaction->currency_id ?? $baseCurrencyId) == $currency->id ? 'selected' : '' }}>
+                                        {{ $currency->code }} - {{ $currency->name_vi }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div id="exchangeRateGroup" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ giá (1 ngoại tệ = ? VND)</label>
+                            <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.01" value="{{ old('exchange_rate', $financialTransaction->exchange_rate ?? 1) }}" 
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary">
                         </div>
                     </div>
 
@@ -86,4 +107,57 @@
         </div>
     </div>
 </div>
+@push('scripts')
+<script>
+function onCurrencyChange() {
+    const select = document.getElementById('currencySelect');
+    const option = select.options[select.selectedIndex];
+    const isBase = option.dataset.isBase === '1';
+
+    if (isBase) {
+        document.getElementById('exchangeRateGroup').classList.add('hidden');
+        document.getElementById('exchangeRateInput').value = 1;
+    } else {
+        document.getElementById('exchangeRateGroup').classList.remove('hidden');
+        
+        // Initial load for edit view: if currency is the same as existing, use existing exchange rate
+        const existingCurrencyId = "{{ $financialTransaction->currency_id ?? '' }}";
+        if (select.value != existingCurrencyId) {
+            fetchExchangeRate(select.value);
+        } else {
+             document.getElementById('exchangeRateInput').value = "{{ $financialTransaction->exchange_rate ?? 1 }}";
+        }
+    }
+}
+
+async function fetchExchangeRate(currencyId) {
+    const dateInput = document.querySelector('input[name="date"]');
+    const date = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+    
+    try {
+        const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
+        const data = await response.json();
+        
+        if (data.rate) {
+            document.getElementById('exchangeRateInput').value = data.rate;
+        }
+    } catch (e) {
+        console.error('Failed to fetch exchange rate', e);
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    onCurrencyChange();
+});
+
+// Update exchange rate when date changes (if not base currency)
+document.querySelector('input[name="date"]').addEventListener('change', function() {
+    const select = document.getElementById('currencySelect');
+    if (select.options[select.selectedIndex].dataset.isBase !== '1') {
+        fetchExchangeRate(select.value);
+    }
+});
+</script>
+@endpush
 @endsection

@@ -158,7 +158,18 @@
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-right font-semibold">{{ number_format($order->total) }}đ</td>
+                        <td class="px-4 py-3 text-right font-medium">
+                            @if($order->currency && !$order->currency->is_base)
+                                <div class="text-gray-900 font-semibold">
+                                    {{ $order->currency->symbol }} {{ number_format($order->total_foreign ?? ($order->total / ($order->exchange_rate ?: 1)), $order->currency->decimal_places ?? 2) }}
+                                </div>
+                                <div class="text-xs text-gray-500 font-normal mt-0.5">
+                                    {{ number_format($order->total) }} đ
+                                </div>
+                            @else
+                                <div class="text-gray-900 font-semibold">{{ number_format($order->total) }} đ</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             @switch($order->status)
                                 @case('draft')

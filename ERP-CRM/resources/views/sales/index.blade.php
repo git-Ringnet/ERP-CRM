@@ -195,18 +195,36 @@
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {{ $sale->date->format('d/m/Y') }}
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                                {{ number_format($sale->total) }} đ
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
+                                @if($sale->currency && !$sale->currency->is_base)
+                                    <div class="text-gray-900">
+                                        {{ $sale->currency->symbol }} {{ number_format($sale->total_foreign ?? ($sale->total / $sale->exchange_rate), $sale->currency->decimal_places ?? 2) }}
+                                    </div>
+                                    <div class="text-xs text-gray-500 font-normal mt-0.5">
+                                        {{ number_format($sale->total) }} đ
+                                    </div>
+                                @else
+                                    <div class="text-gray-900">{{ number_format($sale->total) }} đ</div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                                <span class="font-medium {{ $sale->margin_color }}">
-                                    {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
-                                </span>
-                                <div class="text-xs {{ $sale->margin_color }}">
-                                    ({{ number_format($sale->margin_percent, 1) }}%)
-                                </div>
+                                @if($sale->currency && !$sale->currency->is_base && $sale->exchange_rate)
+                                    <div class="font-medium {{ $sale->margin_color }}">
+                                        {{ $sale->margin >= 0 ? '+' : ($sale->margin < 0 ? '-' : '') }}{{ $sale->currency->symbol }} {{ number_format(abs($sale->margin) / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
+                                    </div>
+                                    <div class="text-xs {{ $sale->margin_color }} opacity-75 mt-0.5">
+                                        {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 1) }}%)
+                                    </div>
+                                @else
+                                    <div class="font-medium {{ $sale->margin_color }}">
+                                        {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
+                                    </div>
+                                    <div class="text-xs {{ $sale->margin_color }}">
+                                        ({{ number_format($sale->margin_percent, 1) }}%)
+                                    </div>
+                                @endif
                                 @if($sale->margin < 0)
-                                    <div class="text-xs text-red-600">
+                                    <div class="text-xs text-red-600 mt-0.5">
                                         <i class="fas fa-exclamation-triangle"></i> Lỗ
                                     </div>
                                 @endif
@@ -216,7 +234,14 @@
                                     {{ $sale->payment_status_label }}
                                 </span>
                                 @if($sale->debt_amount > 0)
-                                    <div class="text-xs text-red-600 mt-1">Nợ: {{ number_format($sale->debt_amount) }} đ</div>
+                                    @if($sale->currency && !$sale->currency->is_base && $sale->exchange_rate)
+                                        <div class="text-xs font-medium text-red-600 mt-1">
+                                            Nợ: {{ $sale->currency->symbol }} {{ number_format($sale->debt_amount / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
+                                        </div>
+                                        <div class="text-[10px] text-red-500 opacity-75">({{ number_format($sale->debt_amount) }} đ)</div>
+                                    @else
+                                        <div class="text-xs text-red-600 mt-1">Nợ: {{ number_format($sale->debt_amount) }} đ</div>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -277,7 +302,12 @@
                     <div class="space-y-1 text-sm text-gray-600 mb-3">
                         <div><i class="fas fa-tag w-4"></i> {{ $sale->type_label }}</div>
                         <div><i class="fas fa-calendar w-4"></i> {{ $sale->date->format('d/m/Y') }}</div>
-                        <div><i class="fas fa-money-bill w-4"></i> {{ number_format($sale->total) }} đ</div>
+                        @if($sale->currency && !$sale->currency->is_base)
+                            <div class="font-medium text-gray-900"><i class="fas fa-money-bill w-4 text-gray-500"></i> {{ $sale->currency->symbol }} {{ number_format($sale->total_foreign ?? ($sale->total / $sale->exchange_rate), $sale->currency->decimal_places ?? 2) }}</div>
+                            <div class="text-xs text-gray-500 ml-5">{{ number_format($sale->total) }} đ</div>
+                        @else
+                            <div><i class="fas fa-money-bill w-4"></i> {{ number_format($sale->total) }} đ</div>
+                        @endif
                     </div>
                     <div class="flex gap-2">
                         <a href="{{ route('sales.show', $sale->id) }}"

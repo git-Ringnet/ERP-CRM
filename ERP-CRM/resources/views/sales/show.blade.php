@@ -154,6 +154,20 @@
                             </span>
                         </dd>
                     </div>
+                    @if($sale->currency && !$sale->currency->is_base)
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Tiền tệ:</dt>
+                        <dd>
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-money-bill-wave mr-1"></i>{{ $sale->currency->code }} - {{ $sale->currency->name_vi }}
+                            </span>
+                        </dd>
+                    </div>
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Tỷ giá:</dt>
+                        <dd class="font-medium text-gray-900">1 {{ $sale->currency->code }} = {{ rtrim(rtrim(number_format($sale->exchange_rate, 2, ',', '.'), '0'), ',') }} VND</dd>
+                    </div>
+                    @endif
                 </dl>
             </div>
             
@@ -190,6 +204,30 @@
     </div>
 
     <!-- Products -->
+    @php
+        $isForeign = $sale->currency && !$sale->currency->is_base;
+        $rate = $sale->exchange_rate ?: 1;
+        $decimals = $sale->currency->decimal_places ?? 2;
+        $symbol = $sale->currency->symbol ?? $sale->currency->code ?? '';
+
+        // Subtotal
+        $subtotalVnd = $sale->subtotal;
+        $subtotalForeign = $isForeign ? round($sale->subtotal / $rate, $decimals) : $subtotalVnd;
+
+        // Discount Amount
+        $discountForeign = round($subtotalForeign * ($sale->discount / 100), $decimals);
+        $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($sale->discount / 100));
+
+        // VAT Amount
+        $afterDiscountForeign = $subtotalForeign - $discountForeign;
+        $vatForeign = round($afterDiscountForeign * ($sale->vat / 100), $decimals);
+        $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($sale->vat / 100));
+
+        // Total
+        $totalForeign = $sale->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $sale->total);
+        $totalVnd = $sale->total;
+    @endphp
+    
     <div class="bg-white rounded-lg shadow-sm overflow-hidden">
         <div class="p-4 border-b">
             <h3 class="text-lg font-semibold text-gray-900">Chi tiết sản phẩm</h3>
@@ -215,7 +253,14 @@
                         <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
                         <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product_name }}</td>
                         <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->quantity) }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->price) }} đ</td>
+                        <td class="px-4 py-3 text-right">
+                            @if($sale->currency && !$sale->currency->is_base)
+                                <div class="text-sm font-medium text-gray-900">{{ $sale->currency->symbol ?? $sale->currency->code }} {{ number_format($item->price, $sale->currency->decimal_places ?? 2) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->price * ($sale->exchange_rate ?: 1)) }} đ</div>
+                            @else
+                                <div class="text-sm font-medium text-gray-900">{{ number_format($item->price) }} đ</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_price) }} đ</td>
                         <td class="px-4 py-3 text-sm text-center">
                             @if($item->warranty_months)
@@ -226,7 +271,14 @@
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">{{ number_format($item->total) }} đ</td>
+                        <td class="px-4 py-3 text-right">
+                            @if($sale->currency && !$sale->currency->is_base)
+                                <div class="text-sm font-medium text-gray-900">{{ $sale->currency->symbol ?? $sale->currency->code }} {{ number_format($item->total, $sale->currency->decimal_places ?? 2) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total * ($sale->exchange_rate ?: 1)) }} đ</div>
+                            @else
+                                <div class="text-sm font-medium text-gray-900">{{ number_format($item->total) }} đ</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_total) }} đ</td>
                         <td class="px-4 py-3 text-sm text-right font-medium {{ $item->profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
                             {{ number_format($item->profit) }} đ
@@ -238,28 +290,72 @@
                 <tfoot class="bg-white">
                     <tr>
                         <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Tổng tiền hàng:</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($sale->subtotal) }} đ</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-sm font-semibold text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
+                                <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
+                            @else
+                                <div class="text-sm font-semibold text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     <tr>
                         <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chiết khấu ({{ $sale->discount }}%):</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-semibold text-red-600 text-right">-{{ number_format($sale->subtotal * $sale->discount / 100) }} đ</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-sm font-semibold text-red-600">-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
+                                <div class="text-xs text-red-400 mt-0.5">-{{ number_format($discountVnd) }} đ</div>
+                            @else
+                                <div class="text-sm font-semibold text-red-600">-{{ number_format($discountVnd) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     <tr>
                         <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">VAT ({{ $sale->vat }}%):</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format(($sale->subtotal - $sale->subtotal * $sale->discount / 100) * $sale->vat / 100) }} đ</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-sm font-semibold text-gray-900">{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ number_format($vatVnd) }} đ</div>
+                            @else
+                                <div class="text-sm font-semibold text-gray-900">{{ number_format($vatVnd) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     <tr class="border-t-2 border-gray-300 bg-blue-50">
                         <td colspan="6" class="px-4 py-3 text-base font-bold text-gray-900 text-right">Tổng cộng:</td>
-                        <td colspan="3" class="px-4 py-3 text-base font-bold text-blue-700 text-right">{{ number_format($sale->total) }} đ</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-base font-bold text-blue-700">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
+                                <div class="text-xs font-normal text-blue-500 mt-1">
+                                    ≈ {{ number_format($totalVnd) }} đ (Tỷ giá: {{ number_format($rate, 0, '', ',') }})
+                                </div>
+                            @else
+                                <div class="text-base font-bold text-blue-700">{{ number_format($totalVnd) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     @if($sale->cost > 0)
                     <tr class="bg-orange-50">
                         <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chi phí bán hàng:</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-semibold text-orange-700 text-right">{{ number_format($sale->cost) }} đ</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-sm font-semibold text-orange-700">{{ $symbol }} {{ number_format($sale->cost / $rate, $decimals) }}</div>
+                                <div class="text-xs text-orange-600 mt-0.5">{{ number_format($sale->cost) }} đ</div>
+                            @else
+                                <div class="text-sm font-semibold text-orange-700">{{ number_format($sale->cost) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     <tr class="bg-green-50">
                         <td colspan="6" class="px-4 py-3 text-sm font-bold text-gray-900 text-right">Lợi nhuận (Margin):</td>
-                        <td colspan="3" class="px-4 py-3 text-sm font-bold text-green-700 text-right">{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 2) }}%)</td>
+                        <td colspan="3" class="px-4 py-3 text-right">
+                            @if($isForeign)
+                                <div class="text-sm font-bold text-green-700">{{ $sale->margin < 0 ? '-' : '' }}{{ $symbol }} {{ number_format(abs($sale->margin) / $rate, $decimals) }} <span class="text-xs font-normal">({{ number_format($sale->margin_percent, 2) }}%)</span></div>
+                                <div class="text-xs text-green-600 mt-0.5">{{ number_format($sale->margin) }} đ</div>
+                            @else
+                                <div class="text-sm font-bold text-green-700">{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 2) }}%)</div>
+                            @endif
+                        </td>
                     </tr>
                     @endif
                     @if($sale->paid_amount > 0 || $sale->debt_amount > 0)
@@ -299,12 +395,26 @@
                             <span class="text-sm font-medium text-blue-700">
                                 <i class="fas fa-coins mr-1"></i> Doanh thu (Giá bán)
                             </span>
-                            <span class="text-lg font-bold text-blue-700">{{ number_format($sale->total) }} đ</span>
+                            @if($isForeign)
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-blue-700">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
+                                    <div class="text-sm font-medium text-blue-600 mt-0.5">≈ {{ number_format($totalVnd) }} đ</div>
+                                </div>
+                            @else
+                                <span class="text-lg font-bold text-blue-700">{{ number_format($totalVnd) }} đ</span>
+                            @endif
                         </div>
-                        <div class="text-xs text-blue-600">
-                            Tổng tiền hàng: {{ number_format($sale->subtotal) }} đ | 
-                            CK: -{{ number_format($sale->subtotal * $sale->discount / 100) }} đ | 
-                            VAT: +{{ number_format(($sale->subtotal - $sale->subtotal * $sale->discount / 100) * $sale->vat / 100) }} đ
+                        <div class="text-xs text-blue-600 mt-2">
+                            @if($isForeign)
+                                Tổng tiền hàng: {{ $symbol }} {{ number_format($subtotalForeign, $decimals) }} | 
+                                CK: -{{ $symbol }} {{ number_format($discountForeign, $decimals) }} | 
+                                VAT: +{{ $symbol }} {{ number_format($vatForeign, $decimals) }}
+                                <br><span class="opacity-75">(Quy đổi: Tiền hàng {{ number_format($subtotalVnd) }} đ | CK -{{ number_format($discountVnd) }} đ | VAT +{{ number_format($vatVnd) }} đ)</span>
+                            @else
+                                Tổng tiền hàng: {{ number_format($subtotalVnd) }} đ | 
+                                CK: -{{ number_format($discountVnd) }} đ | 
+                                VAT: +{{ number_format($vatVnd) }} đ
+                            @endif
                         </div>
                     </div>
                     
@@ -317,7 +427,14 @@
                             <span class="text-sm font-medium text-orange-700">
                                 <i class="fas fa-box mr-1"></i> Giá vốn hàng bán
                             </span>
-                            <span class="text-lg font-bold text-orange-700">{{ number_format($totalCostOfGoods) }} đ</span>
+                            @if($isForeign)
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-orange-700">{{ $symbol }} {{ number_format($totalCostOfGoods / $rate, $decimals) }}</div>
+                                    <div class="text-sm font-medium text-orange-600 mt-0.5">≈ {{ number_format($totalCostOfGoods) }} đ</div>
+                                </div>
+                            @else
+                                <span class="text-lg font-bold text-orange-700">{{ number_format($totalCostOfGoods) }} đ</span>
+                            @endif
                         </div>
                         <div class="text-xs text-orange-600">
                             Tổng giá vốn của {{ $sale->items->count() }} sản phẩm
@@ -330,7 +447,14 @@
                             <span class="text-sm font-medium text-red-700">
                                 <i class="fas fa-receipt mr-1"></i> Chi phí bán hàng
                             </span>
-                            <span class="text-lg font-bold text-red-700">{{ number_format($sale->cost) }} đ</span>
+                            @if($isForeign)
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-red-700">{{ $symbol }} {{ number_format($sale->cost / $rate, $decimals) }}</div>
+                                    <div class="text-sm font-medium text-red-600 mt-0.5">≈ {{ number_format($sale->cost) }} đ</div>
+                                </div>
+                            @else
+                                <span class="text-lg font-bold text-red-700">{{ number_format($sale->cost) }} đ</span>
+                            @endif
                         </div>
                         @if($sale->expenses->count() > 0)
                         <div class="mt-2 space-y-1">
@@ -340,7 +464,13 @@
                                     <i class="fas {{ $expense->type_icon }} mr-1"></i>
                                     {{ $expense->type_label }}: {{ $expense->description }}
                                 </span>
-                                <span class="text-red-700 font-medium">{{ number_format($expense->amount) }} đ</span>
+                                <span class="text-red-700 font-medium">
+                                    @if($isForeign)
+                                        {{ $symbol }} {{ number_format($expense->amount / $rate, $decimals) }} <span class="text-[10px] text-red-500 ml-1">({{ number_format($expense->amount) }} đ)</span>
+                                    @else
+                                        {{ number_format($expense->amount) }} đ
+                                    @endif
+                                </span>
                             </div>
                             @endforeach
                         </div>
@@ -364,12 +494,28 @@
                             <span class="text-sm font-medium text-yellow-700">
                                 <i class="fas fa-calculator mr-1"></i> Lợi nhuận gộp (Gross Margin)
                             </span>
-                            <span class="text-lg font-bold {{ $grossMargin >= 0 ? 'text-yellow-700' : 'text-red-700' }}">
-                                {{ number_format($grossMargin) }} đ
-                            </span>
+                            <div class="text-right">
+                                @if($isForeign)
+                                    <div class="text-lg font-bold {{ $grossMargin >= 0 ? 'text-yellow-700' : 'text-red-700' }}">
+                                        {{ $grossMargin < 0 ? '-' : '' }}{{ $symbol }} {{ number_format(abs($grossMargin) / $rate, $decimals) }}
+                                    </div>
+                                    <div class="text-sm font-medium {{ $grossMargin >= 0 ? 'text-yellow-600' : 'text-red-600' }} mt-0.5">
+                                        ≈ {{ number_format($grossMargin) }} đ
+                                    </div>
+                                @else
+                                    <span class="text-lg font-bold {{ $grossMargin >= 0 ? 'text-yellow-700' : 'text-red-700' }}">
+                                        {{ number_format($grossMargin) }} đ
+                                    </span>
+                                @endif
+                            </div>
                         </div>
                         <div class="text-xs text-yellow-600">
-                            = Doanh thu - Giá vốn = {{ number_format($sale->total) }} - {{ number_format($totalCostOfGoods) }}
+                            @if($isForeign)
+                                = {{ number_format($totalForeign, $decimals) }} - {{ number_format($totalCostOfGoods / $rate, $decimals) }}
+                                <br><span class="opacity-75">(= Doanh thu - Giá vốn = {{ number_format($sale->total) }} - {{ number_format($totalCostOfGoods) }} đ)</span>
+                            @else
+                                = Doanh thu - Giá vốn = {{ number_format($sale->total) }} - {{ number_format($totalCostOfGoods) }}
+                            @endif
                         </div>
                         <div class="mt-2">
                             <div class="flex justify-between text-xs mb-1">
@@ -393,12 +539,28 @@
                             <span class="text-sm font-medium {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
                                 <i class="fas fa-chart-line mr-1"></i> Lợi nhuận ròng (Net Margin)
                             </span>
-                            <span class="text-xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                                {{ number_format($netMargin) }} đ
-                            </span>
+                            <div class="text-right">
+                                @if($isForeign)
+                                    <div class="text-xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                        {{ $netMargin < 0 ? '-' : '' }}{{ $symbol }} {{ number_format(abs($netMargin) / $rate, $decimals) }}
+                                    </div>
+                                    <div class="text-sm font-medium {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }} mt-0.5">
+                                        ≈ {{ number_format($netMargin) }} đ
+                                    </div>
+                                @else
+                                    <span class="text-xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                        {{ number_format($netMargin) }} đ
+                                    </span>
+                                @endif
+                            </div>
                         </div>
                         <div class="text-xs {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                            = Lợi nhuận gộp - Chi phí = {{ number_format($grossMargin) }} - {{ number_format($sale->cost) }}
+                            @if($isForeign)
+                                = {{ $grossMargin < 0 ? '-' : '' }}{{ number_format(abs($grossMargin) / $rate, $decimals) }} - {{ number_format($sale->cost / $rate, $decimals) }}
+                                <br><span class="opacity-75">(= Lợi nhuận gộp - Chi phí = {{ number_format($grossMargin) }} - {{ number_format($sale->cost) }} đ)</span>
+                            @else
+                                = Lợi nhuận gộp - Chi phí = {{ number_format($grossMargin) }} - {{ number_format($sale->cost) }}
+                            @endif
                         </div>
                         <div class="mt-2">
                             <div class="flex justify-between text-xs mb-1">
@@ -418,12 +580,21 @@
                             <div class="text-sm font-medium {{ $netMargin >= 0 ? 'text-green-800' : 'text-red-800' }}">
                                 {{ $netMargin >= 0 ? 'LỢI NHUẬN' : 'LỖ' }}
                             </div>
-                            <div class="text-2xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                                {{ number_format(abs($netMargin)) }} đ
-                            </div>
-                            <div class="text-sm {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                ({{ number_format(abs($netMarginPercent), 2) }}% trên doanh thu)
-                            </div>
+                            @if($isForeign)
+                                <div class="text-2xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                    {{ $symbol }} {{ number_format(abs($netMargin) / $rate, $decimals) }}
+                                </div>
+                                <div class="text-sm {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }} mt-1">
+                                    ≈ {{ number_format(abs($netMargin)) }} đ ({{ number_format(abs($netMarginPercent), 2) }}% trên doanh thu)
+                                </div>
+                            @else
+                                <div class="text-2xl font-bold {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                    {{ number_format(abs($netMargin)) }} đ
+                                </div>
+                                <div class="text-sm {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                                    ({{ number_format(abs($netMarginPercent), 2) }}% trên doanh thu)
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -446,7 +617,12 @@
                     <div class="bg-{{ $expenseColors[$type] }}-50 rounded-lg p-3 text-center">
                         <i class="fas {{ $expenseIcons[$type] }} text-{{ $expenseColors[$type] }}-500 text-xl mb-1"></i>
                         <div class="text-xs text-{{ $expenseColors[$type] }}-600">{{ $label }}</div>
-                        <div class="text-sm font-bold text-{{ $expenseColors[$type] }}-700">{{ number_format($typeAmount) }} đ</div>
+                        @if($isForeign)
+                            <div class="text-sm font-bold text-{{ $expenseColors[$type] }}-700">{{ $symbol }} {{ number_format($typeAmount / $rate, $decimals) }}</div>
+                            <div class="text-[10px] text-{{ $expenseColors[$type] }}-500 mt-0.5">{{ number_format($typeAmount) }} đ</div>
+                        @else
+                            <div class="text-sm font-bold text-{{ $expenseColors[$type] }}-700">{{ number_format($typeAmount) }} đ</div>
+                        @endif
                     </div>
                     @endforeach
                 </div>
@@ -471,11 +647,30 @@
                 <form action="{{ route('sales.payment', $sale->id) }}" method="POST">
                     @csrf
                     <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tiền tệ <span class="text-red-500">*</span></label>
+                                <select name="currency_id" id="payment_currency_id" required onchange="handlePaymentCurrencyChange()"
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    @foreach($currencies as $currency)
+                                        <option value="{{ $currency->id }}" data-code="{{ $currency->code }}" {{ $currency->id == ($sale->currency_id ?? $baseCurrencyId) ? 'selected' : '' }}>
+                                            {{ $currency->code }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div id="payment_exchange_rate_container" class="{{ ($sale->currency_id ?? $baseCurrencyId) == $baseCurrencyId ? 'hidden' : '' }}">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ giá</label>
+                                <input type="number" name="exchange_rate" id="payment_exchange_rate" step="0.000001" value="{{ $sale->exchange_rate ?? 1 }}"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền thanh toán <span class="text-red-500">*</span></label>
-                            <input type="number" name="amount" required min="0" max="{{ $sale->debt_amount }}" step="0.01"
+                            <input type="number" name="amount" id="payment_amount" required min="0" step="0.01"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            <p class="text-xs text-gray-500 mt-1">Công nợ hiện tại: {{ number_format($sale->debt_amount) }} đ</p>
+                            <p class="text-xs text-gray-500 mt-1">Còn nợ: <span id="payment_debt_display">{{ number_format($sale->debt_amount) }}</span> đ</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Ngày thanh toán <span class="text-red-500">*</span></label>
@@ -518,10 +713,37 @@
 <script>
 function openPaymentModal() {
     document.getElementById('paymentModal').classList.remove('hidden');
+    handlePaymentCurrencyChange();
 }
 
 function closePaymentModal() {
     document.getElementById('paymentModal').classList.add('hidden');
+}
+
+function handlePaymentCurrencyChange() {
+    const select = document.getElementById('payment_currency_id');
+    const currencyId = select.value;
+    const baseCurrencyId = @json($baseCurrencyId);
+    const container = document.getElementById('payment_exchange_rate_container');
+    const rateInput = document.getElementById('payment_exchange_rate');
+    
+    if (currencyId == baseCurrencyId) {
+        container.classList.add('hidden');
+        rateInput.value = 1;
+    } else {
+        container.classList.remove('hidden');
+        // If it matches the sale currency, use sale rate, otherwise fetch latest
+        if (currencyId == @json($sale->currency_id ?? null)) {
+            rateInput.value = @json($sale->exchange_rate ?? 1);
+        } else {
+            // Fetch current rate
+            fetch(`/exchange-rates/latest/${currencyId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.rate) rateInput.value = data.rate;
+                });
+        }
+    }
 }
 
 // Close modal when clicking outside

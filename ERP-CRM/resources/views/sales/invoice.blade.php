@@ -84,6 +84,33 @@
         </div>
 
         <!-- Products Table -->
+        @php
+            $isForeign = $sale->currency && !$sale->currency->is_base;
+            $rate = $sale->exchange_rate ?: 1;
+            $decimals = $sale->currency->decimal_places ?? 2;
+            $symbol = $sale->currency->symbol ?? $sale->currency->code ?? '';
+
+            // Subtotal
+            $subtotalVnd = $sale->subtotal;
+            $subtotalForeign = $isForeign ? round($sale->subtotal / $rate, $decimals) : $subtotalVnd;
+
+            // Discount Amount
+            $discountForeign = round($subtotalForeign * ($sale->discount / 100), $decimals);
+            $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($sale->discount / 100));
+
+            // VAT Amount
+            $afterDiscountForeign = $subtotalForeign - $discountForeign;
+            $vatForeign = round($afterDiscountForeign * ($sale->vat / 100), $decimals);
+            $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($sale->vat / 100));
+
+            // Total
+            $totalForeign = $sale->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $sale->total);
+            $totalVnd = $sale->total;
+            
+            // Paid Amount & Debt
+            $paidForeign = $isForeign ? round($sale->paid_amount / $rate, $decimals) : $sale->paid_amount;
+            $debtForeign = $isForeign ? round($sale->debt_amount / $rate, $decimals) : $sale->debt_amount;
+        @endphp
         <table>
             <thead>
                 <tr>
@@ -96,12 +123,32 @@
             </thead>
             <tbody>
                 @foreach($sale->items as $index => $item)
+                @php
+                    $itemPriceForeign = $item->price;
+                    $itemPriceVnd = $isForeign ? round($item->price * $rate) : $item->price;
+                    $itemTotalForeign = $item->total;
+                    $itemTotalVnd = $isForeign ? round($item->total * $rate) : $item->total;
+                @endphp
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
                     <td>{{ $item->product_name }}</td>
                     <td class="text-center">{{ number_format($item->quantity) }}</td>
-                    <td class="text-right">{{ number_format($item->price) }} đ</td>
-                    <td class="text-right"><strong>{{ number_format($item->total) }} đ</strong></td>
+                    <td class="text-right">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemPriceForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($itemPriceVnd) }} đ</div>
+                        @else
+                            {{ number_format($itemPriceVnd) }} đ
+                        @endif
+                    </td>
+                    <td class="text-right">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($itemTotalVnd) }} đ</div>
+                        @else
+                            <strong>{{ number_format($itemTotalVnd) }} đ</strong>
+                        @endif
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
@@ -112,28 +159,73 @@
             <table>
                 <tr>
                     <td>Tổng tiền hàng:</td>
-                    <td class="text-right"><strong>{{ number_format($sale->subtotal) }} đ</strong></td>
+                    <td class="text-right">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($subtotalVnd) }} đ</div>
+                        @else
+                            <strong>{{ number_format($subtotalVnd) }} đ</strong>
+                        @endif
+                    </td>
                 </tr>
                 <tr>
                     <td>Chiết khấu ({{ $sale->discount }}%):</td>
-                    <td class="text-right" style="color: #dc3545;">-{{ number_format($sale->subtotal * $sale->discount / 100) }} đ</td>
+                    <td class="text-right" style="color: #dc3545;">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">-{{ $symbol }}{{ number_format($discountForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">-{{ number_format($discountVnd) }} đ</div>
+                        @else
+                            -{{ number_format($discountVnd) }} đ
+                        @endif
+                    </td>
                 </tr>
                 <tr>
                     <td>VAT ({{ $sale->vat }}%):</td>
-                    <td class="text-right">{{ number_format(($sale->subtotal - $sale->subtotal * $sale->discount / 100) * $sale->vat / 100) }} đ</td>
+                    <td class="text-right">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($vatForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($vatVnd) }} đ</div>
+                        @else
+                            {{ number_format($vatVnd) }} đ
+                        @endif
+                    </td>
                 </tr>
                 <tr class="total-row">
                     <td>TỔNG CỘNG:</td>
-                    <td class="text-right" style="color: #007bff;">{{ number_format($sale->total) }} đ</td>
+                    <td class="text-right" style="color: #007bff;">
+                        @if($isForeign)
+                            <div>{{ $symbol }}{{ number_format($totalForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 14px; color: #666; font-weight: normal; margin-top: 5px;">
+                                {{ number_format($totalVnd) }} đ
+                                <span style="font-size: 11px;">(Tỷ giá: {{ number_format($sale->exchange_rate, 0, ',', '.') }})</span>
+                            </div>
+                        @else
+                            {{ number_format($totalVnd) }} đ
+                        @endif
+                    </td>
                 </tr>
                 @if($sale->paid_amount > 0)
                 <tr>
                     <td>Đã thanh toán:</td>
-                    <td class="text-right" style="color: #28a745;">{{ number_format($sale->paid_amount) }} đ</td>
+                    <td class="text-right" style="color: #28a745;">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($paidForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($sale->paid_amount) }} đ</div>
+                        @else
+                            {{ number_format($sale->paid_amount) }} đ
+                        @endif
+                    </td>
                 </tr>
                 <tr>
                     <td>Còn lại:</td>
-                    <td class="text-right" style="color: #dc3545;"><strong>{{ number_format($sale->debt_amount) }} đ</strong></td>
+                    <td class="text-right" style="color: #dc3545;">
+                        @if($isForeign)
+                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($debtForeign, $decimals, '.', ',') }}</div>
+                            <div style="font-size: 11px; color: #666;">{{ number_format($sale->debt_amount) }} đ</div>
+                        @else
+                            <strong>{{ number_format($sale->debt_amount) }} đ</strong>
+                        @endif
+                    </td>
                 </tr>
                 @endif
             </table>

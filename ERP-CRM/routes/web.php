@@ -454,6 +454,22 @@ Route::middleware(['auth'])->group(function () {
     
     Route::resource('payrolls', PayrollController::class);
     Route::patch('payrolls/{payroll}/status', [PayrollController::class, 'updateStatus'])->name('payrolls.updateStatus');
+
+    // =========================================================================
+    // Multi-Currency Management — Quản lý Đa tiền tệ
+    // =========================================================================
+    Route::get('/currencies', [\App\Http\Controllers\CurrencyController::class, 'index'])->name('currencies.index');
+    Route::put('/currencies/{currency}', [\App\Http\Controllers\CurrencyController::class, 'update'])->name('currencies.update');
+    Route::post('/currencies/{currency}/toggle', [\App\Http\Controllers\CurrencyController::class, 'toggle'])->name('currencies.toggle');
+
+    // Exchange Rates (Tỷ giá hối đoái)
+    Route::get('/exchange-rates', [\App\Http\Controllers\ExchangeRateController::class, 'index'])->name('exchange-rates.index');
+    Route::post('/exchange-rates', [\App\Http\Controllers\ExchangeRateController::class, 'store'])->name('exchange-rates.store');
+    Route::put('/exchange-rates/{exchangeRate}', [\App\Http\Controllers\ExchangeRateController::class, 'update'])->name('exchange-rates.update');
+    Route::post('/exchange-rates/fetch-today', [\App\Http\Controllers\ExchangeRateController::class, 'fetchToday'])->name('exchange-rates.fetch-today');
+
+    // API: Lấy tỷ giá cho AJAX (dùng trong form tạo đơn hàng)
+    Route::get('/api/exchange-rate', [\App\Http\Controllers\ExchangeRateController::class, 'getRate'])->name('api.exchange-rate');
 });
 
 // Auth routes (login, logout, etc.)

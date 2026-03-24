@@ -52,7 +52,7 @@ class SaleReportController extends Controller
     private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null): array
     {
         $query = Sale::whereBetween('date', [$dateFrom, $dateTo])
-            ->where('status', '!=', 'cancelled'); // Exclude cancelled orders
+            ->whereIn('status', ['approved', 'shipping', 'completed']); // Only include confirmed orders
 
         if ($customerId) {
             $query->where('customer_id', $customerId);
@@ -99,7 +99,7 @@ class SaleReportController extends Controller
                 DB::raw('SUM(margin) as total_profit')
             )
             ->whereBetween('date', [$dateFrom, $dateTo])
-            ->where('status', '!=', 'cancelled')
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
             ->groupBy('customer_id', 'customer_name');
 
         if ($customerId) {
@@ -134,7 +134,7 @@ class SaleReportController extends Controller
             )
             ->whereHas('sale', function($q) use ($dateFrom, $dateTo) {
                 $q->whereBetween('date', [$dateFrom, $dateTo])
-                  ->where('status', '!=', 'cancelled');
+                  ->whereIn('status', ['approved', 'shipping', 'completed']);
             })
             ->groupBy('product_id', 'product_name');
 
@@ -168,7 +168,7 @@ class SaleReportController extends Controller
                 DB::raw('SUM(margin) as total_profit')
             )
             ->whereBetween('date', [$dateFrom, $dateTo])
-            ->where('status', '!=', 'cancelled')
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
             ->groupBy('month')
             ->orderBy('month', 'desc')
             ->get();
@@ -206,7 +206,7 @@ class SaleReportController extends Controller
     private function getProfitAnalysis($dateFrom, $dateTo): array
     {
         $totals = Sale::whereBetween('date', [$dateFrom, $dateTo])
-            ->where('status', '!=', 'cancelled')
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
             ->selectRaw('
                 SUM(subtotal) as subtotal,
                 SUM(discount) as discount_percent_sum, -- This is meaningless

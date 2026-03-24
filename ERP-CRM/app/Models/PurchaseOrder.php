@@ -17,7 +17,9 @@ class PurchaseOrder extends Model
         'actual_delivery', 'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
         'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
         'debt_amount', 'payment_status', 'payment_terms',
-        'status', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at'
+        'status', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at',
+        'currency_id', 'exchange_rate', 'total_foreign',
+        'paid_amount_foreign', 'debt_amount_foreign',
     ];
 
     protected $casts = [
@@ -37,7 +39,16 @@ class PurchaseOrder extends Model
         'approved_at' => 'datetime',
         'sent_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'exchange_rate' => 'decimal:6',
+        'total_foreign' => 'decimal:4',
+        'paid_amount_foreign' => 'decimal:4',
+        'debt_amount_foreign' => 'decimal:4',
     ];
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
+    }
 
     public function supplier(): BelongsTo
     {
@@ -115,12 +126,12 @@ class PurchaseOrder extends Model
 
     public function calculateTotals(): void
     {
-        $this->subtotal = $this->items->sum('total');
-        $this->discount_amount = $this->subtotal * ($this->discount_percent / 100);
+        $this->subtotal = round($this->items->sum('total'), 2);
+        $this->discount_amount = round($this->subtotal * ($this->discount_percent / 100), 2);
         $afterDiscount = $this->subtotal - $this->discount_amount;
         $beforeVat = $afterDiscount + $this->shipping_cost + $this->other_cost;
-        $this->vat_amount = $beforeVat * ($this->vat_percent / 100);
-        $this->total = $beforeVat + $this->vat_amount;
+        $this->vat_amount = round($beforeVat * ($this->vat_percent / 100), 2);
+        $this->total = round($beforeVat + $this->vat_amount, 2);
     }
 
     /**
@@ -129,6 +140,11 @@ class PurchaseOrder extends Model
     public function updateDebt(): void
     {
         $this->debt_amount = $this->total - $this->paid_amount;
+        
+        // Update foreign debt if applicable
+        if ($this->exchange_rate > 0) {
+            $this->debt_amount_foreign = $this->total_foreign - $this->paid_amount_foreign;
+        }
 
         if ($this->paid_amount <= 0) {
             $this->payment_status = 'unpaid';

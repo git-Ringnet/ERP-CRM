@@ -32,6 +32,11 @@ class Sale extends Model
         'payment_status',
         'status',
         'note',
+        'currency_id',
+        'exchange_rate',
+        'total_foreign',
+        'paid_amount_foreign',
+        'debt_amount_foreign',
     ];
 
     protected $casts = [
@@ -45,7 +50,19 @@ class Sale extends Model
         'margin_percent' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'debt_amount' => 'decimal:2',
+        'exchange_rate' => 'decimal:6',
+        'total_foreign' => 'decimal:4',
+        'paid_amount_foreign' => 'decimal:4',
+        'debt_amount_foreign' => 'decimal:4',
     ];
+
+    /**
+     * Relationship with Currency
+     */
+    public function currency()
+    {
+        return $this->belongsTo(Currency::class);
+    }
 
     /**
      * Relationship with Customer
@@ -271,6 +288,11 @@ class Sale extends Model
     {
         $this->debt_amount = $this->total - $this->paid_amount;
         
+        // Update foreign debt if applicable
+        if ($this->exchange_rate > 0) {
+            $this->debt_amount_foreign = $this->total_foreign - $this->paid_amount_foreign;
+        }
+
         // Update payment status
         if ($this->paid_amount <= 0) {
             $this->payment_status = 'unpaid';

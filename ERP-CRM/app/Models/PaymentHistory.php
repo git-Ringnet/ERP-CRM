@@ -18,12 +18,25 @@ class PaymentHistory extends Model
         'payment_date',
         'note',
         'created_by',
+        'currency_id',
+        'exchange_rate',
+        'amount_foreign',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'payment_date' => 'date',
+        'exchange_rate' => 'decimal:6',
+        'amount_foreign' => 'decimal:4',
     ];
+
+    /**
+     * Relationship with Currency
+     */
+    public function currency()
+    {
+        return $this->belongsTo(Currency::class);
+    }
 
     /**
      * Relationship with Sale

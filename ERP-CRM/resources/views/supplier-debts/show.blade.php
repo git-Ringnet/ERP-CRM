@@ -94,7 +94,7 @@
                         </td>
                         <td class="px-4 py-3 text-sm text-center">
                             @if($po->debt_amount > 0)
-                            <button onclick="openPaymentModal({{ $po->id }}, '{{ $po->code }}', {{ $po->debt_amount }})"
+                            <button onclick="openPaymentModal({{ $po->id }}, '{{ $po->code }}', {{ $po->debt_amount }}, {{ $po->currency_id ?? 'null' }}, {{ $po->exchange_rate ?? 'null' }})"
                                 class="text-emerald-600 hover:text-emerald-800" title="Ghi nhận thanh toán">
                                 <i class="fas fa-plus-circle"></i>
                             </button>
@@ -205,10 +205,13 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Loại tiền</label>
-                        <select name="currency" id="paymentCurrency" onchange="toggleExchangeRate()"
+                        <select name="currency_id" id="paymentCurrency" onchange="handleCurrencyChange()"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2">
-                            <option value="VND">VND</option>
-                            <option value="USD">USD</option>
+                            @foreach($currencies as $currency)
+                                <option value="{{ $currency->id }}" data-code="{{ $currency->code }}" {{ $currency->id == $baseCurrencyId ? 'selected' : '' }}>
+                                    {{ $currency->code }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                     <div>
@@ -218,9 +221,9 @@
                     </div>
                 </div>
                 <div id="exchangeRateRow" class="hidden">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ giá (1 USD = ? VND)</label>
-                    <input type="number" name="exchange_rate" step="0.0001" value="25000"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="25000">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ giá (1 Ngoại tệ = ? VND)</label>
+                    <input type="number" name="exchange_rate" id="paymentExchangeRate" step="0.000001" value="1"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Tỷ giá...">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -264,24 +267,47 @@
 </div>
 
 <script>
-function openPaymentModal(poId, poCode, debtAmount) {
+function openPaymentModal(poId, poCode, debtAmount, poCurrencyId, poExchangeRate) {
     document.getElementById('paymentModal').classList.remove('hidden');
     document.getElementById('modalPoCode').textContent = poCode;
     document.getElementById('modalDebt').textContent = new Intl.NumberFormat('vi-VN').format(debtAmount) + 'đ';
     document.getElementById('paymentForm').action = '/supplier-debts/' + poId + '/payment';
+    
+    // Set default currency to PO currency
+    const currencySelect = document.getElementById('paymentCurrency');
+    if (poCurrencyId) {
+        currencySelect.value = poCurrencyId;
+    } else {
+        currencySelect.value = @json($baseCurrencyId);
+    }
+    
+    document.getElementById('paymentExchangeRate').value = poExchangeRate || 1;
+    handleCurrencyChange();
 }
 
 function closePaymentModal() {
     document.getElementById('paymentModal').classList.add('hidden');
 }
 
-function toggleExchangeRate() {
-    const currency = document.getElementById('paymentCurrency').value;
+function handleCurrencyChange() {
+    const currencyId = document.getElementById('paymentCurrency').value;
+    const baseCurrencyId = @json($baseCurrencyId);
     const row = document.getElementById('exchangeRateRow');
-    if (currency === 'VND') {
+    const rateInput = document.getElementById('paymentExchangeRate');
+    
+    if (currencyId == baseCurrencyId) {
         row.classList.add('hidden');
+        rateInput.value = 1;
     } else {
         row.classList.remove('hidden');
+        // If not base currency, try to fetch latest rate if it's not the same as PO currency?
+        // Actually, just let the user edit it. 
+        // We can add a fetch here if needed, similar to Sales.
+        fetch(`/exchange-rates/latest/${currencyId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.rate) rateInput.value = data.rate;
+            });
     }
 }
 </script>
