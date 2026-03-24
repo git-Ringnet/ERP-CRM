@@ -187,8 +187,19 @@
                         </div>
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Tổng giá trị PO</p>
-                            <p class="text-xl font-bold text-primary">{{ number_format($purchaseOrder->total) }}đ</p>
-                            <p class="text-xs text-gray-400">{{ $purchaseOrder->items->count() }} sản phẩm</p>
+                            @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                                <p class="text-xl font-bold text-primary">
+                                    {{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1)), $purchaseOrder->currency->decimal_places ?? 2) }}
+                                </p>
+                                <p class="text-sm font-normal text-gray-500">
+                                    ≈ {{ number_format($purchaseOrder->total) }} đ
+                                </p>
+                            @else
+                                <p class="text-xl font-bold text-primary">
+                                    {{ number_format($purchaseOrder->total) }} đ
+                                </p>
+                            @endif
+                            <p class="text-xs text-gray-400 mt-1">{{ $purchaseOrder->items->count() }} sản phẩm</p>
                         </div>
                     </div>
                 </div>
@@ -243,6 +254,15 @@
                         {{ $purchaseOrder->expected_delivery ? $purchaseOrder->expected_delivery->format('d/m/Y') : '-' }}
                     </p>
                 </div>
+                <div>
+                    <p class="text-sm text-gray-500">Tiền tệ</p>
+                    <p class="font-medium">
+                        {{ $purchaseOrder->currency?->code ?? 'VND' }}
+                        @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                            <span class="text-xs text-gray-500">(Tỷ giá: {{ number_format($purchaseOrder->exchange_rate) }})</span>
+                        @endif
+                    </p>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -270,6 +290,32 @@
         </div>
 
         <!-- Items -->
+        @php
+            $isForeign = $purchaseOrder->currency && !$purchaseOrder->currency->is_base;
+            $rate = $purchaseOrder->exchange_rate ?: 1;
+            $decimals = $purchaseOrder->currency->decimal_places ?? 2;
+            $symbol = $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code ?? '';
+
+            // PO stores intermediate values (subtotal, etc.) in foreign currency. 
+            // `total` is stored in VND.
+            $subtotalForeign = $purchaseOrder->subtotal;
+            $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $subtotalForeign;
+
+            $discountForeign = $purchaseOrder->discount_amount;
+            $discountVnd = $isForeign ? round($discountForeign * $rate) : $discountForeign;
+
+            $shippingForeign = $purchaseOrder->shipping_cost;
+            $shippingVnd = $isForeign ? round($shippingForeign * $rate) : $shippingForeign;
+
+            $otherForeign = $purchaseOrder->other_cost;
+            $otherVnd = $isForeign ? round($otherForeign * $rate) : $otherForeign;
+
+            $vatForeign = $purchaseOrder->vat_amount;
+            $vatVnd = $isForeign ? round($vatForeign * $rate) : $vatForeign;
+
+            $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, $decimals) : $purchaseOrder->total);
+            $totalVnd = $purchaseOrder->total;
+        @endphp
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gray-50">
                 <h3 class="font-semibold">Chi tiết sản phẩm</h3>
@@ -290,44 +336,100 @@
                             <td class="px-4 py-3">{{ $index + 1 }}</td>
                             <td class="px-4 py-3 font-medium">{{ $item->product_name }}</td>
                             <td class="px-4 py-3 text-right">{{ number_format($item->quantity) }} {{ $item->unit }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($item->unit_price) }}đ</td>
-                            <td class="px-4 py-3 text-right font-medium">{{ number_format($item->total) }}đ</td>
+                            <td class="px-4 py-3 text-right">
+                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                                    <div class="font-medium text-gray-900">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($item->unit_price / ($purchaseOrder->exchange_rate ?: 1), $purchaseOrder->currency->decimal_places ?? 2) }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->unit_price) }} đ</div>
+                                @else
+                                    {{ number_format($item->unit_price) }} đ
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium">
+                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                                    <div class="font-medium text-gray-900">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($item->total / ($purchaseOrder->exchange_rate ?: 1), $purchaseOrder->currency->decimal_places ?? 2) }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total) }} đ</div>
+                                @else
+                                    {{ number_format($item->total) }} đ
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
                 <tfoot class="bg-gray-50">
                     <tr>
                         <td colspan="4" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
-                        <td class="px-4 py-2 text-right font-medium">{{ number_format($purchaseOrder->subtotal) }}đ</td>
+                        <td class="px-4 py-2 text-right">
+                            @if($isForeign)
+                                <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
+                                <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
+                            @else
+                                <div class="font-medium text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
+                            @endif
+                        </td>
                     </tr>
                     @if($purchaseOrder->discount_percent > 0)
                         <tr>
                             <td colspan="4" class="px-4 py-2 text-right text-gray-600">Chiết khấu
                                 ({{ $purchaseOrder->discount_percent }}%):</td>
-                            <td class="px-4 py-2 text-right text-red-600">-{{ number_format($purchaseOrder->discount_amount) }}đ
+                            <td class="px-4 py-2 text-right text-red-600">
+                                @if($isForeign)
+                                    <div>-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
+                                    <div class="text-xs text-red-400">-{{ number_format($discountVnd) }} đ</div>
+                                @else
+                                    -{{ number_format($discountVnd) }} đ
+                                @endif
                             </td>
                         </tr>
                     @endif
                     @if($purchaseOrder->shipping_cost > 0)
                         <tr>
                             <td colspan="4" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
-                            <td class="px-4 py-2 text-right">{{ number_format($purchaseOrder->shipping_cost) }}đ</td>
+                            <td class="px-4 py-2 text-right">
+                                @if($isForeign)
+                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($shippingForeign, $decimals) }}</div>
+                                    <div class="text-xs text-gray-500">{{ number_format($shippingVnd) }} đ</div>
+                                @else
+                                    {{ number_format($shippingVnd) }} đ
+                                @endif
+                            </td>
                         </tr>
                     @endif
                     @if($purchaseOrder->other_cost > 0)
                         <tr>
                             <td colspan="4" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
-                            <td class="px-4 py-2 text-right">{{ number_format($purchaseOrder->other_cost) }}đ</td>
+                            <td class="px-4 py-2 text-right">
+                                @if($isForeign)
+                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($otherForeign, $decimals) }}</div>
+                                    <div class="text-xs text-gray-500">{{ number_format($otherVnd) }} đ</div>
+                                @else
+                                    {{ number_format($otherVnd) }} đ
+                                @endif
+                            </td>
                         </tr>
                     @endif
                     <tr>
                         <td colspan="4" class="px-4 py-2 text-right text-gray-600">VAT ({{ $purchaseOrder->vat_percent }}%):
                         </td>
-                        <td class="px-4 py-2 text-right">{{ number_format($purchaseOrder->vat_amount) }}đ</td>
+                        <td class="px-4 py-2 text-right">
+                            @if($isForeign)
+                                <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
+                                <div class="text-xs text-gray-500">{{ number_format($vatVnd) }} đ</div>
+                            @else
+                                {{ number_format($vatVnd) }} đ
+                            @endif
+                        </td>
                     </tr>
-                    <tr class="font-bold">
-                        <td colspan="4" class="px-4 py-3 text-right text-lg">Tổng cộng:</td>
-                        <td class="px-4 py-3 text-right text-lg text-primary">{{ number_format($purchaseOrder->total) }}đ
+                    <tr class="border-t bg-gray-100">
+                        <td colspan="4" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
+                        <td class="px-4 py-3 text-right text-primary">
+                            @if($isForeign)
+                                <div class="text-lg font-bold">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
+                                <div class="text-sm font-normal text-gray-500">
+                                    ≈ {{ number_format($totalVnd) }} đ
+                                </div>
+                            @else
+                                <div class="text-lg font-bold">{{ number_format($totalVnd) }} đ</div>
+                            @endif
                         </td>
                     </tr>
                 </tfoot>
@@ -358,7 +460,7 @@
 
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
                             <span class="text-gray-600"><i class="fas fa-box mr-2 text-blue-500"></i>Giá vốn hàng hóa</span>
-                            <span class="font-medium">{{ number_format($purchaseOrder->subtotal) }}đ</span>
+                            <span class="font-medium">{{ number_format($subtotalVnd) }}đ</span>
                         </div>
 
                         @if($purchaseOrder->discount_amount > 0)
@@ -366,32 +468,41 @@
                                 <span class="text-gray-600"><i class="fas fa-percentage mr-2 text-green-500"></i>Chiết khấu
                                     NCC</span>
                                 <span
-                                    class="font-medium text-green-600">-{{ number_format($purchaseOrder->discount_amount) }}đ</span>
+                                    class="font-medium text-green-600">-{{ number_format($discountVnd) }}đ</span>
                             </div>
                         @endif
 
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
                             <span class="text-gray-600"><i class="fas fa-truck mr-2 text-orange-500"></i>Phí vận
                                 chuyển</span>
-                            <span class="font-medium">{{ number_format($purchaseOrder->shipping_cost) }}đ</span>
+                            <span class="font-medium">{{ number_format($shippingVnd) }}đ</span>
                         </div>
 
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
                             <span class="text-gray-600"><i class="fas fa-receipt mr-2 text-purple-500"></i>Chi phí
                                 khác</span>
-                            <span class="font-medium">{{ number_format($purchaseOrder->other_cost) }}đ</span>
+                            <span class="font-medium">{{ number_format($otherVnd) }}đ</span>
                         </div>
 
                         <div class="flex justify-between items-center py-2 border-b border-dashed">
                             <span class="text-gray-600"><i class="fas fa-file-invoice mr-2 text-red-500"></i>Thuế VAT
                                 ({{ $purchaseOrder->vat_percent }}%)</span>
-                            <span class="font-medium">{{ number_format($purchaseOrder->vat_amount) }}đ</span>
+                            <span class="font-medium">{{ number_format($vatVnd) }}đ</span>
                         </div>
 
                         <div class="flex justify-between items-center py-3 bg-blue-50 rounded-lg px-3 mt-2">
                             <span class="font-bold text-gray-800"><i class="fas fa-calculator mr-2 text-blue-600"></i>TỔNG
                                 CHI PHÍ MUA</span>
-                            <span class="font-bold text-xl text-blue-600">{{ number_format($purchaseOrder->total) }}đ</span>
+                            <div class="text-right">
+                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                                    <span class="block font-bold text-xl text-blue-600">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1)), $purchaseOrder->currency->decimal_places ?? 2) }}</span>
+                                    <span class="text-sm text-gray-500">
+                                        ≈ {{ number_format($purchaseOrder->total) }} đ
+                                    </span>
+                                @else
+                                    <span class="block font-bold text-xl text-blue-600">{{ number_format($purchaseOrder->total) }} đ</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
 
@@ -401,8 +512,8 @@
 
                         @php
                             $totalQty = $purchaseOrder->items->sum('quantity');
-                            $avgCostPerItem = $totalQty > 0 ? $purchaseOrder->total / $totalQty : 0;
-                            $totalCostBeforeVat = $purchaseOrder->subtotal - $purchaseOrder->discount_amount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost;
+                            $avgCostPerItem = $totalQty > 0 ? $totalVnd / $totalQty : 0;
+                            $totalCostBeforeVat = $subtotalVnd - $discountVnd + $shippingVnd + $otherVnd;
                         @endphp
 
                         <div class="bg-gray-50 rounded-lg p-4">

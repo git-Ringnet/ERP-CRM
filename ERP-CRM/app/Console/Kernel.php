@@ -17,6 +17,9 @@ class Kernel extends ConsoleKernel
         
         // Gửi nhắc nhở hành động sắp đến hạn mỗi 15 phút
         $schedule->command('reminders:send-action-due')->everyFifteenMinutes();
+
+        // Fetch tỷ giá hối đoái từ Vietcombank mỗi ngày lúc 8h sáng
+        $schedule->command('exchange-rates:fetch')->dailyAt('08:00');
     }
 
     /**

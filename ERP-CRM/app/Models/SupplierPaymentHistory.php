@@ -22,14 +22,23 @@ class SupplierPaymentHistory extends Model
         'payment_date',
         'note',
         'created_by',
+        'currency_id',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'amount_foreign' => 'decimal:2',
-        'exchange_rate' => 'decimal:4',
+        'amount_foreign' => 'decimal:4',
+        'exchange_rate' => 'decimal:6',
         'payment_date' => 'date',
     ];
+
+    /**
+     * Relationship with Currency
+     */
+    public function currencyModel(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_id');
+    }
 
     /**
      * Relationship with PurchaseOrder

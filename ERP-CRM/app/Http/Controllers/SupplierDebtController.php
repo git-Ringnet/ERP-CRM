@@ -6,16 +6,20 @@ use App\Models\Supplier;
 use App\Models\PurchaseOrder;
 use App\Models\SupplierPaymentHistory;
 use App\Services\SupplierDebtAgingReportService;
+use App\Services\CurrencyService;
+use App\Models\Currency;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupplierDebtController extends Controller
 {
     protected SupplierDebtAgingReportService $agingReportService;
+    protected CurrencyService $currencyService;
 
-    public function __construct(SupplierDebtAgingReportService $agingReportService)
+    public function __construct(SupplierDebtAgingReportService $agingReportService, CurrencyService $currencyService)
     {
         $this->agingReportService = $agingReportService;
+        $this->currencyService = $currencyService;
     }
 
     /**
@@ -104,7 +108,10 @@ class SupplierDebtController extends Controller
             'unpaid_orders' => $purchaseOrders->where('debt_amount', '>', 0)->count(),
         ];
 
-        return view('supplier-debts.show', compact('supplier', 'purchaseOrders', 'paymentHistories', 'summary'));
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('supplier-debts.show', compact('supplier', 'purchaseOrders', 'paymentHistories', 'summary', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -114,7 +121,7 @@ class SupplierDebtController extends Controller
     {
         $request->validate([
             'amount' => 'required|numeric|min:0.01',
-            'currency' => 'required|in:VND,USD',
+            'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => 'nullable|numeric|min:0.0001',
             'payment_method' => 'required|in:cash,bank_transfer,card,other',
             'payment_date' => 'required|date',
@@ -127,18 +134,21 @@ class SupplierDebtController extends Controller
             'payment_date.required' => 'Vui lòng chọn ngày thanh toán',
         ]);
 
-        $currency = $request->input('currency', 'VND');
-        $exchangeRate = $request->input('exchange_rate', 1);
+        $currencyId = $request->input('currency_id') ?? $purchaseOrder->currency_id ?? \App\Models\Currency::getBaseCurrencyId();
+        $exchangeRate = $request->input('exchange_rate') ?? $purchaseOrder->exchange_rate ?? 1;
         $inputAmount = $request->amount;
 
-        // Calculate VND amount
-        if ($currency === 'VND') {
-            $amountVnd = $inputAmount;
-            $amountForeign = null;
-            $exchangeRate = 1;
-        } else {
+        $currencyService = app(\App\Services\CurrencyService::class);
+        $isForeign = $currencyService->isForeign($currencyId);
+
+        $amountVnd = $inputAmount;
+        $amountForeign = null;
+
+        if ($isForeign) {
             $amountForeign = $inputAmount;
-            $amountVnd = $inputAmount * $exchangeRate;
+            $amountVnd = $currencyService->convertToVnd($amountForeign, $exchangeRate);
+        } else {
+            $exchangeRate = 1;
         }
 
         // Validate amount doesn't exceed debt
@@ -153,7 +163,7 @@ class SupplierDebtController extends Controller
                 'supplier_id' => $purchaseOrder->supplier_id,
                 'amount' => $amountVnd,
                 'amount_foreign' => $amountForeign,
-                'currency' => $currency,
+                'currency_id' => $currencyId,
                 'exchange_rate' => $exchangeRate,
                 'payment_method' => $request->payment_method,
                 'reference_number' => $request->reference_number,
@@ -163,8 +173,30 @@ class SupplierDebtController extends Controller
             ]);
 
             $purchaseOrder->paid_amount += $amountVnd;
+            
+            // Cập nhật paid_amount_foreign
+            if ($purchaseOrder->currency_id && $purchaseOrder->currency_id != \App\Models\Currency::getBaseCurrencyId()) {
+                if ($currencyId == $purchaseOrder->currency_id) {
+                    $purchaseOrder->paid_amount_foreign += $amountForeign;
+                } else {
+                    // Nếu trả bằng tiền khác, quy đổi về tiền của PO
+                    $purchaseOrder->paid_amount_foreign += ($amountVnd / ($purchaseOrder->exchange_rate ?: 1));
+                }
+            }
+
             $purchaseOrder->updateDebt();
             $purchaseOrder->save();
+
+            // Tạo giao dịch chi vào financial_transactions và ghi nhận chênh lệch tỷ giá
+            $financialService = app(\App\Services\FinancialTransactionService::class);
+            $financialService->createFromPurchaseOrder(
+                $purchaseOrder,
+                $inputAmount,
+                $request->payment_method,
+                $request->note,
+                $currencyId,
+                $exchangeRate
+            );
 
             DB::commit();
 

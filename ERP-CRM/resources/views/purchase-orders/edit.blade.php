@@ -36,6 +36,40 @@
             </div>
         </div>
 
+        <!-- Tiền tệ & Tỷ giá -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tiền tệ <span class="text-red-500">*</span></label>
+                <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    @foreach($currencies as $currency)
+                        <option value="{{ $currency->id }}" 
+                            data-is-base="{{ $currency->is_base ? '1' : '0' }}"
+                            data-symbol="{{ $currency->symbol }}"
+                            {{ old('currency_id', $purchaseOrder->currency_id ?? $baseCurrencyId) == $currency->id ? 'selected' : '' }}>
+                            {{ $currency->code }} - {{ $currency->name_vi }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div id="exchangeRateGroup" class="{{ ($purchaseOrder->currency_id && $purchaseOrder->currency_id != $baseCurrencyId) ? '' : 'hidden' }}">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Tỷ giá (1 ngoại tệ = ? VND)
+                    <span id="rateSource" class="text-xs text-blue-500 ml-1"></span>
+                </label>
+                <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0"
+                    value="{{ old('exchange_rate', $purchaseOrder->exchange_rate ? floatval($purchaseOrder->exchange_rate) : 1) }}"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onchange="calculateTotal()">
+                <p class="text-xs text-gray-500 mt-1" id="rateHint">Tỷ giá từ lúc tạo đơn</p>
+            </div>
+            <div id="dualPriceGroup" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Quy đổi sang VND</label>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 min-h-[38px] flex items-center">
+                    <div id="dualPriceDisplay" class="text-sm text-blue-800 font-medium">-</div>
+                </div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
@@ -55,6 +89,10 @@
         </div>
 
         <!-- Danh sách sản phẩm -->
+        @php
+            $isForeign = $purchaseOrder->currency && !$purchaseOrder->currency->is_base;
+            $decimals = $isForeign ? ($purchaseOrder->currency->decimal_places ?? 2) : 0;
+        @endphp
         <div class="border-t border-gray-200 pt-4 mb-6">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-lg font-semibold text-gray-900">Chi tiết sản phẩm</h3>
@@ -79,13 +117,13 @@
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
-                        <input type="number" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" min="0" required
+                        <input type="number" name="items[{{ $index }}][unit_price]" value="{{ number_format($item->unit_price, $decimals, '.', '') }}" min="0" required step="any"
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-3">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
                         <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly
-                            value="{{ number_format($item->total) }}">
+                            value="{{ number_format($item->total, $decimals, '.', ',') }}">
                     </div>
                     <div class="col-span-1 flex justify-center">
                         <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
@@ -243,32 +281,114 @@ function calculateRow(input) {
     const row = input.closest('.item-row');
     const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
-    row.querySelector('.item-total').value = (qty * price).toLocaleString('vi-VN');
+    const itemTotal = Math.round((qty * price) * 100) / 100;
+    row.querySelector('.item-total').value = itemTotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     calculateTotal();
 }
-
 function calculateTotal() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
         const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
         const price = parseFloat(row.querySelector('.item-price').value) || 0;
-        subtotal += qty * price;
+        subtotal += Math.round((qty * price) * 100) / 100;
     });
+
+    const discountInput = document.querySelector('input[name="discount_percent"]');
+    const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const discountAmount = Math.round((subtotal * (discountPercent / 100)) * 100) / 100;
     
-    const discount = parseFloat(document.querySelector('[name="discount_percent"]').value) || 0;
-    const shipping = parseFloat(document.querySelector('[name="shipping_cost"]').value) || 0;
-    const other = parseFloat(document.querySelector('[name="other_cost"]').value) || 0;
-    const vat = parseFloat(document.querySelector('[name="vat_percent"]').value) || 0;
-    
-    const discountAmount = subtotal * (discount / 100);
     const afterDiscount = subtotal - discountAmount;
-    const beforeVat = afterDiscount + shipping + other;
-    const vatAmount = beforeVat * (vat / 100);
-    const total = beforeVat + vatAmount;
     
-    document.getElementById('subtotal').textContent = subtotal.toLocaleString('vi-VN') + 'đ';
-    document.getElementById('total').textContent = Math.round(total).toLocaleString('vi-VN') + 'đ';
+    const shippingInput = document.querySelector('input[name="shipping_cost"]');
+    const shippingCost = shippingInput ? (parseFloat(shippingInput.value) || 0) : 0;
+    
+    const otherCostInput = document.querySelector('input[name="other_cost"]');
+    const otherCost = otherCostInput ? (parseFloat(otherCostInput.value) || 0) : 0;
+    
+    const beforeVat = afterDiscount + shippingCost + otherCost;
+
+    const vatInput = document.querySelector('input[name="vat_percent"]');
+    const vatRate = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+    const vatAmount = Math.round((beforeVat * (vatRate / 100)) * 100) / 100;
+    
+    const total = Math.round((beforeVat + vatAmount) * 100) / 100;
+
+    document.getElementById('subtotal').textContent = subtotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' đ';
+    document.getElementById('total').textContent = total.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' đ';
+
+    // Cập nhật hiển thị đa tiền tệ
+    if (typeof updateDualPriceDisplay === 'function') {
+        updateDualPriceDisplay(total);
+    }
 }
+
+function onCurrencyChange() {
+    const select = document.getElementById('currencySelect');
+    const option = select.options[select.selectedIndex];
+    const isBase = option.dataset.isBase === '1';
+
+    if (isBase) {
+        document.getElementById('exchangeRateGroup').classList.add('hidden');
+        document.getElementById('dualPriceGroup').classList.add('hidden');
+        document.getElementById('exchangeRateInput').value = 1;
+    } else {
+        document.getElementById('exchangeRateGroup').classList.remove('hidden');
+        document.getElementById('dualPriceGroup').classList.remove('hidden');
+        // Đối với Edit, không auto-fetch tỷ giá nếu đã có sẵn tỷ giá trong bản ghi
+        const currentExchangeRate = {{ $purchaseOrder->exchange_rate ?? 1 }};
+        const currentCurrencyId = {{ $purchaseOrder->currency_id ?? 0 }};
+        
+        if (select.value != currentCurrencyId) {
+            fetchExchangeRate(select.value);
+        } else {
+            document.getElementById('exchangeRateInput').value = currentExchangeRate;
+            calculateTotal();
+        }
+    }
+    calculateTotal();
+}
+
+async function fetchExchangeRate(currencyId) {
+    const dateInput = document.querySelector('input[name="order_date"]'); // PO Edit có thể không có order_date input nếu readonly
+    const date = dateInput ? dateInput.value : '{{ $purchaseOrder->order_date->format("Y-m-d") }}';
+    
+    try {
+        const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
+        const data = await response.json();
+        
+        if (data.rate) {
+            document.getElementById('exchangeRateInput').value = data.rate;
+            calculateTotal();
+        }
+    } catch (e) {
+        console.error('Failed to fetch exchange rate', e);
+    }
+}
+
+function updateDualPriceDisplay(total) {
+    const select = document.getElementById('currencySelect');
+    const option = select.options[select.selectedIndex];
+    const isBase = option.dataset.isBase === '1';
+
+    if (isBase) return;
+
+    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
+    const symbol = option.dataset.symbol || '';
+    const vndTotal = Math.round(total * rate);
+
+    document.getElementById('dualPriceDisplay').innerHTML = `
+        <span class="font-bold">${symbol}${total.toLocaleString('vi-VN')}</span> 
+        <span class="mx-1">×</span> 
+        <span>${rate.toLocaleString('vi-VN')}</span> 
+        <span class="mx-1">=</span> 
+        <span class="font-bold text-blue-900">${vndTotal.toLocaleString('vi-VN')} ₫</span>
+    `;
+}
+
+// Gọi onCurrencyChange khi load trang để set trạng thái ban đầu
+document.addEventListener('DOMContentLoaded', function() {
+    onCurrencyChange();
+});
 
 document.getElementById('addItem').addEventListener('click', function() {
     const container = document.getElementById('itemsContainer');

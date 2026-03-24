@@ -5,12 +5,21 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\FinancialTransaction;
 use App\Models\TransactionCategory;
+use App\Models\Currency;
+use App\Services\CurrencyService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 
 class FinancialTransactionController extends Controller
 {
+    protected $currencyService;
+
+    public function __construct(CurrencyService $currencyService)
+    {
+        $this->currencyService = $currencyService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -57,7 +66,10 @@ class FinancialTransactionController extends Controller
     public function create()
     {
         $categories = TransactionCategory::orderBy('name')->get();
-        return view('financial-transactions.create', compact('categories'));
+        $currencies = Currency::where('is_active', true)->get();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+        
+        return view('financial-transactions.create', compact('categories', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -68,6 +80,8 @@ class FinancialTransactionController extends Controller
         $request->validate([
             'transaction_category_id' => 'required|exists:transaction_categories,id',
             'amount' => 'required|numeric|min:0.01',
+            'currency_id' => 'required|exists:currencies,id',
+            'exchange_rate' => 'required|numeric|min:1',
             'date' => 'required|date',
             'payment_method' => 'required|string',
             'reference_number' => 'nullable|string|max:100',
@@ -76,10 +90,24 @@ class FinancialTransactionController extends Controller
 
         $category = TransactionCategory::findOrFail($request->transaction_category_id);
 
+        $currency = Currency::find($request->currency_id);
+        $isForeign = $this->currencyService->isForeign($request->currency_id);
+        
+        $amountVnd = $request->amount;
+        $amountForeign = null;
+        
+        if ($isForeign) {
+            $amountForeign = $request->amount;
+            $amountVnd = $this->currencyService->convertToVnd($request->amount, $request->exchange_rate);
+        }
+
         FinancialTransaction::create([
             'transaction_category_id' => $request->transaction_category_id,
             'type' => $category->type,
-            'amount' => $request->amount,
+            'amount' => $amountVnd,
+            'amount_foreign' => $amountForeign,
+            'currency_id' => $request->currency_id,
+            'exchange_rate' => $request->exchange_rate ?? 1,
             'date' => $request->date,
             'payment_method' => $request->payment_method,
             'reference_number' => $request->reference_number,
@@ -96,7 +124,10 @@ class FinancialTransactionController extends Controller
     public function edit(FinancialTransaction $financialTransaction)
     {
         $categories = TransactionCategory::orderBy('name')->get();
-        return view('financial-transactions.edit', compact('financialTransaction', 'categories'));
+        $currencies = Currency::where('is_active', true)->get();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+        
+        return view('financial-transactions.edit', compact('financialTransaction', 'categories', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -107,6 +138,8 @@ class FinancialTransactionController extends Controller
         $request->validate([
             'transaction_category_id' => 'required|exists:transaction_categories,id',
             'amount' => 'required|numeric|min:0.01',
+            'currency_id' => 'required|exists:currencies,id',
+            'exchange_rate' => 'required|numeric|min:1',
             'date' => 'required|date',
             'payment_method' => 'required|string',
             'reference_number' => 'nullable|string|max:100',
@@ -115,10 +148,23 @@ class FinancialTransactionController extends Controller
 
         $category = TransactionCategory::findOrFail($request->transaction_category_id);
 
+        $isForeign = $this->currencyService->isForeign($request->currency_id);
+        
+        $amountVnd = $request->amount;
+        $amountForeign = null;
+        
+        if ($isForeign) {
+            $amountForeign = $request->amount;
+            $amountVnd = $this->currencyService->convertToVnd($request->amount, $request->exchange_rate);
+        }
+
         $financialTransaction->update([
             'transaction_category_id' => $request->transaction_category_id,
             'type' => $category->type,
-            'amount' => $request->amount,
+            'amount' => $amountVnd,
+            'amount_foreign' => $amountForeign,
+            'currency_id' => $request->currency_id,
+            'exchange_rate' => $request->exchange_rate ?? 1,
             'date' => $request->date,
             'payment_method' => $request->payment_method,
             'reference_number' => $request->reference_number,

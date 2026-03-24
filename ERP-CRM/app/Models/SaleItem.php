@@ -138,7 +138,10 @@ class SaleItem extends Model
      */
     public function getProfitAttribute(): float
     {
-        return $this->total - $this->cost_total;
+        $sale = $this->sale;
+        $exchangeRate = ($sale && $sale->currency && !$sale->currency->is_base) ? ($sale->exchange_rate ?: 1) : 1;
+        $totalVnd = round($this->total * $exchangeRate);
+        return $totalVnd - $this->cost_total;
     }
 
     /**
@@ -146,8 +149,12 @@ class SaleItem extends Model
      */
     public function getProfitPercentAttribute(): float
     {
-        if ($this->total > 0) {
-            return (($this->total - $this->cost_total) / $this->total) * 100;
+        $sale = $this->sale;
+        $exchangeRate = ($sale && $sale->currency && !$sale->currency->is_base) ? ($sale->exchange_rate ?: 1) : 1;
+        $totalVnd = round($this->total * $exchangeRate);
+        
+        if ($totalVnd > 0) {
+            return (($totalVnd - $this->cost_total) / $totalVnd) * 100;
         }
         return 0;
     }

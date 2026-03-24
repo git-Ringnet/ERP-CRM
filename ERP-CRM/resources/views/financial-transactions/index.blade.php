@@ -126,7 +126,13 @@
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900">{{ $transaction->category->name }}</td>
                         <td class="px-4 py-3 text-sm font-bold {{ $transaction->type === 'income' ? 'text-green-600' : 'text-red-600' }}">
-                            {{ number_format($transaction->amount, 0, ',', '.') }}đ
+                            <div>{{ number_format($transaction->amount, 0, ',', '.') }}đ</div>
+                            @if($transaction->currency && !$transaction->currency->is_base)
+                                <div class="text-[10px] text-gray-500 font-normal">
+                                    {{ $transaction->currency->symbol }}{{ number_format($transaction->amount_foreign, 2) }}
+                                    <span class="ml-1 text-[9px]">(x{{ number_format($transaction->exchange_rate, 0, ',', '.') }})</span>
+                                </div>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600">{{ $transaction->payment_method_label }}</td>
                         <td class="px-4 py-3 text-sm text-gray-500 max-w-xs truncate" title="{{ $transaction->note }}">

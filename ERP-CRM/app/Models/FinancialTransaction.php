@@ -18,12 +18,22 @@ class FinancialTransaction extends Model
         'reference_number',
         'note',
         'created_by',
+        'currency_id',
+        'exchange_rate',
+        'amount_foreign',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'date' => 'date',
+        'exchange_rate' => 'decimal:6',
+        'amount_foreign' => 'decimal:4',
     ];
+
+    public function currency()
+    {
+        return $this->belongsTo(Currency::class);
+    }
 
     public function category()
     {

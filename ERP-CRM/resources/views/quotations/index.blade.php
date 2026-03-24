@@ -117,8 +117,17 @@
                                     <i class="fas fa-exclamation-circle ml-1" title="Đã hết hạn"></i>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                                {{ number_format($quotation->total) }} đ
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
+                                @if($quotation->currency && !$quotation->currency->is_base)
+                                    <div class="text-gray-900">
+                                        {{ $quotation->currency->symbol }} {{ number_format($quotation->total_foreign ?? ($quotation->total / $quotation->exchange_rate), $quotation->currency->decimal_places ?? 2) }}
+                                    </div>
+                                    <div class="text-xs text-gray-500 font-normal mt-0.5">
+                                        {{ number_format($quotation->total) }} đ
+                                    </div>
+                                @else
+                                    <div class="text-gray-900">{{ number_format($quotation->total) }} đ</div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $quotation->status_color }}">
@@ -188,7 +197,12 @@
                         <div><i class="fas fa-calendar w-4"></i> {{ $quotation->date->format('d/m/Y') }} -
                             {{ $quotation->valid_until->format('d/m/Y') }}
                         </div>
-                        <div><i class="fas fa-money-bill w-4"></i> {{ number_format($quotation->total) }} đ</div>
+                        @if($quotation->currency && !$quotation->currency->is_base)
+                            <div class="font-medium text-gray-900"><i class="fas fa-money-bill w-4 text-gray-500"></i> {{ $quotation->currency->symbol }} {{ number_format($quotation->total_foreign ?? ($quotation->total / $quotation->exchange_rate), $quotation->currency->decimal_places ?? 2) }}</div>
+                            <div class="text-xs text-gray-500 ml-5">{{ number_format($quotation->total) }} đ</div>
+                        @else
+                            <div><i class="fas fa-money-bill w-4"></i> {{ number_format($quotation->total) }} đ</div>
+                        @endif
                     </div>
                     <div class="flex gap-2">
                         <a href="{{ route('quotations.show', $quotation) }}"

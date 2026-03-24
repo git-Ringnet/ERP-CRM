@@ -10,8 +10,10 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Currency;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalHistory;
+use App\Services\CurrencyService;
 use App\Exports\QuotationsExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,12 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class QuotationController extends Controller
 {
+    protected CurrencyService $currencyService;
+
+    public function __construct(CurrencyService $currencyService)
+    {
+        $this->currencyService = $currencyService;
+    }
     public function index(Request $request)
     {
         $this->authorize('viewAny', Quotation::class);
@@ -64,7 +72,10 @@ class QuotationController extends Controller
             'title' => $request->get('title'),
         ];
 
-        return view('quotations.create', compact('customers', 'products', 'code', 'prefill'));
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
     }
 
     private function generateCode(): string
@@ -100,6 +111,8 @@ class QuotationController extends Controller
             'products.*.product_id' => ['required', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'currency_id' => ['nullable', 'exists:currencies,id'],
+            'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ], [
             'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
             'code.unique' => 'Mã báo giá đã tồn tại.',
@@ -115,13 +128,13 @@ class QuotationController extends Controller
 
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += $item['quantity'] * $item['price'];
+                $subtotal += round($item['quantity'] * $item['price'], 2);
             }
 
-            $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
+            $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
             $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
-            $total = $afterDiscount + $vatAmount;
+            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
+            $total = round($afterDiscount + $vatAmount, 2);
 
             $quotation = Quotation::create([
                 'code' => $validated['code'],
@@ -133,7 +146,14 @@ class QuotationController extends Controller
                 'subtotal' => $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
-                'total' => $total,
+                'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($total, $validated['exchange_rate'] ?? 1)
+                    : $total,
+                'total_foreign' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $total
+                    : null,
+                'currency_id' => $validated['currency_id'] ?? Currency::getBaseCurrencyId(),
+                'exchange_rate' => $validated['exchange_rate'] ?? 1,
                 'payment_terms' => $validated['payment_terms'],
                 'delivery_time' => $validated['delivery_time'],
                 'note' => $validated['note'],
@@ -190,8 +210,10 @@ class QuotationController extends Controller
         $quotation->load('items');
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.edit', compact('quotation', 'customers', 'products'));
+        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId'));
     }
 
     public function update(Request $request, Quotation $quotation)
@@ -217,6 +239,8 @@ class QuotationController extends Controller
             'products.*.product_id' => ['required', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'currency_id' => ['nullable', 'exists:currencies,id'],
+            'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ], [
             'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
             'code.unique' => 'Mã báo giá đã tồn tại.',
@@ -232,13 +256,13 @@ class QuotationController extends Controller
 
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += $item['quantity'] * $item['price'];
+                $subtotal += round($item['quantity'] * $item['price'], 2);
             }
 
-            $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
+            $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
             $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
-            $total = $afterDiscount + $vatAmount;
+            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
+            $total = round($afterDiscount + $vatAmount, 2);
 
             $quotation->update([
                 'code' => $validated['code'],
@@ -250,7 +274,14 @@ class QuotationController extends Controller
                 'subtotal' => $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
-                'total' => $total,
+                'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($total, $validated['exchange_rate'] ?? 1)
+                    : $total,
+                'total_foreign' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $total
+                    : null,
+                'currency_id' => $validated['currency_id'] ?? Currency::getBaseCurrencyId(),
+                'exchange_rate' => $validated['exchange_rate'] ?? 1,
                 'payment_terms' => $validated['payment_terms'],
                 'delivery_time' => $validated['delivery_time'],
                 'note' => $validated['note'],
@@ -628,6 +659,9 @@ class QuotationController extends Controller
                 'discount' => $quotation->discount,
                 'vat' => $quotation->vat,
                 'total' => $quotation->total,
+                'total_foreign' => $quotation->total_foreign,
+                'currency_id' => $quotation->currency_id,
+                'exchange_rate' => $quotation->exchange_rate,
                 'cost' => 0,
                 'margin' => 0,
                 'margin_percent' => 0,

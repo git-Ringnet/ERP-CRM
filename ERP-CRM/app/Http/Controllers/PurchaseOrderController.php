@@ -8,10 +8,12 @@ use App\Models\SupplierQuotation;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
+use App\Models\Currency;
 use App\Models\Warehouse;
 use App\Mail\PurchaseOrderMail;
 use App\Exports\PurchaseOrdersExport;
 use App\Services\PurchaseImportSyncService;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -21,10 +23,12 @@ use Maatwebsite\Excel\Facades\Excel;
 class PurchaseOrderController extends Controller
 {
     protected PurchaseImportSyncService $purchaseImportSyncService;
+    protected CurrencyService $currencyService;
 
-    public function __construct(PurchaseImportSyncService $purchaseImportSyncService)
+    public function __construct(PurchaseImportSyncService $purchaseImportSyncService, CurrencyService $currencyService)
     {
         $this->purchaseImportSyncService = $purchaseImportSyncService;
+        $this->currencyService = $currencyService;
     }
     public function index(Request $request)
     {
@@ -94,7 +98,10 @@ class PurchaseOrderController extends Controller
             $quotation = SupplierQuotation::with(['supplier', 'items'])->find($request->quotation_id);
         }
 
-        return view('purchase-orders.create', compact('suppliers', 'products', 'code', 'quotation'));
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('purchase-orders.create', compact('suppliers', 'products', 'code', 'quotation', 'currencies', 'baseCurrencyId'));
     }
 
     public function store(Request $request)
@@ -127,13 +134,15 @@ class PurchaseOrderController extends Controller
                 'vat_percent' => $request->vat_percent ?? 10,
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
+                'currency_id' => $request->currency_id ?? Currency::getBaseCurrencyId(),
+                'exchange_rate' => $request->exchange_rate ?? 1,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
             ]);
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $total = $item['quantity'] * $item['unit_price'];
+                $total = round($item['quantity'] * $item['unit_price'], 2);
                 $subtotal += $total;
 
                 $order->items()->create([
@@ -147,16 +156,22 @@ class PurchaseOrderController extends Controller
             }
 
             // Tính tổng
-            $discountAmount = $subtotal * ($order->discount_percent / 100);
+            $discountAmount = round($subtotal * ($order->discount_percent / 100), 2);
             $afterDiscount = $subtotal - $discountAmount;
             $beforeVat = $afterDiscount + $order->shipping_cost + $order->other_cost;
-            $vatAmount = $beforeVat * ($order->vat_percent / 100);
+            $vatAmount = round($beforeVat * ($order->vat_percent / 100), 2);
+
+            $finalTotal = round($beforeVat + $vatAmount, 2);
+            $isForeign = $this->currencyService->isForeignTransaction($order->currency_id);
 
             $order->update([
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
                 'vat_amount' => $vatAmount,
-                'total' => $beforeVat + $vatAmount,
+                'total' => $isForeign
+                    ? $this->currencyService->toBase($finalTotal, $order->exchange_rate)
+                    : $finalTotal,
+                'total_foreign' => $isForeign ? $finalTotal : null,
             ]);
 
             // Cập nhật trạng thái báo giá NCC
@@ -200,8 +215,10 @@ class PurchaseOrderController extends Controller
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $purchaseOrder->load(['items']);
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('purchase-orders.edit', compact('purchaseOrder', 'suppliers', 'products'));
+        return view('purchase-orders.edit', compact('purchaseOrder', 'suppliers', 'products', 'currencies', 'baseCurrencyId'));
     }
 
     public function update(Request $request, PurchaseOrder $purchaseOrder)
@@ -232,13 +249,15 @@ class PurchaseOrderController extends Controller
                 'vat_percent' => $request->vat_percent ?? 10,
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
+                'currency_id' => $request->currency_id ?? $purchaseOrder->currency_id,
+                'exchange_rate' => $request->exchange_rate ?? $purchaseOrder->exchange_rate,
             ]);
 
             $purchaseOrder->items()->delete();
             $subtotal = 0;
 
             foreach ($validated['items'] as $item) {
-                $total = $item['quantity'] * $item['unit_price'];
+                $total = round($item['quantity'] * $item['unit_price'], 2);
                 $subtotal += $total;
 
                 $purchaseOrder->items()->create([
@@ -251,16 +270,22 @@ class PurchaseOrderController extends Controller
                 ]);
             }
 
-            $discountAmount = $subtotal * ($purchaseOrder->discount_percent / 100);
+            $discountAmount = round($subtotal * ($purchaseOrder->discount_percent / 100), 2);
             $afterDiscount = $subtotal - $discountAmount;
             $beforeVat = $afterDiscount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost;
-            $vatAmount = $beforeVat * ($purchaseOrder->vat_percent / 100);
+            $vatAmount = round($beforeVat * ($purchaseOrder->vat_percent / 100), 2);
+
+            $finalTotal = round($beforeVat + $vatAmount, 2);
+            $isForeign = $this->currencyService->isForeignTransaction($purchaseOrder->currency_id);
 
             $purchaseOrder->update([
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
                 'vat_amount' => $vatAmount,
-                'total' => $beforeVat + $vatAmount,
+                'total' => $isForeign
+                    ? $this->currencyService->toBase($finalTotal, $purchaseOrder->exchange_rate)
+                    : $finalTotal,
+                'total_foreign' => $isForeign ? $finalTotal : null,
             ]);
 
             DB::commit();

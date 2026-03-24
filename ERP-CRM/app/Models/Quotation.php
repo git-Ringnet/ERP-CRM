@@ -29,6 +29,9 @@ class Quotation extends Model
         'current_approval_level',
         'created_by',
         'converted_to_sale_id',
+        'currency_id',
+        'exchange_rate',
+        'total_foreign',
     ];
 
     protected $casts = [
@@ -39,7 +42,14 @@ class Quotation extends Model
         'vat' => 'decimal:2',
         'total' => 'decimal:2',
         'current_approval_level' => 'integer',
+        'exchange_rate' => 'decimal:6',
+        'total_foreign' => 'decimal:4',
     ];
+
+    public function currency()
+    {
+        return $this->belongsTo(Currency::class);
+    }
 
     public function customer()
     {

@@ -9,8 +9,10 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\Warehouse;
+use App\Models\Currency;
 use App\Exports\SalesExport;
 use App\Services\SaleExportSyncService;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -20,10 +22,12 @@ use Maatwebsite\Excel\Facades\Excel;
 class SaleController extends Controller
 {
     protected SaleExportSyncService $saleExportSyncService;
+    protected CurrencyService $currencyService;
 
-    public function __construct(SaleExportSyncService $saleExportSyncService)
+    public function __construct(SaleExportSyncService $saleExportSyncService, CurrencyService $currencyService)
     {
         $this->saleExportSyncService = $saleExportSyncService;
+        $this->currencyService = $currencyService;
     }
     /**
      * Display a listing of sales with search and filter functionality.
@@ -153,7 +157,11 @@ class SaleController extends Controller
         $selectedProjectId = $request->get('project_id');
         $selectedProject = $selectedProjectId ? Project::find($selectedProjectId) : null;
 
-        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject'));
+        // Multi-currency: load active currencies + today's VND base ID
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -217,6 +225,8 @@ class SaleController extends Controller
             'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
             'expenses.*.description' => ['nullable', 'string'],
             'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'currency_id' => ['nullable', 'exists:currencies,id'],
+            'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ]);
 
         DB::beginTransaction();
@@ -228,13 +238,13 @@ class SaleController extends Controller
             // Calculate totals
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += $item['quantity'] * $item['price'];
+                $subtotal += round($item['quantity'] * $item['price'], 2);
             }
 
-            $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
+            $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
             $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
-            $total = $afterDiscount + $vatAmount;
+            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
+            $total = round($afterDiscount + $vatAmount, 2);
 
             // Validate Stock Availability
             $normalQuantities = []; // Normal stock
@@ -276,6 +286,20 @@ class SaleController extends Controller
                 }
             }
 
+            // Determine currency
+            $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
+            $exchangeRate = $validated['exchange_rate'] ?? 1;
+            $isForeign = $this->currencyService->isForeignTransaction($currencyId);
+
+            // If foreign currency: total is in foreign, need to convert to VND
+            // If VND: total_foreign = total, exchange_rate = 1
+            $totalForeign = $total;
+            if ($isForeign && $exchangeRate > 1) {
+                // total in the form is calculated in foreign currency
+                // Convert to VND base
+                $total = $this->currencyService->toBase($totalForeign, $exchangeRate);
+            }
+
             // Create sale
             $sale = Sale::create([
                 'code' => $code,
@@ -286,7 +310,7 @@ class SaleController extends Controller
                 'user_id' => auth()->id(),
                 'date' => $validated['date'],
                 'delivery_address' => $validated['delivery_address'],
-                'subtotal' => $subtotal,
+                'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
                 'total' => $total,
@@ -298,6 +322,9 @@ class SaleController extends Controller
                 'payment_status' => 'unpaid',
                 'status' => 'pending',
                 'note' => $validated['note'],
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
+                'total_foreign' => $totalForeign,
             ]);
 
             // Create sale items with cost price and project
@@ -332,6 +359,7 @@ class SaleController extends Controller
 
             // Create sale expenses (only if type is set)
             if (!empty($validated['expenses'])) {
+                $exchangeRate = $validated['exchange_rate'] ?? 1;
                 foreach ($validated['expenses'] as $expense) {
                     // Skip empty expense rows
                     if (empty($expense['type']) || empty($expense['amount'])) {
@@ -341,7 +369,7 @@ class SaleController extends Controller
                         'sale_id' => $sale->id,
                         'type' => $expense['type'],
                         'description' => $expense['description'] ?? '',
-                        'amount' => $expense['amount'],
+                        'amount' => round($expense['amount'] * $exchangeRate, 2),
                         'note' => $expense['note'] ?? null,
                     ]);
                 }
@@ -373,7 +401,10 @@ class SaleController extends Controller
         }
 
         $sale->load(['items.product', 'customer', 'expenses', 'project']);
-        return view('sales.show', compact('sale'));
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -422,7 +453,11 @@ class SaleController extends Controller
         }
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
-        return view('sales.edit', compact('sale', 'customers', 'products', 'projects'));
+        // Multi-currency
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -464,6 +499,8 @@ class SaleController extends Controller
             'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
             'expenses.*.description' => ['nullable', 'string'],
             'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'currency_id' => ['nullable', 'exists:currencies,id'],
+            'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ]);
 
         DB::beginTransaction();
@@ -473,13 +510,13 @@ class SaleController extends Controller
             // Calculate totals
             $subtotal = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += $item['quantity'] * $item['price'];
+                $subtotal += round($item['quantity'] * $item['price'], 2);
             }
 
-            $discountAmount = $subtotal * ($validated['discount'] ?? 0) / 100;
+            $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
             $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = $afterDiscount * ($validated['vat'] ?? 10) / 100;
-            $total = $afterDiscount + $vatAmount;
+            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
+            $total = round($afterDiscount + $vatAmount, 2);
 
             // Validate Stock Availability
             // Validate Stock Availability
@@ -521,6 +558,16 @@ class SaleController extends Controller
                 }
             }
 
+            // Determine currency
+            $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
+            $exchangeRate = $validated['exchange_rate'] ?? 1;
+            $isForeign = $this->currencyService->isForeignTransaction($currencyId);
+
+            $totalForeign = $total;
+            if ($isForeign && $exchangeRate > 1) {
+                $total = $this->currencyService->toBase($totalForeign, $exchangeRate);
+            }
+
             // Update sale
             $sale->update([
                 'code' => $validated['code'],
@@ -530,7 +577,7 @@ class SaleController extends Controller
                 'customer_name' => $customer->name,
                 'date' => $validated['date'],
                 'delivery_address' => $validated['delivery_address'],
-                'subtotal' => $subtotal,
+                'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
                 'total' => $total,
@@ -538,6 +585,9 @@ class SaleController extends Controller
                 'paid_amount' => $validated['paid_amount'] ?? 0,
                 'status' => $validated['status'],
                 'note' => $validated['note'],
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
+                'total_foreign' => $totalForeign,
             ]);
 
             // Delete old items and create new ones with cost price and project
@@ -575,6 +625,7 @@ class SaleController extends Controller
             // Update sale expenses
             $sale->expenses()->delete();
             if (!empty($validated['expenses'])) {
+                $exchangeRate = $validated['exchange_rate'] ?? 1;
                 foreach ($validated['expenses'] as $expense) {
                     if (empty($expense['type']) && empty($expense['amount']))
                         continue;
@@ -583,7 +634,7 @@ class SaleController extends Controller
                         'sale_id' => $sale->id,
                         'type' => $expense['type'] ?? 'other',
                         'description' => $expense['description'] ?? '',
-                        'amount' => $expense['amount'] ?? 0,
+                        'amount' => round(($expense['amount'] ?? 0) * $exchangeRate, 2),
                         'note' => $expense['note'] ?? null,
                     ]);
                 }
@@ -739,6 +790,8 @@ class SaleController extends Controller
 
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
+            'currency_id' => ['nullable', 'exists:currencies,id'],
+            'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_date' => ['required', 'date'],
             'payment_method' => ['required', 'string'],
             'note' => ['nullable', 'string'],
@@ -746,13 +799,39 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
-            $newPaidAmount = $sale->paid_amount + $validated['amount'];
+            $amountVnd = $validated['amount'];
+            $paymentCurrencyId = $validated['currency_id'] ?? $sale->currency_id;
+            $paymentRate = $validated['exchange_rate'] ?? 1;
 
-            if ($newPaidAmount > $sale->total) {
+            // Nếu thanh toán bằng ngoại tệ, cần tính số VND thực tế (nếu amount truyền vào là ngoại tệ)
+            // Tuy nhiên, logic hiện tại trong form là user nhập amount theo loại tiền đã chọn.
+            // Để thống nhất với recordPayment cũ, ta giả định $validated['amount'] là số tiền theo $paymentCurrencyId.
+            
+            $isBase = $paymentCurrencyId == \App\Models\Currency::getBaseCurrencyId();
+            $actualAmountVnd = $isBase ? $amountVnd : round($amountVnd * $paymentRate, 0);
+            $actualAmountForeign = $amountVnd; // Số tiền theo loại tiền thanh toán
+
+            $newPaidAmountVnd = $sale->paid_amount + $actualAmountVnd;
+
+            if ($newPaidAmountVnd > $sale->total + 100) { // Thêm sai số nhỏ để tránh lỗi làm tròn
                 return back()->with('error', 'Số tiền thanh toán vượt quá tổng đơn hàng.');
             }
 
-            $sale->paid_amount = $newPaidAmount;
+            $sale->paid_amount = $newPaidAmountVnd;
+            
+            // Cập nhật paid_amount_foreign
+            // Nếu Sale theo USD, ta cần biết số USD đã trả.
+            if ($sale->currency_id && $sale->currency_id != \App\Models\Currency::getBaseCurrencyId()) {
+                if ($paymentCurrencyId == $sale->currency_id) {
+                    $sale->paid_amount_foreign += $actualAmountForeign;
+                } else {
+                    // Thanh toán bằng loại tiền khác, quy đổi về tiền của đơn hàng
+                    // Cách tốt nhất là: $actualAmountVnd / $sale->exchange_rate (tỷ giá gốc) 
+                    // HOẶC dùng tỷ giá thanh toán? Thường là dùng tỷ giá thanh toán để quy đổi.
+                    $sale->paid_amount_foreign += ($actualAmountVnd / ($sale->exchange_rate ?: 1));
+                }
+            }
+
             $sale->updateDebt();
             $sale->save();
 
@@ -760,9 +839,11 @@ class SaleController extends Controller
             $financialService = app(\App\Services\FinancialTransactionService::class);
             $financialService->createFromSale(
                 $sale,
-                $validated['amount'],
+                $actualAmountForeign,
                 $validated['payment_method'],
-                $validated['note']
+                $validated['note'],
+                $paymentCurrencyId,
+                $paymentRate
             );
 
             DB::commit();
