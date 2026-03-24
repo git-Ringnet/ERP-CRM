@@ -50,6 +50,7 @@ class ExchangeRateService
                 ]
             );
 
+            $count = 0;
             foreach ($rates as $currencyCode => $rateData) {
                 if ($currencyCode === 'VND') {
                     continue; // Skip base currency rate update
