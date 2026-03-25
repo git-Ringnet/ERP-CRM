@@ -87,7 +87,7 @@ class PurchaseImportSyncService
                     'quantity' => $quantity,
                     'unit' => $poItem->unit,
                     'serial_number' => null,
-                    'cost' => $poItem->unit_price,
+                    'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
                     'comments' => "Từ PO {$purchaseOrder->code} - {$poItem->product_name}",
                 ]);
                 $totalQty += $quantity;

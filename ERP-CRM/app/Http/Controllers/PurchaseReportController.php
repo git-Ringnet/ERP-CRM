@@ -58,12 +58,21 @@ class PurchaseReportController extends Controller
             $query->where('supplier_id', $supplierId);
         }
 
+        $stats = $query->selectRaw('
+            COUNT(*) as total_orders,
+            SUM(total) as total_amount,
+            SUM(subtotal * exchange_rate) as total_subtotal,
+            SUM(discount_amount * exchange_rate) as total_discount,
+            SUM(shipping_cost * exchange_rate) as total_shipping,
+            SUM(paid_amount) as total_paid
+        ')->first();
+
         return [
-            'total_orders' => $query->count(),
-            'total_amount' => $query->sum('subtotal') ?? 0,
-            'total_discount' => $query->sum('discount_amount') ?? 0,
-            'total_shipping' => $query->sum('shipping_cost') ?? 0,
-            'total_paid' => $query->sum('total') ?? 0,
+            'total_orders' => $stats->total_orders ?? 0,
+            'total_amount' => $stats->total_amount ?? 0,
+            'total_discount' => $stats->total_discount ?? 0,
+            'total_shipping' => $stats->total_shipping ?? 0,
+            'total_paid' => $stats->total_paid ?? 0,
         ];
     }
 
@@ -72,10 +81,11 @@ class PurchaseReportController extends Controller
         $query = PurchaseOrder::select(
                 'supplier_id',
                 DB::raw('COUNT(*) as order_count'),
-                DB::raw('SUM(subtotal) as total_subtotal'),
-                DB::raw('SUM(discount_amount) as total_discount'),
-                DB::raw('SUM(shipping_cost) as total_shipping'),
-                DB::raw('SUM(total) as total_paid')
+                DB::raw('SUM(total) as total_amount'),
+                DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
+                DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
+                DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
+                DB::raw('SUM(paid_amount) as total_paid')
             )
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->groupBy('supplier_id')
@@ -95,6 +105,7 @@ class PurchaseReportController extends Controller
             return [
                 'supplier' => $item->supplier->name ?? 'N/A',
                 'order_count' => $item->order_count,
+                'total_amount' => $item->total_amount,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
                 'total_shipping' => $item->total_shipping,
@@ -154,16 +165,17 @@ class PurchaseReportController extends Controller
     private function getMonthlyReport($dateFrom, $dateTo): array
     {
         $results = PurchaseOrder::select(
-                DB::raw("DATE_FORMAT(order_date, '%Y-%m') as month"),
+                DB::raw("DATE_FORMAT(order_date, '%Y-%m') as period"),
                 DB::raw('COUNT(*) as order_count'),
-                DB::raw('SUM(subtotal) as total_subtotal'),
-                DB::raw('SUM(discount_amount) as total_discount'),
-                DB::raw('SUM(shipping_cost) as total_shipping'),
-                DB::raw('SUM(total) as total_paid')
+                DB::raw('SUM(total) as total_amount'),
+                DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
+                DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
+                DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
+                DB::raw('SUM(paid_amount) as total_paid')
             )
             ->whereBetween('order_date', [$dateFrom, $dateTo])
-            ->groupBy('month')
-            ->orderBy('month', 'desc')
+            ->groupBy('period')
+            ->orderBy('period', 'desc')
             ->get();
 
         $report = [];
@@ -176,8 +188,9 @@ class PurchaseReportController extends Controller
             }
 
             $report[] = [
-                'month' => $item->month,
+                'month' => $item->period,
                 'order_count' => $item->order_count,
+                'total_amount' => $item->total_amount,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
                 'total_shipping' => $item->total_shipping,
@@ -195,10 +208,10 @@ class PurchaseReportController extends Controller
     {
         $totals = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
             ->selectRaw('
-                SUM(subtotal) as goods_value,
-                SUM(shipping_cost) as shipping_cost,
-                SUM(other_cost) as other_cost,
-                SUM(vat_amount) as vat_amount,
+                SUM(subtotal * exchange_rate) as goods_value,
+                SUM(shipping_cost * exchange_rate) as shipping_cost,
+                SUM(other_cost * exchange_rate) as other_cost,
+                SUM(vat_amount * exchange_rate) as vat_amount,
                 SUM(total) as grand_total
             ')
             ->first();
@@ -224,12 +237,14 @@ class PurchaseReportController extends Controller
         $suppliers = Supplier::withCount(['purchaseOrders' => function ($query) use ($dateFrom, $dateTo) {
             $query->whereBetween('order_date', [$dateFrom, $dateTo]);
         }])
-        ->withSum(['purchaseOrders' => function ($query) use ($dateFrom, $dateTo) {
-            $query->whereBetween('order_date', [$dateFrom, $dateTo]);
-        }], 'discount_amount')
-        ->withSum(['purchaseOrders' => function ($query) use ($dateFrom, $dateTo) {
-            $query->whereBetween('order_date', [$dateFrom, $dateTo]);
-        }], 'subtotal')
+        ->addSelect(['purchase_orders_sum_discount_amount' => PurchaseOrder::selectRaw('SUM(discount_amount * exchange_rate)')
+            ->whereColumn('supplier_id', 'suppliers.id')
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
+        ])
+        ->addSelect(['purchase_orders_sum_subtotal' => PurchaseOrder::selectRaw('SUM(subtotal * exchange_rate)')
+            ->whereColumn('supplier_id', 'suppliers.id')
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
+        ])
         ->having('purchase_orders_count', '>', 0)
         ->get();
 

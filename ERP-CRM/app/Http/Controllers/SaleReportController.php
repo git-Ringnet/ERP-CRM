@@ -68,14 +68,9 @@ class SaleReportController extends Controller
         
         $totalOrders = $query->count();
         $totalRevenue = $query->sum('total');
-        $totalCost = $query->sum(DB::raw('cost + (SELECT COALESCE(SUM(cost_total), 0) FROM sale_items WHERE sale_items.sale_id = sales.id)'));
-        // Note: The above subquery for cost might be heavy. 
-        // Alternatively, since Sale model has 'margin', we can use that if it's reliable.
-        // Let's rely on the 'margin' column which is calculated and saved on sale update.
-        
         $totalMargin = $query->sum('margin');
-        
-        // Calculate total cost as Revenue - Margin
+
+        // Cost = Revenue - Margin (margin already net of COGS + expenses)
         $totalCalculatedCost = $totalRevenue - $totalMargin;
 
         $marginPercent = $totalRevenue > 0 ? ($totalMargin / $totalRevenue) * 100 : 0;
@@ -126,17 +121,16 @@ class SaleReportController extends Controller
     private function getProductReport($dateFrom, $dateTo, $productId = null): array
     {
         $query = SaleItem::select(
-                'product_id',
-                'product_name',
-                DB::raw('SUM(quantity) as total_quantity'),
-                DB::raw('SUM(total) as total_revenue'),
-                DB::raw('SUM(total - cost_total) as total_profit') // Approximate profit per item (ignoring shared sale expenses)
+                'sale_items.product_id',
+                'sale_items.product_name',
+                DB::raw('SUM(sale_items.quantity) as total_quantity'),
+                DB::raw('SUM(sale_items.total * sales.exchange_rate) as total_revenue'),
+                DB::raw('SUM((sale_items.total * sales.exchange_rate) - sale_items.cost_total) as total_profit')
             )
-            ->whereHas('sale', function($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('date', [$dateFrom, $dateTo])
-                  ->whereIn('status', ['approved', 'shipping', 'completed']);
-            })
-            ->groupBy('product_id', 'product_name');
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
+            ->whereBetween('sales.date', [$dateFrom, $dateTo])
+            ->groupBy('sale_items.product_id', 'sale_items.product_name');
 
         if ($productId) {
             $query->where('product_id', $productId);

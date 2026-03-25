@@ -7,6 +7,7 @@ use App\Models\ShippingAllocationItem;
 use App\Models\PurchaseOrder;
 use App\Models\Warehouse;
 use App\Models\Product;
+use App\Models\Import;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +34,9 @@ class ShippingAllocationController extends Controller
         }
 
         if ($request->filled('import_id')) {
-            $query->where('import_id', $request->import_id);
+            $query->whereHas('imports', function($q) use ($request) {
+                $q->where('id', $request->import_id);
+            });
         }
 
         if ($request->filled('date_from')) {
@@ -46,12 +49,22 @@ class ShippingAllocationController extends Controller
 
         $allocations = $query->orderBy('created_at', 'desc')->paginate(15);
 
+        // Calculate statistics
+        $stats = [
+            'total_allocations' => ShippingAllocation::count(),
+            'total_shipping_cost' => ShippingAllocation::sum('total_shipping_cost'),
+            'total_products' => ShippingAllocationItem::count(),
+            'total_warehouses' => Warehouse::count(),
+        ];
+
+        $warehouses = Warehouse::orderBy('name')->get();
+
         $imports = Import::where('status', 'approved')
             ->whereDoesntHave('shippingAllocation')
             ->orderBy('date', 'desc')
             ->get();
 
-        return view('shipping-allocations.index', compact('allocations', 'imports'));
+        return view('shipping-allocations.index', compact('allocations', 'imports', 'stats', 'warehouses'));
     }
 
     public function create(): View
@@ -66,7 +79,11 @@ class ShippingAllocationController extends Controller
 
         $code = ShippingAllocation::generateCode();
 
-        return view('shipping-allocations.create', compact('imports', 'code'));
+        $purchaseOrders = PurchaseOrder::where('status', 'approved')->orderBy('code', 'desc')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+        $products = Product::orderBy('name')->get();
+
+        return view('shipping-allocations.create', compact('imports', 'code', 'purchaseOrders', 'warehouses', 'products'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -154,14 +171,18 @@ class ShippingAllocationController extends Controller
     {
         $this->authorize('update', $shippingAllocation);
 
-        if ($shippingAllocation->status !== 'pending') {
+        if ($shippingAllocation->status !== 'draft') {
             return redirect()->route('shipping-allocations.index')
-                ->with('error', 'Chỉ có thể sửa phân bổ ở trạng thái Chờ duyệt!');
+                ->with('error', 'Chỉ có thể sửa phân bổ ở trạng thái Nháp!');
         }
 
-        $shippingAllocation->load(['import.items.product', 'allocations']);
+        $shippingAllocation->load(['import.items.product', 'items.product']);
 
-        return view('shipping-allocations.edit', compact('shippingAllocation'));
+        $purchaseOrders = PurchaseOrder::where('status', 'approved')->orderBy('code', 'desc')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+        $products = Product::orderBy('name')->get();
+
+        return view('shipping-allocations.edit', compact('shippingAllocation', 'purchaseOrders', 'warehouses', 'products'));
     }
 
     public function update(Request $request, ShippingAllocation $shippingAllocation): RedirectResponse
@@ -229,9 +250,9 @@ class ShippingAllocationController extends Controller
     {
         $this->authorize('delete', $shippingAllocation);
 
-        if ($shippingAllocation->status !== 'pending') {
+        if ($shippingAllocation->status !== 'draft') {
             return redirect()->route('shipping-allocations.index')
-                ->with('error', 'Chỉ có thể xóa phân bổ ở trạng thái Chờ duyệt!');
+                ->with('error', 'Chỉ có thể xóa phân bổ ở trạng thái Nháp!');
         }
 
         $shippingAllocation->delete();

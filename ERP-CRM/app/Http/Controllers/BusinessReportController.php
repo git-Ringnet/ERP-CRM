@@ -45,13 +45,13 @@ class BusinessReportController extends Controller
         ];
 
         // 2. Recent Orders for Tracking
-        $recentSales = Sale::with('customer')
+        $recentSales = Sale::with(['customer', 'currency'])
             ->whereBetween('date', [$dateFrom, $dateTo])
             ->orderBy('date', 'desc')
             ->limit(10)
             ->get();
 
-        $recentPurchases = PurchaseOrder::with('supplier')
+        $recentPurchases = PurchaseOrder::with(['supplier', 'currency'])
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->orderBy('order_date', 'desc')
             ->limit(10)

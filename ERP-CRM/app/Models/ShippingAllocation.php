@@ -56,6 +56,11 @@ class ShippingAllocation extends Model
         return $this->hasMany(Import::class);
     }
 
+    public function import(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Import::class);
+    }
+
     public function scopeByStatus(Builder $query, $status): Builder
     {
         return $query->where('status', $status);

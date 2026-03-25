@@ -166,7 +166,7 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium">{{ $row['supplier'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_subtotal'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_amount'], 0, ',', '.') }}đ
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600">
                                         {{ number_format($row['total_discount'], 0, ',', '.') }}đ
@@ -256,7 +256,7 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium">{{ $row['month'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_subtotal'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_amount'], 0, ',', '.') }}đ
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600">
                                         {{ number_format($row['total_discount'], 0, ',', '.') }}đ

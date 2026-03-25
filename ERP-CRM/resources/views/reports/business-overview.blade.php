@@ -151,8 +151,9 @@
                         <tr>
                             <th class="px-4 py-3">Mã đơn</th>
                             <th class="px-4 py-3">Khách hàng</th>
+                            <th class="px-4 py-3 text-center">Tiền tệ</th>
                             <th class="px-4 py-3 text-center">Trạng thái</th>
-                            <th class="px-4 py-3 text-right">Giá trị</th>
+                            <th class="px-4 py-3 text-right">Giá trị (VNĐ)</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -161,17 +162,26 @@
                             <td class="px-4 py-3">
                                 <a href="{{ route('sales.show', $sale) }}" class="font-bold text-blue-600 hover:underline">{{ $sale->code }}</a>
                             </td>
-                            <td class="px-4 py-3 text-gray-700 truncate max-w-[150px]">{{ $sale->customer_name }}</td>
+                            <td class="px-4 py-3 text-gray-700 truncate max-w-[130px]">{{ $sale->customer_name }}</td>
+                            <td class="px-4 py-3 text-center">
+                                @php $currCode = $sale->currency->code ?? 'VND'; @endphp
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $currCode === 'VND' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-800' }}">
+                                    {{ $currCode }}
+                                </span>
+                                @if($currCode !== 'VND' && $sale->total_foreign)
+                                    <div class="text-[10px] text-gray-400 mt-0.5">{{ number_format($sale->total_foreign, 2) }}</div>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-center text-[11px]">
                                 <span class="px-2 py-1 rounded-full font-bold {{ $sale->status_color }}">
                                     {{ $sale->status_label }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-right font-medium text-gray-800">{{ number_format($sale->total, 0) }}</td>
+                            <td class="px-4 py-3 text-right font-medium text-gray-800">{{ number_format($sale->total, 0) }}đ</td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="px-4 py-10 text-center text-gray-400">Chưa có đơn hàng nào</td>
+                            <td colspan="5" class="px-4 py-10 text-center text-gray-400">Chưa có đơn hàng nào</td>
                         </tr>
                         @endforelse
                     </tbody>
@@ -193,8 +203,9 @@
                         <tr>
                             <th class="px-4 py-3">Mã PO</th>
                             <th class="px-4 py-3">Nhà cung cấp</th>
+                            <th class="px-4 py-3 text-center">Tiền tệ</th>
                             <th class="px-4 py-3 text-center">Trạng thái</th>
-                            <th class="px-4 py-3 text-right">Ngày giao</th>
+                            <th class="px-4 py-3 text-right">Giá trị (VNĐ)</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -203,7 +214,16 @@
                             <td class="px-4 py-3">
                                 <a href="{{ route('purchase-orders.show', $po) }}" class="font-bold text-orange-600 hover:underline">{{ $po->code }}</a>
                             </td>
-                            <td class="px-4 py-3 text-gray-700 truncate max-w-[150px]">{{ $po->supplier->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-gray-700 truncate max-w-[130px]">{{ $po->supplier->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-center">
+                                @php $poCurrCode = $po->currency->code ?? 'VND'; @endphp
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $poCurrCode === 'VND' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-800' }}">
+                                    {{ $poCurrCode }}
+                                </span>
+                                @if($poCurrCode !== 'VND' && $po->total_foreign)
+                                    <div class="text-[10px] text-gray-400 mt-0.5">{{ number_format($po->total_foreign, 2) }}</div>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-center">
                                 @php
                                     $poColors = match($po->status) {
@@ -217,13 +237,13 @@
                                     {{ $po->status_label }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-right text-xs">
-                                {{ $po->expected_delivery ? $po->expected_delivery->format('d/m/Y') : 'N/A' }}
+                            <td class="px-4 py-3 text-right font-medium text-gray-800">
+                                {{ number_format($po->total, 0) }}đ
                             </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="px-4 py-10 text-center text-gray-400">Chưa có đơn nhập nào</td>
+                            <td colspan="5" class="px-4 py-10 text-center text-gray-400">Chưa có đơn nhập nào</td>
                         </tr>
                         @endforelse
                     </tbody>

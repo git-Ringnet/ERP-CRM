@@ -270,7 +270,7 @@ class MetricsCalculationService
                 'sale_items.product_id',
                 'sale_items.product_name',
                 DB::raw('SUM(sale_items.quantity) as quantity_sold'),
-                DB::raw('SUM(sale_items.total) as revenue')
+                DB::raw('SUM(sale_items.total * sales.exchange_rate) as revenue')
             )
             ->groupBy('sale_items.product_id', 'sale_items.product_name')
             ->orderByDesc('revenue')
@@ -489,7 +489,7 @@ class MetricsCalculationService
             ->where('status', '!=', 'cancelled')
             ->select(
                 $groupBy,
-                DB::raw('SUM(total - cost) as profit')
+                DB::raw('SUM(margin) as profit')
             )
             ->groupBy('period')
             ->orderBy('period')
