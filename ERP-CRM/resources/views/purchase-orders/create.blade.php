@@ -4,7 +4,7 @@
 @section('page-title', 'Tạo đơn mua hàng mới')
 
 @section('content')
-<div class="bg-white rounded-lg shadow-sm">
+<div class="w-full bg-white rounded-lg shadow-sm">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-900">
             <i class="fas fa-shopping-cart text-purple-500 mr-2"></i>Thông tin đơn mua hàng (PO)
@@ -72,12 +72,6 @@
                 <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.01" value="{{ old('exchange_rate', 1) }}" 
                     onchange="calculateTotal()" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
             </div>
-            <div id="dualPriceGroup" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Quy đổi sang VND</label>
-                <div class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 min-h-[38px] flex items-center">
-                    <div id="dualPriceDisplay" class="text-sm text-blue-800 font-medium">-</div>
-                </div>
-            </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -128,14 +122,16 @@
                                 class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
                         </div>
                         <div class="col-span-2">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">đ</span>)</label>
                             <input type="number" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" min="0" required
                                 class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+                            <div class="text-[10px] text-gray-500 mt-1 vnd-unit-price hidden truncate"></div>
                         </div>
                         <div class="col-span-3">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">đ</span>)</label>
                             <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly
                                 value="{{ number_format($item->quantity * $item->unit_price) }}">
+                            <div class="text-[10px] text-gray-500 mt-1 vnd-item-total hidden truncate"></div>
                         </div>
                         <div class="col-span-1 flex justify-center">
                             <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
@@ -158,13 +154,15 @@
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">đ</span>)</label>
                         <input type="number" name="items[0][unit_price]" min="0" required placeholder="0"
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+                        <div class="text-[10px] text-gray-500 mt-1 vnd-unit-price hidden truncate"></div>
                     </div>
                     <div class="col-span-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">đ</span>)</label>
                         <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
+                        <div class="text-[10px] text-gray-500 mt-1 vnd-item-total hidden truncate"></div>
                     </div>
                     <div class="col-span-1 flex justify-center">
                         <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" style="display:none;">
@@ -183,14 +181,20 @@
                 <textarea name="note" rows="4" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
             </div>
             <div class="space-y-3">
-                <div class="flex justify-between">
-                    <span class="text-gray-600 text-sm">Tổng tiền hàng:</span>
-                    <span id="subtotal" class="font-medium">0đ</span>
+                <div class="flex justify-between items-start">
+                    <span class="text-gray-600 text-sm mt-1">Tổng tiền hàng:</span>
+                    <div class="text-right">
+                        <div id="subtotal" class="font-medium">0đ</div>
+                        <div id="subtotalVnd" class="text-xs text-gray-500 mt-0.5 hidden"></div>
+                    </div>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Chiết khấu (%):</span>
-                    <input type="number" name="discount_percent" value="{{ old('discount_percent', $quotation->discount_percent ?? 0) }}" min="0" max="100"
-                        class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    <div class="flex items-center gap-2">
+                        <span id="discountAmountDisplay" class="text-sm font-medium text-red-500 hidden"></span>
+                        <input type="number" name="discount_percent" value="{{ old('discount_percent', $quotation->discount_percent ?? 0) }}" min="0" max="100"
+                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    </div>
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">Phí vận chuyển:</span>
@@ -204,12 +208,18 @@
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm">VAT (%):</span>
-                    <input type="number" name="vat_percent" value="{{ old('vat_percent', $quotation->vat_percent ?? 10) }}" min="0"
-                        class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    <div class="flex items-center gap-2">
+                        <span id="vatAmountDisplay" class="text-sm font-medium text-blue-600 hidden"></span>
+                        <input type="number" name="vat_percent" value="{{ old('vat_percent', $quotation->vat_percent ?? 10) }}" min="0"
+                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
+                    </div>
                 </div>
-                <div class="flex justify-between pt-3 border-t">
-                    <span class="text-lg font-semibold">Tổng cộng:</span>
-                    <span id="total" class="text-lg font-bold text-blue-600">0đ</span>
+                <div class="flex justify-between items-start pt-3 border-t">
+                    <span class="text-lg font-semibold mt-1">Tổng cộng:</span>
+                    <div class="text-right">
+                        <div id="total" class="text-lg font-bold text-blue-600">0đ</div>
+                        <div id="totalVndReference" class="text-sm text-gray-500 mt-0.5 hidden"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -363,8 +373,31 @@ function calculateRow(input) {
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const itemTotal = Math.round((qty * price) * 100) / 100;
     row.querySelector('.item-total').value = itemTotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    
+    // Add logic to calculate VND
+    const select = document.getElementById('currencySelect');
+    const isBase = select ? (select.options[select.selectedIndex].dataset.isBase === '1') : true;
+    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
+    
+    const vndPriceDisplay = row.querySelector('.vnd-unit-price');
+    const vndTotalDisplay = row.querySelector('.vnd-item-total');
+    
+    if (isBase) {
+        if (vndPriceDisplay) vndPriceDisplay.classList.add('hidden');
+        if (vndTotalDisplay) vndTotalDisplay.classList.add('hidden');
+    } else {
+        if (vndPriceDisplay) {
+            vndPriceDisplay.textContent = Math.round(price * rate).toLocaleString('vi-VN') + ' đ';
+            vndPriceDisplay.classList.remove('hidden');
+        }
+        if (vndTotalDisplay) {
+            vndTotalDisplay.textContent = Math.round(itemTotal * rate).toLocaleString('vi-VN') + ' đ';
+            vndTotalDisplay.classList.remove('hidden');
+        }
+    }
     calculateTotal();
 }
+
 function calculateTotal() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
@@ -393,12 +426,44 @@ function calculateTotal() {
     
     const total = Math.round((beforeVat + vatAmount) * 100) / 100;
 
-    document.getElementById('subtotal').textContent = subtotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' đ';
-    document.getElementById('total').textContent = total.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' đ';
+    const select = document.getElementById('currencySelect');
+    const option = select ? select.options[select.selectedIndex] : null;
+    const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
+    const isBase = option ? option.dataset.isBase === '1' : true;
+    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
 
-    // Cập nhật hiển thị đa tiền tệ
-    if (typeof updateDualPriceDisplay === 'function') {
-        updateDualPriceDisplay(total);
+    document.getElementById('subtotal').textContent = symbol + ' ' + subtotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    document.getElementById('total').textContent = symbol + ' ' + total.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+    const discDisplay = document.getElementById('discountAmountDisplay');
+    if (discDisplay) {
+        discDisplay.textContent = discountAmount > 0 ? ('-' + symbol + ' ' + discountAmount.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })) : '';
+        discDisplay.classList.toggle('hidden', discountAmount <= 0);
+    }
+    
+    const vatDisplay = document.getElementById('vatAmountDisplay');
+    if (vatDisplay) {
+        vatDisplay.textContent = vatAmount > 0 ? ('+' + symbol + ' ' + vatAmount.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })) : '';
+        vatDisplay.classList.toggle('hidden', vatAmount <= 0);
+    }
+    
+    document.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
+
+    const subtotalVnd = document.getElementById('subtotalVnd');
+    const totalVnd = document.getElementById('totalVndReference');
+    
+    if (isBase) {
+        if (subtotalVnd) subtotalVnd.classList.add('hidden');
+        if (totalVnd) totalVnd.classList.add('hidden');
+    } else {
+        if (subtotalVnd) {
+            subtotalVnd.textContent = Math.round(subtotal * rate).toLocaleString('vi-VN') + ' đ';
+            subtotalVnd.classList.remove('hidden');
+        }
+        if (totalVnd) {
+            totalVnd.textContent = Math.round(total * rate).toLocaleString('vi-VN') + ' đ';
+            totalVnd.classList.remove('hidden');
+        }
     }
 }
 
@@ -409,13 +474,13 @@ function onCurrencyChange() {
 
     if (isBase) {
         document.getElementById('exchangeRateGroup').classList.add('hidden');
-        document.getElementById('dualPriceGroup').classList.add('hidden');
         document.getElementById('exchangeRateInput').value = 1;
     } else {
         document.getElementById('exchangeRateGroup').classList.remove('hidden');
-        document.getElementById('dualPriceGroup').classList.remove('hidden');
         fetchExchangeRate(select.value);
     }
+    
+    document.querySelectorAll('.item-qty').forEach(input => calculateRow(input));
     calculateTotal();
 }
 
@@ -429,31 +494,12 @@ async function fetchExchangeRate(currencyId) {
         
         if (data.rate) {
             document.getElementById('exchangeRateInput').value = data.rate;
+            document.querySelectorAll('.item-qty').forEach(input => calculateRow(input));
             calculateTotal();
         }
     } catch (e) {
         console.error('Failed to fetch exchange rate', e);
     }
-}
-
-function updateDualPriceDisplay(total) {
-    const select = document.getElementById('currencySelect');
-    const option = select.options[select.selectedIndex];
-    const isBase = option.dataset.isBase === '1';
-
-    if (isBase) return;
-
-    const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-    const symbol = option.dataset.symbol || '';
-    const vndTotal = Math.round(total * rate);
-
-    document.getElementById('dualPriceDisplay').innerHTML = `
-        <span class="font-bold">${symbol}${total.toLocaleString('vi-VN')}</span> 
-        <span class="mx-1">×</span> 
-        <span>${rate.toLocaleString('vi-VN')}</span> 
-        <span class="mx-1">=</span> 
-        <span class="font-bold text-blue-900">${vndTotal.toLocaleString('vi-VN')} ₫</span>
-    `;
 }
 
 // Gọi onCurrencyChange khi load trang để set trạng thái ban đầu

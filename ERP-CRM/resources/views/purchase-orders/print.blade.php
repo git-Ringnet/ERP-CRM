@@ -59,28 +59,29 @@
         $decimals = $purchaseOrder->currency->decimal_places ?? 2;
         $symbol = $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code ?? '';
 
+        // All DB values (except total) are saved in the raw selected currency
         // Subtotal
-        $subtotalVnd = $purchaseOrder->subtotal;
-        $subtotalForeign = $isForeign ? round($purchaseOrder->subtotal / $rate, $decimals) : $subtotalVnd;
+        $subtotalForeign = $purchaseOrder->subtotal;
+        $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $subtotalForeign;
 
         // Discount
-        $discountForeign = round($subtotalForeign * ($purchaseOrder->discount_percent / 100), $decimals);
-        $discountVnd = $isForeign ? round($discountForeign * $rate) : $purchaseOrder->discount_amount;
+        $discountForeign = $purchaseOrder->discount_amount;
+        $discountVnd = $isForeign ? round($discountForeign * $rate) : $discountForeign;
 
         // Shipping
-        $shippingVnd = $purchaseOrder->shipping_cost;
-        $shippingForeign = $isForeign ? round($shippingVnd / $rate, $decimals) : $shippingVnd;
+        $shippingForeign = $purchaseOrder->shipping_cost;
+        $shippingVnd = $isForeign ? round($shippingForeign * $rate) : $shippingForeign;
 
         // Other cost
-        $otherVnd = $purchaseOrder->other_cost;
-        $otherForeign = $isForeign ? round($otherVnd / $rate, $decimals) : $otherVnd;
+        $otherForeign = $purchaseOrder->other_cost;
+        $otherVnd = $isForeign ? round($otherForeign * $rate) : $otherForeign;
 
         // VAT
-        $beforeVatForeign = $subtotalForeign - $discountForeign + $shippingForeign + $otherForeign;
-        $vatForeign = round($beforeVatForeign * ($purchaseOrder->vat_percent / 100), $decimals);
-        $vatVnd = $isForeign ? round($vatForeign * $rate) : $purchaseOrder->vat_amount;
+        $vatForeign = $purchaseOrder->vat_amount;
+        $vatVnd = $isForeign ? round($vatForeign * $rate) : $vatForeign;
 
         // Total
+        $beforeVatForeign = $subtotalForeign - $discountForeign + $shippingForeign + $otherForeign;
         $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($beforeVatForeign + $vatForeign, $decimals) : $purchaseOrder->total);
         $totalVnd = $purchaseOrder->total;
     @endphp
