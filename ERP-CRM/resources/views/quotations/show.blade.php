@@ -124,8 +124,8 @@
                 $decimals = $quotation->currency->decimal_places ?? 2;
                 $symbol = $quotation->currency->symbol ?? $quotation->currency->code ?? '';
 
-                $subtotalVnd = $quotation->subtotal;
-                $subtotalForeign = $isForeign ? round($quotation->subtotal / $rate, $decimals) : $subtotalVnd;
+                $subtotalForeign = $isForeign ? $quotation->items->sum('total') : $quotation->subtotal;
+                $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $quotation->subtotal;
 
                 $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);
                 $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($quotation->discount / 100));

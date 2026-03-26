@@ -241,8 +241,8 @@
             $symbol = $quotation->currency->symbol ?? $quotation->currency->code ?? '';
 
             // Subtotal
-            $subtotalVnd = $quotation->subtotal;
-            $subtotalForeign = $isForeign ? round($quotation->subtotal / $rate, $decimals) : $subtotalVnd;
+            $subtotalForeign = $isForeign ? $quotation->items->sum('total') : $quotation->subtotal;
+            $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $quotation->subtotal;
 
             // Discount Amount
             $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);

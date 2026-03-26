@@ -143,7 +143,9 @@ class QuotationController extends Controller
                 'title' => $validated['title'],
                 'date' => $validated['date'],
                 'valid_until' => $validated['valid_until'],
-                'subtotal' => $subtotal,
+                'subtotal' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($subtotal, $validated['exchange_rate'] ?? 1)
+                    : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
                 'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
@@ -271,7 +273,9 @@ class QuotationController extends Controller
                 'title' => $validated['title'],
                 'date' => $validated['date'],
                 'valid_until' => $validated['valid_until'],
-                'subtotal' => $subtotal,
+                'subtotal' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($subtotal, $validated['exchange_rate'] ?? 1)
+                    : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
                 'vat' => $validated['vat'] ?? 10,
                 'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
