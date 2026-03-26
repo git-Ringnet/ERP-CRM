@@ -23,16 +23,14 @@ class Warehouse extends Model
         'phone',
         'status',
         'product_type',
-        'has_temperature_control',
-        'has_security_system',
         'note',
+
     ];
 
     protected $casts = [
         'area' => 'decimal:2',
         'capacity' => 'integer',
-        'has_temperature_control' => 'boolean',
-        'has_security_system' => 'boolean',
+
     ];
 
     /**

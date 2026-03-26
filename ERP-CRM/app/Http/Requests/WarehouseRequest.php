@@ -38,9 +38,8 @@ class WarehouseRequest extends FormRequest
             'phone' => 'nullable|string|max:20',
             'status' => 'required|in:active,maintenance,inactive',
             'product_type' => 'nullable|string|max:100',
-            'has_temperature_control' => 'boolean',
-            'has_security_system' => 'boolean',
             'note' => 'nullable|string|max:1000',
+
         ];
     }
 
@@ -60,9 +59,8 @@ class WarehouseRequest extends FormRequest
             'phone' => 'Số điện thoại',
             'status' => 'Trạng thái',
             'product_type' => 'Loại sản phẩm',
-            'has_temperature_control' => 'Kiểm soát nhiệt độ',
-            'has_security_system' => 'Hệ thống an ninh',
             'note' => 'Ghi chú',
+
         ];
     }
 

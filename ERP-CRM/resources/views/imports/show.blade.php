@@ -181,6 +181,8 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Danh sách Serial</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         </tr>
@@ -223,6 +225,12 @@
                                     <span class="px-3 py-1 text-sm font-bold bg-blue-100 text-blue-800 rounded-full">
                                         {{ number_format($item->quantity) }}
                                     </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="text-sm font-medium text-gray-900">{{ number_format($item->cost, 0, ',', '.') }} ₫</span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="text-sm font-bold text-gray-900">{{ number_format($item->quantity * $item->cost, 0, ',', '.') }} ₫</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     @php

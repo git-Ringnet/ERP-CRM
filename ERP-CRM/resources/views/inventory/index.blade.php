@@ -9,48 +9,60 @@
         <div class="p-3 sm:p-4 border-b border-gray-200 space-y-3">
             <div class="flex flex-col sm:flex-row gap-3">
                 <!-- Search -->
-                <div class="relative flex-1">
-                    <form action="{{ route('inventory.index') }}" method="GET" class="flex">
-                        <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm sản phẩm..."
-                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
-                        <input type="hidden" name="stock_status" value="{{ request('stock_status') }}">
-                        <input type="hidden" name="expiry_filter" value="{{ request('expiry_filter') }}">
-                    </form>
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Tìm kiếm</label>
+                    <div class="relative">
+                        <form action="{{ route('inventory.index') }}" method="GET" class="flex">
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm sản phẩm..."
+                                class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
+                            <input type="hidden" name="stock_status" value="{{ request('stock_status') }}">
+                            <input type="hidden" name="expiry_filter" value="{{ request('expiry_filter') }}">
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Filter by Warehouse -->
-                <select name="warehouse_id"
-                    onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&stock_status={{ request('stock_status') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                    <option value="">Tất cả kho</option>
-                    @foreach($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                            {{ $warehouse->name }}
-                        </option>
-                    @endforeach
-                </select>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Kho</label>
+                    <select name="warehouse_id"
+                        onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&stock_status={{ request('stock_status') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
+                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
+                        <option value="">Tất cả kho</option>
+                        @foreach($warehouses as $warehouse)
+                            <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
+                                {{ $warehouse->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <!-- Filter by Stock Status -->
-                <select name="stock_status"
-                    onchange="window.location.href='{{ route('inventory.index') }}?stock_status='+this.value+'&warehouse_id={{ request('warehouse_id') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="available" {{ request('stock_status') == 'available' ? 'selected' : '' }}>Còn hàng</option>
-                    <option value="low" {{ request('stock_status') == 'low' ? 'selected' : '' }}>Sắp hết</option>
-                    <option value="out" {{ request('stock_status') == 'out' ? 'selected' : '' }}>Hết hàng</option>
-                </select>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Trạng thái</label>
+                    <select name="stock_status"
+                        onchange="window.location.href='{{ route('inventory.index') }}?stock_status='+this.value+'&warehouse_id={{ request('warehouse_id') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
+                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="available" {{ request('stock_status') == 'available' ? 'selected' : '' }}>Còn hàng</option>
+                        <option value="low" {{ request('stock_status') == 'low' ? 'selected' : '' }}>Sắp hết</option>
+                        <option value="out" {{ request('stock_status') == 'out' ? 'selected' : '' }}>Hết hàng</option>
+                    </select>
+                </div>
 
                 <!-- Filter by Expiry -->
-                <select name="expiry_filter"
-                    onchange="window.location.href='{{ route('inventory.index') }}?expiry_filter='+this.value+'&warehouse_id={{ request('warehouse_id') }}&stock_status={{ request('stock_status') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                    <option value="">Tất cả hạn sử dụng</option>
-                    <option value="expiring" {{ request('expiry_filter') == 'expiring' ? 'selected' : '' }}>Sắp hết hạn
-                    </option>
-                    <option value="expired" {{ request('expiry_filter') == 'expired' ? 'selected' : '' }}>Đã hết hạn</option>
-                </select>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn sử dụng</label>
+                    <select name="expiry_filter"
+                        onchange="window.location.href='{{ route('inventory.index') }}?expiry_filter='+this.value+'&warehouse_id={{ request('warehouse_id') }}&stock_status={{ request('stock_status') }}&search={{ request('search') }}'"
+                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
+                        <option value="">Tất cả hạn sử dụng</option>
+                        <option value="expiring" {{ request('expiry_filter') == 'expiring' ? 'selected' : '' }}>Sắp hết hạn
+                        </option>
+                        <option value="expired" {{ request('expiry_filter') == 'expired' ? 'selected' : '' }}>Đã hết hạn</option>
+                    </select>
+                </div>
             </div>
 
             <div class="flex gap-2">

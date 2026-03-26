@@ -24,12 +24,14 @@
         </div>
 
         <div class="p-4 border-b border-gray-200 bg-gray-50">
-            <form action="{{ route('transfers.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
+            <form action="{{ route('transfers.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs text-gray-600 mb-1">Tìm kiếm</label>
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Kho</label>
                     <select name="warehouse_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                         <option value="">-- Tất cả kho --</option>
                         @foreach($warehouses as $warehouse)
@@ -39,7 +41,8 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Trạng thái</label>
                     <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                         <option value="">-- Tất cả trạng thái --</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
@@ -47,19 +50,27 @@
                         <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
                     </select>
                 </div>
-                <div>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                    <input type="text" id="date_from" name="date_from" value="{{ request('date_from') }}"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Từ ngày">
+                </div>
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                    <input type="text" id="date_to" name="date_to" value="{{ request('date_to') }}"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Đến ngày">
                 </div>
                 <div class="flex gap-2">
-                    <input type="date" name="date_to" value="{{ request('date_to') }}"
-                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                    <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                        <i class="fas fa-search"></i>
+                    <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
+                        <i class="fas fa-search mr-1"></i>Lọc
                     </button>
+                    <a href="{{ route('transfers.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
+                        <i class="fas fa-redo mr-1"></i>Reset
+                    </a>
                 </div>
             </form>
         </div>
+
 
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -85,7 +96,10 @@
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $transfer->warehouse->name ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $transfer->toWarehouse->name ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $transfer->date->format('d/m/Y') }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">
+                                {{ $transfer->date ? $transfer->date->format('d/m/Y') : '-' }}
+                            </td>
+
                             <td class="px-4 py-3 text-center">
                                 <span class="px-2 py-1 text-sm font-semibold bg-purple-100 text-purple-800 rounded">
                                     {{ number_format($transfer->total_qty) }}
@@ -154,4 +168,26 @@
             </div>
         @endif
     </div>
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (document.getElementById('date_from')) {
+                    flatpickr("#date_from", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+                if (document.getElementById('date_to')) {
+                    flatpickr("#date_to", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+            });
+        </script>
+    @endpush
 @endsection

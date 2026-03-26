@@ -204,6 +204,8 @@ class ExportController extends Controller
                 'warehouse_id' => $export->warehouse_id,
                 'quantity' => $item->quantity,
                 'requested_quantity' => $item->requested_quantity,
+                'unit_price' => $item->unit_price,
+                'total' => $item->total,
                 'comments' => $item->comments ?? '',
                 'product_item_ids' => $productItemIds,
             ];
@@ -252,6 +254,9 @@ class ExportController extends Controller
                     'requested_quantity' => $itemData['requested_quantity'] ?? null,
                     'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                     'comments' => $itemData['comments'] ?? null,
+                    'is_liquidation' => isset($itemData['is_liquidation']) ? (bool) $itemData['is_liquidation'] : false,
+                    'unit_price' => $itemData['unit_price'] ?? 0,
+                    'total' => $itemData['total'] ?? (($itemData['unit_price'] ?? 0) * $itemData['quantity']),
                 ]);
                 $totalQty += $itemData['quantity'];
             }

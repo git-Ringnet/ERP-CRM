@@ -25,12 +25,14 @@
         </div>
 
         <div class="p-4 border-b border-gray-200 bg-gray-50">
-            <form action="{{ route('exports.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <div>
+            <form action="{{ route('exports.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs text-gray-600 mb-1">Tìm kiếm</label>
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Kho xuất</label>
                     <select name="warehouse_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả kho --</option>
                         @foreach($warehouses as $warehouse)
@@ -40,27 +42,30 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Dự án</label>
                     <select name="project_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả dự án --</option>
                         @foreach($projects as $project)
                             <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
-                                {{ $project->code }} - {{ $project->name }}
+                                {{ $project->code }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Khách hàng</label>
                     <select name="customer_id" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả khách hàng --</option>
                         @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" {{ request('customer_id') == $customer->id ? 'selected' : '' }}>
-                                {{ $customer->code }} - {{ $customer->name }}
+                                {{ $customer->name }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Trạng thái</label>
                     <select name="status" class="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white">
                         <option value="">-- Tất cả trạng thái --</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
@@ -68,21 +73,27 @@
                         <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
                     </select>
                 </div>
-                <div>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" placeholder="Từ ngày"
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                    <input type="text" id="date_from" name="date_from" value="{{ request('date_from') }}" placeholder="Từ ngày"
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
-                <div>
-                    <input type="date" name="date_to" value="{{ request('date_to') }}" placeholder="Đến ngày"
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                    <input type="text" id="date_to" name="date_to" value="{{ request('date_to') }}" placeholder="Đến ngày"
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 </div>
-                <div>
-                    <button type="submit" class="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                        <i class="fas fa-search mr-2"></i>Tìm kiếm
+                <div class="flex gap-2">
+                    <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
+                        <i class="fas fa-search mr-1"></i>Lọc
                     </button>
+                    <a href="{{ route('exports.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
+                        <i class="fas fa-redo mr-1"></i>Reset
+                    </a>
                 </div>
             </form>
         </div>
+
 
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -92,6 +103,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án / Khách hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhân viên</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
@@ -131,10 +143,18 @@
                                     <span class="text-gray-400">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $export->date->format('d/m/Y') }}</td>
+                             <td class="px-4 py-3 text-sm text-gray-600">
+                                {{ $export->date ? $export->date->format('d/m/Y') : '-' }}
+                            </td>
+
                             <td class="px-4 py-3 text-center">
                                 <span class="px-2 py-1 text-sm font-semibold bg-orange-100 text-orange-800 rounded">
                                     {{ number_format($export->total_qty) }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <span class="text-sm font-bold text-blue-700">
+                                    {{ number_format($export->total_amount, $export->total_amount == floor($export->total_amount) ? 0 : 2, '.', ',') }}
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-center">
@@ -204,4 +224,26 @@
             </div>
         @endif
     </div>
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (document.getElementById('date_from')) {
+                    flatpickr("#date_from", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+                if (document.getElementById('date_to')) {
+                    flatpickr("#date_to", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+            });
+        </script>
+    @endpush
 @endsection

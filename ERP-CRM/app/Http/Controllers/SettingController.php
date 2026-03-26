@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 
 class SettingController extends Controller
 {
@@ -14,8 +15,9 @@ class SettingController extends Controller
         $this->authorize('viewAny', Setting::class);
         
         $emailSettings = Setting::where('group', 'email')->get();
+        $companySettings = Setting::where('group', 'company')->get();
         
-        return view('settings.index', compact('emailSettings'));
+        return view('settings.index', compact('emailSettings', 'companySettings'));
     }
 
     public function updateEmail(Request $request)
@@ -69,5 +71,28 @@ class SettingController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Không thể gửi email: ' . $e->getMessage());
         }
+    }
+
+    public function updateCompany(Request $request)
+    {
+        $this->authorize('update', Setting::class);
+        
+        $validated = $request->validate([
+            'company_name' => ['required', 'string', 'max:255'],
+            'company_address' => ['required', 'string', 'max:500'],
+            'company_city' => ['nullable', 'string', 'max:255'],
+            'company_tax_code' => ['nullable', 'string', 'max:50'],
+            'company_phone' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        foreach ($validated as $key => $value) {
+            Setting::updateOrCreate(
+                ['key' => $key],
+                ['value' => $value, 'group' => 'company']
+            );
+            Cache::forget("setting.{$key}");
+        }
+
+        return back()->with('success', 'Thông tin công ty đã được cập nhật thành công.');
     }
 }

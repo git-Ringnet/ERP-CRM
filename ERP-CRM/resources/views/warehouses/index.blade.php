@@ -10,35 +10,45 @@
             <div class="flex flex-col sm:flex-row gap-3">
                 <!-- Search -->
                 <div class="relative flex-1">
-                    <form action="{{ route('warehouses.index') }}" method="GET" class="flex">
-                        <input type="text" name="search" value="{{ request('search') }}"
-                            placeholder="Tìm kiếm theo mã, tên kho..."
-                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        <input type="hidden" name="status" value="{{ request('status') }}">
-                        <input type="hidden" name="type" value="{{ request('type') }}">
-                    </form>
+                    <label class="block text-xs text-gray-600 mb-1 ml-1">Tìm kiếm</label>
+                    <div class="relative">
+                        <form action="{{ route('warehouses.index') }}" method="GET" class="flex">
+                            <input type="text" name="search" value="{{ request('search') }}"
+                                placeholder="Tìm kiếm theo mã, tên kho..."
+                                class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="hidden" name="status" value="{{ request('status') }}">
+                            <input type="hidden" name="type" value="{{ request('type') }}">
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Filter by Status -->
-                <select name="status"
-                    onchange="window.location.href='{{ route('warehouses.index') }}?status='+this.value+'&type={{ request('type') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang hoạt động</option>
-                    <option value="maintenance" {{ request('status') == 'maintenance' ? 'selected' : '' }}>Đang bảo trì
-                    </option>
-                    <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Ngừng hoạt động</option>
-                </select>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1 ml-1">Trạng thái</label>
+                    <select name="status"
+                        onchange="window.location.href='{{ route('warehouses.index') }}?status='+this.value+'&type={{ request('type') }}&search={{ request('search') }}'"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang hoạt động</option>
+                        <option value="maintenance" {{ request('status') == 'maintenance' ? 'selected' : '' }}>Đang bảo trì
+                        </option>
+                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Ngừng hoạt động</option>
+                    </select>
+                </div>
 
                 <!-- Filter by Type -->
-                <select name="type"
-                    onchange="window.location.href='{{ route('warehouses.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'"
-                    class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                    <option value="">Tất cả loại</option>
-                    <option value="physical" {{ request('type') == 'physical' ? 'selected' : '' }}>Kho vật lý</option>
-                    <option value="virtual" {{ request('type') == 'virtual' ? 'selected' : '' }}>Kho ảo</option>
-                </select>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1 ml-1">Loại kho</label>
+                    <select name="type"
+                        onchange="window.location.href='{{ route('warehouses.index') }}?type='+this.value+'&status={{ request('status') }}&search={{ request('search') }}'"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
+                        <option value="">Tất cả loại</option>
+                        <option value="physical" {{ request('type') == 'physical' ? 'selected' : '' }}>Kho vật lý</option>
+                        <option value="virtual" {{ request('type') == 'virtual' ? 'selected' : '' }}>Kho ảo</option>
+                    </select>
+                </div>
+
             </div>
 
             <div class="flex justify-end gap-2">

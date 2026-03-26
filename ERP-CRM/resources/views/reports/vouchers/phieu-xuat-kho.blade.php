@@ -32,8 +32,8 @@
 
     <div class="header">
         <div class="company-info">
-            <strong>Đơn vị:</strong> CÔNG TY TNHH RINGNET<br>
-            <strong>Địa chỉ:</strong> TP. Hồ Chí Minh
+            <strong>Đơn vị:</strong> {{ \App\Models\Setting::get('company_name', 'CÔNG TY TNHH RINGNET') }}<br>
+            <strong>Địa chỉ:</strong> {{ \App\Models\Setting::get('company_address', 'TP. Hồ Chí Minh') }}
         </div>
         <div class="voucher-code">
             <strong>Mẫu số 02 - VT</strong><br>
@@ -79,8 +79,8 @@
                 <td>{{ $item->product->unit ?? 'Cái' }}</td>
                 <td>{{ $item->requested_quantity ? number_format($item->requested_quantity) : number_format($item->quantity) }}</td>
                 <td>{{ number_format($item->quantity) }}</td>
-                <td>{{ number_format($item->price ?? 0) }}</td>
-                <td>{{ number_format(($item->price ?? 0) * $item->quantity) }}</td>
+                <td>{{ number_format($item->unit_price ?? 0, ($item->unit_price ?? 0) == floor($item->unit_price ?? 0) ? 0 : 2, '.', ',') }}</td>
+                <td>{{ number_format($item->total ?? 0, ($item->total ?? 0) == floor($item->total ?? 0) ? 0 : 2, '.', ',') }}</td>
             </tr>
             @endforeach
             <tr>
@@ -88,7 +88,7 @@
                 <td><strong>{{ number_format($export->items->sum(function($i){ return $i->requested_quantity ?: $i->quantity; })) }}</strong></td>
                 <td><strong>{{ number_format($export->items->sum('quantity')) }}</strong></td>
                 <td>x</td>
-                <td><strong>{{ number_format($export->items->sum(function($i){ return ($i->price ?? 0) * $i->quantity; })) }}</strong></td>
+                <td><strong>{{ number_format($export->items->sum('total'), $export->items->sum('total') == floor($export->items->sum('total')) ? 0 : 2, '.', ',') }}</strong></td>
             </tr>
         </tbody>
     </table>

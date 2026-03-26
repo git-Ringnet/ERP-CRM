@@ -121,6 +121,16 @@ class Export extends Model
     }
 
     /**
+     * Get total amount of the export slip.
+     */
+    public function getTotalAmountAttribute(): float
+    {
+        return (float) $this->items->sum(function($item) {
+            return $item->calculated_total;
+        });
+    }
+
+    /**
      * Get status color for badge.
      */
     public function getStatusColorAttribute(): string

@@ -33,8 +33,8 @@
 
     <div class="header">
         <div class="company-info">
-            <strong>Đơn vị:</strong> CÔNG TY TNHH RINGNET<br>
-            <strong>Địa chỉ:</strong> TP. Hồ Chí Minh
+            <strong>Đơn vị:</strong> {{ \App\Models\Setting::get('company_name', 'CÔNG TY TNHH RINGNET') }}<br>
+            <strong>Địa chỉ:</strong> {{ \App\Models\Setting::get('company_address', 'TP. Hồ Chí Minh') }}
         </div>
         <div class="voucher-code">
             <strong>Mẫu số 01 - TT</strong><br>

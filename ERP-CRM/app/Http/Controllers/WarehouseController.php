@@ -63,8 +63,7 @@ class WarehouseController extends Controller
         $this->authorize('create', Warehouse::class);
         
         $data = $request->validated();
-        $data['has_temperature_control'] = $request->boolean('has_temperature_control');
-        $data['has_security_system'] = $request->boolean('has_security_system');
+
 
         Warehouse::create($data);
 
@@ -136,8 +135,7 @@ class WarehouseController extends Controller
         $this->authorize('update', $warehouse);
         
         $data = $request->validated();
-        $data['has_temperature_control'] = $request->boolean('has_temperature_control');
-        $data['has_security_system'] = $request->boolean('has_security_system');
+
 
         $warehouse->update($data);
 

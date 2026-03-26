@@ -4,6 +4,46 @@
 @section('page-title', 'Thêm kho mới')
 
 @section('content')
+@push('styles')
+
+    <style>
+        .searchable-select {
+            position: relative;
+        }
+        .searchable-dropdown {
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-bottom-left-radius: 0.5rem;
+            border-bottom-right-radius: 0.5rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .searchable-option {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .searchable-option:hover {
+            background-color: #eff6ff;
+        }
+        .searchable-option.highlighted {
+            background-color: #dbeafe;
+        }
+        .no-results {
+            padding: 0.5rem 0.75rem;
+            color: #6b7280;
+            font-style: italic;
+            font-size: 0.875rem;
+        }
+    </style>
+@endpush
+
+
 <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-800">Thông tin kho hàng</h2>
@@ -73,15 +113,23 @@
                     <label for="manager_id" class="block text-sm font-medium text-gray-700 mb-1">
                         Người quản lý
                     </label>
-                    <select name="manager_id" id="manager_id" 
-                            class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <option value="">-- Chọn người quản lý --</option>
-                        @foreach($managers as $manager)
-                            <option value="{{ $manager->id }}" {{ old('manager_id') == $manager->id ? 'selected' : '' }}>
-                                {{ $manager->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="searchable-select" id="managerSelect">
+                        <input type="text" class="searchable-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent @error('manager_id') border-red-500 @enderror" 
+                               placeholder="Gõ để tìm người quản lý..." 
+                               value="{{ old('manager_name') }}"
+                               autocomplete="off">
+                        <input type="hidden" name="manager_id" id="manager_id" value="{{ old('manager_id') }}" required>
+                        <div class="searchable-dropdown hidden absolute">
+                            @foreach($managers as $manager)
+                                <div class="searchable-option" 
+                                     data-value="{{ $manager->id }}" 
+                                     data-text="{{ $manager->name }} ({{ $manager->employee_code }})">
+                                    {{ $manager->name }} ({{ $manager->employee_code }})
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
                     @error('manager_id')
                         <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
                     @enderror
@@ -148,24 +196,7 @@
                     @enderror
                 </div>
 
-                <!-- Tính năng -->
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Tính năng</label>
-                    <div class="flex flex-wrap gap-4">
-                        <label class="inline-flex items-center">
-                            <input type="checkbox" name="has_temperature_control" value="1" 
-                                   {{ old('has_temperature_control') ? 'checked' : '' }}
-                                   class="rounded border-gray-300 text-primary focus:ring-primary">
-                            <span class="ml-2 text-sm text-gray-700">Kiểm soát nhiệt độ</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="checkbox" name="has_security_system" value="1" 
-                                   {{ old('has_security_system') ? 'checked' : '' }}
-                                   class="rounded border-gray-300 text-primary focus:ring-primary">
-                            <span class="ml-2 text-sm text-gray-700">Hệ thống an ninh</span>
-                        </label>
-                    </div>
-                </div>
+
 
                 <!-- Ghi chú -->
                 <div class="md:col-span-2">
@@ -194,3 +225,130 @@
         </form>
 </div>
 @endsection
+
+@push('scripts')
+    <script>
+        function removeAccents(str) {
+            if (!str) return '';
+            return str.normalize('NFD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .replace(/đ/g, 'd')
+                      .replace(/Đ/g, 'D')
+                      .toLowerCase();
+        }
+
+        function initSearchableSelect(container) {
+            const input = container.querySelector('.searchable-input');
+            const hiddenInput = container.querySelector('input[type="hidden"]');
+            const dropdown = container.querySelector('.searchable-dropdown');
+            const options = dropdown.querySelectorAll('.searchable-option');
+            
+            input.addEventListener('focus', () => {
+                dropdown.classList.remove('hidden');
+                filterOptions(input.value);
+            });
+            
+            input.addEventListener('input', (e) => {
+                filterOptions(e.target.value);
+                // Clear hidden input if manual typing occurs without selection
+                // hiddenInput.value = ''; 
+            });
+            
+            function filterOptions(query) {
+                const q = removeAccents(query);
+                let hasResults = false;
+                options.forEach(opt => {
+                    const text = removeAccents(opt.dataset.text);
+                    if (text.includes(q)) {
+                        opt.classList.remove('hidden');
+                        hasResults = true;
+                    } else {
+                        opt.classList.add('hidden');
+                    }
+                });
+
+                
+                let noResults = dropdown.querySelector('.no-results');
+                if (!hasResults) {
+                    if (!noResults) {
+                        noResults = document.createElement('div');
+                        noResults.className = 'no-results';
+                        noResults.textContent = 'Không tìm thấy kết quả';
+                        dropdown.appendChild(noResults);
+                    }
+                    noResults.classList.remove('hidden');
+                } else if (noResults) {
+                    noResults.classList.add('hidden');
+                }
+            }
+            
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    input.value = opt.dataset.text;
+                    hiddenInput.value = opt.dataset.value;
+                    dropdown.classList.add('hidden');
+                    
+                    // Add a special input for the name so it's preserved on validation error
+                    let nameInput = container.querySelector('input[name="manager_name"]');
+                    if (!nameInput) {
+                        nameInput = document.createElement('input');
+                        nameInput.type = 'hidden';
+                        nameInput.name = 'manager_name';
+                        container.appendChild(nameInput);
+                    }
+                    nameInput.value = opt.dataset.text;
+                });
+            });
+            
+            // Keyboard navigation
+            input.addEventListener('keydown', (e) => {
+                const visibleOptions = [...options].filter(o => !o.classList.contains('hidden'));
+                const highlighted = dropdown.querySelector('.searchable-option.highlighted');
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!highlighted && visibleOptions.length) {
+                        visibleOptions[0].classList.add('highlighted');
+                    } else if (highlighted) {
+                        const idx = visibleOptions.indexOf(highlighted);
+                        if (idx < visibleOptions.length - 1) {
+                            highlighted.classList.remove('highlighted');
+                            visibleOptions[idx + 1].classList.add('highlighted');
+                            visibleOptions[idx + 1].scrollIntoView({ block: 'nearest' });
+                        }
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (highlighted) {
+                        const idx = visibleOptions.indexOf(highlighted);
+                        if (idx > 0) {
+                            highlighted.classList.remove('highlighted');
+                            visibleOptions[idx - 1].classList.add('highlighted');
+                            visibleOptions[idx - 1].scrollIntoView({ block: 'nearest' });
+                        }
+                    }
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (highlighted) highlighted.click();
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                }
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const managerSelect = document.getElementById('managerSelect');
+            if (managerSelect) {
+                initSearchableSelect(managerSelect);
+            }
+        });
+    </script>
+@endpush
+
+

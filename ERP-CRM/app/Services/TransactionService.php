@@ -270,6 +270,8 @@ class TransactionService
                         'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
                         'comments' => $item['comments'] ?? null,
                         'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
+                        'unit_price' => $item['unit_price'] ?? 0,
+                        'total' => $item['total'] ?? (($item['unit_price'] ?? 0) * $item['quantity']),
                     ]);
                     $totalQty += $item['quantity'];
                 }

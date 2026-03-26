@@ -164,6 +164,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
     Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
     Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
+    Route::post('/settings/company', [SettingController::class, 'updateCompany'])->name('settings.company.update');
 
     // Customer Debt Management routes
     Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');

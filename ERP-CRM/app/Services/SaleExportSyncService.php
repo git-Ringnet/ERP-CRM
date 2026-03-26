@@ -159,6 +159,8 @@ class SaleExportSyncService
                     'unit' => null,
                     'serial_number' => null,
                     'comments' => "Từ đơn hàng {$sale->code} - {$saleItem->product_name}",
+                    'unit_price' => $saleItem->price,
+                    'total' => $saleItem->total,
                 ]);
                 $totalQty += $saleItem->quantity;
             }

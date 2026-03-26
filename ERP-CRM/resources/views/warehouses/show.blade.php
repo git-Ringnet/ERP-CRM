@@ -87,25 +87,7 @@
                 <p class="font-medium text-gray-900">{{ $warehouse->address ?? '-' }}</p>
             </div>
 
-            <!-- Features -->
-            <div class="mt-4">
-                <label class="text-sm text-gray-500 block mb-2">Tính năng</label>
-                <div class="flex flex-wrap gap-2">
-                    @if($warehouse->has_temperature_control)
-                        <span class="px-3 py-1 text-sm rounded-full bg-cyan-100 text-cyan-800">
-                            <i class="fas fa-thermometer-half mr-1"></i>Kiểm soát nhiệt độ
-                        </span>
-                    @endif
-                    @if($warehouse->has_security_system)
-                        <span class="px-3 py-1 text-sm rounded-full bg-indigo-100 text-indigo-800">
-                            <i class="fas fa-shield-alt mr-1"></i>Hệ thống an ninh
-                        </span>
-                    @endif
-                    @if(!$warehouse->has_temperature_control && !$warehouse->has_security_system)
-                        <span class="text-gray-500">Không có tính năng đặc biệt</span>
-                    @endif
-                </div>
-            </div>
+
 
             <!-- Note -->
             @if($warehouse->note)

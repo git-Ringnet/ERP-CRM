@@ -11,9 +11,6 @@
             <a href="{{ route('exports.export-excel', $export) }}" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>
-            <a href="{{ route('exports.print', $export) }}" target="_blank" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
-                <i class="fas fa-print mr-2"></i> In chứng từ
-            </a>
             @if($export->status === 'pending')
                 <a href="{{ route('exports.edit', $export) }}" 
                    class="px-3 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600">
@@ -154,7 +151,9 @@
                 }
             @endphp
             
+            @php $overallTotal = 0; @endphp
             @foreach($itemsByWarehouse as $warehouseId => $warehouseData)
+                @php $subTotal = 0; $stt = 1; @endphp
             <div class="mb-6 {{ !$loop->last ? 'pb-6 border-b border-gray-200' : '' }}">
                 <div class="overflow-x-auto">
                     <table class="w-full table-fixed">
@@ -173,15 +172,16 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @php $stt = 1; $grandTotal = 0; @endphp
-                            @foreach($warehouseData['items'] as $item)
+                             @foreach($warehouseData['items'] as $item)
                             @php
-                                // Get avg_cost for this item – use warehouseId from the current group
-                                $itemAvgCost = \App\Models\Inventory::where('product_id', $item->product_id)
-                                    ->where('warehouse_id', $warehouseId)
-                                    ->value('avg_cost') ?? 0;
-                                $itemTotal = $itemAvgCost * $item->quantity;
-                                $grandTotal += $itemTotal;
+                                // Use stored price/total if available, fallback to avg_cost for legacy records
+                                $displayUnitPrice = $item->unit_price ?? (\App\Models\Inventory::where('product_id', $item->product_id)
+                                    ->where('warehouse_id', $item->warehouse_id ?? $warehouseId)
+                                    ->first()->avg_cost ?? 0);
+                                $displayTotal = $item->total ?? ($displayUnitPrice * $item->quantity);
+                                $subTotal += $displayTotal;
+                                $overallTotal += $displayTotal;
+                                
                                 // Get serials: from serial_number JSON (pending) or ProductItem (completed)
                                 $serialsWithSku = collect();
                                 $noSkuCount = 0;
@@ -231,15 +231,15 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
-                                    @if($itemAvgCost > 0)
-                                        <span class="font-medium text-gray-800">{{ number_format($itemAvgCost, 0, ',', '.') }} đ</span>
+                                    @if($displayUnitPrice > 0)
+                                        <span class="font-medium text-gray-800">{{ number_format($displayUnitPrice, $displayUnitPrice == floor($displayUnitPrice) ? 0 : 2, '.', ',') }} đ</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
-                                    @if($itemTotal > 0)
-                                        <span class="font-semibold text-blue-700">{{ number_format($itemTotal, 0, ',', '.') }} đ</span>
+                                    @if($displayTotal > 0)
+                                        <span class="font-semibold text-blue-700">{{ number_format($displayTotal, $displayTotal == floor($displayTotal) ? 0 : 2, '.', ',') }} đ</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -266,18 +266,27 @@
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
                             </tr>
                             @endforeach
-                            @if($grandTotal > 0)
-                            <tr class="bg-blue-50 border-t-2 border-blue-200">
-                                <td colspan="6" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị xuất:</td>
-                                <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($grandTotal, 0, ',', '.') }} đ</td>
-                                <td colspan="3"></td>
+                            <tr class="bg-gray-50 border-t border-gray-200">
+                                <td colspan="7" class="px-4 py-3 text-right text-sm font-bold text-gray-700 uppercase">Cộng kho:</td>
+                                <td class="px-4 py-3 text-right text-sm font-bold text-blue-700 whitespace-nowrap">
+                                    {{ number_format($subTotal, $subTotal == floor($subTotal) ? 0 : 2, '.', ',') }} đ
+                                </td>
+                                <td colspan="2"></td>
                             </tr>
-                            @endif
                         </tbody>
                     </table>
                 </div>
             </div>
             @endforeach
+            
+            @if(isset($overallTotal) && $overallTotal > 0)
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex justify-between items-center shadow-sm">
+                <span class="text-sm font-bold text-blue-800 uppercase tracking-wider">Tổng cộng toàn bộ phiếu:</span>
+                <span class="text-xl font-black text-blue-700">
+                    {{ number_format($overallTotal, $overallTotal == floor($overallTotal) ? 0 : 2, '.', ',') }} đ
+                </span>
+            </div>
+            @endif
         </div>
 
         <!-- Timestamps -->

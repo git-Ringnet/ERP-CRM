@@ -30,14 +30,7 @@ class SettingPolicy extends BasePolicy
         return $this->checkPermission($user, 'view_settings');
     }
 
-    /**
-     * Determine whether the user can update the setting.
-     *
-     * @param User $user
-     * @param Setting $setting
-     * @return bool
-     */
-    public function update(User $user, Setting $setting): bool
+    public function update(User $user, Setting $setting = null): bool
     {
         return $this->checkPermission($user, 'edit_settings');
     }

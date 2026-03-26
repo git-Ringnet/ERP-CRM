@@ -31,12 +31,14 @@
 
         <!-- Filters -->
         <div class="p-4 border-b border-gray-200 bg-gray-50">
-            <form action="{{ route('imports.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
+            <form action="{{ route('imports.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs text-gray-600 mb-1">Tìm kiếm</label>
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Kho nhập</label>
                     <select name="warehouse_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                         <option value="">-- Tất cả kho --</option>
                         @foreach($warehouses as $warehouse)
@@ -46,7 +48,8 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
+                <div class="w-full sm:w-48">
+                    <label class="block text-xs text-gray-600 mb-1">Trạng thái</label>
                     <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                         <option value="">-- Tất cả trạng thái --</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
@@ -54,19 +57,27 @@
                         <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
                     </select>
                 </div>
-                <div>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}"
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                    <input type="text" id="date_from" name="date_from" value="{{ request('date_from') }}"
                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Từ ngày">
                 </div>
+                <div class="w-full sm:w-40">
+                    <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                    <input type="text" id="date_to" name="date_to" value="{{ request('date_to') }}"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Đến ngày">
+                </div>
                 <div class="flex gap-2">
-                    <input type="date" name="date_to" value="{{ request('date_to') }}"
-                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Đến ngày">
-                    <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                        <i class="fas fa-search"></i>
+                    <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
+                        <i class="fas fa-search mr-1"></i>Lọc
                     </button>
+                    <a href="{{ route('imports.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
+                        <i class="fas fa-redo mr-1"></i>Reset
+                    </a>
                 </div>
             </form>
         </div>
+
 
         <!-- Table -->
         <div class="overflow-x-auto">
@@ -103,7 +114,10 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $import->warehouse->name ?? 'Nhiều kho' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $import->date->format('d/m/Y') }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">
+                                {{ $import->date ? $import->date->format('d/m/Y') : '-' }}
+                            </td>
+
                             <td class="px-4 py-3 text-center">
                                 <span class="px-2 py-1 text-sm font-semibold bg-blue-100 text-blue-800 rounded">
                                     {{ number_format($import->total_qty) }}
@@ -275,7 +289,27 @@
 
     @push('scripts')
         <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (document.getElementById('date_from')) {
+                    flatpickr("#date_from", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+                if (document.getElementById('date_to')) {
+                    flatpickr("#date_to", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+            });
+
             function openImportModal() {
+
                 document.getElementById('importModal').classList.remove('hidden');
             }
 

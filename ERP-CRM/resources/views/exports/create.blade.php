@@ -17,6 +17,27 @@
     <form action="{{ route('exports.store') }}" method="POST" class="p-4" id="exportForm" onsubmit="return validateForm()">
         @csrf
         
+        @if ($errors->any())
+            <div class="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r shadow-sm">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-exclamation-circle mr-2 text-lg"></i>
+                    <span class="font-bold">Vui lòng kiểm tra lại các lỗi sau:</span>
+                </div>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        
+        @if (session('error'))
+            <div class="mb-4 p-4 bg-red-100 border border-red-200 text-red-800 rounded-lg flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                {{ session('error') }}
+            </div>
+        @endif
+        
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã phiếu xuất</label>
@@ -92,6 +113,11 @@
             </div>
 
             <div id="itemsContainer" class="space-y-4"></div>
+            
+            <div class="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-100 flex justify-between items-center shadow-sm">
+                <span class="text-sm font-bold text-orange-800 uppercase tracking-wider">Tổng cộng phiếu xuất:</span>
+                <span id="grandTotalDisplay" class="text-xl font-black text-orange-600">0 đ</span>
+            </div>
         </div>
 
         <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
@@ -161,12 +187,14 @@ function addItem(existingData = null) {
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
-            <div class="md:col-span-4">
+            <div class="md:col-span-5">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
                 <div class="searchable-select product-searchable" data-index="${itemIndex}">
                     <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
-                    <input type="hidden" name="items[${itemIndex}][product_id]" required class="product-id-input">
+                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off"
+                           value="${existingData ? products.find(p => p.id == existingData.product_id)?.code + ' - ' + products.find(p => p.id == existingData.product_id)?.name : ''}">
+                    <input type="hidden" name="items[${itemIndex}][product_id]" required class="product-id-input"
+                           value="${existingData ? existingData.product_id : ''}">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                         ${products.map(p => `
                             <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
@@ -188,18 +216,32 @@ function addItem(existingData = null) {
                 </select>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng yêu cầu</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">SL Yêu cầu</label>
                 <input type="number" name="items[${itemIndex}][requested_quantity]" value="${existingData ? existingData.requested_quantity || '' : ''}" 
                        min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                       placeholder="Số lượng yêu cầu">
+                       placeholder="Yêu cầu">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng thực xuất *</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Thực xuất *</label>
                 <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
-                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                       placeholder="1" onchange="onQuantityChange(${itemIndex})">
+                       required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded quantity-input" 
+                       placeholder="1" onchange="updateRowTotal(${itemIndex})">
+            </div>
+            
+            <div class="md:col-span-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                <input type="text" value="0" 
+                       class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded unit-price-display" 
+                       oninput="onPriceInput(this, ${itemIndex})">
+                <input type="hidden" name="items[${itemIndex}][unit_price]" value="0" class="unit-price-raw">
             </div>
             <div class="md:col-span-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                <input type="text" value="0" 
+                       readonly class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 total-display">
+                <input type="hidden" name="items[${itemIndex}][total]" value="0" class="total-raw">
+            </div>
+            <div class="md:col-span-6">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
                 <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
@@ -239,7 +281,10 @@ function addItem(existingData = null) {
 
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
-    if (item) item.remove();
+    if (item) {
+        item.remove();
+        updateGrandTotal();
+    }
 }
 
 async function loadStockInfo(itemIdx) {
@@ -290,6 +335,15 @@ async function loadStockInfo(itemIdx) {
         const avgCost = data.avg_cost || 0;
         if (avgCost > 0) {
             summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('vi-VN')} đ</span>`;
+            
+            // Auto-fill unit price if current value is 0 or empty
+            const priceDisplay = document.querySelector(`[data-index="${itemIdx}"] .unit-price-display`);
+            const priceRaw = document.querySelector(`[data-index="${itemIdx}"] .unit-price-raw`);
+            if (priceRaw && (parseFloat(priceRaw.value) === 0 || !priceRaw.value)) {
+                priceRaw.value = avgCost;
+                priceDisplay.value = formatNumber(avgCost);
+                updateRowTotal(itemIdx);
+            }
         }
         
         stockSummary.innerHTML = summaryHtml;
@@ -305,10 +359,73 @@ async function loadStockInfo(itemIdx) {
     validateQuantity(itemIdx);
 }
 
+function formatNumber(num) {
+    if (isNaN(num)) return '0';
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(num);
+}
+
+function onPriceInput(input, itemIdx) {
+    // Remove all non-numeric characters except decimal point
+    let value = input.value.replace(/,/g, '');
+    if (value === '.') value = '0.';
+    
+    const numValue = parseFloat(value) || 0;
+    
+    // Store raw value
+    const rawInput = document.querySelector(`[data-index="${itemIdx}"] .unit-price-raw`);
+    if (rawInput) rawInput.value = value;
+    
+    // Update display with formatting (only if not ending with . to allow typing decimals)
+    if (!value.endsWith('.')) {
+        input.value = formatNumber(numValue);
+    }
+    
+    updateRowTotal(itemIdx);
+}
+
+function updateRowTotal(itemIdx) {
+    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
+    const priceRaw = document.querySelector(`[data-index="${itemIdx}"] .unit-price-raw`);
+    const totalDisplay = document.querySelector(`[data-index="${itemIdx}"] .total-display`);
+    const totalRaw = document.querySelector(`[data-index="${itemIdx}"] .total-raw`);
+    
+    if (!qtyInput || !priceRaw || !totalDisplay || !totalRaw) return;
+    
+    const qty = parseFloat(qtyInput.value) || 0;
+    const price = parseFloat(priceRaw.value) || 0;
+    const total = qty * price;
+    
+    totalRaw.value = total.toFixed(2);
+    totalDisplay.value = formatNumber(total);
+    
+    updateGrandTotal();
+    
+    // Also trigger serial validation
+    onQuantityChange(itemIdx);
+}
+
+function updateGrandTotal() {
+    let grandTotal = 0;
+    document.querySelectorAll('.total-raw').forEach(input => {
+        grandTotal += parseFloat(input.value) || 0;
+    });
+    
+    const display = document.getElementById('grandTotalDisplay');
+    if (display) {
+        display.innerText = formatNumber(grandTotal) + ' đ';
+    }
+}
+
 function onQuantityChange(itemIdx) {
     // Clear excess serial selects if quantity decreased
     const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
     const container = document.getElementById(`serialContainer_${itemIdx}`);
+    
+    if (!qtyInput || !container) return;
+    
     const qty = parseInt(qtyInput.value) || 1;
     const selects = container.querySelectorAll('.serial-select');
     
@@ -499,13 +616,27 @@ function validateForm() {
         const productSelect = document.querySelector(`[name="items[${itemIndex}][product_id]"]`);
         const qtyInput = document.querySelector(`[name="items[${itemIndex}][quantity]"]`);
         
-        if (!warehouseSelect || !productSelect || !qtyInput) return;
+        const warehouseId = warehouseSelect ? warehouseSelect.value : '';
+        const productId = productSelect ? productSelect.value : '';
+        const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
         
-        const warehouseId = warehouseSelect.value;
-        const productId = productSelect.value;
-        const qty = parseInt(qtyInput.value) || 0;
+        if (!productId) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm #${idx + 1}: Chưa chọn sản phẩm hoặc chưa tìm thấy mã sản phẩm.`);
+            return;
+        }
         
-        if (!warehouseId || !productId || qty <= 0) return;
+        if (!warehouseId) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm #${idx + 1}: Chưa chọn kho xuất.`);
+            return;
+        }
+        
+        if (qty <= 0) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm #${idx + 1}: Số lượng phải lớn hơn 0.`);
+            return;
+        }
         
         const cacheKey = `${productId}_${warehouseId}`;
         const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
@@ -520,13 +651,15 @@ function validateForm() {
         // Check if quantity exceeds stock
         if (qty > totalStock) {
             hasError = true;
-            const productName = productSelect.options[productSelect.selectedIndex].text;
+            const productSearchInput = item.querySelector('.searchable-input');
+            const productName = productSearchInput ? productSearchInput.value : `Sản phẩm #${idx + 1}`;
             errorMessages.push(`Sản phẩm "${productName}": Số lượng (${qty}) vượt quá tồn kho (${totalStock})`);
         }
         // Check if need more serials
         else if (remainingQty > noSkuCount && serialItems.length > 0) {
             hasError = true;
-            const productName = productSelect.options[productSelect.selectedIndex].text;
+            const productSearchInput = item.querySelector('.searchable-input');
+            const productName = productSearchInput ? productSearchInput.value : `Sản phẩm #${idx + 1}`;
             const needSerials = remainingQty - noSkuCount;
             errorMessages.push(`Sản phẩm "${productName}": Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`);
         }

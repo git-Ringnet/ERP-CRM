@@ -18,6 +18,38 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+
+    /* Searchable Select Styles */
+    .searchable-select {
+        position: relative;
+    }
+    .searchable-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-top: none;
+        border-radius: 0 0 0.5rem 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .searchable-option {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+    .searchable-option:hover {
+        background-color: #f3f4f6;
+    }
+    .searchable-option.selected {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+    }
 </style>
 @endpush
 
@@ -55,7 +87,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Ngày nhập <span class="text-red-500">*</span>
                         </label>
-                        <input type="date" name="date" value="{{ old('date', $import->date->format('Y-m-d')) }}" required
+                        <input type="text" name="date" id="date_picker" value="{{ old('date', $import->date->format('Y-m-d')) }}" required
                             class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg @error('date') border-red-500 @enderror">
                         @error('date')
                             <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
@@ -64,29 +96,38 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Nhân viên nhập</label>
-                        <select name="employee_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-                            <option value="">-- Chọn nhân viên --</option>
-                            @foreach($employees as $employee)
-                                <option value="{{ $employee->id }}" {{ $import->employee_id == $employee->id ? 'selected' : '' }}>
-                                    {{ $employee->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="searchable-select" id="employeeSelectable">
+                            <input type="text" class="searchable-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary" 
+                                   placeholder="Gõ để tìm nhân viên..." autocomplete="off">
+                            <input type="hidden" name="employee_id" value="{{ old('employee_id', $import->employee_id) }}">
+                            <div class="searchable-dropdown">
+                                <div class="searchable-option" data-value="">-- Chọn nhân viên --</div>
+                                @foreach($employees as $employee)
+                                    <div class="searchable-option" data-value="{{ $employee->id }}" data-text="{{ $employee->name }}">
+                                        {{ $employee->name }}
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Nhà cung cấp <span class="text-red-500">*</span>
                         </label>
-                        <select name="supplier_id" required id="supplierSelect"
-                            class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg @error('supplier_id') border-red-500 @enderror">
-                            <option value="">-- Chọn nhà cung cấp --</option>
-                            @foreach($suppliers as $supplier)
-                                <option value="{{ $supplier->id }}" {{ $import->supplier_id == $supplier->id ? 'selected' : '' }}>
-                                    {{ $supplier->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="searchable-select" id="supplierSelectable">
+                            <input type="text" class="searchable-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary @error('supplier_id') border-red-500 @enderror" 
+                                   placeholder="Gõ để tìm nhà cung cấp..." autocomplete="off" required>
+                            <input type="hidden" name="supplier_id" id="supplierSelect" value="{{ old('supplier_id', $import->supplier_id) }}">
+                            <div class="searchable-dropdown">
+                                <div class="searchable-option" data-value="">-- Chọn nhà cung cấp --</div>
+                                @foreach($suppliers as $supplier)
+                                    <div class="searchable-option" data-value="{{ $supplier->id }}" data-text="{{ $supplier->name }}">
+                                        {{ $supplier->name }}
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                         @error('supplier_id')
                             <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                         @enderror
@@ -113,27 +154,27 @@
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí vận chuyển</label>
-                            <input type="number" name="shipping_cost" value="{{ old('shipping_cost', $import->shipping_cost) }}" 
-                                   min="0" step="0.01" class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
-                                   placeholder="0" onchange="calculateServiceCost()">
+                            <input type="text" name="shipping_cost" value="{{ old('shipping_cost', number_format($import->shipping_cost, 0, '.', ',')) }}" 
+                                   class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+                                   placeholder="0" oninput="formatNumber(this); calculateServiceCost()">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí bốc xếp</label>
-                            <input type="number" name="loading_cost" value="{{ old('loading_cost', $import->loading_cost) }}" 
-                                   min="0" step="0.01" class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
-                                   placeholder="0" onchange="calculateServiceCost()">
+                            <input type="text" name="loading_cost" value="{{ old('loading_cost', number_format($import->loading_cost, 0, '.', ',')) }}" 
+                                   class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+                                   placeholder="0" oninput="formatNumber(this); calculateServiceCost()">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí kiểm định</label>
-                            <input type="number" name="inspection_cost" value="{{ old('inspection_cost', $import->inspection_cost) }}" 
-                                   min="0" step="0.01" class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
-                                   placeholder="0" onchange="calculateServiceCost()">
+                            <input type="text" name="inspection_cost" value="{{ old('inspection_cost', number_format($import->inspection_cost, 0, '.', ',')) }}" 
+                                   class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+                                   placeholder="0" oninput="formatNumber(this); calculateServiceCost()">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí khác</label>
-                            <input type="number" name="other_cost" value="{{ old('other_cost', $import->other_cost) }}" 
-                                   min="0" step="0.01" class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
-                                   placeholder="0" onchange="calculateServiceCost()">
+                            <input type="text" name="other_cost" value="{{ old('other_cost', number_format($import->other_cost, 0, '.', ',')) }}" 
+                                   class="service-cost-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+                                   placeholder="0" oninput="formatNumber(this); calculateServiceCost()">
                         </div>
                     </div>
                     <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -219,9 +260,8 @@
                 itemDiv.dataset.index = itemIndex;
 
                 const productOptions = products.map(p => {
-                    // Truncate long product names to prevent overflow
                     const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
-                    return `<option value="${p.id}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" data-cost="${p.default_cost || 0}" ${existingData && existingData.product_id == p.id ? 'selected' : ''}>${p.code} - ${displayName}</option>`;
+                    return `<div class="searchable-option" data-value="${p.id}" data-text="${p.code} - ${p.name}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" data-cost="${p.default_cost || 0}">${p.code} - ${displayName}</div>`;
                 }).join('');
 
                 const warehouseOptions = warehouses.map(w =>
@@ -240,12 +280,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                     <div class="md:col-span-1">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
-                        <select name="items[${itemIndex}][product_id]" required 
-                                class="product-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                                onchange="updateProductPrice(${itemIndex}); updateSummary()">
-                            <option value="">-- Chọn sản phẩm --</option>
-                            ${productOptions}
-                        </select>
+                        <div class="searchable-select product-searchable" data-index="${itemIndex}">
+                            <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary" 
+                                   placeholder="Tìm sản phẩm..." autocomplete="off">
+                            <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id-input" value="${existingData ? existingData.product_id : ''}" required>
+                            <div class="searchable-dropdown">
+                                <div class="searchable-option" data-value="">-- Chọn sản phẩm --</div>
+                                ${productOptions}
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Kho nhập *</label>
@@ -260,13 +303,13 @@
                         <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
                         <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
                                required min="1" step="1" class="quantity-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                               placeholder="1" onchange="updateSerialInfo(${itemIndex}); updateSummary();">
+                               placeholder="1" oninput="updateSerialInfo(${itemIndex}); updateSummary();">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá nhập</label>
-                        <input type="number" name="items[${itemIndex}][cost]" value="${existingData ? existingData.cost : '0'}" 
-                               required min="0" step="0.01" class="cost-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
-                               placeholder="0" onchange="updateSummary()">
+                        <input type="text" name="items[${itemIndex}][cost]" value="${existingData ? formatNumberValue(existingData.cost) : '0'}" 
+                               class="cost-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                               placeholder="0" oninput="formatNumber(this); updateSummary()">
                     </div>
                 </div>
 
@@ -276,7 +319,7 @@
                         <textarea name="items[${itemIndex}][serial_list]" rows="2"
                                   class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
                                   placeholder="Nhập danh sách số serial, mỗi số serial trên một dòng hoặc ngăn cách bằng dấu phẩy"
-                                  onchange="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? (Array.isArray(existingData.serials) ? existingData.serials.join(', ') : existingData.serials) : ''}</textarea>
+                                  oninput="updateSerialInfo(${itemIndex})">${existingData && existingData.serials ? (Array.isArray(existingData.serials) ? existingData.serials.join(', ') : existingData.serials) : ''}</textarea>
                         <p class="text-xs text-gray-400 mt-1">Nhập serial ngăn cách bằng dấu phẩy (,) hoặc xuống dòng. VD: ABC123, DEF456, GHI789</p>
                     </div>
                     <div>
@@ -284,7 +327,7 @@
                         <textarea name="items[${itemIndex}][comments]" rows="2"
                                   class="comments-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                                   placeholder="Ghi chú cho sản phẩm này (tùy chọn)"
-                                  onchange="updateSummary()">${existingData ? existingData.comments || '' : ''}</textarea>
+                                  oninput="updateSummary()">${existingData ? existingData.comments || '' : ''}</textarea>
                     </div>
                 </div>
 
@@ -292,6 +335,15 @@
                     <i class="fas fa-info-circle mr-1"></i>Số lượng: 1, Serial đã nhập: 0 → 1 sản phẩm sẽ được tạo mã tạm (NOSKU)
                 </p>
             `;
+
+                container.appendChild(itemDiv);
+                initSearchableSelect(itemDiv.querySelector('.product-searchable'), (val, option) => {
+                    updateProductPrice(itemDiv.dataset.index, option);
+                    updateSummary();
+                });
+                itemIndex++;
+                updateSummary();
+            }
 
                 container.appendChild(itemDiv);
                 updateSerialInfo(itemIndex);
@@ -341,24 +393,42 @@
                 }
             }
 
-            function updateProductPrice(index) {
+            function updateProductPrice(index, selectedOption) {
                 const itemCard = document.querySelector(`[data-index="${index}"]`);
                 if (!itemCard) return;
 
-                const productSelect = itemCard.querySelector('.product-select');
                 const costInput = itemCard.querySelector('.cost-input');
 
-                if (productSelect && costInput) {
-                    const selectedOption = productSelect.options[productSelect.selectedIndex];
+                if (selectedOption && costInput) {
                     const cost = selectedOption.dataset.cost;
-                    if (cost && !costInput.value || costInput.value == '0') {
-                        costInput.value = cost;
+                    if (cost && (!costInput.value || costInput.value == '0')) {
+                        costInput.value = formatNumberValue(cost);
                     }
                 }
             }
 
             function formatCurrency(amount) {
-                return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+                if (amount === 0) return '0 ₫';
+                return new Intl.NumberFormat('en-US').format(amount) + ' ₫';
+            }
+
+            function formatNumber(input) {
+                let value = input.value.replace(/\D/g, '');
+                if (value === '') {
+                    input.value = '';
+                    return;
+                }
+                input.value = new Intl.NumberFormat('en-US').format(parseInt(value));
+            }
+
+            function formatNumberValue(value) {
+                if (!value) return '0';
+                return new Intl.NumberFormat('en-US').format(value);
+            }
+
+            function unformatNumber(value) {
+                if (typeof value !== 'string') return value;
+                return parseFloat(value.replace(/,/g, '')) || 0;
             }
 
             function calculateServiceCost() {
@@ -366,7 +436,7 @@
                 let totalServiceCost = 0;
                 
                 serviceCostInputs.forEach(input => {
-                    totalServiceCost += parseFloat(input.value) || 0;
+                    totalServiceCost += unformatNumber(input.value);
                 });
 
                 document.getElementById('totalServiceCost').textContent = formatCurrency(totalServiceCost);
@@ -416,7 +486,7 @@
                         : '<span class="text-red-500">Chưa chọn</span>';
 
                     const qty = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
-                    const cost = parseFloat(costInput ? costInput.value : 0) || 0;
+                    const cost = unformatNumber(costInput ? costInput.value : 0);
                     const total = qty * cost;
                     const comments = commentsTextarea ? commentsTextarea.value : '';
 
@@ -446,10 +516,86 @@
                 calculateServiceCost();
             }
 
+            function removeAccents(str) {
+                return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+            }
+
+            function initSearchableSelect(container, onSelectCallback) {
+                const input = container.querySelector('.searchable-input');
+                const hiddenInput = container.querySelector('input[type="hidden"]');
+                const dropdown = container.querySelector('.searchable-dropdown');
+                const options = container.querySelectorAll('.searchable-option');
+
+                if (hiddenInput.value) {
+                    const selectedOption = Array.from(options).find(opt => opt.dataset.value == hiddenInput.value);
+                    if (selectedOption) {
+                        input.value = selectedOption.dataset.text || selectedOption.textContent.trim();
+                        selectedOption.classList.add('selected');
+                    }
+                }
+
+                input.addEventListener('focus', () => {
+                    dropdown.style.display = 'block';
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!container.contains(e.target)) {
+                        dropdown.style.display = 'none';
+                    }
+                });
+
+                input.addEventListener('input', () => {
+                    const filter = removeAccents(input.value.toLowerCase());
+                    let hasVisible = false;
+                    options.forEach(opt => {
+                        const text = removeAccents(opt.textContent.toLowerCase());
+                        if (text.includes(filter)) {
+                            opt.style.display = 'block';
+                            hasVisible = true;
+                        } else {
+                            opt.style.display = 'none';
+                        }
+                    });
+                    dropdown.style.display = hasVisible ? 'block' : 'none';
+                });
+
+                options.forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        input.value = opt.dataset.text || opt.textContent.trim();
+                        hiddenInput.value = opt.dataset.value;
+                        dropdown.style.display = 'none';
+                        
+                        options.forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+
+                        if (onSelectCallback) onSelectCallback(opt.dataset.value, opt);
+                    });
+                });
+            }
+
             // Load existing items on page load
             document.addEventListener('DOMContentLoaded', function () {
+                // Initialize static searchable selects
+                initSearchableSelect(document.getElementById('employeeSelectable'));
+                initSearchableSelect(document.getElementById('supplierSelectable'));
+
+                // Initialize date picker
+                flatpickr("#date_picker", {
+                    altInput: true,
+                    altFormat: "d/m/Y",
+                    dateFormat: "Y-m-d",
+                    locale: "vn"
+                });
+
                 existingItems.forEach(item => addItem(item));
                 if (existingItems.length === 0) addItem();
+
+                // Strip commas before form submisssion
+                document.getElementById('importForm').addEventListener('submit', function() {
+                    document.querySelectorAll('.service-cost-input, .cost-input').forEach(input => {
+                        input.value = unformatNumber(input.value);
+                    });
+                });
             });
         </script>
     @endpush

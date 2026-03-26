@@ -5,6 +5,82 @@
 
 @section('content')
 <div class="space-y-6">
+    <!-- Company Settings -->
+    <div class="bg-white rounded-lg shadow-sm">
+        <div class="p-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-building mr-2 text-primary"></i>
+                Thông tin Công ty
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Thông tin này sẽ hiển thị trên các chứng từ (Phiếu thu, chi, nhập, xuất)</p>
+        </div>
+
+        <form action="{{ route('settings.company.update') }}" method="POST" class="p-6">
+            @csrf
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Company Name -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Tên Công ty <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="company_name" 
+                           value="{{ old('company_name', $companySettings->where('key', 'company_name')->first()->value ?? 'CÔNG TY TNHH RINGNET') }}" 
+                           required
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Address -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Địa chỉ <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="company_address" 
+                           value="{{ old('company_address', $companySettings->where('key', 'company_address')->first()->value ?? 'Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng') }}" 
+                           required
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- City/Province -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Thành phố / Tỉnh
+                    </label>
+                    <input type="text" name="company_city" 
+                           value="{{ old('company_city', $companySettings->where('key', 'company_city')->first()->value ?? 'Thành phố Hồ Chí Minh, Việt Nam') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Tax Code -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Mã số thuế
+                    </label>
+                    <input type="text" name="company_tax_code" 
+                           value="{{ old('company_tax_code', $companySettings->where('key', 'company_tax_code')->first()->value ?? '') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Phone -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Số điện thoại
+                    </label>
+                    <input type="text" name="company_phone" 
+                           value="{{ old('company_phone', $companySettings->where('key', 'company_phone')->first()->value ?? '') }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button type="submit" 
+                        class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                    <i class="fas fa-save mr-2"></i>
+                    Lưu thông tin công ty
+                </button>
+            </div>
+        </form>
+    </div>
     <!-- Email Settings -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">

@@ -19,12 +19,16 @@ class ExportItem extends Model
         'serial_number',
         'comments',
         'is_liquidation',
+        'unit_price',
+        'total',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'requested_quantity' => 'integer',
         'is_liquidation' => 'boolean',
+        'unit_price' => 'decimal:2',
+        'total' => 'decimal:2',
     ];
 
     /**
@@ -41,5 +45,22 @@ class ExportItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Get calculated total for the item (legacy support).
+     */
+    public function getCalculatedTotalAttribute()
+    {
+        if ($this->total > 0) return (float) $this->total;
+
+        $price = $this->unit_price;
+        if (!$price || $price == 0) {
+            // Fallback for legacy records - try to get from inventory avg cost
+            $price = \App\Models\Inventory::where('product_id', $this->product_id)
+                ->where('warehouse_id', $this->warehouse_id ?? $this->export->warehouse_id)
+                ->first()->avg_cost ?? 0;
+        }
+        return (float) ($price * $this->quantity);
     }
 }

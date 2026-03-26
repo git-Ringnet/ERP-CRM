@@ -33,15 +33,15 @@
         
         <!-- Header Section -->
         <tr>
-            <td colspan="5"><strong>CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ CÔNG NGHỆ CHÂN TRỜI</strong></td>
+            <td colspan="5"><strong>{{ \App\Models\Setting::get('company_name', 'CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ CÔNG NGHỆ CHÂN TRỜI') }}</strong></td>
             <td colspan="4" align="right"><strong>{{ $formCode }}</strong></td>
         </tr>
         <tr>
-            <td colspan="5">Địa chỉ: Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng,</td>
+            <td colspan="5">Địa chỉ: {{ \App\Models\Setting::get('company_address', 'Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng,') }}</td>
             <td colspan="4" align="right"><font size="2">(Ban hành theo Thông tư số 133/2016/TT-BTC</font></td>
         </tr>
         <tr>
-            <td colspan="5">Thành phố Hồ CHí Minh, Việt Nam.</td>
+            <td colspan="5">{{ \App\Models\Setting::get('company_city', 'Thành phố Hồ Chí Minh, Việt Nam.') }}</td>
             <td colspan="4" align="right"><font size="2">Ngày 26/08/2016 của Bộ Tài chính)</font></td>
         </tr>
         <tr></tr><tr></tr>
@@ -112,8 +112,13 @@
         <tbody>
             @foreach($items as $index => $item)
                 @php
-                    $price = $isImport ? ($item->cost ?? 0) : ($item->price ?? 0);
-                    $total = $price * $item->quantity;
+                    if ($isImport) {
+                        $price = $item->cost ?? 0;
+                        $total = $price * $item->quantity;
+                    } else {
+                        $price = $item->unit_price ?? 0;
+                        $total = $item->calculated_total;
+                    }
                 @endphp
                 <tr>
                     <td style="border: 1px solid #000;" align="center">{{ $index + 1 }}</td>
@@ -131,7 +136,9 @@
                 <td style="border: 1px solid #000;" align="right"><strong>{{ number_format($items->sum('quantity')) }}</strong></td>
                 <td style="border: 1px solid #000;" align="right"><strong>{{ number_format($items->sum('quantity')) }}</strong></td>
                 <td style="border: 1px solid #000;"></td>
-                <td style="border: 1px solid #000;" align="right"><strong>{{ number_format($items->sum(function($i) use ($isImport){ return ($isImport ? $i->cost : $i->price) * $i->quantity; })) }}</strong></td>
+                <td style="border: 1px solid #000;" align="right"><strong>{{ number_format($items->sum(function($i) use ($isImport){ 
+                    return $isImport ? (($i->cost ?? 0) * $i->quantity) : $i->calculated_total; 
+                })) }}</strong></td>
             </tr>
         </tbody>
         <tr></tr>
@@ -139,7 +146,7 @@
         <!-- Footer Info -->
         @php
             $grandTotal = $items->sum(function($i) use ($isImport){ 
-                return ($isImport ? $i->cost : $i->price) * $i->quantity; 
+                return $isImport ? (($i->cost ?? 0) * $i->quantity) : $i->calculated_total; 
             });
             $totalInWords = \App\Helpers\NumberHelper::currencyToVietnameseWords($grandTotal);
         @endphp
