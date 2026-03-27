@@ -140,6 +140,10 @@ class ImportController extends Controller
         try {
             $data = $request->validated();
 
+            // Determine main warehouse_id if all items share the same one
+            $warehouseIds = collect($data['items'])->pluck('warehouse_id')->filter()->unique();
+            $data['warehouse_id'] = $warehouseIds->count() === 1 ? $warehouseIds->first() : null;
+
             // Calculate service costs
             $data['shipping_cost'] = $data['shipping_cost'] ?? 0;
             $data['loading_cost'] = $data['loading_cost'] ?? 0;
@@ -274,12 +278,17 @@ class ImportController extends Controller
         try {
             $data = $request->validated();
 
+            // Determine main warehouse_id if all items share the same one
+            $warehouseIds = collect($data['items'])->pluck('warehouse_id')->filter()->unique();
+            $mainWarehouseId = $warehouseIds->count() === 1 ? $warehouseIds->first() : null;
+
             // Delete old items (ProductItem will only exist if already approved, which shouldn't happen)
             ProductItem::where('import_id', $import->id)->delete();
             $import->items()->delete();
 
             // Update import
             $import->update([
+                'warehouse_id' => $mainWarehouseId,
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
@@ -414,6 +423,27 @@ class ImportController extends Controller
                 'success' => true,
                 'message' => 'Phiếu nhập đã được duyệt'
             ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            $message = 'Lỗi cơ sở dữ liệu khi duyệt: ' . $e->getMessage();
+            
+            // Handle duplicate entry error (1062)
+            if ($e->errorInfo[1] == 1062) {
+                // Extract SKU from message if possible: "Duplicate entry '1-sa' for key '...'"
+                if (preg_match("/Duplicate entry '(.*)' for key/", $e->getMessage(), $matches)) {
+                    $duplicated = $matches[1];
+                    // Remove product_id prefix if it's there (e.g., "1-sa" -> "sa")
+                    $parts = explode('-', $duplicated);
+                    $sku = count($parts) > 1 ? end($parts) : $duplicated;
+                    $message = "Serial '{$sku}' đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
+                } else {
+                    $message = "Một hoặc nhiều Serial đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
+                }
+            }
+            
+            return response()->json([
+                'success' => false,
+                'message' => $message
+            ], 400); // 400 is better for validation/duplicate errors
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

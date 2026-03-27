@@ -362,18 +362,15 @@
             `;
 
                 container.appendChild(itemDiv);
-                initSearchableSelect(itemDiv.querySelector('.product-searchable'), (val, option) => {
+                initSearchableSelectEnhanced(itemDiv.querySelector('.product-searchable'), (val, option) => {
                     updateProductPrice(itemDiv.dataset.index, option);
                     updateSummary();
                 });
+                updateSerialInfo(itemIndex);
                 itemIndex++;
                 updateSummary();
             }
 
-                container.appendChild(itemDiv);
-                itemIndex++;
-                updateSummary();
-            }
 
             function removeItem(index) {
                 const item = document.querySelector(`[data-index="${index}"]`);
@@ -417,18 +414,16 @@
                 }
             }
 
-            function updateProductPrice(index) {
+            function updateProductPrice(index, selectedOption) {
                 const itemCard = document.querySelector(`[data-index="${index}"]`);
                 if (!itemCard) return;
 
-                const productSelect = itemCard.querySelector('.product-select');
                 const costInput = itemCard.querySelector('.cost-input');
 
-                if (productSelect && costInput) {
-                    const selectedOption = productSelect.options[productSelect.selectedIndex];
+                if (selectedOption && costInput) {
                     const cost = selectedOption.dataset.cost;
-                    if (cost && !costInput.value || costInput.value == '0') {
-                        costInput.value = cost;
+                    if (cost && (!costInput.value || costInput.value == '0')) {
+                        costInput.value = formatNumberValue(cost);
                     }
                 }
             }
@@ -495,18 +490,18 @@
                 let stt = 1;
 
                 itemCards.forEach((card, idx) => {
-                    const productSelect = card.querySelector('.product-select');
+                    const productIdInput = card.querySelector('.product-id-input');
                     const warehouseSelect = card.querySelector('.warehouse-select');
                     const qtyInput = card.querySelector('.quantity-input');
                     const costInput = card.querySelector('.cost-input');
                     const commentsTextarea = card.querySelector('.comments-textarea');
 
-                    if (!productSelect || !productSelect.value) return;
+                    if (!productIdInput || !productIdInput.value) return;
 
-                    const selectedOption = productSelect.options[productSelect.selectedIndex];
-                    const productCode = selectedOption.dataset.code || '';
-                    const productName = selectedOption.dataset.name || '';
-                    const productUnit = selectedOption.dataset.unit || 'Cái';
+                    const selectedOption = card.querySelector(`.searchable-option[data-value="${productIdInput.value}"]`);
+                    const productCode = selectedOption ? (selectedOption.dataset.code || '') : '';
+                    const productName = selectedOption ? (selectedOption.dataset.name || '') : '';
+                    const productUnit = selectedOption ? (selectedOption.dataset.unit || 'Cái') : 'Cái';
 
                     const warehouseName = warehouseSelect && warehouseSelect.value
                         ? warehouseSelect.options[warehouseSelect.selectedIndex].text

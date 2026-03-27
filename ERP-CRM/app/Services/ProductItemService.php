@@ -40,7 +40,16 @@ class ProductItemService
     ): array {
         $items = [];
 
-        // Check for duplicate serials first
+        // 1. Check for duplicates within the provided array itself
+        $duplicatesInList = array_unique($skus);
+        if (count($duplicatesInList) < count($skus)) {
+            $counts = array_count_values($skus);
+            $duplicatedOnes = array_keys(array_filter($counts, fn($c) => $c > 1));
+            $duplicateList = implode(', ', $duplicatedOnes);
+            throw new \Exception("Serial bị trùng lặp ngay trong danh sách nhập: {$duplicateList}");
+        }
+
+        // 2. Check for duplicate serials in database
         $duplicates = $this->checkDuplicateSerials($productId, $skus);
         if (!empty($duplicates)) {
             $product = Product::find($productId);

@@ -341,11 +341,6 @@
                     updateProductPrice(itemDiv.dataset.index, option);
                     updateSummary();
                 });
-                itemIndex++;
-                updateSummary();
-            }
-
-                container.appendChild(itemDiv);
                 updateSerialInfo(itemIndex);
                 itemIndex++;
                 updateSummary();
@@ -468,18 +463,18 @@
                 let stt = 1;
 
                 itemCards.forEach((card, idx) => {
-                    const productSelect = card.querySelector('.product-select');
+                    const productIdInput = card.querySelector('.product-id-input');
                     const warehouseSelect = card.querySelector('.warehouse-select');
                     const qtyInput = card.querySelector('.quantity-input');
                     const costInput = card.querySelector('.cost-input');
                     const commentsTextarea = card.querySelector('.comments-textarea');
 
-                    if (!productSelect || !productSelect.value) return;
+                    if (!productIdInput || !productIdInput.value) return;
 
-                    const selectedOption = productSelect.options[productSelect.selectedIndex];
-                    const productCode = selectedOption.dataset.code || '';
-                    const productName = selectedOption.dataset.name || '';
-                    const productUnit = selectedOption.dataset.unit || 'Cái';
+                    const selectedOption = card.querySelector(`.searchable-option[data-value="${productIdInput.value}"]`);
+                    const productCode = selectedOption ? (selectedOption.dataset.code || '') : '';
+                    const productName = selectedOption ? (selectedOption.dataset.name || '') : '';
+                    const productUnit = selectedOption ? (selectedOption.dataset.unit || 'Cái') : 'Cái';
 
                     const warehouseName = warehouseSelect && warehouseSelect.value
                         ? warehouseSelect.options[warehouseSelect.selectedIndex].text
