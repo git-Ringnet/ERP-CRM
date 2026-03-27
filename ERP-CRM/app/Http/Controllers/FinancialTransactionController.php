@@ -91,14 +91,14 @@ class FinancialTransactionController extends Controller
         $category = TransactionCategory::findOrFail($request->transaction_category_id);
 
         $currency = Currency::find($request->currency_id);
-        $isForeign = $this->currencyService->isForeign($request->currency_id);
+        $isForeign = $this->currencyService->isForeignTransaction($request->currency_id);
         
         $amountVnd = $request->amount;
         $amountForeign = null;
         
         if ($isForeign) {
             $amountForeign = $request->amount;
-            $amountVnd = $this->currencyService->convertToVnd($request->amount, $request->exchange_rate);
+            $amountVnd = $this->currencyService->toBase($request->amount, $request->exchange_rate);
         }
 
         FinancialTransaction::create([
@@ -148,14 +148,14 @@ class FinancialTransactionController extends Controller
 
         $category = TransactionCategory::findOrFail($request->transaction_category_id);
 
-        $isForeign = $this->currencyService->isForeign($request->currency_id);
+        $isForeign = $this->currencyService->isForeignTransaction($request->currency_id);
         
         $amountVnd = $request->amount;
         $amountForeign = null;
         
         if ($isForeign) {
             $amountForeign = $request->amount;
-            $amountVnd = $this->currencyService->convertToVnd($request->amount, $request->exchange_rate);
+            $amountVnd = $this->currencyService->toBase($request->amount, $request->exchange_rate);
         }
 
         $financialTransaction->update([

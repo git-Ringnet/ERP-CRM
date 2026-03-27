@@ -25,16 +25,16 @@ class FinancialTransactionService
             ['description' => 'Thu từ bán hàng']
         );
 
-        // Convert to VND for base amount
+        // Chuyển đổi về VND cho số tiền cơ sở
         $currencyService = app(\App\Services\CurrencyService::class);
-        $isForeign = $currencyService->isForeign($currencyId);
+        $isForeign = $currencyService->isForeignTransaction($currencyId);
         
         $amountVnd = $amount;
         $amountForeign = 0;
         
         if ($isForeign) {
             $amountForeign = $amount;
-            $amountVnd = $currencyService->convertToVnd($amount, $exchangeRate);
+            $amountVnd = $currencyService->toBase($amount, $exchangeRate);
         }
 
         $transaction = FinancialTransaction::create([
@@ -95,14 +95,14 @@ class FinancialTransactionService
         $exchangeRate = $exchangeRate ?? $model->exchange_rate ?? 1;
 
         $currencyService = app(\App\Services\CurrencyService::class);
-        $isForeign = $currencyService->isForeign($currencyId);
+        $isForeign = $currencyService->isForeignTransaction($currencyId);
         
         $amountVnd = $amount;
         $amountForeign = 0;
         
         if ($isForeign) {
             $amountForeign = $amount;
-            $amountVnd = $currencyService->convertToVnd($amount, $exchangeRate);
+            $amountVnd = $currencyService->toBase($amount, $exchangeRate);
         }
 
         $transaction = FinancialTransaction::create([

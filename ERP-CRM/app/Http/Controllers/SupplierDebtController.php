@@ -139,14 +139,14 @@ class SupplierDebtController extends Controller
         $inputAmount = $request->amount;
 
         $currencyService = app(\App\Services\CurrencyService::class);
-        $isForeign = $currencyService->isForeign($currencyId);
+        $isForeign = $currencyService->isForeignTransaction($currencyId);
 
         $amountVnd = $inputAmount;
         $amountForeign = null;
 
         if ($isForeign) {
             $amountForeign = $inputAmount;
-            $amountVnd = $currencyService->convertToVnd($amountForeign, $exchangeRate);
+            $amountVnd = $currencyService->toBase($amountForeign, $exchangeRate);
         } else {
             $exchangeRate = 1;
         }
