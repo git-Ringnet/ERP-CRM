@@ -403,9 +403,23 @@ function initSearchableSelect(container, onSelect) {
     function filterOptions(query) {
         const q = query.toLowerCase();
         let hasResults = false;
+        
+        // Lấy danh sách ID sản phẩm đã chọn ở các dòng khác
+        const selectedProductIds = [];
+        document.querySelectorAll('.product-id-input').forEach(input => {
+            if (input.value && input !== hiddenInput) {
+                selectedProductIds.push(input.value);
+            }
+        });
+
         options.forEach(opt => {
             const text = opt.dataset.text.toLowerCase();
-            if (text.includes(q)) {
+            const value = opt.dataset.value;
+            
+            // Ẩn nếu sản phẩm đã được chọn ở dòng khác
+            if (selectedProductIds.includes(value)) {
+                opt.classList.add('hidden');
+            } else if (text.includes(q)) {
                 opt.classList.remove('hidden');
                 hasResults = true;
             } else {

@@ -554,7 +554,7 @@
                 }
 
                 input.addEventListener('focus', () => {
-                    dropdown.style.display = 'block';
+                    input.dispatchEvent(new Event('input'));
                 });
 
                 document.addEventListener('click', (e) => {
@@ -566,9 +566,24 @@
                 input.addEventListener('input', () => {
                     const filter = input.value.toLowerCase();
                     let hasVisible = false;
+                    
+                    const selectedProductIds = [];
+                    if (container.classList.contains('product-searchable')) {
+                        document.querySelectorAll('.product-id-input').forEach(i => {
+                            if (i.value && i !== hiddenInput) {
+                                selectedProductIds.push(i.value);
+                            }
+                        });
+                    }
+
                     options.forEach(opt => {
                         const text = opt.textContent.toLowerCase();
-                        if (text.includes(filter)) {
+                        const value = opt.dataset.value;
+                        
+                        // Avoid hiding the "Chọn sản phẩm" placeholder
+                        if (container.classList.contains('product-searchable') && value && selectedProductIds.includes(value) && value !== "") {
+                            opt.style.display = 'none';
+                        } else if (text.includes(filter)) {
                             opt.style.display = 'block';
                             hasVisible = true;
                         } else {

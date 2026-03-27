@@ -238,6 +238,8 @@ class ExportController extends Controller
                 'warehouse_id' => $warehouseId,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
+                'project_id' => $data['project_id'] ?? null,
+                'customer_id' => $data['customer_id'] ?? null,
                 'note' => $data['note'] ?? null,
             ]);
 
