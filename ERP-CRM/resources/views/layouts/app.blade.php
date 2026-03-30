@@ -132,7 +132,12 @@
                         <a href="{{ route('attendance.index') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-map-marker-alt w-6 text-green-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Chấm công GPS</span>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Chấm công</span>
+                        </a>
+                        <a href="{{ route('work-locations.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-locations.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-map-marker-alt w-6 text-red-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
                         </a>
                     </div>
                 </div>
@@ -372,11 +377,6 @@
                     </div>
 
                     <div class="dropdown-section" id="dropdown-hr_payroll">
-                        <a href="{{ route('work-locations.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('work-locations.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-map-marker-alt w-6 text-red-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
-                        </a>
                         <a href="{{ route('salary-components.index') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('salary-components.*') ? 'bg-primary text-white' : '' }}">
                             <i class="fas fa-list-ul w-6 text-orange-400 flex-shrink-0"></i>
@@ -725,6 +725,14 @@
                 </div>
 
                 <div class="flex items-center space-x-2 sm:space-x-4">
+                    <!-- Quick Attendance Link -->
+                    <a href="{{ route('attendance.index') }}" 
+                        class="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        title="Chấm công GPS">
+                        <i class="fas fa-map-marker-alt mr-1.5 sm:mr-2"></i>
+                        <span class="whitespace-nowrap">Chấm công</span>
+                    </a>
+
                     <!-- Notification Bell -->
                     <div class="relative" x-data="notificationBell()" x-init="init()">
                         <!-- Bell Icon with Badge -->

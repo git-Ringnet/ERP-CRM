@@ -91,14 +91,14 @@
             </form>
             
             <!-- Export Button (conditional on permission) -->
-            @if(isset($can_export) && $can_export)
+            {{-- @if(isset($can_export) && $can_export)
             <button @click="showExportModal = true" 
                 class="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
                 aria-label="Xuất báo cáo">
                 <i class="fas fa-download mr-1.5 text-xs"></i>
                 <span>Xuất báo cáo</span>
             </button>
-            @endif
+            @endif --}}
         </div>
     </div>
 
