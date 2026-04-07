@@ -13,20 +13,20 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            // RBAC - Permissions and Roles (phải chạy trước để tạo permissions và roles)
-            PermissionSeeder::class ,
-            RoleSeeder::class ,
+                // RBAC - Permissions and Roles (phải chạy trước để tạo permissions và roles)
+            PermissionSeeder::class,
+            RoleSeeder::class,
 
-            // Admin user - chạy sau khi đã có roles và permissions
-            AdminUserSeeder::class ,
-
-            // Base data - phải chạy trước
-            // CustomerSeeder::class,
-            // SupplierSeeder::class,
-            // EmployeeSeeder::class,
-            // ProductSeeder::class,          // Bật lại ProductSeeder
-            WarehouseSeeder::class ,
-            CurrencySeeder::class , //tien te chinh
+                // Admin user - chạy sau khi đã có roles và permissions
+            AdminUserSeeder::class,
+            TestUserSeeder::class,
+                // Base data - phải chạy trước
+                // CustomerSeeder::class,
+                // SupplierSeeder::class,
+                // EmployeeSeeder::class,
+                // ProductSeeder::class,          // Bật lại ProductSeeder
+            WarehouseSeeder::class,
+            CurrencySeeder::class, //tien te chinh
             // InventorySeeder::class,
             // // New separate seeders for imports, exports, transfers
             // ImportSeeder::class,
