@@ -58,6 +58,13 @@
                             @endforeach
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mẫu (Template)</label>
+                        <select id="import_template" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">Tự động nhận diện (Mặc định)</option>
+                            <option value="fortinet_dataset">Fortinet (Chỉ lấy sheet Dataset)</option>
+                        </select>
+                    </div>
                     <div style="display:none">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Loại giá</label>
                         <select id="price_type" class="w-full border border-gray-300 rounded-lg px-3 py-2">
@@ -574,6 +581,7 @@
 
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('template', document.getElementById('import_template').value);
             formData.append('_token', '{{ csrf_token() }}');
 
             fetch('{{ route("supplier-price-lists.analyze") }}', {
@@ -614,10 +622,31 @@
 
                         // Auto-select all sheets and skip to confirmation
                         setTimeout(() => {
-                            // 1. Select All Sheets
-                            const selectAllCb = document.getElementById('select_all_sheets');
-                            selectAllCb.checked = true;
-                            selectAllCb.dispatchEvent(new Event('change'));
+                            // 1. Select Sheets based on template or all
+                            const template = document.getElementById('import_template').value;
+                            if (template === 'fortinet_dataset') {
+                                // Chỉ chọn sheet có tên Dataset
+                                let foundDataset = false;
+                                document.querySelectorAll('.sheet-checkbox').forEach(cb => {
+                                    if (cb.dataset.name.toLowerCase().includes('dataset')) {
+                                        cb.checked = true;
+                                        foundDataset = true;
+                                    } else {
+                                        cb.checked = false;
+                                    }
+                                });
+                                if (!foundDataset) {
+                                    // Nếu ko tìm thấy Dataset thì chọn sheet đầu tiên cho chắc
+                                    const first = document.querySelector('.sheet-checkbox');
+                                    if (first) first.checked = true;
+                                }
+                            } else {
+                                // Default auto-select (non-skipped)
+                                const selectAllCb = document.getElementById('select_all_sheets');
+                                selectAllCb.checked = true;
+                                selectAllCb.dispatchEvent(new Event('change'));
+                            }
+                            updateSelectedSheets();
 
                             // 2. Apply default auto-detect mapping to all sheets
                             importState.selectedSheets.forEach(sheet => {
@@ -782,6 +811,7 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                 body: JSON.stringify({ 
                     headers: headers, 
+                    template: document.getElementById('import_template').value,
                     supplier_type: supplierType,
                     temp_path: importState.tempPath,
                     sheet_index: importState.currentSheet,
@@ -1132,19 +1162,24 @@
 
             showLoading('Đang import dữ liệu...');
 
+            const requestBody = {
+                supplier_id: supplierId,
+                name: name,
+                temp_path: importState.tempPath,
+                currency: document.getElementById('currency').value,
+                exchange_rate: parseFloat(document.getElementById('exchange_rate').value),
+                price_type: document.getElementById('price_type').value,
+                sheets: sheets,
+                import_mode: document.querySelector('input[name="import_mode"]:checked').value
+            };
+            
+            const template = document.getElementById('import_template').value;
+            if (template) requestBody.template = template;
+
             fetch('{{ route("supplier-price-lists.do-import") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({
-                    supplier_id: supplierId,
-                    name: name,
-                    temp_path: importState.tempPath,
-                    currency: document.getElementById('currency').value,
-                    exchange_rate: parseFloat(document.getElementById('exchange_rate').value),
-                    price_type: document.getElementById('price_type').value,
-                    sheets: sheets,
-                    import_mode: document.querySelector('input[name="import_mode"]:checked').value
-                })
+                body: JSON.stringify(requestBody)
             })
                 .then(res => {
                     if (!res.ok) {

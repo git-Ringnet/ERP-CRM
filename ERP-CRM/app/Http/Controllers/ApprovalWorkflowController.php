@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalLevel;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -25,9 +26,10 @@ class ApprovalWorkflowController extends Controller
         $this->authorize('create', ApprovalWorkflow::class);
 
         $users = User::orderBy('name')->get();
+        $roles = Role::active()->orderBy('name')->get();
         $documentTypes = $this->getDocumentTypes();
 
-        return view('approval-workflows.create', compact('users', 'documentTypes'));
+        return view('approval-workflows.create', compact('users', 'roles', 'documentTypes'));
     }
 
     public function store(Request $request)
@@ -42,10 +44,18 @@ class ApprovalWorkflowController extends Controller
             'levels' => ['required', 'array', 'min:1'],
             'levels.*.name' => ['required', 'string', 'max:255'],
             'levels.*.approver_type' => ['required', 'in:role,user'],
-            'levels.*.approver_value' => ['required', 'string'],
+            'levels.*.approver_value' => ['required'],
             'levels.*.min_amount' => ['nullable', 'numeric', 'min:0'],
             'levels.*.max_amount' => ['nullable', 'numeric', 'min:0'],
             'levels.*.is_required' => ['boolean'],
+        ], [
+            'name.required' => 'Tên quy trình không được để trống.',
+            'document_type.required' => 'Loại chứng từ không được để trống.',
+            'document_type.unique' => 'Loại chứng từ này đã được cài đặt quy trình duyệt rồi.',
+            'levels.required' => 'Phải có ít nhất một cấp duyệt.',
+            'levels.*.name.required' => 'Tên cấp duyệt không được để trống.',
+            'levels.*.approver_type.required' => 'Loại người duyệt không được để trống.',
+            'levels.*.approver_value.required' => 'Vui lòng chọn người duyệt cho tất cả các cấp.',
         ]);
 
         DB::beginTransaction();
@@ -63,10 +73,10 @@ class ApprovalWorkflowController extends Controller
                     'level' => $index + 1,
                     'name' => $levelData['name'],
                     'approver_type' => $levelData['approver_type'],
-                    'approver_value' => $levelData['approver_value'],
+                    'approver_value' => is_array($levelData['approver_value']) ? implode(',', $levelData['approver_value']) : $levelData['approver_value'],
                     'min_amount' => $levelData['min_amount'] ?? null,
                     'max_amount' => $levelData['max_amount'] ?? null,
-                    'is_required' => $levelData['is_required'] ?? true,
+                    'is_required' => isset($levelData['is_required']) && $levelData['is_required'] == '1',
                 ]);
             }
 
@@ -86,9 +96,10 @@ class ApprovalWorkflowController extends Controller
 
         $approvalWorkflow->load('levels');
         $users = User::orderBy('name')->get();
+        $roles = Role::active()->orderBy('name')->get();
         $documentTypes = $this->getDocumentTypes();
 
-        return view('approval-workflows.edit', compact('approvalWorkflow', 'users', 'documentTypes'));
+        return view('approval-workflows.edit', compact('approvalWorkflow', 'users', 'roles', 'documentTypes'));
     }
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
@@ -102,10 +113,16 @@ class ApprovalWorkflowController extends Controller
             'levels' => ['required', 'array', 'min:1'],
             'levels.*.name' => ['required', 'string', 'max:255'],
             'levels.*.approver_type' => ['required', 'in:role,user'],
-            'levels.*.approver_value' => ['required', 'string'],
+            'levels.*.approver_value' => ['required'],
             'levels.*.min_amount' => ['nullable', 'numeric', 'min:0'],
             'levels.*.max_amount' => ['nullable', 'numeric', 'min:0'],
             'levels.*.is_required' => ['boolean'],
+        ], [
+            'name.required' => 'Tên quy trình không được để trống.',
+            'levels.required' => 'Phải có ít nhất một cấp duyệt.',
+            'levels.*.name.required' => 'Tên cấp duyệt không được để trống.',
+            'levels.*.approver_type.required' => 'Loại người duyệt không được để trống.',
+            'levels.*.approver_value.required' => 'Vui lòng chọn người duyệt cho tất cả các cấp.',
         ]);
 
         DB::beginTransaction();
@@ -125,10 +142,10 @@ class ApprovalWorkflowController extends Controller
                     'level' => $index + 1,
                     'name' => $levelData['name'],
                     'approver_type' => $levelData['approver_type'],
-                    'approver_value' => $levelData['approver_value'],
+                    'approver_value' => is_array($levelData['approver_value']) ? implode(',', $levelData['approver_value']) : $levelData['approver_value'],
                     'min_amount' => $levelData['min_amount'] ?? null,
                     'max_amount' => $levelData['max_amount'] ?? null,
-                    'is_required' => $levelData['is_required'] ?? true,
+                    'is_required' => isset($levelData['is_required']) && $levelData['is_required'] == '1',
                 ]);
             }
 

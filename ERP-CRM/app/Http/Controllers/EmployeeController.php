@@ -21,7 +21,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', User::class);
         
-        $query = User::whereNotNull('employee_code');
+        $query = User::whereNotNull('employee_code')->with('roles');
 
         // Search functionality (Requirement 3.9)
         if ($request->filled('search')) {

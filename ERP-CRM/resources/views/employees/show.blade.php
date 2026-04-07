@@ -231,6 +231,18 @@
                         <span class="text-sm text-gray-500">Cập nhật lần cuối</span>
                         <span class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($employee->updated_at)->format('d/m/Y H:i') }}</span>
                     </div>
+                    <div class="pt-3 border-t border-gray-100">
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">Vai trò hệ thống</label>
+                        <div class="flex flex-wrap gap-1">
+                            @forelse($employee->roles as $role)
+                                <span class="px-2 py-1 text-xs font-medium rounded-full {{ $role->slug == 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800' }}">
+                                    {{ $role->name }}
+                                </span>
+                            @empty
+                                <span class="text-xs text-gray-400 italic">Chưa gán vai trò</span>
+                            @endforelse
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -262,6 +274,12 @@
                        class="w-full inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
                         <i class="fas fa-graduation-cap mr-2"></i>Xem kỹ năng
                     </a>
+                    @can('assign_user_roles')
+                    <a href="{{ route('users.roles.show', $employee->id) }}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                        <i class="fas fa-user-tag mr-2"></i>Quản lý Vai trò
+                    </a>
+                    @endcan
                 </div>
             </div>
         </div>

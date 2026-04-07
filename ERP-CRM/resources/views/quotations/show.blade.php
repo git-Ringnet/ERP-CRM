@@ -238,16 +238,21 @@
                     </form>
                 @endif
 
-                @if($quotation->status === 'pending')
+                @if($quotation->status === 'pending' && $quotation->canBeApprovedBy(auth()->user()))
                     <form action="{{ route('quotations.approve', $quotation) }}" method="POST">
                         @csrf
                         <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors">
                             <i class="fas fa-check mr-2"></i> Duyệt
                         </button>
                     </form>
-                    <button onclick="showRejectModal()" class="w-full inline-flex items-center justify-center px-4 py-2 bg-danger text-white rounded-lg hover:bg-red-600 transition-colors">
-                        <i class="fas fa-times mr-2"></i> Từ chối
-                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="showDelegateModal()" class="inline-flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm">
+                            <i class="fas fa-user-friends mr-2"></i> Chuyển
+                        </button>
+                        <button onclick="showRejectModal()" class="inline-flex items-center justify-center px-4 py-2 bg-danger text-white rounded-lg hover:bg-red-600 transition-colors text-sm">
+                            <i class="fas fa-times mr-2"></i> Từ chối
+                        </button>
+                    </div>
                 @endif
 
                 @if($quotation->status === 'approved')
@@ -303,7 +308,7 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Lịch sử duyệt</h3>
             <div class="space-y-4">
                 @foreach($approvalHistories as $history)
-                <div class="flex items-start space-x-3">
+                <div class="flex items-start space-x-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0">
                     <div class="flex-shrink-0">
                         @if($history->action === 'approved')
                             <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
@@ -313,6 +318,14 @@
                             <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
                                 <i class="fas fa-times text-red-600"></i>
                             </div>
+                        @elseif($history->action === 'skipped')
+                            <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-forward text-gray-400"></i>
+                            </div>
+                        @elseif($history->action === 'delegated')
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-reply text-blue-600"></i>
+                            </div>
                         @else
                             <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
                                 <i class="fas fa-clock text-yellow-600"></i>
@@ -320,19 +333,32 @@
                         @endif
                     </div>
                     <div class="flex-1">
-                        <div class="font-medium text-sm">Cấp {{ $history->level }}: {{ $history->level_name }}</div>
-                        <div class="text-xs text-gray-500">
+                        <div class="font-medium text-sm flex justify-between">
+                            <span>Cấp {{ $history->level }}: {{ $history->level_name }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded {{ $history->action_color }}">
+                                {{ $history->action_label }}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5">
                             @if($history->action === 'pending')
-                                Đang chờ duyệt
+                                Đang chờ: <span class="font-medium text-gray-700">{{ $history->approver_name }}</span>
+                            @elseif($history->action === 'skipped')
+                                <span class="text-gray-400">Hệ thống tự động bỏ qua</span>
+                            @elseif($history->action === 'delegated')
+                                <span class="font-medium text-gray-700">{{ $history->originalApprover ? $history->originalApprover->name : 'N/A' }}</span>
+                                <i class="fas fa-long-arrow-alt-right mx-1"></i>
+                                <span class="font-medium text-blue-600">{{ $history->delegatedTo ? $history->delegatedTo->name : 'N/A' }}</span>
                             @else
-                                {{ $history->approver_name }} - {{ $history->action === 'approved' ? 'Đã duyệt' : 'Từ chối' }}
+                                <span class="font-medium text-gray-700">{{ $history->approver_name }}</span>
                                 @if($history->action_at)
-                                    <br>{{ \Carbon\Carbon::parse($history->action_at)->format('d/m/Y H:i') }}
+                                    - {{ \Carbon\Carbon::parse($history->action_at)->format('d/m/Y H:i') }}
                                 @endif
                             @endif
                         </div>
                         @if($history->comment)
-                            <div class="text-xs text-gray-600 mt-1 italic">"{{ $history->comment }}"</div>
+                            <div class="text-xs text-gray-600 mt-1 p-2 bg-gray-50 rounded italic border-l-2 border-gray-200">
+                                "{{ $history->comment }}"
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -356,6 +382,37 @@
            class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
             <i class="fas fa-arrow-left mr-2"></i> Quay lại danh sách
         </a>
+    </div>
+</div>
+
+<!-- Delegate Modal -->
+<div id="delegateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
+        <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-user-friends text-blue-500 mr-2"></i> Chuyển quyền duyệt
+        </h3>
+        <form action="{{ route('quotations.delegate', $quotation) }}" method="POST">
+            @csrf
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Chọn người nhận <span class="text-red-500">*</span></label>
+                <select name="to_user_id" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
+                    <option value="">-- Chọn nhân viên --</option>
+                    @foreach(\App\Models\User::where('id', '!=', auth()->id())->where('is_active', true)->get() as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->role }})</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú lý do</label>
+                <textarea name="comment" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Tại sao bạn chuyển quyền duyệt này?"></textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="hideDelegateModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-600">Hủy</button>
+                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
+                    <i class="fas fa-paper-plane mr-2 text-xs"></i> Chuyển ngay
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -386,6 +443,14 @@ function showRejectModal() {
 function hideRejectModal() {
     document.getElementById('rejectModal').classList.add('hidden');
     document.getElementById('rejectModal').classList.remove('flex');
+}
+function showDelegateModal() {
+    document.getElementById('delegateModal').classList.remove('hidden');
+    document.getElementById('delegateModal').classList.add('flex');
+}
+function hideDelegateModal() {
+    document.getElementById('delegateModal').classList.add('hidden');
+    document.getElementById('delegateModal').classList.remove('flex');
 }
 </script>
 @endpush

@@ -23,10 +23,12 @@ use Maatwebsite\Excel\Facades\Excel;
 class QuotationController extends Controller
 {
     protected CurrencyService $currencyService;
+    protected \App\Services\ApprovalService $approvalService;
 
-    public function __construct(CurrencyService $currencyService)
+    public function __construct(CurrencyService $currencyService, \App\Services\ApprovalService $approvalService)
     {
         $this->currencyService = $currencyService;
+        $this->approvalService = $approvalService;
     }
     public function index(Request $request)
     {
@@ -355,41 +357,13 @@ class QuotationController extends Controller
     {
         $this->authorize('update', $quotation);
 
-        if ($quotation->status !== 'draft') {
-            return back()->with('error', 'Chỉ có thể gửi duyệt báo giá ở trạng thái Nháp.');
+        $result = $this->approvalService->submit($quotation, 'quotation');
+
+        if ($result['success']) {
+            return back()->with('success', $result['message']);
         }
 
-        $workflow = $quotation->getApprovalWorkflow();
-        if (!$workflow || $workflow->levels->isEmpty()) {
-            return back()->with('error', 'Chưa cấu hình quy trình duyệt cho báo giá.');
-        }
-
-        DB::beginTransaction();
-        try {
-            $quotation->update([
-                'status' => 'pending',
-                'current_approval_level' => 0,
-            ]);
-
-            // Create pending approval for first level
-            $firstLevel = $workflow->levels->first();
-            ApprovalHistory::create([
-                'document_type' => 'quotation',
-                'document_id' => $quotation->id,
-                'level' => $firstLevel->level,
-                'level_name' => $firstLevel->name,
-                'approver_id' => null,
-                'approver_name' => $firstLevel->approver_label,
-                'action' => 'pending',
-            ]);
-
-            DB::commit();
-
-            return back()->with('success', 'Báo giá đã được gửi duyệt.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
-        }
+        return back()->with('error', $result['message']);
     }
 
     /**
@@ -403,77 +377,13 @@ class QuotationController extends Controller
             'comment' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if ($quotation->status !== 'pending') {
-            return back()->with('error', 'Báo giá không ở trạng thái chờ duyệt.');
+        $result = $this->approvalService->approve($quotation, 'quotation', $request->comment);
+
+        if ($result['success']) {
+            return back()->with('success', $result['message']);
         }
 
-        $workflow = $quotation->getApprovalWorkflow();
-        if (!$workflow) {
-            return back()->with('error', 'Không tìm thấy quy trình duyệt.');
-        }
-
-        $nextLevel = $quotation->getNextApprovalLevel();
-        if (!$nextLevel) {
-            return back()->with('error', 'Không tìm thấy cấp duyệt tiếp theo.');
-        }
-
-        // TODO: Check if current user can approve
-        // if (!$nextLevel->canApprove(auth()->user(), $quotation->total)) {
-        //     return back()->with('error', 'Bạn không có quyền duyệt báo giá này.');
-        // }
-
-        DB::beginTransaction();
-        try {
-            // Update pending approval to approved
-            ApprovalHistory::where('document_type', 'quotation')
-                ->where('document_id', $quotation->id)
-                ->where('level', $nextLevel->level)
-                ->where('action', 'pending')
-                ->update([
-                    'approver_id' => auth()->id(),
-                    'approver_name' => auth()->user()->name,
-                    'action' => 'approved',
-                    'comment' => $request->comment,
-                    'action_at' => now(),
-                ]);
-
-            $quotation->current_approval_level = $nextLevel->level;
-
-            // Check if this is the last level
-            $maxLevel = $workflow->max_level;
-            if ($nextLevel->level >= $maxLevel) {
-                $quotation->status = 'approved';
-            } else {
-                // Create pending for next level
-                $nextNextLevel = $workflow->levels()
-                    ->where('level', $nextLevel->level + 1)
-                    ->first();
-
-                if ($nextNextLevel) {
-                    ApprovalHistory::create([
-                        'document_type' => 'quotation',
-                        'document_id' => $quotation->id,
-                        'level' => $nextNextLevel->level,
-                        'level_name' => $nextNextLevel->name,
-                        'approver_id' => null,
-                        'approver_name' => $nextNextLevel->approver_label,
-                        'action' => 'pending',
-                    ]);
-                }
-            }
-
-            $quotation->save();
-            DB::commit();
-
-            $message = $quotation->status === 'approved'
-                ? 'Báo giá đã được duyệt hoàn tất.'
-                : 'Đã duyệt cấp ' . $nextLevel->level . '. Chờ duyệt cấp tiếp theo.';
-
-            return back()->with('success', $message);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
-        }
+        return back()->with('error', $result['message']);
     }
 
     /**
@@ -487,38 +397,34 @@ class QuotationController extends Controller
             'comment' => ['required', 'string', 'max:500'],
         ]);
 
-        if ($quotation->status !== 'pending') {
-            return back()->with('error', 'Báo giá không ở trạng thái chờ duyệt.');
+        $result = $this->approvalService->reject($quotation, 'quotation', $request->comment);
+
+        if ($result['success']) {
+            return back()->with('success', $result['message']);
         }
 
-        $nextLevel = $quotation->getNextApprovalLevel();
-        if (!$nextLevel) {
-            return back()->with('error', 'Không tìm thấy cấp duyệt.');
+        return back()->with('error', $result['message']);
+    }
+
+    /**
+     * Delegate approval turn to someone else
+     */
+    public function delegate(Request $request, Quotation $quotation)
+    {
+        $this->authorize('approve', $quotation);
+
+        $request->validate([
+            'to_user_id' => ['required', 'exists:users,id'],
+            'comment' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = $this->approvalService->delegate($quotation, 'quotation', $request->to_user_id, $request->comment);
+
+        if ($result['success']) {
+            return back()->with('success', $result['message']);
         }
 
-        DB::beginTransaction();
-        try {
-            ApprovalHistory::where('document_type', 'quotation')
-                ->where('document_id', $quotation->id)
-                ->where('level', $nextLevel->level)
-                ->where('action', 'pending')
-                ->update([
-                    'approver_id' => auth()->id(),
-                    'approver_name' => auth()->user()->name,
-                    'action' => 'rejected',
-                    'comment' => $request->comment,
-                    'action_at' => now(),
-                ]);
-
-            $quotation->update(['status' => 'rejected']);
-
-            DB::commit();
-
-            return back()->with('success', 'Báo giá đã bị từ chối.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
-        }
+        return back()->with('error', $result['message']);
     }
 
     /**

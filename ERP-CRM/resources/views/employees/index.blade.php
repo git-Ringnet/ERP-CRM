@@ -74,6 +74,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhân viên</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chức vụ</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phòng ban</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chấm công</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điện thoại</th>
@@ -101,6 +102,17 @@
                         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                             {{ $employee->department }}
                         </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-1">
+                            @forelse($employee->roles as $role)
+                                <span class="px-2 py-1 text-xs font-medium rounded-full {{ $role->slug == 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800' }}" title="{{ $role->description }}">
+                                    {{ $role->name }}
+                                </span>
+                            @empty
+                                <span class="text-xs text-gray-400 italic">Chưa gán</span>
+                            @endforelse
+                        </div>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         @if($employee->timekeeping_type == 'regular')

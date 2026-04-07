@@ -70,7 +70,26 @@ class CustomerController extends Controller
     {
         $this->authorize('create', Customer::class);
         
-        return view('customers.create');
+        // Auto-generate next customer code
+        $lastCustomer = Customer::where('code', 'regexp', '^KH[0-9]{4}$')
+            ->orderByRaw('CAST(SUBSTRING(code, 3) AS UNSIGNED) DESC')
+            ->first();
+            
+        if ($lastCustomer) {
+            $lastNumber = intval(substr($lastCustomer->code, 2));
+            $nextCode = 'KH' . str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
+        } else {
+            // Check if any KH% exists regardless of format to be safer
+            $anyKH = Customer::where('code', 'like', 'KH%')->count();
+            if ($anyKH > 0) {
+                // If there are other KH codes, just use total count + 1 to keep it sequential
+                $nextCode = 'KH' . str_pad($anyKH + 1, 4, '0', STR_PAD_LEFT);
+            } else {
+                 $nextCode = 'KH0001';
+            }
+        }
+        
+        return view('customers.create', compact('nextCode'));
     }
 
     /**

@@ -23,7 +23,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="code" class="block text-sm font-medium text-gray-700 mb-1">Mã NCC <span class="text-red-500">*</span></label>
-                                <input type="text" name="code" id="code" value="{{ old('code') }}" required placeholder="VD: NCC001"
+                                <input type="text" name="code" id="code" value="{{ old('code', $nextCode) }}" required placeholder="VD: NCC0001"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('code') border-red-500 @enderror">
                                 @error('code')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
@@ -52,8 +52,15 @@
                             </div>
                             <div>
                                 <label for="tax_code" class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
-                                <input type="text" name="tax_code" id="tax_code" value="{{ old('tax_code') }}" placeholder="Mã số thuế"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <div class="relative">
+                                    <input type="text" name="tax_code" id="tax_code" value="{{ old('tax_code') }}" placeholder="Nhập MST để tìm"
+                                           class="w-full px-3 py-1.5 pr-10 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    <button type="button" id="btn-search-tax" 
+                                            class="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-primary transition-colors focus:outline-none"
+                                            title="Tìm kiếm thông tin từ mã số thuế">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="md:col-span-2">
                                 <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
@@ -187,6 +194,72 @@
                 }
             });
         });
+
+        // Tax ID Search Logic
+        const btnSearchTax = document.getElementById('btn-search-tax');
+        if (btnSearchTax) {
+            btnSearchTax.addEventListener('click', async function() {
+                const taxCode = document.getElementById('tax_code').value.trim();
+                if (!taxCode) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Thông báo',
+                        text: 'Vui lòng nhập mã số thuế trước khi tìm kiếm',
+                        confirmButtonColor: '#3085d6',
+                    });
+                    return;
+                }
+
+                const btn = this;
+                const originalIcon = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+
+                try {
+                    const response = await axios.get(`https://api.vietqr.io/v2/business/${taxCode}`);
+                    
+                    if (response.data.code === '00' && response.data.data) {
+                        const data = response.data.data;
+                        
+                        // Populate fields
+                        if (data.name) {
+                            document.getElementById('name').value = data.name;
+                        }
+                        if (data.address) {
+                            document.getElementById('address').value = data.address;
+                        }
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công',
+                            text: 'Đã lấy được thông tin doanh nghiệp',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        throw new Error(response.data.desc || 'Không tìm thấy thông tin cho mã số thuế này');
+                    }
+                } catch (error) {
+                    console.error('Tax lookup error:', error);
+                    let errorMessage = 'Có lỗi xảy ra khi tra cứu mã số thuế';
+                    if (error.response && error.response.data && error.response.data.desc) {
+                        errorMessage = error.response.data.desc;
+                    } else if (error.message) {
+                        errorMessage = error.message;
+                    }
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi tra cứu',
+                        text: errorMessage,
+                        confirmButtonColor: '#d33',
+                    });
+                } finally {
+                    btn.innerHTML = originalIcon;
+                    btn.disabled = false;
+                }
+            });
+        }
     });
 </script>
 @endpush

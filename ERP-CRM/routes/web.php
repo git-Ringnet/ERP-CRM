@@ -198,6 +198,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
     Route::post('/quotations/{quotation}/send', [QuotationController::class, 'markAsSent'])->name('quotations.send');
     Route::post('/quotations/{quotation}/response', [QuotationController::class, 'customerResponse'])->name('quotations.response');
+    Route::post('/quotations/{quotation}/delegate', [QuotationController::class, 'delegate'])->name('quotations.delegate');
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
 

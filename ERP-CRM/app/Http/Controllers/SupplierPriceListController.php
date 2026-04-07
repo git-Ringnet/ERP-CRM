@@ -71,6 +71,19 @@ class SupplierPriceListController extends Controller
                 'category' => ['Category', 'Product Family'],
             ],
         ],
+        'fortinet_dataset' => [
+            'name' => 'Fortinet (Chỉ sheet Dataset)',
+            'onlySheets' => ['Dataset'], 
+            'skipSheets' => [],
+            'strictMapping' => true, // Chỉ lấy các cột được định nghĩa
+            'headerKeywords' => ['sku', 'item', 'price', 'description'],
+            'columnPatterns' => [
+                'sku' => ['SKU'],
+                'product_name' => ['Item', 'Product'],
+                'description' => ['Description', 'Description #1'],
+                'price' => ['Price'],
+            ],
+        ],
         'default' => [
             'name' => 'Mặc định (Đa năng)',
             'skipSheets' => ['cover', 'summary', 'instructions', 'notes', 'readme', 'general info', 'change log'],
@@ -522,7 +535,7 @@ class SupplierPriceListController extends Controller
             'header_row' => 'nullable|integer',
         ]);
 
-        $supplierType = $request->supplier_type ?? 'default';
+        $supplierType = $request->template ?? $request->supplier_type ?? 'default';
         $preset = $this->supplierPresets[$supplierType] ?? $this->supplierPresets['default'];
 
         // Convert headers from [{index: 0, name: 'A'}, ...] to [0 => 'A', ...]
@@ -612,11 +625,18 @@ class SupplierPriceListController extends Controller
             // Lấy supplier để xác định preset
             $supplier = Supplier::find($request->supplier_id);
             $supplierName = strtolower($supplier->name ?? '');
-            $supplierType = str_contains($supplierName, 'fortinet') ? 'fortinet' :
-                (str_contains($supplierName, 'cisco') ? 'cisco' : 
-                (str_contains($supplierName, 'qnap') ? 'qnap' : 
-                (str_contains($supplierName, 'zyxel') ? 'zyxel' : 
-                ((str_contains($supplierName, 'sonicwall') || str_contains($supplierName, 'dell')) ? 'sonicwall' : 'default'))));
+            
+            // Ưu tiên template nếu có
+            if ($request->filled('template') && isset($this->supplierPresets[$request->template])) {
+                $supplierType = $request->template;
+            } else {
+                $supplierType = str_contains($supplierName, 'fortinet') ? 'fortinet' :
+                    (str_contains($supplierName, 'cisco') ? 'cisco' : 
+                    (str_contains($supplierName, 'qnap') ? 'qnap' : 
+                    (str_contains($supplierName, 'zyxel') ? 'zyxel' : 
+                    ((str_contains($supplierName, 'sonicwall') || str_contains($supplierName, 'dell')) ? 'sonicwall' : 'default'))));
+            }
+            
             $preset = $this->supplierPresets[$supplierType] ?? $this->supplierPresets['default'];
 
             // Tự động phát hiện sheets và mapping nếu cần
@@ -1479,6 +1499,8 @@ class SupplierPriceListController extends Controller
 
         $headerLikeCount = 0;
         $dataLikeCount = 0;
+        $hasSkuLike = false;
+        $hasPriceLike = false;
         $checkCols = min($maxColToCheck, 25);
 
         for ($colIdx = 1; $colIdx <= $checkCols; $colIdx++) {
@@ -1487,19 +1509,21 @@ class SupplierPriceListController extends Controller
 
             if ($nextVal === '') continue;
 
-            // SKU-like codes: mix of uppercase letters and digits, 6+ chars (e.g. 2759ZZBSR120ALZZ)
-            $isSkuLike = preg_match('/^[A-Z0-9\-\/\.]{6,}$/i', $nextVal)
+            // SKU-like codes: mix of uppercase letters and digits, 5+ chars (relaxed from 6)
+            $isSkuLike = preg_match('/^[A-Z0-9\-\/\.]{5,}$/i', $nextVal)
                          && preg_match('/[A-Z]/i', $nextVal)
                          && preg_match('/[0-9]/', $nextVal);
 
             // Numeric values: pure numbers, prices with commas, or range patterns like "0003-0014"
-            $isNumeric = is_numeric($nextVal) || preg_match('/^[\d,\.\-\s\/]+$/', $nextVal);
+            $isNumeric = is_numeric($nextVal) || preg_match('/^[\$€\xA3]?[ ]?[\d,\.]+[ ]?$/', $nextVal) || preg_match('/^[\d,\.\-\s\/]+$/', $nextVal);
 
             // Long text: product names, descriptions (>25 chars is almost certainly data)
             $isLongText = mb_strlen($nextVal) > 25;
 
             if ($isSkuLike || $isNumeric || $isLongText) {
                 $dataLikeCount++;
+                if ($isSkuLike) $hasSkuLike = true;
+                if ($isNumeric) $hasPriceLike = true;
             } else {
                 // Short non-numeric text could be a header continuation (e.g. "Year", "(USD)", "Ex-work TW")
                 $headerLikeCount++;
@@ -1507,6 +1531,13 @@ class SupplierPriceListController extends Controller
         }
 
         $totalNonEmpty = $headerLikeCount + $dataLikeCount;
+
+        // STRONG SIGNAL: If we found both a SKU and a numeric/price value in the same row, it's DATA.
+        // This avoids skipping the first data row if it has many short text fields (common in Fortinet/Cisco files).
+        if ($hasSkuLike && $hasPriceLike) {
+            Log::debug("isNextRowHeaderContinuation: Strong data signal detected (SKU+Price), returning false.");
+            return false;
+        }
 
         // Row is header continuation only if >60% of non-empty cells look like headers
         $isHeader = $totalNonEmpty > 0 && ($headerLikeCount / $totalNonEmpty) > 0.6;
@@ -1660,13 +1691,15 @@ class SupplierPriceListController extends Controller
             foreach ($headerMap as $idx => $header) {
                 $sc = $superClean($header);
                 if ($sc === 'price' || $sc === 'msrp') $mapping['price'] = $idx;
-                if ($sc === 'netprice') $mapping['custom_Net Price'] = $idx;
-                if ($sc === 'unit' || $sc === 'identifier' || $sc === 'productfamilygroup') $mapping['category'] = $idx;
-                if (str_contains($sc, 'sku') || $sc === 'partnumber') $mapping['sku'] = $idx;
+                if ($sc === 'sku' || $sc === 'partnumber' || str_contains($sc, 'sku')) $mapping['sku'] = $idx;
                 if ($sc === 'product' || $sc === 'description' || str_contains($sc, 'description1') || $sc === 'item') {
-                    if (!isset($mapping['product_name']) || $sc === 'item') {
-                        $mapping['product_name'] = $idx;
-                    }
+                    $mapping['product_name'] = $idx;
+                }
+                
+                // Only capture non-essential fields if NOT strictMapping
+                if (!($preset['strictMapping'] ?? false)) {
+                    if ($sc === 'netprice') $mapping['custom_Net Price'] = $idx;
+                    if ($sc === 'unit' || $sc === 'identifier' || $sc === 'productfamilygroup') $mapping['category'] = $idx;
                 }
             }
         }
@@ -1688,30 +1721,30 @@ class SupplierPriceListController extends Controller
         }
         
         // Fallback: generic SKU keywords
-        if (!isset($mapping['sku'])) {
-        $skuKeywords = ['sku', 'part number', 'part no', 'p/n', 'part#', 'part #',
-                        'item no', 'item number', 'product code', 'marketing no',
-                        'mã sản phẩm', 'mã sp', 'model no', 'model number', 'mtm'];
-        
-        foreach ($skuKeywords as $keyword) {
-            $index = array_search($keyword, $headerMap);
-            if ($index !== false) {
-                $mapping['sku'] = $index;
-                break;
+        if (!isset($mapping['sku']) && !($preset['strictMapping'] ?? false)) {
+            $skuKeywords = ['sku', 'part number', 'part no', 'p/n', 'part#', 'part #',
+                            'item no', 'item number', 'product code', 'marketing no',
+                            'mã sản phẩm', 'mã sp', 'model no', 'model number', 'mtm'];
+            
+            foreach ($skuKeywords as $keyword) {
+                $index = array_search($keyword, $headerMap);
+                if ($index !== false) {
+                    $mapping['sku'] = $index;
+                    break;
+                }
             }
-        }
-        
-        if (!isset($mapping['sku'])) {
-            $skuContains = ['sku', 'p/n', 'part number', 'part no', 'part#', 'item no',
-                           'product code', 'marketing no', 'model no'];
-            $mapping['sku'] = $findByContains($skuContains, []) ?? null;
-            if ($mapping['sku'] === null) unset($mapping['sku']);
-        }
+            
+            if (!isset($mapping['sku'])) {
+                $skuContains = ['sku', 'p/n', 'part number', 'part no', 'part#', 'item no',
+                               'product code', 'marketing no', 'model no'];
+                $mapping['sku'] = $findByContains($skuContains, []) ?? null;
+                if ($mapping['sku'] === null) unset($mapping['sku']);
+            }
         } // end fallback SKU
 
         // 2. Detect Product Name
         $usedIndices = isset($mapping['sku']) ? [$mapping['sku']] : [];
-        if (!isset($mapping['product_name'])) {
+        if (!isset($mapping['product_name']) && !($preset['strictMapping'] ?? false)) {
             $nameKeywords = [
                 'information in english', 'name', 'product name', 'description', 'thong tin san pham',
                 'item description', 'model name', 'tên sản phẩm', 'mô tả', 'nội dung'
@@ -1753,7 +1786,8 @@ class SupplierPriceListController extends Controller
         }
         
         // Fallback: generic category keywords
-        if (!isset($mapping['category'])) {
+        // Skip fallback if strictMapping is on
+        if (!isset($mapping['category']) && !($preset['strictMapping'] ?? false)) {
             $catKeywords = ['category', 'segment', 'group', 'product group', 'product family',
                            'danh mục', 'nhóm', 'loại', 'hdd type', 'series', 'project', 'high end'];
             foreach ($catKeywords as $keyword) {
@@ -2053,39 +2087,42 @@ class SupplierPriceListController extends Controller
         // ============================================================
         // CATCH-ALL: Map all remaining unmapped columns as meta_*
         // This ensures ALL data from the Excel file is preserved
+        // Skip this if strictMapping is enabled
         // ============================================================
-        $allMappedIndices = [];
-        foreach ($mapping as $field => $index) {
-            if ($index !== '' && $index !== null) {
-                $allMappedIndices[] = $index;
+        if (!($preset['strictMapping'] ?? false)) {
+            $allMappedIndices = [];
+            foreach ($mapping as $field => $index) {
+                if ($index !== '' && $index !== null) {
+                    $allMappedIndices[] = $index;
+                }
             }
-        }
-        
-        foreach ($headerMap as $index => $header) {
-            // Skip already mapped columns
-            if (in_array($index, $allMappedIndices)) continue;
             
-            // Skip empty or very short headers (likely row numbers or noise)
-            if (strlen(trim($header)) < 2) continue;
-            
-            // Skip headers that look like row numbers
-            if (is_numeric(trim($header))) continue;
-            
-            // Use the original case header for the label
-            $originalHeader = $realHeaders[$index] ?? $fileHeaders[$index] ?? $header;
-            $safeKey = 'meta_' . preg_replace('/[^a-zA-Z0-9_\x{00C0}-\x{024F}\x{1EA0}-\x{1EF9}]/u', '_', $originalHeader);
-            $safeKey = preg_replace('/_+/', '_', $safeKey);
-            $safeKey = rtrim($safeKey, '_');
-            
-            // Check if this looks like a price column (contains numeric data)
-            $score = $getColScore($index);
-            if ($score > 60) {
-                // Likely a price/numeric column → use custom_ prefix
-                $label = mb_convert_case($originalHeader, MB_CASE_TITLE, "UTF-8");
-                $mapping['custom_' . $label] = $index;
-            } else {
-                // Text column → use meta_ prefix
-                $mapping[$safeKey] = $index;
+            foreach ($headerMap as $index => $header) {
+                // Skip already mapped columns
+                if (in_array($index, $allMappedIndices)) continue;
+                
+                // Skip empty or very short headers (likely row numbers or noise)
+                if (strlen(trim($header)) < 2) continue;
+                
+                // Skip headers that look like row numbers
+                if (is_numeric(trim($header))) continue;
+                
+                // Use the original case header for the label
+                $originalHeader = $realHeaders[$index] ?? $fileHeaders[$index] ?? $header;
+                $safeKey = 'meta_' . preg_replace('/[^a-zA-Z0-9_\x{00C0}-\x{024F}\x{1EA0}-\x{1EF9}]/u', '_', $originalHeader);
+                $safeKey = preg_replace('/_+/', '_', $safeKey);
+                $safeKey = rtrim($safeKey, '_');
+                
+                // Check if this looks like a price column (contains numeric data)
+                $score = $getColScore($index);
+                if ($score > 60) {
+                    // Likely a price/numeric column → use custom_ prefix
+                    $label = mb_convert_case($originalHeader, MB_CASE_TITLE, "UTF-8");
+                    $mapping['custom_' . $label] = $index;
+                } else {
+                    // Text column → use meta_ prefix
+                    $mapping[$safeKey] = $index;
+                }
             }
         }
         
@@ -2893,6 +2930,21 @@ class SupplierPriceListController extends Controller
             if ($shouldSkip) {
                 Log::info("Skipping sheet: {$sheetName}");
                 continue;
+            }
+            
+            // Lọc theo onlySheets nếu có
+            if (!empty($preset['onlySheets'])) {
+                $found = false;
+                foreach ($preset['onlySheets'] as $onlyPattern) {
+                    if (stripos($sheetName, $onlyPattern) !== false) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    Log::info("Skipping sheet '{$sheetName}' - not in onlySheets list");
+                    continue;
+                }
             }
             
             $highestColumn = $worksheet->getHighestColumn();

@@ -22,7 +22,7 @@ class SupplierController extends Controller
         $query = DB::table('suppliers');
 
         // Search functionality (Requirement 2.9)
-        if ($request->filled('search')) {
+        if ($request->filled('search')) {   
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
@@ -53,7 +53,26 @@ class SupplierController extends Controller
     {
         $this->authorize('create', \App\Models\Supplier::class);
 
-        return view('suppliers.create');
+        // Auto-generate next supplier code
+        $lastSupplier = \App\Models\Supplier::where('code', 'regexp', '^NCC[0-9]{4}$')
+            ->orderByRaw('CAST(SUBSTRING(code, 4) AS UNSIGNED) DESC')
+            ->first();
+            
+        if ($lastSupplier) {
+            $lastNumber = intval(substr($lastSupplier->code, 3));
+            $nextCode = 'NCC' . str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
+        } else {
+            // Check if any NCC% exists regardless of format to be safer
+            $anyNCC = \App\Models\Supplier::where('code', 'like', 'NCC%')->count();
+            if ($anyNCC > 0) {
+                // If there are other NCC codes, just use total count + 1 to keep it sequential
+                $nextCode = 'NCC' . str_pad($anyNCC + 1, 4, '0', STR_PAD_LEFT);
+            } else {
+                $nextCode = 'NCC0001';
+            }
+        }
+
+        return view('suppliers.create', compact('nextCode'));
     }
 
     /**

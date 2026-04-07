@@ -164,6 +164,18 @@ class Quotation extends Model
     {
         if (!$user || $this->status !== 'pending') return false;
 
+        // 1. Kiểm tra xem người dùng có được ủy quyền cho cấp này không
+        $pendingHistory = ApprovalHistory::where('document_type', 'quotation')
+            ->where('document_id', $this->id)
+            ->where('action', 'pending')
+            ->orderBy('level')
+            ->first();
+            
+        if ($pendingHistory && $pendingHistory->approver_id == $user->id) {
+            return true;
+        }
+
+        // 2. Kiểm tra theo phân quyền Role/User mặc định của Workflow
         $nextLevel = $this->getNextApprovalLevel();
         if (!$nextLevel) return false;
 

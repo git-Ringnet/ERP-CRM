@@ -127,6 +127,7 @@
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm SKU, tên sản phẩm, sheet source..."
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 </div>
+                @if($categories->count() > 0 || request('category'))
                 <div class="w-full md:w-48">
                     <select name="category" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                         <option value="">Tất cả danh mục</option>
@@ -136,6 +137,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
                 <button type="submit"
                     class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm whitespace-nowrap">
                     <i class="fas fa-search mr-1"></i>Tìm
@@ -157,7 +159,9 @@
                             </th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">SKU</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[200px]">Tên sản phẩm</th>
+                            @if($categories->count() > 0)
                             <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">Danh mục</th>
+                            @endif
                             @foreach($priceColumns as $col)
                                 <th class="px-3 py-2 text-right font-medium text-gray-500 whitespace-nowrap min-w-[110px]">
                                     {{ $col['label'] }}
@@ -208,9 +212,11 @@
                                             {{ Str::limit($item->description, 50) }}</div>
                                     @endif
                                 </td>
+                                @if($categories->count() > 0)
                                 <td class="px-3 py-2 text-gray-600">
                                     <div class="text-xs">{{ $item->category ?? '-' }}</div>
                                 </td>
+                                @endif
                                  @foreach($priceColumns as $col)
                                     @php
                                         $value = null;
@@ -262,7 +268,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 5 + count($priceColumns) }}" class="px-4 py-8 text-center text-gray-500">Không có sản phẩm nào</td>
+                                <td colspan="{{ 4 + count($priceColumns) + ($categories->count() > 0 ? 1 : 0) }}" class="px-4 py-8 text-center text-gray-500">Không có sản phẩm nào</td>
                             </tr>
                         @endforelse
                     </tbody>
