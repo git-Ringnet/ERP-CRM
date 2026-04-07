@@ -24,61 +24,71 @@ class RoleSeeder extends Seeder
                 'status' => 'active',
             ],
             [
-                'name' => 'Quản lý Kho',
+                'name' => 'Logistic Manager',
                 'slug' => 'warehouse_manager',
                 'description' => 'Quản lý hoạt động kho, tồn kho và duyệt phiếu nhập/xuất',
                 'status' => 'active',
             ],
             [
-                'name' => 'Nhân viên Kho',
+                'name' => 'Logistic Staff',
                 'slug' => 'warehouse_staff',
                 'description' => 'Xử lý hoạt động kho và quản lý tồn kho',
                 'status' => 'active',
             ],
             [
-                'name' => 'Quản lý Bán hàng',
+                'name' => 'Sales Manager',
                 'slug' => 'sales_manager',
                 'description' => 'Quản lý hoạt động bán hàng, khách hàng và duyệt báo giá',
                 'status' => 'active',
             ],
             [
-                'name' => 'Nhân viên Bán hàng',
+                'name' => 'Sales Staff',
                 'slug' => 'sales_staff',
                 'description' => 'Xử lý quan hệ khách hàng và đơn hàng bán',
                 'status' => 'active',
             ],
             [
-                'name' => 'Quản lý Mua hàng',
+                'name' => 'PO Manager',
                 'slug' => 'purchase_manager',
                 'description' => 'Quản lý mua hàng và duyệt đơn mua hàng',
                 'status' => 'active',
             ],
             [
-                'name' => 'Nhân viên Mua hàng',
+                'name' => 'PO Staff',
                 'slug' => 'purchase_staff',
                 'description' => 'Xử lý quan hệ nhà cung cấp và đơn mua hàng',
                 'status' => 'active',
             ],
             [
-                'name' => 'Kế toán',
+                'name' => 'Finance Team',
                 'slug' => 'accountant',
-                'description' => 'Xem và xuất dữ liệu tài chính và báo cáo',
+                'description' => 'Xuất hoá đơn, theo dõi công nợ và thanh toán khách hàng',
                 'status' => 'active',
             ],
             [
-                'name' => 'Giám đốc',
+                'name' => 'Legal Team',
+                'slug' => 'legal_team',
+                'description' => 'Review hợp đồng, kiểm tra điều khoản và policy',
+                'status' => 'active',
+            ],
+            [
+                'name' => 'BOD',
                 'slug' => 'director',
-                'description' => 'Xem tất cả dữ liệu và duyệt các hoạt động quan trọng',
+                'description' => 'Phê duyệt hợp đồng, xem tất cả dữ liệu và báo cáo',
                 'status' => 'active',
             ],
         ];
         
         // Insert roles (use insertOrIgnore for idempotence)
+        // Update or insert roles
         foreach ($roles as $role) {
-            DB::table('roles')->insertOrIgnore(array_merge($role, [
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]));
+            DB::table('roles')->updateOrInsert(
+                ['slug' => $role['slug']],
+                array_merge($role, [
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+            );
         }
         
         // Assign permissions to roles
@@ -101,7 +111,9 @@ class RoleSeeder extends Seeder
         // XÓA TẤT CẢ QUYỀN CŨ TRƯỚC KHI GÁN MỚI
         DB::table('role_permissions')->truncate();
         
-        // Super Admin - all permissions
+        // ============================================================
+        // SUPER ADMIN - Toàn quyền hệ thống
+        // ============================================================
         if (isset($roles['super_admin'])) {
             $superAdminPermissions = [];
             foreach ($allPermissions as $slug => $permissionId) {
@@ -114,20 +126,126 @@ class RoleSeeder extends Seeder
             DB::table('role_permissions')->insert($superAdminPermissions);
         }
         
-        // Warehouse Manager - all warehouse, inventory, imports, exports, transfers, damaged_goods permissions
+        // ============================================================
+        // SALES TEAM - Quản lý Bán hàng
+        // Quy trình: Xây dựng Database KH → Sàng lọc → Tư vấn → ĐKDA
+        //            → Báo giá → Chốt BOM → Lập HĐMB → Đặt hàng → Theo dõi
+        // ============================================================
+        if (isset($roles['sales_manager'])) {
+            // Full CRUD modules
+            $salesManagerPerms = $this->getPermissionsByModules(
+                $allPermissions,
+                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
+                 'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
+                 'milestone_templates', 'work_schedules', 'communication_logs', 'products']
+            );
+            // View-only: inventory, shipping, exports, cost_formulas (theo dõi hàng hoá & giao hàng)
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
+                ['inventory', 'shipping_allocations', 'exports', 'cost_formulas'], ['view']
+            );
+            // Purchase modules: purchase_requests, purchase_orders (view, create, edit, export)
+            $purchasePerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit', 'export']
+            );
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'approve_quotations', 'view_all_sales', 'view_all_quotations', 
+                'view_dashboard', 'view_business_dashboard', 'export_business_reports',
+                'view_all_purchase_orders', 'view_all_purchase_requests'
+            ]);
+            $salesManagerPerms = array_unique(array_merge($salesManagerPerms, $viewPerms, $purchasePerms, $specialPerms));
+            $this->attachPermissionsToRole($roles['sales_manager'], $salesManagerPerms, $now);
+        }
+        
+        // ============================================================
+        // SALES TEAM - Nhân viên Bán hàng
+        // ============================================================
+        if (isset($roles['sales_staff'])) {
+            $salesStaffPerms = $this->getPermissionsByModulesAndActions(
+                $allPermissions,
+                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 
+                 'customer_care_stages', 'projects', 'communication_logs'],
+                ['view', 'create', 'edit']
+            );
+            // View-only modules
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
+                ['customer_debts', 'warranties', 'price_lists', 'work_schedules', 'products',
+                 'cost_formulas', 'inventory', 'shipping_allocations', 'exports', 'sale_reports'], 
+                ['view']
+            );
+            // Purchase modules: purchase_requests, purchase_orders (view, create, edit)
+            $purchasePerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit']
+            );
+            $ownPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'view_own_sales', 'view_own_quotations', 'view_dashboard'
+            ]);
+            $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $viewPerms, $purchasePerms, $ownPerms));
+            $this->attachPermissionsToRole($roles['sales_staff'], $salesStaffPerms, $now);
+        }
+        
+        // ============================================================
+        // LEGAL TEAM - Pháp lý (MỚI)
+        // Quy trình: Review hợp đồng → Kiểm tra điều khoản & policy
+        //            → Yêu cầu điều chỉnh nếu chưa hợp lý
+        // ============================================================
+        if (isset($roles['legal_team'])) {
+            // View: sales, quotations, customers, products, approval_workflows
+            $legalPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['sales', 'quotations', 'customers', 'products', 'approval_workflows'],
+                ['view']
+            );
+            // Edit: approval_workflows (đánh dấu trạng thái review)
+            $editPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['approval_workflows'], ['edit']
+            );
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'view_dashboard', 'view_all_sales', 'view_all_quotations'
+            ]);
+            $legalPerms = array_unique(array_merge($legalPerms, $editPerms, $specialPerms));
+            $this->attachPermissionsToRole($roles['legal_team'], $legalPerms, $now);
+        }
+        
+        // ============================================================
+        // BOD - Ban Giám đốc
+        // Quy trình: Phê duyệt hợp đồng cuối cùng sau Legal review
+        //            + Xem tất cả báo cáo, dữ liệu tài chính
+        // ============================================================
+        if (isset($roles['director'])) {
+            $directorPerms = $this->getPermissionsByActions($allPermissions, ['view', 'edit', 'approve', 'export']);
+            $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports', 'employee_asset_reports']);
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 
+                'view_business_dashboard', 'export_business_reports'
+            ]);
+            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
+                ['financial_transactions', 'transaction_categories', 'reconciliations', 
+                 'warehouse_journal_entries', 'employee_asset_assignments'], 
+                ['create', 'edit', 'delete']
+            );
+            $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms, $financialPerms));
+            $this->attachPermissionsToRole($roles['director'], $directorPerms, $now);
+        }
+        
+        // ============================================================
+        // LOGISTIC TEAM - Quản lý Kho
+        // Quy trình: Kiểm tra hàng hoá/license → Phân loại → Báo cáo thiếu/lỗi
+        // ============================================================
         if (isset($roles['warehouse_manager'])) {
             $warehouseManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
                 ['warehouses', 'inventory', 'imports', 'exports', 'transfers', 'damaged_goods', 'products', 'excel_imports', 'work_schedules']
             );
-            // Add approve permissions and dashboard
-            $approvePerms = $this->getPermissionsBySlugs($allPermissions, ['approve_imports', 'approve_exports', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
+            $approvePerms = $this->getPermissionsBySlugs($allPermissions, [
+                'approve_imports', 'approve_exports', 'view_dashboard', 'view_business_dashboard', 'export_business_reports'
+            ]);
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['warehouse_journal_entries'], ['view']);
             $warehouseManagerPerms = array_unique(array_merge($warehouseManagerPerms, $approvePerms, $viewPerms));
             $this->attachPermissionsToRole($roles['warehouse_manager'], $warehouseManagerPerms, $now);
         }
         
-        // Warehouse Staff - view, create, edit for imports, exports, transfers, and view for inventory
+        // ============================================================
+        // LOGISTIC TEAM - Nhân viên Kho
+        // ============================================================
         if (isset($roles['warehouse_staff'])) {
             $warehouseStaffPerms = array_merge(
                 $this->getPermissionsByModulesAndActions($allPermissions, ['imports', 'exports', 'transfers', 'damaged_goods'], ['view', 'create', 'edit']),
@@ -138,49 +256,35 @@ class RoleSeeder extends Seeder
             $this->attachPermissionsToRole($roles['warehouse_staff'], $warehouseStaffPerms, $now);
         }
         
-        // Sales Manager - all customers, sales, quotations, leads, opportunities, activities, projects permissions
-        if (isset($roles['sales_manager'])) {
-            $salesManagerPerms = $this->getPermissionsByModules(
-                $allPermissions,
-                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
-                 'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
-                 'milestone_templates', 'work_schedules']
-            );
-            // Add approve_quotations, view_all_sales, view_all_quotations, and dashboard
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_quotations', 'view_all_sales', 'view_all_quotations', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
-            $salesManagerPerms = array_unique(array_merge($salesManagerPerms, $specialPerms));
-            $this->attachPermissionsToRole($roles['sales_manager'], $salesManagerPerms, $now);
-        }
-        
-        // Sales Staff - view, create, edit for customers, sales, quotations, leads, opportunities, activities
-        if (isset($roles['sales_staff'])) {
-            $salesStaffPerms = $this->getPermissionsByModulesAndActions(
-                $allPermissions,
-                ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 
-                 'customer_care_stages', 'projects'],
-                ['view', 'create', 'edit']
-            );
-            // Add view_own_sales, view_own_quotations, and dashboard
-            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_sales', 'view_own_quotations', 'view_dashboard']);
-            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['customer_debts', 'warranties', 'price_lists', 'work_schedules'], ['view']);
-            $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $ownPerms, $viewPerms));
-            $this->attachPermissionsToRole($roles['sales_staff'], $salesStaffPerms, $now);
-        }
-        
-        // Purchase Manager - all suppliers, purchase_orders, purchase_requests, supplier_quotations permissions
+        // ============================================================
+        // PO TEAM - Quản lý Mua hàng
+        // Quy trình: Mapping PO/Partner/Sales → Nhập kho → Match thông tin order
+        // ============================================================
         if (isset($roles['purchase_manager'])) {
             $purchaseManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
                 ['suppliers', 'purchase_orders', 'purchase_requests', 'supplier_quotations', 
                  'supplier_price_lists', 'shipping_allocations', 'purchase_reports', 'cost_formulas', 'work_schedules']
             );
-            // Add approve_purchase_orders, view_all_purchase_orders, and dashboard
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['approve_purchase_orders', 'view_all_purchase_orders', 'view_dashboard', 'view_business_dashboard', 'export_business_reports']);
-            $purchaseManagerPerms = array_unique(array_merge($purchaseManagerPerms, $specialPerms));
+            // Nhập kho theo mapping
+            $importPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['imports'], ['view', 'create', 'edit', 'export']
+            );
+            // View: sales, inventory, products (match thông tin order)
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['sales', 'inventory', 'products'], ['view']
+            );
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'approve_purchase_orders', 'view_all_purchase_orders', 
+                'view_dashboard', 'view_business_dashboard', 'export_business_reports'
+            ]);
+            $purchaseManagerPerms = array_unique(array_merge($purchaseManagerPerms, $importPerms, $viewPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['purchase_manager'], $purchaseManagerPerms, $now);
         }
         
-        // Purchase Staff - view, create, edit for suppliers, purchase_orders, purchase_requests, supplier_quotations
+        // ============================================================
+        // PO TEAM - Nhân viên Mua hàng
+        // ============================================================
         if (isset($roles['purchase_staff'])) {
             $purchaseStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
@@ -188,30 +292,43 @@ class RoleSeeder extends Seeder
                  'supplier_price_lists', 'shipping_allocations'],
                 ['view', 'create', 'edit']
             );
-            // Add view_own_purchase_orders and dashboard
+            // Nhập kho theo mapping
+            $importPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['imports'], ['view', 'create', 'edit']
+            );
+            // View: sales, inventory, products, cost_formulas, work_schedules
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['sales', 'inventory', 'products', 'cost_formulas', 'work_schedules'], ['view']
+            );
             $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_own_purchase_orders', 'view_dashboard']);
-            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['cost_formulas', 'work_schedules'], ['view']);
-            $purchaseStaffPerms = array_unique(array_merge($purchaseStaffPerms, $ownPerms, $viewPerms));
+            $purchaseStaffPerms = array_unique(array_merge($purchaseStaffPerms, $importPerms, $viewPerms, $ownPerms));
             $this->attachPermissionsToRole($roles['purchase_staff'], $purchaseStaffPerms, $now);
         }
         
-        // Accountant - view and export for all modules, plus view all sales/purchases
+        // ============================================================
+        // FINANCE TEAM - Kế toán
+        // Quy trình: Xuất hoá đơn chính thức → Theo dõi công nợ & thanh toán KH
+        // ============================================================
         if (isset($roles['accountant'])) {
+            // View and export for all modules
             $accountantPerms = $this->getPermissionsByActions($allPermissions, ['view', 'export']);
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders']);
-            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['financial_transactions', 'transaction_categories', 'reconciliations', 'warehouse_journal_entries', 'employee_asset_assignments'], ['create', 'edit']);
-            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms, $financialPerms));
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
+                'view_all_sales', 'view_all_quotations', 'view_all_purchase_orders'
+            ]);
+            // Create/edit for financial modules
+            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
+                ['financial_transactions', 'transaction_categories', 'reconciliations', 
+                 'warehouse_journal_entries', 'employee_asset_assignments'], 
+                ['create', 'edit']
+            );
+            // Create/edit exports (xuất hoá đơn chính thức & bàn giao hàng)
+            $exportPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['exports'], ['create', 'edit']
+            );
+            // Record payment for customer debts (theo dõi công nợ & thanh toán)
+            $debtPerms = $this->getPermissionsBySlugs($allPermissions, ['record_payment_customer_debts']);
+            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms, $financialPerms, $exportPerms, $debtPerms));
             $this->attachPermissionsToRole($roles['accountant'], $accountantPerms, $now);
-        }
-        
-        // Director - view, approve, export for all modules, and all report permissions
-        if (isset($roles['director'])) {
-            $directorPerms = $this->getPermissionsByActions($allPermissions, ['view', 'approve', 'export']);
-            $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports', 'employee_asset_reports']);
-            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_business_dashboard', 'export_business_reports']);
-            $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['financial_transactions', 'transaction_categories', 'reconciliations', 'warehouse_journal_entries', 'employee_asset_assignments'], ['create', 'edit', 'delete']);
-            $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms, $financialPerms));
-            $this->attachPermissionsToRole($roles['director'], $directorPerms, $now);
         }
     }
     

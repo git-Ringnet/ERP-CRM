@@ -62,7 +62,7 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function update(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $this->checkPermission($user, 'edit_purchase_orders');
+        return $this->checkPermission($user, 'edit_purchase_orders') || $this->checkPermission($user, 'approve_purchase_orders');
     }
 
     /**

@@ -302,6 +302,7 @@
                     </a>
                 </div>
 
+                @if(false)
                 <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('assets')">
@@ -335,7 +336,9 @@
                         </a>
                     </div>
                 </div>
+                @endif
 
+                @if(false)
                 <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('kpis')">
@@ -365,7 +368,9 @@
                         </a>
                     </div>
                 </div>
+                @endif
 
+                @if(false)
                 <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('hr_payroll')">
@@ -394,6 +399,7 @@
                         </a>
                     </div>
                 </div>
+                @endif
 
                 @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports'])
                     <div class="mt-4">
@@ -490,7 +496,7 @@
                     </div>
                 @endcanany
 
-                @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports'])
+                @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_all_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_all_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('purchasing')">
@@ -514,7 +520,7 @@
                                 <a href="{{ route('purchase-requests.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-clipboard-list w-6"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá</span>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá từ NCC</span>
                                 </a>
                             @endcan
 
@@ -530,7 +536,7 @@
                                 <a href="{{ route('purchase-orders.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-file-contract w-6 text-blue-400"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đơn mua hàng (PO)</span>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đặt hàng với hãng (PO)</span>
                                 </a>
                             @endcan
 
@@ -726,12 +732,14 @@
 
                 <div class="flex items-center space-x-2 sm:space-x-4">
                     <!-- Quick Attendance Link -->
+                    @if(false)
                     <a href="{{ route('attendance.index') }}" 
                         class="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                         title="Chấm công GPS">
                         <i class="fas fa-map-marker-alt mr-1.5 sm:mr-2"></i>
                         <span class="whitespace-nowrap">Chấm công</span>
                     </a>
+                    @endif
 
                     <!-- Notification Bell -->
                     <div class="relative" x-data="notificationBell()" x-init="init()">

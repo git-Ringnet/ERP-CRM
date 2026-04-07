@@ -24,7 +24,7 @@ class SupplierQuotationPolicy extends BasePolicy
 
     public function update(User $user, SupplierQuotation $supplierQuotation): bool
     {
-        return $this->checkPermission($user, 'edit_supplier_quotations');
+        return $this->checkPermission($user, 'edit_supplier_quotations') || $this->checkPermission($user, 'approve_supplier_quotations');
     }
 
     public function delete(User $user, SupplierQuotation $supplierQuotation): bool

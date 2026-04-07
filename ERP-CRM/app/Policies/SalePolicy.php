@@ -62,7 +62,19 @@ class SalePolicy extends BasePolicy
      */
     public function update(User $user, Sale $sale): bool
     {
-        return $this->checkPermission($user, 'edit_sales');
+        return $this->checkPermission($user, 'edit_sales') || $this->checkPermission($user, 'approve_sales');
+    }
+
+    /**
+     * Determine whether the user can approve the sale.
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function approve(User $user, Sale $sale): bool
+    {
+        return $this->checkPermission($user, 'approve_sales');
     }
 
     /**

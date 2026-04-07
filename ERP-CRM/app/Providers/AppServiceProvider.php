@@ -16,16 +16,16 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Register CacheService
-        $this->app->singleton(\App\Services\CacheServiceInterface::class , \App\Services\CacheService::class);
+        $this->app->singleton(\App\Services\CacheServiceInterface::class, \App\Services\CacheService::class);
 
         // Register AuditService
-        $this->app->singleton(\App\Services\AuditServiceInterface::class , \App\Services\AuditService::class);
+        $this->app->singleton(\App\Services\AuditServiceInterface::class, \App\Services\AuditService::class);
 
         // Register PermissionService
-        $this->app->singleton(\App\Services\PermissionServiceInterface::class , \App\Services\PermissionService::class);
+        $this->app->singleton(\App\Services\PermissionServiceInterface::class, \App\Services\PermissionService::class);
 
         // Register RoleService
-        $this->app->singleton(\App\Services\RoleServiceInterface::class , \App\Services\RoleService::class);
+        $this->app->singleton(\App\Services\RoleServiceInterface::class, \App\Services\RoleService::class);
 
         // Register DashboardService
         $this->app->singleton(\App\Services\DashboardService::class);
@@ -62,22 +62,22 @@ class AppServiceProvider extends ServiceProvider
     protected function registerBladeDirectives(): void
     {
         // @can directive - check if user has a specific permission
-        Blade::if ('can', function (string $permission) {
+        Blade::if('can', function (string $permission) {
             return auth()->check() && auth()->user()->can($permission);
         });
 
         // @canany directive - check if user has any of the specified permissions
-        Blade::if ('canany', function (array $permissions) {
+        Blade::if('canany', function (array $permissions) {
             return auth()->check() && collect($permissions)->some(fn($p) => auth()->user()->can($p));
         });
 
         // @role directive - check if user has a specific role
-        Blade::if ('role', function (string $roleName) {
+        Blade::if('role', function (string $roleName) {
             return auth()->check() && auth()->user()->hasRole($roleName);
         });
 
         // @hasrole directive - alias for @role directive
-        Blade::if ('hasrole', function (string $roleName) {
+        Blade::if('hasrole', function (string $roleName) {
             return auth()->check() && auth()->user()->hasRole($roleName);
         });
     }

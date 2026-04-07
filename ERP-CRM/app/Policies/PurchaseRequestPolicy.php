@@ -24,7 +24,7 @@ class PurchaseRequestPolicy extends BasePolicy
 
     public function update(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        return $this->checkPermission($user, 'edit_purchase_requests');
+        return $this->checkPermission($user, 'edit_purchase_requests') || $this->checkPermission($user, 'approve_purchase_requests');
     }
 
     public function delete(User $user, PurchaseRequest $purchaseRequest): bool

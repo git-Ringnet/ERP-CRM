@@ -65,7 +65,7 @@ class QuotationPolicy extends BasePolicy
      */
     public function update(User $user, Quotation $quotation): bool
     {
-        return $this->checkPermission($user, 'edit_quotations');
+        return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
     }
 
     /**
