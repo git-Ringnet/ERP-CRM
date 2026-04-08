@@ -139,9 +139,9 @@ class RoleSeeder extends Seeder
                  'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
                  'milestone_templates', 'work_schedules', 'communication_logs', 'products']
             );
-            // View-only: inventory, shipping, exports, cost_formulas (theo dõi hàng hoá & giao hàng)
+            // View-only: inventory, shipping, exports, cost_formulas, imports (đối soát thông tin nhập kho)
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
-                ['inventory', 'shipping_allocations', 'exports', 'cost_formulas'], ['view']
+                ['inventory', 'shipping_allocations', 'exports', 'cost_formulas', 'imports'], ['view']
             );
             // Purchase modules: purchase_requests, purchase_orders (view, create, edit, export)
             $purchasePerms = $this->getPermissionsByModulesAndActions($allPermissions,
@@ -219,7 +219,7 @@ class RoleSeeder extends Seeder
             ]);
             $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
                 ['financial_transactions', 'transaction_categories', 'reconciliations', 
-                 'warehouse_journal_entries', 'employee_asset_assignments'], 
+                 'warehouse_journal_entries', 'employee_asset_assignments', 'projects'], 
                 ['create', 'edit', 'delete']
             );
             $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms, $financialPerms));
