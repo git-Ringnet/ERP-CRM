@@ -169,10 +169,14 @@ class PurchaseOrderController extends Controller
                 'discount_amount' => $discountAmount,
                 'vat_amount' => $vatAmount,
                 'total' => $isForeign
-                    ? $this->currencyService->toBase($finalTotal, $order->exchange_rate)
+                    ? $this->currencyService->toBase($finalTotal, (float)$order->exchange_rate)
                     : $finalTotal,
                 'total_foreign' => $isForeign ? $finalTotal : null,
             ]);
+
+            // Cập nhật công nợ
+            $order->updateDebt();
+            $order->save();
 
             // Cập nhật trạng thái báo giá NCC
             if ($request->supplier_quotation_id) {
@@ -283,10 +287,14 @@ class PurchaseOrderController extends Controller
                 'discount_amount' => $discountAmount,
                 'vat_amount' => $vatAmount,
                 'total' => $isForeign
-                    ? $this->currencyService->toBase($finalTotal, $purchaseOrder->exchange_rate)
+                    ? $this->currencyService->toBase($finalTotal, (float)$purchaseOrder->exchange_rate)
                     : $finalTotal,
                 'total_foreign' => $isForeign ? $finalTotal : null,
             ]);
+
+            // Cập nhật công nợ
+            $purchaseOrder->updateDebt();
+            $purchaseOrder->save();
 
             DB::commit();
             return redirect()->route('purchase-orders.index')
@@ -335,6 +343,10 @@ class PurchaseOrderController extends Controller
             'approved_at' => now(),
             'approved_by' => auth()->id(),
         ]);
+
+        // Cập nhật công nợ khi đơn hàng được duyệt
+        $purchaseOrder->updateDebt();
+        $purchaseOrder->save();
 
         return back()->with('success', 'Đã duyệt đơn mua hàng!');
     }
