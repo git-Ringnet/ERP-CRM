@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Illuminate\Validation\Rule;
 
 /**
  * EmployeesImport handles importing employee data from Excel
@@ -120,20 +121,36 @@ class EmployeesImport implements ToCollection, WithHeadingRow
             $data['cccd_cmnd'] = isset($data['cccd_cmnd']) ? (string) $data['cccd_cmnd'] : null;
             $data['tai_khoan_ngan_hang'] = isset($data['tai_khoan_ngan_hang']) ? (string) $data['tai_khoan_ngan_hang'] : null;
 
+            // Check if employee exists by code first to handle unique validation ignoring self
+            $existing = DB::table('users')
+                ->where('employee_code', $data['ma_nhan_vien'] ?? '')
+                ->first();
+
             // Validate row data
             $validator = Validator::make($data, [
-                'ma_nhan_vien' => 'required|max:50',
-                'ten_nhan_vien' => 'required|max:255',
-                'email' => 'required|email|max:255',
-                'so_dien_thoai' => 'required|max:20',
-                'phong_ban' => 'required|max:100',
-                'chuc_vu' => 'required|max:100',
+                'ma_nhan_vien' => ['required', 'max:50'],
+                'ten_nhan_vien' => ['required', 'max:255'],
+                'email' => [
+                    'required', 
+                    'email', 
+                    'max:255', 
+                    $existing ? Rule::unique('users', 'email')->ignore($existing->id) : 'unique:users,email'
+                ],
+                'so_dien_thoai' => [
+                    'required', 
+                    'max:20',
+                    $existing ? Rule::unique('users', 'phone')->ignore($existing->id) : 'unique:users,phone'
+                ],
+                'phong_ban' => ['required', 'max:100'],
+                'chuc_vu' => ['required', 'max:100'],
             ], [
                 'ma_nhan_vien.required' => "Dòng {$rowNumber}: Mã nhân viên là bắt buộc",
                 'ten_nhan_vien.required' => "Dòng {$rowNumber}: Tên nhân viên là bắt buộc",
                 'email.required' => "Dòng {$rowNumber}: Email là bắt buộc",
                 'email.email' => "Dòng {$rowNumber}: Email không hợp lệ",
+                'email.unique' => "Dòng {$rowNumber}: Email '{$data['email']}' đã tồn tại trong hệ thống",
                 'so_dien_thoai.required' => "Dòng {$rowNumber}: Số điện thoại là bắt buộc",
+                'so_dien_thoai.unique' => "Dòng {$rowNumber}: Số điện thoại '{$data['so_dien_thoai']}' đã tồn tại trong hệ thống",
                 'phong_ban.required' => "Dòng {$rowNumber}: Phòng ban là bắt buộc",
                 'chuc_vu.required' => "Dòng {$rowNumber}: Chức vụ là bắt buộc",
             ]);
@@ -166,10 +183,7 @@ class EmployeesImport implements ToCollection, WithHeadingRow
                 'updated_at' => now(),
             ];
 
-            // Check if employee exists
-            $existing = DB::table('users')
-                ->where('employee_code', $employeeData['employee_code'])
-                ->first();
+            // Use the $existing check from before validation
 
             if ($existing) {
                 // Update existing employee
