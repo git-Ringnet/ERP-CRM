@@ -57,6 +57,12 @@ class PermissionService implements PermissionServiceInterface
      */
     public function checkPermission(int $userId, string $permission): bool
     {
+        // Super Admin bypass: if user has super_admin role, grant all permissions
+        $user = \App\Models\User::find($userId);
+        if ($user && $user->roles()->where('slug', 'super_admin')->exists()) {
+            return true;
+        }
+
         $permissions = $this->getUserPermissions($userId);
 
         return $permissions->contains('slug', $permission);

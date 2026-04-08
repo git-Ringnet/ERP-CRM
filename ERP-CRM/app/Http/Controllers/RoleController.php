@@ -79,6 +79,11 @@ class RoleController extends Controller
      */
     public function store(Request $request)
     {
+        // Auto-generate slug if not provided
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge(['slug' => \Illuminate\Support\Str::slug($request->name, '_')]);
+        }
+
         // Validation
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -87,6 +92,7 @@ class RoleController extends Controller
             'status' => ['required', 'in:active,inactive'],
         ], [
             'slug.regex' => 'Slug chỉ được chứa chữ thường, số, gạch ngang và gạch dưới.',
+            'slug.unique' => 'Mã vai trò (slug) này đã tồn tại.',
         ]);
 
         try {
@@ -157,6 +163,11 @@ class RoleController extends Controller
     {
         $role = Role::findOrFail($id);
 
+        // Auto-generate slug if not provided
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge(['slug' => \Illuminate\Support\Str::slug($request->name, '_')]);
+        }
+
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -165,6 +176,7 @@ class RoleController extends Controller
             'status' => ['required', 'in:active,inactive'],
         ], [
             'slug.regex' => 'Slug chỉ được chứa chữ thường, số, gạch ngang và gạch dưới.',
+            'slug.unique' => 'Mã vai trò (slug) này đã tồn tại.',
         ]);
 
         try {
