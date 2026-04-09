@@ -12,6 +12,8 @@ class SaleExpense extends Model
     protected $fillable = [
         'sale_id',
         'type',
+        'input_mode',
+        'percent_value',
         'description',
         'amount',
         'note',
@@ -19,7 +21,25 @@ class SaleExpense extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'percent_value' => 'decimal:2',
     ];
+
+    /**
+     * Default expense templates for new orders.
+     */
+    public static function defaultExpenses(): array
+    {
+        return [
+            ['type' => 'Chi phí Tài chính', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Lãi vay phát sinh do nợ quá hạn', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Chi phí Quản lí, Back Office & kỹ thuật', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => '24x7 Support cost', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Other Support', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Technical support/POC', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Chi phí triển khai hợp đồng', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Thuế nhà thầu', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+        ];
+    }
 
     /**
      * Relationship with Sale
@@ -30,44 +50,10 @@ class SaleExpense extends Model
     }
 
     /**
-     * Get type label
+     * Get type label — just return the type itself since it's now freeform
      */
     public function getTypeLabelAttribute(): string
     {
-        return match($this->type) {
-            'shipping' => 'Vận chuyển',
-            'marketing' => 'Marketing',
-            'commission' => 'Hoa hồng',
-            'other' => 'Khác',
-            default => 'Không xác định',
-        };
-    }
-
-    /**
-     * Get type icon
-     */
-    public function getTypeIconAttribute(): string
-    {
-        return match($this->type) {
-            'shipping' => 'fa-truck',
-            'marketing' => 'fa-bullhorn',
-            'commission' => 'fa-percentage',
-            'other' => 'fa-receipt',
-            default => 'fa-dollar-sign',
-        };
-    }
-
-    /**
-     * Get type color
-     */
-    public function getTypeColorAttribute(): string
-    {
-        return match($this->type) {
-            'shipping' => 'bg-blue-100 text-blue-800',
-            'marketing' => 'bg-orange-100 text-orange-800',
-            'commission' => 'bg-green-100 text-green-800',
-            'other' => 'bg-gray-100 text-gray-800',
-            default => 'bg-gray-100 text-gray-800',
-        };
+        return $this->type ?: 'Khác';
     }
 }

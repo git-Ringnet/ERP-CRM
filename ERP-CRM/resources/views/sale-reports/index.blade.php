@@ -28,7 +28,7 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
                     <input type="date" name="date_from" value="{{ $dateFrom }}"
@@ -59,6 +59,18 @@
                         @foreach($products as $product)
                             <option value="{{ $product->id }}" {{ $productId == $product->id ? 'selected' : '' }}>
                                 {{ $product->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NV Kinh doanh</label>
+                    <select name="user_id"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Tất cả</option>
+                        @foreach($users as $u)
+                            <option value="{{ $u->id }}" {{ ($userId ?? '') == $u->id ? 'selected' : '' }}>
+                                {{ $u->name }}
                             </option>
                         @endforeach
                     </select>
@@ -137,6 +149,11 @@
                         class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
                         data-tab="profit">
                         <i class="fas fa-chart-pie mr-1"></i>Phân tích Lợi nhuận
+                    </button>
+                    <button type="button"
+                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+                        data-tab="margin">
+                        <i class="fas fa-file-invoice-dollar mr-1"></i>Báo cáo Margin
                     </button>
                 </nav>
             </div>
@@ -305,6 +322,112 @@
                             @endforeach
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Margin Report -->
+            <div class="tab-content p-4 hidden" id="tab-margin">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800">
+                        <i class="fas fa-file-invoice-dollar mr-2 text-primary"></i>
+                        Báo cáo Lãi/Lỗ (Margin) theo đơn hàng
+                        <span class="text-sm font-normal text-gray-500">
+                            (Từ {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }} đến {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }})
+                        </span>
+                    </h3>
+                    <a href="{{ route('sale-reports.export-margin', request()->query()) }}"
+                        class="inline-flex items-center px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600">
+                        <i class="fas fa-file-excel mr-2"></i>Xuất Excel Margin
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse min-w-[1400px]">
+                        <thead>
+                            <tr class="bg-[#1a3a5c] text-white text-xs text-center">
+                                <th class="px-2 py-2 border border-[#0d2a4a] w-10">STT</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[180px]">Tên khách hàng</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[120px]">Số Hóa đơn<br/>tài chính</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[100px]">Ngày xuất<br/>hóa đơn</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[80px]">HÃNG</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] w-16">License</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[140px]">Loại hàng</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[100px]">Mã Hàng hóa<br/>chính</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[110px]">Margin</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] w-20">Margin %</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[130px]">NV<br/>Kinh doanh</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] min-w-[140px]">Tổng Tiền KH<br/>đã thanh toán</th>
+                                <th class="px-2 py-2 border border-[#0d2a4a] w-24">Tỷ lệ KH đã<br/>thanh toán (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            @forelse($marginReport as $row)
+                                <tr class="hover:bg-blue-50 transition-colors text-xs">
+                                    <td class="px-2 py-2 text-center border border-gray-200">{{ $row['stt'] }}</td>
+                                    <td class="px-2 py-2 border border-gray-200 font-medium">{{ $row['customer_name'] }}</td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">
+                                        <a href="{{ route('sales.show', $row['sale_id']) }}" class="text-primary hover:underline" title="Xem đơn hàng">
+                                            {{ $row['invoice_number'] }}
+                                        </a>
+                                    </td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">{{ $row['invoice_date'] }}</td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
+                                    <td class="px-2 py-2 text-center border border-gray-200 font-mono text-xs">{{ $row['main_product_code'] }}</td>
+                                    <td class="px-2 py-2 text-right border border-gray-200 font-semibold {{ $row['margin'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                        {{ number_format($row['margin'], 0, ',', '.') }}
+                                    </td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">
+                                        <span class="inline-block px-1.5 py-0.5 text-xs font-medium rounded-full
+                                            {{ $row['margin_percent'] >= 15 ? 'bg-green-100 text-green-800' : ($row['margin_percent'] >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                            {{ $row['margin_percent'] }}%
+                                        </span>
+                                    </td>
+                                    <td class="px-2 py-2 border border-gray-200">{{ $row['salesperson'] }}</td>
+                                    <td class="px-2 py-2 text-right border border-gray-200">
+                                        @if($row['paid_amount'] > 0)
+                                            {{ number_format($row['paid_amount'], 0, ',', '.') }}
+                                        @else
+                                            <span class="text-gray-400">Chưa thanh toán</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">
+                                        <span class="inline-block px-1.5 py-0.5 text-xs font-medium rounded-full
+                                            {{ $row['payment_percent'] >= 100 ? 'bg-green-100 text-green-800' : ($row['payment_percent'] > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                            {{ $row['payment_percent'] }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="13" class="px-3 py-8 text-center text-gray-500">
+                                        <i class="fas fa-inbox text-3xl text-gray-300 mb-2"></i>
+                                        <p>Không có dữ liệu trong khoảng thời gian này</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                        @if(count($marginReport) > 0)
+                        <tfoot>
+                            <tr class="bg-gray-100 font-bold text-xs">
+                                <td colspan="8" class="px-2 py-2 text-right border border-gray-300">TỔNG CỘNG</td>
+                                <td class="px-2 py-2 text-right border border-gray-300 {{ collect($marginReport)->sum('margin') >= 0 ? 'text-green-700' : 'text-red-700' }}">
+                                    {{ number_format(collect($marginReport)->sum('margin'), 0, ',', '.') }}
+                                </td>
+                                <td class="px-2 py-2 text-center border border-gray-300"></td>
+                                <td class="px-2 py-2 border border-gray-300"></td>
+                                <td class="px-2 py-2 text-right border border-gray-300">
+                                    {{ number_format(collect($marginReport)->sum('paid_amount'), 0, ',', '.') }}
+                                </td>
+                                <td class="px-2 py-2 border border-gray-300"></td>
+                            </tr>
+                        </tfoot>
+                        @endif
+                    </table>
+                </div>
+                <div class="mt-3 text-xs text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Các cột <strong>Hãng</strong>, <strong>License</strong>, <strong>Loại hàng</strong> hiện chưa có dữ liệu — vui lòng điền sau khi xuất Excel.
                 </div>
             </div>
         </div>

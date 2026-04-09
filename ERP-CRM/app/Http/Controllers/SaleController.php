@@ -11,10 +11,14 @@ use App\Models\Project;
 use App\Models\Warehouse;
 use App\Models\Currency;
 use App\Exports\SalesExport;
+use App\Exports\SaleInvoiceExport;
 use App\Services\SaleExportSyncService;
 use App\Services\CurrencyService;
+use App\Services\ApprovalService;
+use App\Models\ApprovalHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -23,11 +27,13 @@ class SaleController extends Controller
 {
     protected SaleExportSyncService $saleExportSyncService;
     protected CurrencyService $currencyService;
+    protected ApprovalService $approvalService;
 
-    public function __construct(SaleExportSyncService $saleExportSyncService, CurrencyService $currencyService)
+    public function __construct(SaleExportSyncService $saleExportSyncService, CurrencyService $currencyService, ApprovalService $approvalService)
     {
         $this->saleExportSyncService = $saleExportSyncService;
         $this->currencyService = $currencyService;
+        $this->approvalService = $approvalService;
     }
     /**
      * Display a listing of sales with search and filter functionality.
@@ -113,41 +119,10 @@ class SaleController extends Controller
         $this->authorize('create', Sale::class);
 
         $customers = Customer::orderBy('name')->get();
-        // Get products with liquidation count to display in UI
-        $baseProducts = Product::with(['supplierPriceListItems.priceList'])
-            ->withCount([
-                'items as liquidation_count' => function ($query) {
-                    $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
-                }
-            ])->orderBy('name')->get();
-
+        
+        // Không load sản phẩm nữa - sẽ dùng AJAX search
         $products = collect();
-        foreach ($baseProducts as $product) {
-            // Get calculated price
-            $suggestedPrice = $product->calculated_selling_price;
-
-            // Add normal product
-            $products->push([
-                'id' => $product->id,
-                'name' => $product->name,
-                'price' => $suggestedPrice,
-                'warranty_months' => $product->warranty_months,
-                'is_liquidation' => 0,
-                'liquidation_count' => 0
-            ]);
-
-            // Add liquidation product if available
-            if ($product->liquidation_count > 0) {
-                $products->push([
-                    'id' => $product->id, // Same ID
-                    'name' => $product->name . ' - Hàng thanh lý',
-                    'price' => 0, // Let user set price for liquidation
-                    'warranty_months' => 0, // Usually no warranty or limited
-                    'is_liquidation' => 1,
-                    'liquidation_count' => $product->liquidation_count
-                ]);
-            }
-        }
+        
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Generate sale code
@@ -222,9 +197,11 @@ class SaleController extends Controller
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'expenses' => ['nullable', 'array'],
-            'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
+            'expenses.*.type' => ['nullable', 'string', 'max:100'],
+            'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
+            'expenses.*.percent_value' => ['nullable', 'numeric', 'min:0'],
             'expenses.*.description' => ['nullable', 'string'],
-            'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'expenses.*.amount' => ['nullable', 'numeric'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ]);
@@ -245,46 +222,6 @@ class SaleController extends Controller
             $afterDiscount = $subtotal - $discountAmount;
             $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
             $total = round($afterDiscount + $vatAmount, 2);
-
-            // Validate Stock Availability
-            $normalQuantities = []; // Normal stock
-            $liquidationQuantities = []; // Liquidation stock
-
-            foreach ($validated['products'] as $item) {
-                $pid = $item['product_id'];
-                $isLiquidation = isset($item['is_liquidation']) && $item['is_liquidation'] == 1;
-
-                if ($isLiquidation) {
-                    if (!isset($liquidationQuantities[$pid]))
-                        $liquidationQuantities[$pid] = 0;
-                    $liquidationQuantities[$pid] += $item['quantity'];
-                } else {
-                    if (!isset($normalQuantities[$pid]))
-                        $normalQuantities[$pid] = 0;
-                    $normalQuantities[$pid] += $item['quantity'];
-                }
-            }
-
-            // Check Normal Stock
-            foreach ($normalQuantities as $productId => $qty) {
-                $product = Product::find($productId);
-                if ($product->in_stock_quantity < $qty) {
-                    throw new \Exception("Sản phẩm {$product->name} (Hàng mới) chỉ còn {$product->in_stock_quantity}. Bạn đang tạo đơn với số lượng {$qty}.");
-                }
-            }
-
-            // Check Liquidation Stock
-            foreach ($liquidationQuantities as $productId => $qty) {
-                $product = Product::find($productId);
-                // Calculate liquidation stock dynamically
-                $liquidationStock = $product->items()
-                    ->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION)
-                    ->sum('quantity');
-
-                if ($liquidationStock < $qty) {
-                    throw new \Exception("Sản phẩm {$product->name} (Hàng thanh lý) chỉ còn {$liquidationStock}. Bạn đang tạo đơn với số lượng {$qty}.");
-                }
-            }
 
             // Determine currency
             $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
@@ -357,20 +294,19 @@ class SaleController extends Controller
                 ]);
             }
 
-            // Create sale expenses (only if type is set)
+            // Create sale expenses
             if (!empty($validated['expenses'])) {
-                $exchangeRate = $validated['exchange_rate'] ?? 1;
                 foreach ($validated['expenses'] as $expense) {
-                    // Skip empty expense rows
-                    if (empty($expense['type']) || empty($expense['amount'])) {
-                        continue;
-                    }
+                    if (empty($expense['type'])) continue;
+                    $amount = floatval($expense['amount'] ?? 0);
+                    if ($amount == 0 && empty($expense['percent_value'])) continue;
                     SaleExpense::create([
                         'sale_id' => $sale->id,
                         'type' => $expense['type'],
+                        'input_mode' => $expense['input_mode'] ?? 'fixed',
+                        'percent_value' => ($expense['input_mode'] ?? 'fixed') === 'percent' ? ($expense['percent_value'] ?? null) : null,
                         'description' => $expense['description'] ?? '',
-                        'amount' => round($expense['amount'] * $exchangeRate, 2),
-                        'note' => $expense['note'] ?? null,
+                        'amount' => round($amount, 2),
                     ]);
                 }
             }
@@ -414,43 +350,12 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        $sale->load(['items', 'expenses']);
+        $sale->load(['items.product', 'expenses']);
         $customers = Customer::orderBy('name')->get();
-        // Get products with liquidation count to display in UI
-        $baseProducts = Product::with(['supplierPriceListItems.priceList'])
-            ->withCount([
-                'items as liquidation_count' => function ($query) {
-                    $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
-                }
-            ])->orderBy('name')->get();
-
+        
+        // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
         $products = collect();
-        foreach ($baseProducts as $product) {
-            // Get calculated price
-            $suggestedPrice = $product->calculated_selling_price;
-
-            // Add normal product
-            $products->push([
-                'id' => $product->id,
-                'name' => $product->name,
-                'price' => $suggestedPrice,
-                'warranty_months' => $product->warranty_months,
-                'is_liquidation' => 0,
-                'liquidation_count' => 0
-            ]);
-
-            // Add liquidation product if available
-            if ($product->liquidation_count > 0) {
-                $products->push([
-                    'id' => $product->id,
-                    'name' => $product->name . ' - Hàng thanh lý',
-                    'price' => 0,
-                    'warranty_months' => 0,
-                    'is_liquidation' => 1,
-                    'liquidation_count' => $product->liquidation_count
-                ]);
-            }
-        }
+        
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Multi-currency
@@ -496,9 +401,11 @@ class SaleController extends Controller
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'expenses' => ['nullable', 'array'],
-            'expenses.*.type' => ['nullable', 'in:shipping,marketing,commission,other'],
+            'expenses.*.type' => ['nullable', 'string', 'max:100'],
+            'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
+            'expenses.*.percent_value' => ['nullable', 'numeric', 'min:0'],
             'expenses.*.description' => ['nullable', 'string'],
-            'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'expenses.*.amount' => ['nullable', 'numeric'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ]);
@@ -517,46 +424,6 @@ class SaleController extends Controller
             $afterDiscount = $subtotal - $discountAmount;
             $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
             $total = round($afterDiscount + $vatAmount, 2);
-
-            // Validate Stock Availability
-            // Validate Stock Availability
-            $normalQuantities = [];
-            $liquidationQuantities = [];
-
-            foreach ($validated['products'] as $item) {
-                $pid = $item['product_id'];
-                $isLiquidation = isset($item['is_liquidation']) && $item['is_liquidation'] == 1;
-
-                if ($isLiquidation) {
-                    if (!isset($liquidationQuantities[$pid]))
-                        $liquidationQuantities[$pid] = 0;
-                    $liquidationQuantities[$pid] += $item['quantity'];
-                } else {
-                    if (!isset($normalQuantities[$pid]))
-                        $normalQuantities[$pid] = 0;
-                    $normalQuantities[$pid] += $item['quantity'];
-                }
-            }
-
-            // Check Normal Stock
-            foreach ($normalQuantities as $productId => $qty) {
-                $product = Product::find($productId);
-                if ($product->in_stock_quantity < $qty) {
-                    throw new \Exception("Sản phẩm {$product->name} (Hàng mới) chỉ còn {$product->in_stock_quantity}. Bạn đang cập nhật đơn với số lượng {$qty}.");
-                }
-            }
-
-            // Check Liquidation Stock
-            foreach ($liquidationQuantities as $productId => $qty) {
-                $product = Product::find($productId);
-                $liquidationStock = $product->items()
-                    ->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION)
-                    ->sum('quantity');
-
-                if ($liquidationStock < $qty) {
-                    throw new \Exception("Sản phẩm {$product->name} (Hàng thanh lý) chỉ còn {$liquidationStock}. Bạn đang cập nhật đơn với số lượng {$qty}.");
-                }
-            }
 
             // Determine currency
             $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
@@ -625,17 +492,17 @@ class SaleController extends Controller
             // Update sale expenses
             $sale->expenses()->delete();
             if (!empty($validated['expenses'])) {
-                $exchangeRate = $validated['exchange_rate'] ?? 1;
                 foreach ($validated['expenses'] as $expense) {
-                    if (empty($expense['type']) && empty($expense['amount']))
-                        continue;
-
+                    if (empty($expense['type'])) continue;
+                    $amount = floatval($expense['amount'] ?? 0);
+                    if ($amount == 0 && empty($expense['percent_value'])) continue;
                     SaleExpense::create([
                         'sale_id' => $sale->id,
-                        'type' => $expense['type'] ?? 'other',
+                        'type' => $expense['type'],
+                        'input_mode' => $expense['input_mode'] ?? 'fixed',
+                        'percent_value' => ($expense['input_mode'] ?? 'fixed') === 'percent' ? ($expense['percent_value'] ?? null) : null,
                         'description' => $expense['description'] ?? '',
-                        'amount' => round(($expense['amount'] ?? 0) * $exchangeRate, 2),
-                        'note' => $expense['note'] ?? null,
+                        'amount' => round($amount, 2),
                     ]);
                 }
             }
@@ -690,7 +557,7 @@ class SaleController extends Controller
     }
 
     /**
-     * Generate PDF invoice
+     * Generate PDF/print invoice
      */
     public function generatePdf(Sale $sale)
     {
@@ -699,11 +566,26 @@ class SaleController extends Controller
             abort(404);
         }
 
-        $sale->load('items', 'customer');
+        $sale->load('items.product', 'customer', 'expenses', 'project', 'currency');
 
-        // TODO: Implement PDF generation with DomPDF or similar
-        // For now, return a simple view that can be printed
         return view('sales.invoice', compact('sale'));
+    }
+
+    /**
+     * Export invoice to Excel (GTGT format)
+     */
+    public function exportInvoiceExcel(Sale $sale)
+    {
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
+        $sale->load(['items.product', 'customer', 'expenses', 'project', 'currency']);
+
+        return \Excel::download(
+            new SaleInvoiceExport($sale),
+            'hoa-don-' . $sale->code . '.xlsx'
+        );
     }
 
     /**
@@ -909,7 +791,7 @@ class SaleController extends Controller
                     }
                 } catch (\Exception $e) {
                     // Log error but don't fail the status update
-                    \Log::warning("Could not create export for Sale #{$sale->id}: " . $e->getMessage());
+                    Log::warning("Could not create export for Sale #{$sale->id}: " . $e->getMessage());
                 }
             }
 
@@ -946,6 +828,9 @@ class SaleController extends Controller
     /**
      * Get linked export for a sale
      */
+    /**
+     * Get linked export for a sale
+     */
     public function getExport(Sale $sale)
     {
         // Return 404 instead of 403 if user lacks permission
@@ -961,4 +846,165 @@ class SaleController extends Controller
 
         return redirect()->route('exports.show', $export);
     }
+
+    /**
+     * Update P&L details for the sale
+     */
+    public function updatePnL(Request $request, Sale $sale)
+    {
+        $this->authorize('update', $sale);
+
+        if (!$sale->isPlEditable() && !auth()->user()->hasRole('admin')) {
+            return back()->with('error', 'P&L hiện không thể chỉnh sửa (đang chờ duyệt hoặc đã duyệt).');
+        }
+
+        $validated = $request->validate([
+            'items' => ['required', 'array'],
+            'items.*.id' => ['required', 'exists:sale_items,id'],
+            'items.*.finance_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.overdue_interest_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.management_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.support_247_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.other_support_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.technical_poc_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.implementation_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.contractor_tax' => ['nullable', 'numeric', 'min:0'],
+            'items.*.usd_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.import_cost_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.exchange_rate' => ['nullable', 'numeric', 'min:0'],
+            'items.*.cost_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.cost_total' => ['nullable', 'numeric', 'min:0'],
+            'expenses' => ['nullable', 'array'],
+            'expenses.*.id' => ['nullable', 'exists:sale_expenses,id'],
+            'expenses.*.type' => ['nullable', 'string'],
+            'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'expenses.*.description' => ['nullable', 'string'],
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($validated['items'] as $itemData) {
+                $item = SaleItem::where('id', $itemData['id'])->where('sale_id', $sale->id)->firstOrFail();
+                $item->update($itemData);
+            }
+
+            // Simple update for general expenses if provided
+            if (isset($validated['expenses'])) {
+                foreach ($validated['expenses'] as $expenseData) {
+                    if (!empty($expenseData['id'])) {
+                        $expense = SaleExpense::where('id', $expenseData['id'])->where('sale_id', $sale->id)->firstOrFail();
+                        $expense->update($expenseData);
+                    } elseif (!empty($expenseData['type']) && !empty($expenseData['amount'])) {
+                        $sale->expenses()->create($expenseData);
+                    }
+                }
+            }
+
+            $sale->pl_status = 'draft';
+            $sale->calculateMargin();
+            $sale->save();
+
+            DB::commit();
+            
+            // Redirect to same page with hash to stay on P&L tab
+            return redirect()->route('sales.show', $sale->id)->with('success', 'Đã cập nhật chi tiết P&L. Vui lòng nhấn "Gửi duyệt" để hoàn tất.')->withFragment('pnl');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Lỗi khi cập nhật P&L: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Submit P&L for approval – tích hợp ApprovalWorkflow
+     */
+    public function submitPnL(Sale $sale)
+    {
+        $this->authorize('update', $sale);
+
+        if (!in_array($sale->pl_status, [null, 'draft', 'rejected'])) {
+            return back()->with('error', 'P&L đã được gửi hoặc đã duyệt.');
+        }
+
+        // Xóa lịch sử duyệt cũ (nếu đang resubmit)
+        ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->delete();
+
+        // Thử dùng ApprovalWorkflow nếu đã cấu hình
+        $result = $this->approvalService->submit($sale, 'sale_pnl');
+
+        if (!$result['success']) {
+            // Fallback: chưa cấu hình workflow – dùng logic cũ
+            $sale->update(['pl_status' => 'pending']);
+            return redirect()->route('sales.show', $sale->id)
+                ->with('warning', 'Chưa cấu hình quy trình duyệt P&L. Đã chuyển sang chờ duyệt thủ công.')
+                ->withFragment('pnl');
+        }
+
+        // Đồng bộ pl_status theo kết quả
+        $sale->refresh();
+        if (isset($result['auto_approved']) && $result['auto_approved']) {
+            $sale->update([
+                'pl_status'      => 'approved',
+                'pl_approved_at' => now(),
+                'pl_approved_by' => auth()->id(),
+            ]);
+        } else {
+            $sale->update(['pl_status' => 'pending']);
+        }
+
+        return redirect()->route('sales.show', $sale->id)
+            ->with('success', $result['message'])
+            ->withFragment('pnl');
+    }
+
+    /**
+     * Approve P&L via ApprovalService
+     */
+    public function approvePnL(Request $request, Sale $sale)
+    {
+        $request->validate(['comment' => 'nullable|string|max:500']);
+
+        $result = $this->approvalService->approve($sale, 'sale_pnl', $request->comment);
+
+        if (!$result['success']) {
+            return back()->with('error', $result['message']);
+        }
+
+        // Đồng bộ pl_status
+        $sale->refresh();
+        if ($sale->status === 'approved') {
+            $sale->update([
+                'pl_status'      => 'approved',
+                'pl_approved_at' => now(),
+                'pl_approved_by' => auth()->id(),
+            ]);
+        }
+
+        return redirect()->route('sales.show', $sale->id)
+            ->with('success', $result['message'])
+            ->withFragment('pnl');
+    }
+
+    /**
+     * Reject P&L via ApprovalService
+     */
+    public function rejectPnL(Request $request, Sale $sale)
+    {
+        $request->validate(['comment' => 'required|string|min:3|max:500']);
+
+        $result = $this->approvalService->reject($sale, 'sale_pnl', $request->comment);
+
+        if (!$result['success']) {
+            return back()->with('error', $result['message']);
+        }
+
+        $sale->update(['pl_status' => 'rejected']);
+
+        return redirect()->route('sales.show', $sale->id)
+            ->with('success', 'P&L đã bị từ chối.')
+            ->withFragment('pnl');
+    }
 }
+

@@ -37,6 +37,9 @@ class Sale extends Model
         'total_foreign',
         'paid_amount_foreign',
         'debt_amount_foreign',
+        'pl_status',
+        'pl_approved_at',
+        'pl_approved_by',
     ];
 
     protected $casts = [
@@ -54,6 +57,7 @@ class Sale extends Model
         'total_foreign' => 'decimal:4',
         'paid_amount_foreign' => 'decimal:4',
         'debt_amount_foreign' => 'decimal:4',
+        'pl_approved_at' => 'datetime',
     ];
 
     /**
@@ -78,6 +82,14 @@ class Sale extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relationship with User (P&L Approver)
+     */
+    public function plApprover()
+    {
+        return $this->belongsTo(User::class, 'pl_approved_by');
     }
 
     /**
@@ -156,6 +168,42 @@ class Sale extends Model
             'cancelled' => 'Đã hủy',
             default => 'Không xác định',
         };
+    }
+
+    /**
+     * Get P&L status label
+     */
+    public function getPlStatusLabelAttribute(): string
+    {
+        return match($this->pl_status) {
+            'draft' => 'Nháp (P&L)',
+            'pending' => 'Chờ duyệt (P&L)',
+            'approved' => 'Đã duyệt (P&L)',
+            'rejected' => 'Từ chối (P&L)',
+            default => 'Chưa lập',
+        };
+    }
+
+    /**
+     * Get P&L status color class
+     */
+    public function getPlStatusColorAttribute(): string
+    {
+        return match($this->pl_status) {
+            'draft' => 'bg-gray-100 text-gray-800',
+            'pending' => 'bg-yellow-100 text-yellow-800',
+            'approved' => 'bg-green-100 text-green-800',
+            'rejected' => 'bg-red-100 text-red-800',
+            default => 'bg-gray-100 text-gray-800',
+        };
+    }
+
+    /**
+     * Check if P&L is editable
+     */
+    public function isPlEditable(): bool
+    {
+        return in_array($this->pl_status, ['draft', 'rejected', null]);
     }
 
     /**

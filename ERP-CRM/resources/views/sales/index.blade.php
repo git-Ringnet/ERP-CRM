@@ -158,7 +158,17 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($sales as $sale)
-                        <tr class="hover:bg-gray-50 sale-row" data-sale-id="{{ $sale->id }}">
+                        @php
+                            $rowClass = match($sale->status) {
+                                'pending' => 'bg-yellow-50/50 border-l-4 border-l-yellow-400',
+                                'approved' => 'bg-blue-50/50 border-l-4 border-l-blue-400',
+                                'shipping' => 'bg-purple-50/50 border-l-4 border-l-purple-400',
+                                'completed' => 'bg-green-50/50 border-l-4 border-l-green-400',
+                                'cancelled' => 'bg-red-50/50 border-l-4 border-l-red-400',
+                                default => '',
+                            };
+                        @endphp
+                        <tr class="hover:bg-gray-100 transition-colors sale-row {{ $rowClass }}" data-sale-id="{{ $sale->id }}">
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <input type="checkbox"
                                     class="sale-checkbox w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
@@ -245,9 +255,43 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->status_color }}">
-                                    {{ $sale->status_label }}
-                                </span>
+                                {{-- Delivery Progress --}}
+                                @php
+                                    $steps = [
+                                        'pending' => 0,
+                                        'approved' => 1,
+                                        'shipping' => 2,
+                                        'completed' => 3,
+                                        'cancelled' => -1,
+                                    ];
+                                    $step = $steps[$sale->status] ?? 0;
+                                    $isCancelled = $sale->status === 'cancelled';
+                                @endphp
+                                @if($isCancelled)
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                        <i class="fas fa-times-circle mr-1"></i>Đã hủy
+                                    </span>
+                                @else
+                                    <div class="flex items-center justify-center gap-0.5">
+                                        {{-- Step 1: Duyệt --}}
+                                        <div class="flex flex-col items-center" title="Duyệt">
+                                            <div class="w-3 h-3 rounded-full {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-300' }}"></div>
+                                        </div>
+                                        <div class="w-3 h-0.5 {{ $step >= 2 ? 'bg-orange-400' : 'bg-gray-200' }}"></div>
+                                        {{-- Step 2: Giao --}}
+                                        <div class="flex flex-col items-center" title="Giao hàng">
+                                            <div class="w-3 h-3 rounded-full {{ $step >= 2 ? 'bg-orange-400' : 'bg-gray-300' }} {{ $step === 2 ? 'animate-pulse ring-2 ring-orange-200' : '' }}"></div>
+                                        </div>
+                                        <div class="w-3 h-0.5 {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-200' }}"></div>
+                                        {{-- Step 3: Hoàn thành --}}
+                                        <div class="flex flex-col items-center" title="Hoàn thành">
+                                            <div class="w-3 h-3 rounded-full {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-300' }}"></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-[10px] mt-1 font-medium {{ $step === 0 ? 'text-yellow-600' : ($step === 1 ? 'text-blue-600' : ($step === 2 ? 'text-orange-600' : 'text-green-600')) }}">
+                                        {{ $sale->status_label }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">

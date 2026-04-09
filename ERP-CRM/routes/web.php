@@ -151,10 +151,15 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('sales', SaleController::class);
     Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
+    Route::get('/sales/{sale}/invoice-excel', [SaleController::class, 'exportInvoiceExcel'])->name('sales.invoice.excel');
     Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
     Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
     Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
     Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
+    Route::post('/sales/{sale}/update-pnl', [SaleController::class, 'updatePnL'])->name('sales.updatePnL');
+    Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
+    Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
+    Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
 
     // Cost Formula routes
     Route::resource('cost-formulas', CostFormulaController::class);
@@ -263,6 +268,7 @@ Route::middleware(['auth'])->group(function () {
     // Sales Reports routes (Báo cáo bán hàng)
     Route::get('/sale-reports', [\App\Http\Controllers\SaleReportController::class, 'index'])->name('sale-reports.index');
     Route::get('/sale-reports/export', [\App\Http\Controllers\SaleReportController::class, 'export'])->name('sale-reports.export');
+    Route::get('/sale-reports/export-margin', [\App\Http\Controllers\SaleReportController::class, 'exportMargin'])->name('sale-reports.export-margin');
 
     // Supplier Price List routes (Bảng giá nhà cung cấp - Import Excel)
     Route::get('/supplier-price-lists', [\App\Http\Controllers\SupplierPriceListController::class, 'index'])->name('supplier-price-lists.index');
@@ -276,6 +282,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
     Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
     Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
+    Route::get('/api/products/search', [\App\Http\Controllers\ProductController::class, 'apiSearch'])->name('api.products.search');
     Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
     Route::post('/supplier-price-lists/{supplierPriceList}/apply-prices', [\App\Http\Controllers\SupplierPriceListController::class, 'applyPrices'])->name('supplier-price-lists.apply-prices');
     Route::get('/supplier-price-lists/{supplierPriceList}/preview-apply', [\App\Http\Controllers\SupplierPriceListController::class, 'previewApplyPrices'])->name('supplier-price-lists.preview-apply');
@@ -392,9 +399,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/business-overview', [BusinessReportController::class, 'index'])->name('reports.business-overview');
     Route::get('/reports/balance-sheet', [BusinessReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
     Route::get('/reports/balance-sheet/export', [BusinessReportController::class, 'exportBalanceSheet'])->name('reports.balance-sheet.export');
-    Route::get('/reports/detailed-pnl', [BusinessReportController::class, 'detailedPnL'])->name('reports.detailed-pnl');
-    Route::get('/reports/misa-margin', [BusinessReportController::class, 'misaMargin'])->name('reports.misa-margin');
-    Route::get('/reports/export-misa-margin', [BusinessReportController::class, 'exportMisaMargin'])->name('reports.export-misa-margin');
 
     // Reconciliation (Đối soát giữa các Module)
     Route::get('/reconciliation', [\App\Http\Controllers\ReconciliationController::class, 'index'])->name('reconciliation.index');
@@ -474,6 +478,17 @@ Route::middleware(['auth'])->group(function () {
 
     // API: Lấy tỷ giá cho AJAX (dùng trong form tạo đơn hàng)
     Route::get('/api/exchange-rate', [\App\Http\Controllers\ExchangeRateController::class, 'getRate'])->name('api.exchange-rate');
+
+    // =========================================================================
+    // Marketing Events — Quản lý sự kiện Marketing
+    // =========================================================================
+    Route::resource('marketing-events', \App\Http\Controllers\MarketingEventController::class);
+    Route::post('/marketing-events/{marketingEvent}/submit-approval', [\App\Http\Controllers\MarketingEventController::class, 'submitApproval'])->name('marketing-events.submit-approval');
+    Route::post('/marketing-events/{marketingEvent}/approve', [\App\Http\Controllers\MarketingEventController::class, 'approve'])->name('marketing-events.approve');
+    Route::post('/marketing-events/{marketingEvent}/reject', [\App\Http\Controllers\MarketingEventController::class, 'reject'])->name('marketing-events.reject');
+    Route::post('/marketing-events/{marketingEvent}/customers', [\App\Http\Controllers\MarketingEventController::class, 'addCustomers'])->name('marketing-events.customers.add');
+    Route::delete('/marketing-events/{marketingEvent}/customers/{customer}', [\App\Http\Controllers\MarketingEventController::class, 'removeCustomer'])->name('marketing-events.customers.remove');
+    Route::patch('/marketing-events/{marketingEvent}/customers/{customer}/status', [\App\Http\Controllers\MarketingEventController::class, 'updateCustomerStatus'])->name('marketing-events.customers.status');
 });
 
 // Auth routes (login, logout, etc.)

@@ -110,15 +110,15 @@
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
                 </a>
 
-                @can('view_business_dashboard')
+                {{-- @can('view_business_dashboard')
                 <a href="{{ route('dashboard.business-activity') }}"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
                     <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
                 </a>
-                @endcan
+                @endcan --}}
 
-                <div class="mt-4">
+                {{-- <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('personal')">
                         <div class="flex items-center">
@@ -140,7 +140,7 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
                         </a>
                     </div>
-                </div>
+                </div> --}}
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                     <div class="mt-4">
@@ -252,7 +252,7 @@
                     </div>
                 @endcanany
 
-                @can('view_reports')
+                {{-- @can('view_reports')
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('reports')">
@@ -289,9 +289,9 @@
                             </a>
                         </div>
                     </div>
-                @endcan
+                @endcan --}}
 
-                <div class="mt-4">
+                {{-- <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Lịch biểu
                     </p>
 
@@ -300,7 +300,7 @@
                         <i class="fas fa-calendar-alt w-6 flex-shrink-0"></i>
                         <span class="ml-3 sidebar-text whitespace-nowrap">Lịch làm việc</span>
                     </a>
-                </div>
+                </div> --}}
 
                 @if(false)
                 <div class="mt-4">
@@ -445,6 +445,12 @@
                                 </a>
                             @endcan
 
+                            <a href="{{ route('marketing-events.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Marketing Events</span>
+                            </a>
+
                             @can('view_quotations')
                                 <a href="{{ route('quotations.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
@@ -566,7 +572,7 @@
                 @endcanany
 
                 {{-- Quản trị Kế toán - Rút gọn theo yêu cầu --}}
-                <div class="mt-4">
+                {{-- <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('accounting')">
                         <div class="flex items-center">
@@ -593,17 +599,7 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo Dòng tiền</span>
                         </a>
 
-                        <a href="{{ route('reports.misa-margin') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.misa-margin') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-file-invoice-dollar w-6 flex-shrink-0 text-green-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Margin theo đơn hàng</span>
-                        </a>
 
-                        <a href="{{ route('reports.detailed-pnl') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.detailed-pnl') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-line w-6 flex-shrink-0 text-cyan-400"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">P&L Chi tiết</span>
-                        </a>
 
                         <a href="{{ route('reports.balance-sheet') }}"
                             class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.balance-sheet') ? 'bg-primary text-white' : '' }}">
@@ -623,7 +619,7 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký kế toán kho</span>
                         </a>
                     </div>
-                </div>
+                </div> --}}
 
                 @canany(['view_approval_workflows', 'view_activity_logs', 'view_settings'])
                     <div class="mt-4">
@@ -890,11 +886,11 @@
             </main>
 
             <!-- Footer -->
-            <footer class="bg-white border-t border-gray-200 py-3 sm:py-4 px-4 sm:px-6 flex-shrink-0">
+            {{-- <footer class="bg-white border-t border-gray-200 py-3 sm:py-4 px-4 sm:px-6 flex-shrink-0">
                 <div class="text-center text-gray-500 text-xs sm:text-sm">
                     &copy; {{ date('Y') }} Mini ERP. Created by Ringnet.
                 </div>
-            </footer>
+            </footer> --}}
         </div>
     </div>
 

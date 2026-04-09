@@ -41,6 +41,14 @@ class Product extends Model
     ];
 
     /**
+     * Mutator for code - always store as uppercase and trimmed
+     */
+    public function setCodeAttribute($value): void
+    {
+        $this->attributes['code'] = !empty($value) ? strtoupper(trim($value)) : $value;
+    }
+
+    /**
      * Relationship: Product has many product items
      * Requirements: 6.4
      */

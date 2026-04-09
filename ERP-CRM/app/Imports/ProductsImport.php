@@ -27,7 +27,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     continue;
                 }
 
-                $code = trim($row['ma_sp'] ?? $row['code'] ?? '');
+                $code = strtoupper(trim($row['ma_sp'] ?? $row['code'] ?? ''));
                 $name = trim($row['ten_san_pham'] ?? $row['name'] ?? '');
 
                 if (empty($code) || empty($name)) {
@@ -54,6 +54,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     'updated_at' => now(),
                 ];
 
+                // Use the normalized code to find existing products
                 $existing = Product::where('code', $code)->first();
                 if ($existing) {
                     $existing->update($data);

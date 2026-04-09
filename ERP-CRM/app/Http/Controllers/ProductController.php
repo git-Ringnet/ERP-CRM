@@ -61,6 +61,11 @@ class ProductController extends Controller
     {
         $this->authorize('create', Product::class);
         
+        // Normalize code before validation
+        if ($request->has('code')) {
+            $request->merge(['code' => strtoupper(trim($request->code))]);
+        }
+
         // Validation - only basic fields
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:products,code'],
@@ -115,6 +120,11 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         $this->authorize('update', $product);
+
+        // Normalize code before validation
+        if ($request->has('code')) {
+            $request->merge(['code' => strtoupper(trim($request->code))]);
+        }
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -229,5 +239,59 @@ class ProductController extends Controller
         $updated = $import->getUpdated();
 
         return back()->with('success', "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}");
+    }
+
+    /**
+     * API for searching products (AJAX)
+     */
+    public function apiSearch(Request $request)
+    {
+        $q = $request->get('q');
+        
+        $query = Product::query();
+        
+        if (!empty($q)) {
+            $query->search($q);
+        }
+
+        $baseProducts = $query->with(['supplierPriceListItems.priceList'])
+            ->withCount([
+                'items as liquidation_count' => function ($query) {
+                    $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
+                }
+            ])
+            ->limit(20)
+            ->get();
+
+        $products = collect();
+        foreach ($baseProducts as $product) {
+            $suggestedPrice = $product->calculated_selling_price;
+
+            // Add normal product
+            $products->push([
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'price' => $suggestedPrice,
+                'warranty_months' => $product->warranty_months,
+                'is_liquidation' => 0,
+                'liquidation_count' => $product->liquidation_count
+            ]);
+
+            // Add liquidation product if available
+            if ($product->liquidation_count > 0) {
+                $products->push([
+                    'id' => $product->id,
+                    'code' => $product->code,
+                    'name' => $product->name . ' - Hàng thanh lý',
+                    'price' => 0,
+                    'warranty_months' => 0,
+                    'is_liquidation' => 1,
+                    'liquidation_count' => $product->liquidation_count
+                ]);
+            }
+        }
+
+        return response()->json($products);
     }
 }

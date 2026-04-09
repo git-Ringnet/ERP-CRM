@@ -36,6 +36,7 @@ class SaleItem extends Model
         'import_cost_rate',
         'estimated_cost_usd',
         'finance_cost_percent',
+        'overdue_interest_cost',
         'management_cost_percent',
         'support_247_cost_percent',
         'other_support_cost',
@@ -59,6 +60,7 @@ class SaleItem extends Model
         'import_cost_rate' => 'decimal:2',
         'estimated_cost_usd' => 'decimal:2',
         'finance_cost_percent' => 'decimal:2',
+        'overdue_interest_cost' => 'decimal:2',
         'management_cost_percent' => 'decimal:2',
         'support_247_cost_percent' => 'decimal:2',
         'other_support_cost' => 'decimal:2',
@@ -101,14 +103,23 @@ class SaleItem extends Model
     }
 
     /**
+     * Get calculated other support cost (percentage of cost_total)
+     */
+    public function getOtherSupportCostVndAttribute(): float
+    {
+        return $this->cost_total * ($this->other_support_cost / 100);
+    }
+
+    /**
      * Get total expenses for this item
      */
     public function getTotalExpensesAttribute(): float
     {
         return $this->finance_cost + 
+               ($this->overdue_interest_cost ?: 0) +
                $this->management_cost + 
                $this->support_247_cost + 
-               $this->other_support_cost + 
+               $this->other_support_cost_vnd + 
                $this->technical_poc_cost + 
                $this->implementation_cost + 
                $this->contractor_tax;

@@ -2,258 +2,341 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hóa đơn {{ $sale->code }}</title>
+    <title>Hóa đơn GTGT - {{ $sale->code }}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 14px; line-height: 1.6; padding: 20px; }
-        .invoice { max-width: 800px; margin: 0 auto; background: white; }
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #333; padding-bottom: 20px; }
-        .header h1 { font-size: 28px; color: #333; margin-bottom: 5px; }
-        .header p { color: #666; }
-        .info-section { display: table; width: 100%; margin-bottom: 30px; }
-        .info-left, .info-right { display: table-cell; width: 50%; vertical-align: top; }
-        .info-right { text-align: right; }
-        .info-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
-        .info-box h3 { font-size: 16px; margin-bottom: 10px; color: #333; }
-        .info-box p { margin: 5px 0; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th { background: #333; color: white; padding: 12px; text-align: left; font-weight: bold; }
-        td { padding: 10px 12px; border-bottom: 1px solid #ddd; }
-        tr:hover { background: #f8f9fa; }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .totals { margin-top: 20px; }
-        .totals table { width: 400px; margin-left: auto; }
-        .totals td { border: none; padding: 8px 12px; }
-        .totals .total-row { font-size: 18px; font-weight: bold; background: #f8f9fa; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; text-align: center; color: #666; }
-        .signature-section { display: table; width: 100%; margin-top: 50px; }
-        .signature { display: table-cell; width: 50%; text-align: center; }
-        .signature p { margin-bottom: 80px; font-weight: bold; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
+            color: #000;
+            background: #fff;
+            padding: 1.5cm 1.8cm;
+            line-height: 1.5;
+        }
+
+        /* ---- HEADER ---- */
+        .header {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 12px;
+        }
+        .company-logo img { max-height: 70px; max-width: 120px; }
+        .company-info { flex: 1; }
+        .company-name {
+            font-size: 15pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .company-info p { font-size: 10.5pt; margin-bottom: 2px; }
+        .company-info .label { font-style: italic; }
+
+        .divider { border-top: 2px solid #000; margin: 8px 0; }
+        .divider-thin { border-top: 1px solid #000; margin: 6px 0; }
+
+        /* ---- INVOICE TITLE ---- */
+        .invoice-title {
+            text-align: center;
+            margin: 8px 0 4px;
+        }
+        .invoice-title h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .invoice-title .en { font-size: 11pt; font-style: italic; }
+
+        /* ---- INVOICE META (Ký hiệu, Số, Ngày) ---- */
+        .invoice-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin: 6px 0;
+        }
+        .invoice-meta-left { text-align: center; flex: 1; }
+        .invoice-meta-right { text-align: right; min-width: 200px; }
+        .invoice-meta .no-value { color: #c00; font-weight: bold; font-size: 13pt; }
+        .invoice-date { text-align: center; font-size: 11pt; margin-top: 4px; }
+        .invoice-date span { font-style: italic; }
+        .ma-cqt { text-align: center; font-size: 9.5pt; margin-top: 2px; }
+
+        /* ---- BUYER INFO ---- */
+        .buyer-section { margin: 10px 0; }
+        .buyer-section table { width: 100%; border-collapse: collapse; }
+        .buyer-section td { padding: 2px 0; font-size: 11pt; vertical-align: top; }
+        .buyer-section .label { font-style: italic; width: 220px; }
+        .buyer-section .value { font-weight: bold; }
+
+        /* ---- PRODUCT TABLE ---- */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-size: 11pt;
+        }
+        .items-table th, .items-table td {
+            border: 1px solid #000;
+            padding: 4px 5px;
+            vertical-align: middle;
+        }
+        .items-table thead th {
+            text-align: center;
+            font-weight: bold;
+            background: #f5f5f5;
+        }
+        .items-table thead .sub { font-style: italic; font-size: 9.5pt; font-weight: normal; }
+        .items-table thead tr:first-child th { background: #f5f5f5; }
+        .items-table .index-row th { background: #ebebeb; font-size: 10pt; }
+        .items-table tbody td.center { text-align: center; }
+        .items-table tbody td.right,
+        .items-table tbody td.right { text-align: right; }
+        .items-table td.right { text-align: right; }
+        .items-table td.italic { font-style: italic; }
+        .items-table .total-row td { font-weight: bold; }
+        .items-table .money-row td { font-style: italic; }
+
+        /* ---- SIGNATURES ---- */
+        .signatures {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .sig-box { flex: 1; }
+        .sig-box .sig-title { font-weight: bold; font-size: 11pt; }
+        .sig-box .sig-sub { font-style: italic; font-size: 9.5pt; }
+        .sig-space { height: 60px; }
+
+        /* ---- PRINT ---- */
         @media print {
-            body { padding: 0; }
-            .no-print { display: none; }
+            body { padding: 0.8cm 1cm; }
+            .no-print { display: none !important; }
         }
     </style>
 </head>
 <body>
-    <div class="no-print" style="margin-bottom: 20px; text-align: center;">
-        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-            <i class="fas fa-print"></i> In hóa đơn
-        </button>
-        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">
-            Đóng
-        </button>
+@php
+    use App\Models\Setting;
+    use App\Helpers\NumberHelper;
+
+    $companyName    = Setting::get('company_name', 'CÔNG TY TNHH RINGNET');
+    $companyAddress = Setting::get('company_address', '');
+    $companyPhone   = Setting::get('company_phone', '');
+    $companyLogo    = Setting::get('company_logo');
+    $companyFax     = Setting::get('company_fax', '');
+    $companyWebsite = Setting::get('company_website', '');
+    $companyEmail   = Setting::get('company_email', '');
+    $companyTax     = Setting::get('company_tax', '');
+    $companyBank    = Setting::get('company_bank_account', '');
+
+    $isForeign = $sale->currency && !$sale->currency->is_base;
+    $rate      = $sale->exchange_rate ?: 1;
+
+    $subtotalVnd   = $sale->subtotal;
+    $discountAmt   = round($subtotalVnd * ($sale->discount / 100));
+    $afterDiscount = $subtotalVnd - $discountAmt;
+    $vatAmt        = round($afterDiscount * ($sale->vat / 100));
+    $totalVnd      = $sale->total;
+
+    $amountInWords = NumberHelper::currencyToVietnameseWords($totalVnd);
+@endphp
+
+<div class="no-print" style="margin-bottom:16px; text-align:center;">
+    <button onclick="window.print()" style="padding:8px 24px; font-size:13pt; cursor:pointer; background:#1a56db; color:#fff; border:none; border-radius:5px;">
+        🖨️ In / Lưu PDF
+    </button>
+</div>
+
+{{-- HEADER: Logo + Thông tin công ty --}}
+<div class="header">
+    @if($companyLogo && file_exists(public_path($companyLogo)))
+    <div class="company-logo" style="padding-top:4px;">
+        <img src="{{ asset($companyLogo) }}" alt="Logo {{ $companyName }}">
     </div>
+    @endif
+    <div class="company-info" style="flex:1;">
+        <div class="company-name">{{ $companyName }}</div>
+        <p><span class="label">Mã số thuế (Tax code):</span> <strong>{{ $companyTax }}</strong></p>
+        @if($companyAddress)
+        <p><span class="label">Địa chỉ (Address):</span> {{ $companyAddress }}</p>
+        @endif
+        <p>
+            @if($companyPhone)<span class="label">Điện thoại (Tel):</span> {{ $companyPhone }}&nbsp;&nbsp;@endif
+            @if($companyFax)<span class="label">Fax:</span> {{ $companyFax }}@endif
+        </p>
+        @if($companyWebsite || $companyEmail)
+        <p>
+            @if($companyWebsite)<span class="label">Website:</span> {{ $companyWebsite }}&nbsp;&nbsp;@endif
+            @if($companyEmail)<span class="label">Email:</span> {{ $companyEmail }}@endif
+        </p>
+        @endif
+        @if($companyBank)
+        <p><span class="label">Số tài khoản (Bank account):</span> {{ $companyBank }}</p>
+        @endif
+    </div>
+</div>
 
-    <div class="invoice">
-        <!-- Header -->
-        <div class="header">
-            <h1>HÓA ĐƠN BÁN HÀNG</h1>
-            <p>{{ $sale->code }}</p>
-        </div>
+<div class="divider"></div>
 
-        <!-- Info Section -->
-        <div class="info-section">
-            <div class="info-left">
-                <div class="info-box">
-                    <h3>Thông tin khách hàng</h3>
-                    <p><strong>Tên:</strong> {{ $sale->customer_name }}</p>
-                    @if($sale->customer)
-                        <p><strong>Email:</strong> {{ $sale->customer->email }}</p>
-                        <p><strong>Điện thoại:</strong> {{ $sale->customer->phone }}</p>
-                        @if($sale->customer->address)
-                            <p><strong>Địa chỉ:</strong> {{ $sale->customer->address }}</p>
-                        @endif
-                    @endif
-                    @if($sale->delivery_address)
-                        <p><strong>Địa chỉ giao hàng:</strong> {{ $sale->delivery_address }}</p>
-                    @endif
-                </div>
-            </div>
-            <div class="info-right">
-                <div class="info-box">
-                    <h3>Thông tin đơn hàng</h3>
-                    <p><strong>Ngày:</strong> {{ $sale->date->format('d/m/Y') }}</p>
-                    <p><strong>Loại:</strong> {{ $sale->type_label }}</p>
-                    <p><strong>Trạng thái:</strong> {{ $sale->status_label }}</p>
-                    <p><strong>Thanh toán:</strong> {{ $sale->payment_status_label }}</p>
-                </div>
-            </div>
-        </div>
+{{-- INVOICE TITLE --}}
+<div class="invoice-title">
+    <h1>HÓA ĐƠN GIÁ TRỊ GIA TĂNG</h1>
+    <div class="en">VAT Invoice</div>
+</div>
 
-        <!-- Products Table -->
+{{-- Ký hiệu / Số --}}
+<div class="invoice-meta">
+    <div style="flex:1;"></div>
+    <div style="text-align:right; font-size:11pt;">
+        <div>Ký hiệu <span class="label">(Sign)</span>: <strong>{{ strtoupper(substr($sale->code, 0, 8)) }}</strong></div>
+        <div>Số <span class="label">(No.)</span>: <span class="no-value">{{ str_pad($sale->id, 8, '0', STR_PAD_LEFT) }}</span></div>
+    </div>
+</div>
+
+{{-- Ngày --}}
+<div class="invoice-date">
+    <span>Ngày </span><strong>{{ $sale->date->format('d') }}</strong>
+    <span> tháng </span><strong>{{ $sale->date->format('m') }}</strong>
+    <span> năm </span><strong>{{ $sale->date->format('Y') }}</strong>
+</div>
+
+<div class="divider-thin"></div>
+
+{{-- THÔNG TIN NGƯỜI MUA --}}
+<div class="buyer-section">
+    <table>
+        <tr>
+            <td class="label" style="width:200px;">Họ tên người mua hàng <em>(Buyer)</em>:</td>
+            <td class="value">{{ $sale->customer_name }}</td>
+        </tr>
+        <tr>
+            <td class="label">Tên đơn vị <em>(Company's name)</em>:</td>
+            <td class="value">{{ $sale->customer->company ?? $sale->customer_name }}</td>
+        </tr>
+        <tr>
+            <td class="label">Mã số thuế <em>(Tax code)</em>:</td>
+            <td>{{ $sale->customer->tax_code ?? '' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Địa chỉ <em>(Address)</em>:</td>
+            <td>{{ $sale->customer->address ?? '' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Hình thức thanh toán <em>(Payment method)</em>:</td>
+            <td>
+                Chuyển khoản &nbsp;&nbsp;
+                <span class="label">Số tài khoản <em>(Bank account)</em>:</span>
+                {{ $sale->customer->bank_account ?? '' }}
+            </td>
+        </tr>
+    </table>
+</div>
+
+{{-- BẢNG SẢN PHẨM --}}
+<table class="items-table">
+    <thead>
+        {{-- Hàng 1: Tiêu đề cột --}}
+        <tr>
+            <th style="width:40px;">STT<br><span class="sub">(No)</span></th>
+            <th>Tên hàng hóa, dịch vụ<br><span class="sub">(Name of goods and services)</span></th>
+            <th style="width:55px;">DVT<br><span class="sub">(Unit)</span></th>
+            <th style="width:70px;">Số lượng<br><span class="sub">(Quantity)</span></th>
+            <th style="width:120px;">Đơn giá<br><span class="sub">(Unit price)</span></th>
+            <th style="width:130px;">Thành tiền<br><span class="sub">(Amount)</span></th>
+        </tr>
+        {{-- Hàng 2: Chỉ số cột A, B, C, 1, 2, 3=1x2 --}}
+        <tr class="index-row">
+            <th>A</th>
+            <th>B</th>
+            <th>C</th>
+            <th>1</th>
+            <th>2</th>
+            <th>3=1x2</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($sale->items as $index => $item)
         @php
-            $isForeign = $sale->currency && !$sale->currency->is_base;
-            $rate = $sale->exchange_rate ?: 1;
-            $decimals = $sale->currency->decimal_places ?? 2;
-            $symbol = $sale->currency->symbol ?? $sale->currency->code ?? '';
-
-            // Subtotal
-            $subtotalVnd = $sale->subtotal;
-            $subtotalForeign = $isForeign ? round($sale->subtotal / $rate, $decimals) : $subtotalVnd;
-
-            // Discount Amount
-            $discountForeign = round($subtotalForeign * ($sale->discount / 100), $decimals);
-            $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($sale->discount / 100));
-
-            // VAT Amount
-            $afterDiscountForeign = $subtotalForeign - $discountForeign;
-            $vatForeign = round($afterDiscountForeign * ($sale->vat / 100), $decimals);
-            $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($sale->vat / 100));
-
-            // Total
-            $totalForeign = $sale->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $sale->total);
-            $totalVnd = $sale->total;
-            
-            // Paid Amount & Debt
-            $paidForeign = $isForeign ? round($sale->paid_amount / $rate, $decimals) : $sale->paid_amount;
-            $debtForeign = $isForeign ? round($sale->debt_amount / $rate, $decimals) : $sale->debt_amount;
+            $itemPrice = $isForeign ? round($item->price * $rate) : $item->price;
+            $itemTotal = $isForeign ? round($item->total * $rate) : $item->total;
         @endphp
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 50px;">STT</th>
-                    <th>Sản phẩm</th>
-                    <th class="text-center" style="width: 100px;">Số lượng</th>
-                    <th class="text-right" style="width: 120px;">Đơn giá</th>
-                    <th class="text-right" style="width: 150px;">Thành tiền</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($sale->items as $index => $item)
-                @php
-                    $itemPriceForeign = $item->price;
-                    $itemPriceVnd = $isForeign ? round($item->price * $rate) : $item->price;
-                    $itemTotalForeign = $item->total;
-                    $itemTotalVnd = $isForeign ? round($item->total * $rate) : $item->total;
-                @endphp
-                <tr>
-                    <td class="text-center">{{ $index + 1 }}</td>
-                    <td>{{ $item->product_name }}</td>
-                    <td class="text-center">{{ number_format($item->quantity) }}</td>
-                    <td class="text-right">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemPriceForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($itemPriceVnd) }} đ</div>
-                        @else
-                            {{ number_format($itemPriceVnd) }} đ
-                        @endif
-                    </td>
-                    <td class="text-right">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($itemTotalVnd) }} đ</div>
-                        @else
-                            <strong>{{ number_format($itemTotalVnd) }} đ</strong>
-                        @endif
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <tr>
+            <td class="center">{{ $index + 1 }}</td>
+            <td>{{ $item->product_name }}</td>
+            <td class="center">{{ $item->product->unit ?? 'Cái' }}</td>
+            <td class="center">{{ number_format($item->quantity) }}</td>
+            <td class="right">{{ number_format($itemPrice) }}</td>
+            <td class="right">{{ number_format($itemTotal) }}</td>
+        </tr>
+        @endforeach
 
-        <!-- Totals -->
-        <div class="totals">
-            <table>
-                <tr>
-                    <td>Tổng tiền hàng:</td>
-                    <td class="text-right">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($subtotalVnd) }} đ</div>
-                        @else
-                            <strong>{{ number_format($subtotalVnd) }} đ</strong>
-                        @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td>Chiết khấu ({{ $sale->discount }}%):</td>
-                    <td class="text-right" style="color: #dc3545;">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">-{{ $symbol }}{{ number_format($discountForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">-{{ number_format($discountVnd) }} đ</div>
-                        @else
-                            -{{ number_format($discountVnd) }} đ
-                        @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td>VAT ({{ $sale->vat }}%):</td>
-                    <td class="text-right">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($vatForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($vatVnd) }} đ</div>
-                        @else
-                            {{ number_format($vatVnd) }} đ
-                        @endif
-                    </td>
-                </tr>
-                <tr class="total-row">
-                    <td>TỔNG CỘNG:</td>
-                    <td class="text-right" style="color: #007bff;">
-                        @if($isForeign)
-                            <div>{{ $symbol }}{{ number_format($totalForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 14px; color: #666; font-weight: normal; margin-top: 5px;">
-                                {{ number_format($totalVnd) }} đ
-                                <span style="font-size: 11px;">(Tỷ giá: {{ number_format($sale->exchange_rate, 0, ',', '.') }})</span>
-                            </div>
-                        @else
-                            {{ number_format($totalVnd) }} đ
-                        @endif
-                    </td>
-                </tr>
-                @if($sale->paid_amount > 0)
-                <tr>
-                    <td>Đã thanh toán:</td>
-                    <td class="text-right" style="color: #28a745;">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($paidForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($sale->paid_amount) }} đ</div>
-                        @else
-                            {{ number_format($sale->paid_amount) }} đ
-                        @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td>Còn lại:</td>
-                    <td class="text-right" style="color: #dc3545;">
-                        @if($isForeign)
-                            <div style="font-weight: bold;">{{ $symbol }}{{ number_format($debtForeign, $decimals, '.', ',') }}</div>
-                            <div style="font-size: 11px; color: #666;">{{ number_format($sale->debt_amount) }} đ</div>
-                        @else
-                            <strong>{{ number_format($sale->debt_amount) }} đ</strong>
-                        @endif
-                    </td>
-                </tr>
-                @endif
-            </table>
-        </div>
+        {{-- Dòng trống (tối thiểu 8 dòng) --}}
+        @for($i = $sale->items->count(); $i < 8; $i++)
+        <tr style="height:24px;"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        @endfor
 
-        @if($sale->note)
-        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;">
-            <strong>Ghi chú:</strong> {{ $sale->note }}
-        </div>
+        {{-- Cộng tiền hàng --}}
+        <tr class="total-row">
+            <td colspan="4" class="right italic">Cộng tiền hàng <em>(Total before VAT)</em>:</td>
+            <td></td>
+            <td class="right">{{ number_format($subtotalVnd) }}</td>
+        </tr>
+
+        @if($sale->discount > 0)
+        <tr>
+            <td colspan="4" class="right">Chiết khấu thương mại ({{ $sale->discount }}%):</td>
+            <td></td>
+            <td class="right">-{{ number_format($discountAmt) }}</td>
+        </tr>
         @endif
 
-        <!-- Signature Section -->
-        <div class="signature-section">
-            <div class="signature">
-                <p>Người mua hàng</p>
-                <p style="margin-top: 80px; font-weight: normal; font-style: italic;">(Ký và ghi rõ họ tên)</p>
-            </div>
-            <div class="signature">
-                <p>Người bán hàng</p>
-                <p style="margin-top: 80px; font-weight: normal; font-style: italic;">(Ký và ghi rõ họ tên)</p>
-            </div>
-        </div>
+        {{-- Thuế suất GTGT --}}
+        <tr>
+            <td colspan="2">Thuế suất GTGT <em>(VAT rate)</em>: <strong>{{ $sale->vat > 0 ? $sale->vat.'%' : 'KCT' }}</strong></td>
+            <td colspan="2" class="italic">Tiền thuế GTGT <em>(VAT amount)</em>:</td>
+            <td></td>
+            <td class="right">{{ number_format($vatAmt) }}</td>
+        </tr>
 
-        <!-- Footer -->
-        <div class="footer">
-            <p>Cảm ơn quý khách đã sử dụng dịch vụ của chúng tôi!</p>
-            <p style="margin-top: 10px; font-size: 12px;">Hóa đơn được tạo tự động từ hệ thống Mini ERP</p>
+        {{-- Tổng cộng --}}
+        <tr class="total-row">
+            <td colspan="4" class="right italic">Tổng tiền thanh toán <em>(Total amount)</em>:</td>
+            <td></td>
+            <td class="right">{{ number_format($totalVnd) }}</td>
+        </tr>
+
+        {{-- Số tiền bằng chữ --}}
+        <tr class="money-row">
+            <td colspan="6">
+                Số tiền viết bằng chữ <em>(Total amount in words)</em>: <strong>{{ $amountInWords }}</strong>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+{{-- CHỮ KÝ --}}
+<div class="signatures">
+    <div class="sig-box">
+        <div class="sig-title">Người mua hàng <em>(Buyer)</em></div>
+        <div class="sig-sub">(Ký, ghi rõ họ, tên)</div>
+        <div class="sig-sub"><em>(Signature, full name)</em></div>
+        <div class="sig-space"></div>
+    </div>
+    <div class="sig-box">
+        <div class="sig-title">Người bán hàng <em>(Seller)</em></div>
+        <div class="sig-sub">(Ký, ghi rõ họ, tên)</div>
+        <div class="sig-sub"><em>(Signature, full name)</em></div>
+        <div class="sig-space"></div>
+        <div style="font-weight:bold; text-transform:uppercase; font-size:10pt; color:#b00;">
+            {{ $companyName }}
+        </div>
+        <div class="sig-sub">Ký ngày: {{ $sale->date->format('d/m/Y') }}</div>
+        <div style="font-size:9pt; font-style:italic; margin-top:6px;">
+            (Cần kiểm tra, đối chiếu trước khi lập, giao, nhận hóa đơn)
         </div>
     </div>
+</div>
 </body>
 </html>

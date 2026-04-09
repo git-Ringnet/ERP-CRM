@@ -5,64 +5,77 @@ namespace App\Helpers;
 class NumberHelper
 {
     /**
-     * Chuyển đổi số thành chữ Tiếng Việt
-     *
-     * @param float|int $amount
-     * @return string
+     * Chuyển đổi số thành chữ Tiếng Việt.
+     * Ví dụ: 22,000,000 → "Hai Mươi Hai Triệu đồng chẵn."
      */
-    public static function currencyToVietnameseWords($amount)
+    public static function currencyToVietnameseWords(int|float $amount): string
     {
-        if ($amount == 0) {
+        $amount = (int) round($amount);
+
+        if ($amount === 0) {
             return 'Không đồng';
         }
 
-        $digits = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
-        $units = ["", "nghìn", "triệu", "tỷ", "triệu tỷ", "tỷ tỷ"];
+        $digits = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+        $units  = ['', 'nghìn', 'triệu', 'tỷ'];
 
-        $amount_str = (string)number_format($amount, 0, '', '');
-        $groups = str_split(strrev($amount_str), 3);
-        $result = [];
+        // Tách thành từng nhóm 3 chữ số (từ thấp → cao)
+        $groups    = str_split(strrev((string) $amount), 3);
+        $numGroups = count($groups);
+        $result    = [];   // được xây từ CAO → THẤP
 
-        foreach ($groups as $i => $group) {
-            $group = strrev($group);
-            $group_val = (int)$group;
-            if ($group_val == 0) continue;
+        for ($i = $numGroups - 1; $i >= 0; $i--) {
+            $groupStr  = strrev($groups[$i]);
+            $groupVal  = (int) $groupStr;
 
-            $group_str = "";
-            $h = (int)($group / 100);
-            $t = (int)(($group % 100) / 10);
-            $u = $group % 10;
-
-            // Hundred
-            if ($h > 0 || count($groups) > 1) {
-                $group_str .= $digits[$h] . " trăm ";
+            if ($groupVal === 0) {
+                continue;
             }
 
-            // Ten
-            if ($t == 0) {
-                if ($u > 0 && ($h > 0 || count($groups) > 1)) {
-                    $group_str .= "lẻ ";
+            $h = intdiv($groupVal, 100);           // hàng trăm
+            $t = intdiv($groupVal % 100, 10);      // hàng chục
+            $u = $groupVal % 10;                   // hàng đơn vị
+
+            // Đã có nhóm cao hơn trong kết quả chưa?
+            $hasHigher = count($result) > 0;
+
+            $part = '';
+
+            // ---- Hàng trăm ----
+            if ($h > 0) {
+                $part .= $digits[$h] . ' trăm ';
+            } elseif ($hasHigher) {
+                // Nhóm trung gian, trăm = 0 → thêm "không trăm"
+                $part .= 'không trăm ';
+            }
+
+            // ---- Hàng chục ----
+            if ($t === 0) {
+                if ($u > 0 && ($h > 0 || $hasHigher)) {
+                    $part .= 'lẻ ';   // 101, 1 005 000 …
                 }
-            } elseif ($t == 1) {
-                $group_str .= "mười ";
+            } elseif ($t === 1) {
+                $part .= 'mười ';
             } else {
-                $group_str .= $digits[$t] . " mươi ";
+                $part .= $digits[$t] . ' mươi ';
             }
 
-            // Unit
-            if ($u == 1 && $t > 1) {
-                $group_str .= "mốt";
-            } elseif ($u == 5 && $t > 0) {
-                $group_str .= "lăm";
-            } elseif ($u > 0 || ($group_val == 0 && count($groups) == 1)) {
-                $group_str .= $digits[$u];
+            // ---- Hàng đơn vị ----
+            if ($u === 1 && $t > 1) {
+                $part .= 'mốt';       // 21, 31… (không phải 11)
+            } elseif ($u === 5 && $t > 0) {
+                $part .= 'lăm';       // 15, 25… (không phải 5 đứng đầu)
+            } elseif ($u > 0) {
+                $part .= $digits[$u];
             }
 
-            $result[] = trim($group_str) . " " . $units[$i];
+            $unitLabel = $units[min($i, count($units) - 1)];
+            $result[]  = trim($part) . ($unitLabel ? ' ' . $unitLabel : '');
         }
 
-        $res = implode(" ", array_reverse($result));
-        $res = mb_convert_case($res, MB_CASE_TITLE, "UTF-8");
-        return trim($res) . " đồng chẵn.";
+        $words = implode(' ', $result);
+        $words = mb_convert_case($words, MB_CASE_TITLE, 'UTF-8');
+
+        return trim($words) . ' đồng chẵn.';
     }
 }

@@ -2484,8 +2484,9 @@ class SupplierPriceListController extends Controller
      */
     private function cleanSku($sku)
     {
-        // Remove all non-printable characters and extra whitespace
-        return preg_replace('/[^\x20-\x7E]/', '', trim($sku));
+        if (empty($sku)) return '';
+        // Remove all non-printable characters and extra whitespace, and convert to uppercase
+        return strtoupper(preg_replace('/[^\x20-\x7E]/', '', trim($sku)));
     }
 
     public function applyPrices(Request $request, SupplierPriceList $supplierPriceList)
@@ -2541,8 +2542,8 @@ class SupplierPriceListController extends Controller
 
                 // Match Products by code (exact or LIKE)
                 // Note: The user specified that price list SKUs match Product codes, not individual Item serials.
+                // Match Products by code (exact - now normalized)
                 $products = \App\Models\Product::where('code', $cleanSku)
-                    ->orWhere('code', 'LIKE', trim($priceItem->sku))
                     ->with('items')
                     ->get();
 

@@ -12,75 +12,161 @@
                 <i class="fas fa-building mr-2 text-primary"></i>
                 Thông tin Công ty
             </h3>
-            <p class="text-sm text-gray-600 mt-1">Thông tin này sẽ hiển thị trên các chứng từ (Phiếu thu, chi, nhập, xuất)</p>
+            <p class="text-sm text-gray-600 mt-1">Thông tin này sẽ hiển thị trên hóa đơn và các chứng từ</p>
         </div>
 
-        <form action="{{ route('settings.company.update') }}" method="POST" class="p-6">
+        <form action="{{ route('settings.company.update') }}" method="POST" enctype="multipart/form-data" class="p-6">
             @csrf
-            
+
+            {{-- Logo --}}
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <label class="block text-sm font-medium text-gray-700 mb-3">
+                    <i class="fas fa-image mr-1 text-gray-500"></i> Logo công ty
+                </label>
+                <div class="flex items-start gap-5">
+                    {{-- Preview box --}}
+                    <div class="flex-shrink-0">
+                        @php $logoPath = \App\Models\Setting::get('company_logo'); @endphp
+                        @if($logoPath && file_exists(public_path($logoPath)))
+                        <img id="logo-preview"
+                             src="{{ asset($logoPath) }}"
+                             alt="Logo"
+                             class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm">
+                        @else
+                        <div id="logo-placeholder"
+                             class="w-36 h-24 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-400 text-xs bg-white">
+                            <i class="fas fa-image text-3xl mb-1"></i>
+                            <span>Chưa có logo</span>
+                        </div>
+                        <img id="logo-preview"
+                             src=""
+                             alt="Logo preview"
+                             class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm hidden">
+                        @endif
+                    </div>
+
+                    {{-- Input + hint --}}
+                    <div class="flex-1">
+                        <input type="file"
+                               id="logo-input"
+                               name="company_logo"
+                               accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                               class="block w-full text-sm text-gray-600
+                                      file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0
+                                      file:text-sm file:font-medium file:bg-primary file:text-white
+                                      hover:file:bg-primary-dark cursor-pointer mb-2">
+                        <p class="text-xs text-gray-500">PNG, JPG hoặc SVG. Tối đa 2MB. Để trống nếu không muốn thay đổi.</p>
+                        <p id="logo-filename" class="text-xs text-purple-600 font-medium mt-1 hidden">
+                            <i class="fas fa-check-circle mr-1"></i><span></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Live preview script --}}
+            <script>
+                document.getElementById('logo-input').addEventListener('change', function (e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const preview   = document.getElementById('logo-preview');
+                    const placeholder = document.getElementById('logo-placeholder');
+                    const fileLabel = document.getElementById('logo-filename');
+
+                    const reader = new FileReader();
+                    reader.onload = function (ev) {
+                        preview.src = ev.target.result;
+                        preview.classList.remove('hidden');
+                        if (placeholder) placeholder.classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+
+                    // Show filename
+                    if (fileLabel) {
+                        fileLabel.classList.remove('hidden');
+                        fileLabel.querySelector('span').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+                    }
+                });
+            </script>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Company Name -->
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Tên Công ty <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" name="company_name" 
-                           value="{{ old('company_name', $companySettings->where('key', 'company_name')->first()->value ?? 'CÔNG TY TNHH RINGNET') }}" 
-                           required
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tên Công ty <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_name"
+                           value="{{ old('company_name', $companySettings->where('key', 'company_name')->first()->value ?? 'CÔNG TY TNHH RINGNET') }}"
+                           required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
 
                 <!-- Address -->
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Địa chỉ <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" name="company_address" 
-                           value="{{ old('company_address', $companySettings->where('key', 'company_address')->first()->value ?? 'Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng') }}" 
-                           required
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                </div>
-
-                <!-- City/Province -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Thành phố / Tỉnh
-                    </label>
-                    <input type="text" name="company_city" 
-                           value="{{ old('company_city', $companySettings->where('key', 'company_city')->first()->value ?? 'Thành phố Hồ Chí Minh, Việt Nam') }}" 
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_address"
+                           value="{{ old('company_address', $companySettings->where('key', 'company_address')->first()->value ?? '') }}"
+                           required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
 
                 <!-- Tax Code -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Mã số thuế
-                    </label>
-                    <input type="text" name="company_tax_code" 
-                           value="{{ old('company_tax_code', $companySettings->where('key', 'company_tax_code')->first()->value ?? '') }}" 
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
+                    <input type="text" name="company_tax_code"
+                           value="{{ old('company_tax_code', $companySettings->where('key', 'company_tax_code')->first()->value ?? '') }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
 
                 <!-- Phone -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Số điện thoại
-                    </label>
-                    <input type="text" name="company_phone" 
-                           value="{{ old('company_phone', $companySettings->where('key', 'company_phone')->first()->value ?? '') }}" 
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
+                    <input type="text" name="company_phone"
+                           value="{{ old('company_phone', $companySettings->where('key', 'company_phone')->first()->value ?? '') }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Fax -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fax</label>
+                    <input type="text" name="company_fax"
+                           value="{{ old('company_fax', $companySettings->where('key', 'company_fax')->first()->value ?? '') }}"
+                           placeholder="028 1234 5678"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Website -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                    <input type="text" name="company_website"
+                           value="{{ old('company_website', $companySettings->where('key', 'company_website')->first()->value ?? '') }}"
+                           placeholder="www.example.com"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Email công ty -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email công ty</label>
+                    <input type="email" name="company_email"
+                           value="{{ old('company_email', $companySettings->where('key', 'company_email')->first()->value ?? '') }}"
+                           placeholder="info@company.com"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- Số tài khoản ngân hàng -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Số tài khoản ngân hàng</label>
+                    <input type="text" name="company_bank_account"
+                           value="{{ old('company_bank_account', $companySettings->where('key', 'company_bank_account')->first()->value ?? '') }}"
+                           placeholder="VD: 1234567890 tại Ngân hàng TMCP Quân Đội (MB)"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
             </div>
 
             <div class="mt-6">
-                <button type="submit" 
-                        class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
-                    <i class="fas fa-save mr-2"></i>
-                    Lưu thông tin công ty
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                    <i class="fas fa-save mr-2"></i> Lưu thông tin công ty
                 </button>
             </div>
         </form>
     </div>
+
     <!-- Email Settings -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
