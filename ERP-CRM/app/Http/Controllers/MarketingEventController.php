@@ -20,7 +20,9 @@ class MarketingEventController extends Controller
 
     public function index(Request $request)
     {
-        $query = MarketingEvent::with('creator')->latest();
+        $this->authorize('viewAny', MarketingEvent::class);
+
+        $query = MarketingEvent::with(['creator', 'approvalHistories'])->latest();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -30,17 +32,24 @@ class MarketingEventController extends Controller
         }
 
         $events = $query->paginate(15)->withQueryString();
+        
+        // Load workflow to check permissions on index
+        $mktWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('marketing_budget');
 
-        return view('marketing-events.index', compact('events'));
+        return view('marketing-events.index', compact('events', 'mktWorkflow'));
     }
 
     public function create()
     {
+        $this->authorize('create', MarketingEvent::class);
+
         return view('marketing-events.create');
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', MarketingEvent::class);
+
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -61,6 +70,8 @@ class MarketingEventController extends Controller
 
     public function show(MarketingEvent $marketingEvent)
     {
+        $this->authorize('view', $marketingEvent);
+
         $marketingEvent->load(['creator', 'customers', 'approvalHistories']);
         $allCustomers = Customer::orderBy('name')->get();
 
@@ -75,6 +86,8 @@ class MarketingEventController extends Controller
 
     public function edit(MarketingEvent $marketingEvent)
     {
+        $this->authorize('update', $marketingEvent);
+
         if (!$marketingEvent->isEditable()) {
             return redirect()->route('marketing-events.show', $marketingEvent)
                 ->with('error', 'Chỉ có thể chỉnh sửa sự kiện ở trạng thái Nháp hoặc Từ chối.');
@@ -85,6 +98,8 @@ class MarketingEventController extends Controller
 
     public function update(Request $request, MarketingEvent $marketingEvent)
     {
+        $this->authorize('update', $marketingEvent);
+
         if (!$marketingEvent->isEditable()) {
             return back()->with('error', 'Không thể chỉnh sửa sự kiện này.');
         }
@@ -107,6 +122,8 @@ class MarketingEventController extends Controller
 
     public function destroy(MarketingEvent $marketingEvent)
     {
+        $this->authorize('delete', $marketingEvent);
+
         if (!in_array($marketingEvent->status, ['draft', 'rejected', 'cancelled'])) {
             return back()->with('error', 'Không thể xóa sự kiện đã duyệt hoặc đang chờ duyệt.');
         }
@@ -123,6 +140,8 @@ class MarketingEventController extends Controller
      */
     public function submitApproval(MarketingEvent $marketingEvent)
     {
+        $this->authorize('update', $marketingEvent);
+
         if (!$marketingEvent->isEditable()) {
             return back()->with('error', 'Sự kiện không ở trạng thái có thể gửi duyệt.');
         }
@@ -135,20 +154,23 @@ class MarketingEventController extends Controller
         $result = $this->approvalService->submit($marketingEvent, 'marketing_budget');
 
         if (!$result['success']) {
-            // Fallback: chưa cấu hình workflow
-            $marketingEvent->update(['status' => 'pending']);
-            return back()->with('warning', 'Chưa cấu hình quy trình duyệt marketing. Đã chuyển sang chờ duyệt thủ công.');
+            // Hiển thị lỗi thực tế từ service thay vì thông báo cứng
+            return back()->with('warning', $result['message'] ?? 'Chưa cấu hình quy trình duyệt marketing.');
         }
 
         $marketingEvent->refresh();
         if (isset($result['auto_approved']) && $result['auto_approved']) {
             $marketingEvent->update([
-                'status'      => 'approved',
-                'approved_at' => now(),
-                'approved_by' => auth()->id(),
+                'status'           => 'approved',
+                'approved_at'      => now(),
+                'approved_by'      => auth()->id(),
+                'rejection_reason' => null,
             ]);
         } else {
-            $marketingEvent->update(['status' => 'pending']);
+            $marketingEvent->update([
+                'status'           => 'pending',
+                'rejection_reason' => null,
+            ]);
         }
 
         return back()->with('success', $result['message']);
@@ -159,6 +181,8 @@ class MarketingEventController extends Controller
      */
     public function approve(Request $request, MarketingEvent $marketingEvent)
     {
+        $this->authorize('approve', $marketingEvent);
+
         $request->validate(['comment' => 'nullable|string|max:500']);
 
         $result = $this->approvalService->approve($marketingEvent, 'marketing_budget', $request->comment);
@@ -183,6 +207,8 @@ class MarketingEventController extends Controller
      */
     public function reject(Request $request, MarketingEvent $marketingEvent)
     {
+        $this->authorize('approve', $marketingEvent);
+
         $request->validate(['comment' => 'required|string|min:3|max:500']);
 
         $result = $this->approvalService->reject($marketingEvent, 'marketing_budget', $request->comment);
@@ -204,6 +230,8 @@ class MarketingEventController extends Controller
      */
     public function addCustomers(Request $request, MarketingEvent $marketingEvent)
     {
+        $this->authorize('update', $marketingEvent);
+
         $request->validate([
             'customer_ids'   => 'required|array',
             'customer_ids.*' => 'exists:customers,id',
@@ -223,6 +251,8 @@ class MarketingEventController extends Controller
      */
     public function removeCustomer(MarketingEvent $marketingEvent, Customer $customer)
     {
+        $this->authorize('update', $marketingEvent);
+
         $marketingEvent->customers()->detach($customer->id);
 
         return back()->with('success', 'Đã xóa khách hàng khỏi danh sách.');
@@ -233,6 +263,8 @@ class MarketingEventController extends Controller
      */
     public function updateCustomerStatus(Request $request, MarketingEvent $marketingEvent, Customer $customer)
     {
+        $this->authorize('update', $marketingEvent);
+
         $request->validate(['status' => 'required|in:invited,attended,cancelled']);
 
         $marketingEvent->customers()->updateExistingPivot($customer->id, [

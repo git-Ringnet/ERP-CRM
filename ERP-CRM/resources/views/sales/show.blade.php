@@ -33,83 +33,167 @@
         </button>
         @endif
     </div>
+    
+    {{-- Workflow Progress Tracker --}}
+    @php
+        $pnlWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('sale_pnl');
+        $pnlHistory = \App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        $latestReject = $pnlHistory->where('action', 'rejected')->first();
+        $pendingHist = $pnlHistory->where('action', 'pending')->sortBy('level')->first();
+    @endphp
 
-    <!-- Status Actions -->
-    @if($sale->status !== 'cancelled')
-    <div class="bg-white rounded-lg shadow-sm p-4">
-        <div class="flex flex-wrap items-center gap-3">
-            <span class="text-sm font-medium text-gray-700">Cập nhật trạng thái:</span>
+    @if($pnlWorkflow || $sale->status !== 'cancelled')
+    <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+        {{-- P&L Workflow Header --}}
+        <div class="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 {{ $sale->pl_status === 'approved' ? 'bg-green-50/50' : ($sale->pl_status === 'rejected' ? 'bg-red-50/50' : 'bg-blue-50/50') }}">
+            <div class="flex items-center gap-4">
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quy trình duyệt P&L</span>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold {{ $sale->pl_status_color }}">
+                            {{ $sale->pl_status_label }}
+                        </span>
+                        <i class="fas fa-chevron-right text-gray-300 text-[10px]"></i>
+                        <span class="text-sm text-gray-700">
+                            @if($sale->pl_status === 'pending' && $pendingHist)
+                                Đang chờ: <span class="font-bold text-blue-600">{{ $pendingHist->level_name }}</span>
+                            @elseif($sale->pl_status === 'approved')
+                                <span class="text-green-600 font-bold">Đã duyệt hoàn tất</span>
+                            @elseif($sale->pl_status === 'rejected')
+                                <span class="text-red-600 font-bold">Bị từ chối - Chờ Sales sửa</span>
+                            @else
+                                <span class="text-gray-400 italic">Bản nháp</span>
+                            @endif
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            @if($sale->pl_status === 'rejected' && $latestReject)
+            <div class="flex-1 max-w-xl bg-white/60 p-2 rounded border border-red-100 flex items-start gap-2">
+                <i class="fas fa-exclamation-circle text-red-500 mt-1"></i>
+                <div class="text-xs">
+                    <span class="font-bold text-red-700">Lý do từ chối:</span>
+                    <span class="text-red-600">"{{ $latestReject->comment }}"</span>
+                    <span class="text-[10px] text-red-400 ml-1">({{ $latestReject->approver_name }})</span>
+                </div>
+            </div>
+            @endif
+        </div>
+
+        {{-- Order Status & Quick Actions --}}
+        <div class="px-5 py-3 bg-white border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Trạng thái đơn:</span>
+                <div class="flex items-center text-[11px]">
+                    <span class="px-2 py-1 rounded {{ $sale->status === 'pending' ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Chờ duyệt</span>
+                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
+                    <span class="px-2 py-1 rounded {{ $sale->status === 'approved' ? 'bg-blue-100 text-blue-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Đã duyệt</span>
+                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
+                    <span class="px-2 py-1 rounded {{ $sale->status === 'shipping' ? 'bg-purple-100 text-purple-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Giao hàng</span>
+                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
+                    <span class="px-2 py-1 rounded {{ $sale->status === 'completed' ? 'bg-green-100 text-green-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Hoàn thành</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Thao tác:</span>
+                @if($sale->status === 'pending' && $sale->pl_status === 'approved')
+                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="status" value="approved">
+                        <button type="submit" class="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded shadow-sm hover:bg-blue-700 transition-all">
+                            <i class="fas fa-check mr-1"></i> DUYỆT ĐƠN
+                        </button>
+                    </form>
+                @endif
+                
+                @if(in_array($sale->status, ['pending', 'approved']))
+                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('Xác nhận hủy đơn hàng?')">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="status" value="cancelled">
+                        <button type="submit" class="px-3 py-1 bg-white border border-red-200 text-red-600 text-xs font-bold rounded hover:bg-red-50 transition-all">
+                            <i class="fas fa-times mr-1"></i> HỦY ĐƠN
+                        </button>
+                    </form>
+                @endif
+
+                @if($sale->status === 'approved')
+                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="status" value="shipping">
+                        <button type="submit" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded shadow-sm hover:bg-purple-700 transition-all">
+                            <i class="fas fa-truck mr-1"></i> GIAO HÀNG
+                        </button>
+                    </form>
+                @endif
+
+                @if($sale->status === 'shipping')
+                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="status" value="completed">
+                        <button type="submit" class="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded shadow-sm hover:bg-green-700 transition-all">
+                            <i class="fas fa-check-double mr-1"></i> HOÀN THÀNH
+                        </button>
+                    </form>
+                @endif
+
+                @if($sale->status === 'completed')
+                    <span class="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded">
+                        <i class="fas fa-check-circle mr-1"></i> ĐÃ HOÀN TẤT
+                    </span>
+                @endif
+            </div>
+        </div>
+
+        {{-- Warehouse & Export Tracking --}}
+        @php
+            $linkedExport = \App\Models\Export::where('reference_type', 'sale')->where('reference_id', $sale->id)->first();
+        @endphp
+        <div class="px-5 py-2.5 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Kho & Giao nhận:</span>
+                @if($linkedExport)
+                    <div class="flex items-center gap-4">
+                        <a href="{{ route('exports.show', $linkedExport->id) }}" class="text-sm font-bold text-blue-600 hover:underline">
+                            <i class="fas fa-file-invoice mr-1"></i>{{ $linkedExport->code }}
+                        </a>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $linkedExport->status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700' }}">
+                            {{ $linkedExport->status === 'completed' ? 'Đã xuất kho (Trừ tồn)' : 'Chờ xuất kho' }}
+                        </span>
+                        @if($linkedExport->status !== 'completed' && auth()->user()->hasRole('admin'))
+                            <span class="text-[10px] text-red-500 italic font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Vui lòng duyệt phiếu xuất để hoàn tất trừ tồn kho</span>
+                        @endif
+                    </div>
+                @else
+                    @if(in_array($sale->status, ['approved', 'shipping', 'completed']))
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-red-500 font-medium">
+                                <i class="fas fa-times-circle mr-1"></i>Chưa có phiếu xuất kho
+                            </span>
+                            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="{{ $sale->status }}">
+                                <button type="submit" class="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded hover:bg-red-100 transition-all font-bold">
+                                    <i class="fas fa-sync-alt mr-1"></i>TẠO LẠI PHIẾU XUẤT
+                                </button>
+                            </form>
+                        </div>
+                    @else
+                        <span class="text-xs text-gray-400 italic">Chờ duyệt đơn để tạo phiếu xuất</span>
+                    @endif
+                @endif
+            </div>
             
-            @if($sale->status === 'pending')
-            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="approved">
-                <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors">
-                    <i class="fas fa-check mr-1"></i> Duyệt đơn
-                </button>
-            </form>
-            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="cancelled">
-                <button type="submit" onclick="return confirm('Bạn có chắc muốn hủy đơn hàng này?')" class="inline-flex items-center px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors">
-                    <i class="fas fa-times mr-1"></i> Hủy đơn
-                </button>
-            </form>
-            @endif
-
-            @if($sale->status === 'approved')
-            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="shipping">
-                <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-truck mr-1"></i> Giao hàng
-                </button>
-            </form>
-            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="cancelled">
-                <button type="submit" onclick="return confirm('Bạn có chắc muốn hủy đơn hàng này?')" class="inline-flex items-center px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors">
-                    <i class="fas fa-times mr-1"></i> Hủy đơn
-                </button>
-            </form>
-            @endif
-
-            @if($sale->status === 'shipping')
-            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="completed">
-                <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors">
-                    <i class="fas fa-check-double mr-1"></i> Hoàn thành
-                </button>
-            </form>
-            @endif
-
-            @if($sale->status === 'completed')
-            <span class="text-sm text-green-600 font-medium">
-                <i class="fas fa-check-circle mr-1"></i> Đơn hàng đã hoàn thành
-            </span>
+            @if($linkedExport && $linkedExport->warehouse)
+                <div class="text-[11px] text-gray-500">
+                    <i class="fas fa-warehouse mr-1"></i>Kho: <span class="font-bold text-gray-700">{{ $linkedExport->warehouse->name }}</span>
+                </div>
             @endif
         </div>
-        
-        <!-- Status Flow -->
-        <div class="mt-4 flex items-center text-xs text-gray-500">
-            <span class="px-2 py-1 rounded {{ $sale->status === 'pending' ? 'bg-yellow-100 text-yellow-800 font-medium' : 'bg-gray-100' }}">Chờ duyệt</span>
-            <i class="fas fa-arrow-right mx-2"></i>
-            <span class="px-2 py-1 rounded {{ $sale->status === 'approved' ? 'bg-blue-100 text-blue-800 font-medium' : 'bg-gray-100' }}">Đã duyệt</span>
-            <i class="fas fa-arrow-right mx-2"></i>
-            <span class="px-2 py-1 rounded {{ $sale->status === 'shipping' ? 'bg-purple-100 text-purple-800 font-medium' : 'bg-gray-100' }}">Đang giao</span>
-            <i class="fas fa-arrow-right mx-2"></i>
-            <span class="px-2 py-1 rounded {{ $sale->status === 'completed' ? 'bg-green-100 text-green-800 font-medium' : 'bg-gray-100' }}">Hoàn thành</span>
-        </div>
-    </div>
-    @else
-    <div class="bg-red-50 rounded-lg p-4">
-        <span class="text-red-700 font-medium"><i class="fas fa-ban mr-2"></i>Đơn hàng đã bị hủy</span>
     </div>
     @endif
 
@@ -247,8 +331,8 @@
             @endphp
             
             <div class="bg-white rounded-b-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
+                <div class="overflow-x-auto overflow-y-hidden">
+                    <table class="w-full text-left border-collapse">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">STT</th>

@@ -20,7 +20,8 @@ class RoleService implements RoleServiceInterface
     public function __construct(
         private RoleRepository $roleRepo,
         private CacheServiceInterface $cache,
-        private AuditServiceInterface $audit
+        private AuditServiceInterface $audit,
+        private PermissionServiceInterface $permissionService
     ) {}
 
     /**
@@ -167,7 +168,7 @@ class RoleService implements RoleServiceInterface
             $this->roleRepo->attachUserRole($userId, $roleId, $assignedBy);
 
             // Invalidate user's permission cache
-            $this->cache->forget(sprintf('user_permissions:%d', $userId));
+            $this->permissionService->invalidateUserCache($userId);
 
             // Log assignment
             $this->audit->logRoleAssignment($userId, $roleId, auth()->id() ?? 0);
@@ -201,7 +202,7 @@ class RoleService implements RoleServiceInterface
             $this->roleRepo->detachUserRole($userId, $roleId);
 
             // Invalidate user's permission cache
-            $this->cache->forget(sprintf('user_permissions:%d', $userId));
+            $this->permissionService->invalidateUserCache($userId);
 
             // Log removal
             $this->audit->log(
@@ -250,7 +251,7 @@ class RoleService implements RoleServiceInterface
             $user->roles()->sync($syncData);
 
             // Invalidate user's permission cache
-            $this->cache->forget(sprintf('user_permissions:%d', $userId));
+            $this->permissionService->invalidateUserCache($userId);
 
             // Log sync operation
             $this->audit->log(
@@ -292,10 +293,7 @@ class RoleService implements RoleServiceInterface
             $role->syncPermissions($permissionIds);
 
             // Invalidate cache for all users with this role
-            $users = $role->users;
-            foreach ($users as $user) {
-                $this->cache->forget(sprintf('user_permissions:%d', $user->id));
-            }
+            $this->permissionService->invalidateRoleUsersCache($roleId);
 
             // Log permission assignment
             $this->audit->log(

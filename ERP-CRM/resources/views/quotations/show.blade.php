@@ -11,9 +11,6 @@
         <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Thông tin báo giá</h3>
-                <span class="px-3 py-1 text-sm font-semibold rounded-full {{ $quotation->status_color }}">
-                    {{ $quotation->status_label }}
-                </span>
             </div>
 
             <div class="grid grid-cols-2 gap-4 text-sm">
@@ -221,76 +218,90 @@
 
     <!-- Sidebar -->
     <div class="space-y-6">
+        <!-- Workflow Guide -->
+        <div class="bg-gradient-to-b from-blue-50 to-white rounded-lg shadow-sm p-4 sm:p-6 border border-blue-100">
+            <h3 class="text-sm font-semibold text-blue-800 mb-3"><i class="fas fa-route mr-1"></i> Quy trình bán hàng</h3>
+            @php
+                $isConverted = (bool) $quotation->converted_to_sale_id;
+                $sale = $isConverted ? \App\Models\Sale::find($quotation->converted_to_sale_id) : null;
+                $isPnlApproved = $sale && $sale->pl_status === 'approved';
+                $isPnlPending = $sale && $sale->pl_status === 'pending';
+                $isSaleApproved = $sale && $sale->status === 'approved';
+            @endphp
+            <div class="space-y-1.5 text-xs">
+                {{-- Step 1: Quotation --}}
+                <div class="flex items-start gap-2 {{ !$isConverted ? 'text-blue-700 font-semibold' : 'text-green-600' }}">
+                    <span class="w-5 h-5 rounded-full {{ $isConverted ? 'bg-green-500' : 'bg-blue-600 animate-pulse' }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">
+                        @if($isConverted) <i class="fas fa-check text-[8px]"></i> @else 1 @endif
+                    </span>
+                    <span>Gửi báo giá, tư vấn thêm SP</span>
+                </div>
+                {{-- Step 2: BOM --}}
+                <div class="flex items-start gap-2 {{ !$isConverted ? 'text-blue-700 font-semibold' : 'text-green-600' }}">
+                    <span class="w-5 h-5 rounded-full {{ $isConverted ? 'bg-green-500' : 'bg-blue-600 animate-pulse' }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">
+                        @if($isConverted) <i class="fas fa-check text-[8px]"></i> @else 2 @endif
+                    </span>
+                    <span>KH chốt BOM, gửi báo giá chính thức</span>
+                </div>
+                {{-- Step 3: Convert to Sale --}}
+                <div class="flex items-start gap-2 {{ $isConverted ? 'text-green-600' : 'text-gray-400' }}">
+                    <span class="w-5 h-5 rounded-full {{ $isConverted ? 'bg-green-500' : 'bg-gray-300' }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">
+                        @if($isConverted) <i class="fas fa-check text-[8px]"></i> @else 3 @endif
+                    </span>
+                    <span>KH chốt giá → Lập HĐMB/XNĐH + PNL</span>
+                </div>
+                {{-- Step 4: Legal Review --}}
+                <div class="flex items-start gap-2 {{ $isPnlApproved || $isSaleApproved ? 'text-green-600' : ($isPnlPending ? 'text-yellow-700 font-semibold' : 'text-gray-400') }}">
+                    <span class="w-5 h-5 rounded-full {{ $isPnlApproved || $isSaleApproved ? 'bg-green-500' : ($isPnlPending ? 'bg-yellow-500 animate-pulse' : 'bg-gray-300') }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">
+                        @if($isPnlApproved || $isSaleApproved) <i class="fas fa-check text-[8px]"></i> @else 4 @endif
+                    </span>
+                    <span>Legal review hợp đồng & P&L</span>
+                </div>
+                {{-- Step 5: BOD Review --}}
+                <div class="flex items-start gap-2 {{ $isPnlApproved || $isSaleApproved ? 'text-green-600' : ($isPnlPending ? 'text-yellow-700 font-semibold' : 'text-gray-400') }}">
+                    <span class="w-5 h-5 rounded-full {{ $isPnlApproved || $isSaleApproved ? 'bg-green-500' : ($isPnlPending ? 'bg-yellow-500 animate-pulse' : 'bg-gray-300') }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">
+                        @if($isPnlApproved || $isSaleApproved) <i class="fas fa-check text-[8px]"></i> @else 5 @endif
+                    </span>
+                    <span>BOD phê duyệt</span>
+                </div>
+                {{-- Step 6: Purchase Order --}}
+                <div class="flex items-start gap-2 {{ $isSaleApproved ? 'text-blue-700 font-semibold' : 'text-gray-400' }}">
+                    <span class="w-5 h-5 rounded-full {{ $isSaleApproved ? 'bg-blue-600 animate-pulse' : 'bg-gray-300' }} text-white flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">6</span>
+                    <span>Gửi yêu cầu đặt hàng</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Actions -->
         <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Thao tác</h3>
             <div class="space-y-3">
-                @if($quotation->status === 'draft')
+                @if(!$quotation->converted_to_sale_id)
+                    @can('update', $quotation)
                     <a href="{{ route('quotations.edit', $quotation) }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
-                        <i class="fas fa-edit mr-2"></i> Chỉnh sửa
+                        <i class="fas fa-edit mr-2"></i> Chỉnh sửa / Tư vấn thêm SP
                     </a>
-                    <form action="{{ route('quotations.submit', $quotation) }}" method="POST">
-                        @csrf
-                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
-                            <i class="fas fa-paper-plane mr-2"></i> Gửi duyệt
-                        </button>
-                    </form>
-                @endif
-
-                @if($quotation->status === 'pending' && $quotation->canBeApprovedBy(auth()->user()))
-                    <form action="{{ route('quotations.approve', $quotation) }}" method="POST">
-                        @csrf
-                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors">
-                            <i class="fas fa-check mr-2"></i> Duyệt
-                        </button>
-                    </form>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="showDelegateModal()" class="inline-flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm">
-                            <i class="fas fa-user-friends mr-2"></i> Chuyển
-                        </button>
-                        <button onclick="showRejectModal()" class="inline-flex items-center justify-center px-4 py-2 bg-danger text-white rounded-lg hover:bg-red-600 transition-colors text-sm">
-                            <i class="fas fa-times mr-2"></i> Từ chối
-                        </button>
-                    </div>
-                @endif
-
-                @if($quotation->status === 'approved')
-                    <form action="{{ route('quotations.send', $quotation) }}" method="POST">
-                        @csrf
-                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-                            <i class="fas fa-envelope mr-2"></i> Đánh dấu đã gửi khách
-                        </button>
-                    </form>
-                @endif
-
-                @if(in_array($quotation->status, ['approved', 'sent']))
-                    <form action="{{ route('quotations.response', $quotation) }}" method="POST" class="flex gap-2">
-                        @csrf
-                        <button type="submit" name="response" value="accepted" class="flex-1 inline-flex items-center justify-center px-3 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm transition-colors">
-                            <i class="fas fa-thumbs-up mr-1"></i> KH Chấp nhận
-                        </button>
-                        <button type="submit" name="response" value="declined" class="flex-1 inline-flex items-center justify-center px-3 py-2 bg-danger text-white rounded-lg hover:bg-red-600 text-sm transition-colors">
-                            <i class="fas fa-thumbs-down mr-1"></i> KH Từ chối
-                        </button>
-                    </form>
-                @endif
-
-                @if($quotation->canConvertToSale())
-                    <form action="{{ route('quotations.convert', $quotation) }}" method="POST">
-                        @csrf
-                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors">
-                            <i class="fas fa-exchange-alt mr-2"></i> Chuyển thành đơn hàng
-                        </button>
-                    </form>
+                    @endcan
                 @endif
 
                 <a href="{{ route('quotations.print', $quotation) }}" target="_blank" 
-                   class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
-                    <i class="fas fa-print mr-2"></i> In báo giá
+                   class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-print mr-2"></i> In & Gửi báo giá chính thức
                 </a>
 
-                @if(in_array($quotation->status, ['draft', 'rejected']))
+                @if(!$quotation->converted_to_sale_id && !$quotation->isExpired())
+                    <form action="{{ route('quotations.convert', $quotation) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors"
+                                onclick="return confirm('KH đã chốt giá? Chuyển thành đơn hàng / XNĐH?')">
+                            <i class="fas fa-file-contract mr-2"></i> KH chốt giá → Lập HĐMB/XNĐH
+                        </button>
+                    </form>
+                @endif
+
+                @if(!$quotation->converted_to_sale_id)
+                    @can('delete', $quotation)
                     <form action="{{ route('quotations.destroy', $quotation) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')">
                         @csrf
                         @method('DELETE')
@@ -298,81 +309,18 @@
                             <i class="fas fa-trash mr-2"></i> Xóa báo giá
                         </button>
                     </form>
+                    @endcan
                 @endif
             </div>
         </div>
 
-        <!-- Approval History -->
-        @if($workflow && count($approvalHistories) > 0)
-        <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Lịch sử duyệt</h3>
-            <div class="space-y-4">
-                @foreach($approvalHistories as $history)
-                <div class="flex items-start space-x-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                    <div class="flex-shrink-0">
-                        @if($history->action === 'approved')
-                            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-check text-green-600"></i>
-                            </div>
-                        @elseif($history->action === 'rejected')
-                            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-times text-red-600"></i>
-                            </div>
-                        @elseif($history->action === 'skipped')
-                            <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-forward text-gray-400"></i>
-                            </div>
-                        @elseif($history->action === 'delegated')
-                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-reply text-blue-600"></i>
-                            </div>
-                        @else
-                            <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-clock text-yellow-600"></i>
-                            </div>
-                        @endif
-                    </div>
-                    <div class="flex-1">
-                        <div class="font-medium text-sm flex justify-between">
-                            <span>Cấp {{ $history->level }}: {{ $history->level_name }}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded {{ $history->action_color }}">
-                                {{ $history->action_label }}
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-0.5">
-                            @if($history->action === 'pending')
-                                Đang chờ: <span class="font-medium text-gray-700">{{ $history->approver_name }}</span>
-                            @elseif($history->action === 'skipped')
-                                <span class="text-gray-400">Hệ thống tự động bỏ qua</span>
-                            @elseif($history->action === 'delegated')
-                                <span class="font-medium text-gray-700">{{ $history->originalApprover ? $history->originalApprover->name : 'N/A' }}</span>
-                                <i class="fas fa-long-arrow-alt-right mx-1"></i>
-                                <span class="font-medium text-blue-600">{{ $history->delegatedTo ? $history->delegatedTo->name : 'N/A' }}</span>
-                            @else
-                                <span class="font-medium text-gray-700">{{ $history->approver_name }}</span>
-                                @if($history->action_at)
-                                    - {{ \Carbon\Carbon::parse($history->action_at)->format('d/m/Y H:i') }}
-                                @endif
-                            @endif
-                        </div>
-                        @if($history->comment)
-                            <div class="text-xs text-gray-600 mt-1 p-2 bg-gray-50 rounded italic border-l-2 border-gray-200">
-                                "{{ $history->comment }}"
-                            </div>
-                        @endif
-                    </div>
-                </div>
-                @endforeach
-            </div>
-        </div>
-        @endif
-
         <!-- Converted Sale -->
         @if($quotation->converted_to_sale_id)
         <div class="bg-green-50 rounded-lg shadow-sm p-4 sm:p-6">
-            <h3 class="text-lg font-semibold text-green-800 mb-2">Đã chuyển đơn hàng</h3>
-            <a href="{{ route('sales.show', $quotation->converted_to_sale_id) }}" class="text-green-600 hover:text-green-800 font-medium">
-                <i class="fas fa-external-link-alt mr-1"></i> Xem đơn hàng
+            <h3 class="text-lg font-semibold text-green-800 mb-2"><i class="fas fa-check-circle mr-1"></i> Đã lập đơn hàng</h3>
+            <p class="text-sm text-green-600 mb-2">Báo giá đã được chuyển thành đơn hàng / XNĐH.</p>
+            <a href="{{ route('sales.show', $quotation->converted_to_sale_id) }}" class="inline-flex items-center text-green-700 hover:text-green-900 font-medium text-sm">
+                <i class="fas fa-external-link-alt mr-1"></i> Xem đơn hàng / XNĐH
             </a>
         </div>
         @endif
@@ -384,74 +332,4 @@
         </a>
     </div>
 </div>
-
-<!-- Delegate Modal -->
-<div id="delegateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
-        <h3 class="text-lg font-semibold mb-4 flex items-center">
-            <i class="fas fa-user-friends text-blue-500 mr-2"></i> Chuyển quyền duyệt
-        </h3>
-        <form action="{{ route('quotations.delegate', $quotation) }}" method="POST">
-            @csrf
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Chọn người nhận <span class="text-red-500">*</span></label>
-                <select name="to_user_id" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
-                    <option value="">-- Chọn nhân viên --</option>
-                    @foreach(\App\Models\User::where('id', '!=', auth()->id())->where('status', 'active')->get() as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->position }})</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú lý do</label>
-                <textarea name="comment" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Tại sao bạn chuyển quyền duyệt này?"></textarea>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="hideDelegateModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-600">Hủy</button>
-                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
-                    <i class="fas fa-paper-plane mr-2 text-xs"></i> Chuyển ngay
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Reject Modal -->
-<div id="rejectModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-        <h3 class="text-lg font-semibold mb-4">Từ chối báo giá</h3>
-        <form action="{{ route('quotations.reject', $quotation) }}" method="POST">
-            @csrf
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Lý do từ chối <span class="text-red-500">*</span></label>
-                <textarea name="comment" rows="3" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nhập lý do từ chối..."></textarea>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="hideRejectModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Hủy</button>
-                <button type="submit" class="px-4 py-2 bg-danger text-white rounded-lg hover:bg-red-600">Từ chối</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-@push('scripts')
-<script>
-function showRejectModal() {
-    document.getElementById('rejectModal').classList.remove('hidden');
-    document.getElementById('rejectModal').classList.add('flex');
-}
-function hideRejectModal() {
-    document.getElementById('rejectModal').classList.add('hidden');
-    document.getElementById('rejectModal').classList.remove('flex');
-}
-function showDelegateModal() {
-    document.getElementById('delegateModal').classList.remove('hidden');
-    document.getElementById('delegateModal').classList.add('flex');
-}
-function hideDelegateModal() {
-    document.getElementById('delegateModal').classList.add('hidden');
-    document.getElementById('delegateModal').classList.remove('flex');
-}
-</script>
-@endpush
 @endsection

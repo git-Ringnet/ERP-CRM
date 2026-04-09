@@ -372,6 +372,10 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
+        if ($sale->isPendingApproval()) {
+            return back()->with('error', 'Không thể sửa đơn hàng khi đang trong quá trình duyệt P&L.');
+        }
+
         // Convert price values from string to numeric (remove formatting)
         $products = $request->input('products', []);
         foreach ($products as $key => $product) {
@@ -742,7 +746,7 @@ class SaleController extends Controller
      */
     public function updateStatus(Request $request, Sale $sale)
     {
-        $this->authorize('update', $sale);
+        $this->authorize('approve', $sale);
 
         $validated = $request->validate([
             'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
@@ -768,8 +772,22 @@ class SaleController extends Controller
         // Logic Check: Prevent Shipping/Completed if Export is not completed
         if (in_array($newStatus, ['shipping', 'completed'])) {
             $export = $this->saleExportSyncService->getExport($sale);
+            
+            // Nếu chưa có phiếu xuất kho, thử tạo mới nếu đang chuyển sang Shipping
+            if (!$export && $newStatus === 'shipping') {
+                try {
+                    $export = $this->saleExportSyncService->createExportFromSale($sale);
+                } catch (\Exception $e) {
+                    return back()->with('error', "Không thể tạo phiếu xuất kho tự động: " . $e->getMessage());
+                }
+            }
+
             if ($export && $export->status !== 'completed') {
                 return back()->with('error', "Không thể giao hàng. Vui lòng duyệt phiếu xuất kho {$export->code} để xác nhận trừ tồn kho trước.");
+            }
+            
+            if (!$export && $newStatus === 'completed') {
+                return back()->with('error', "Đơn hàng chưa có phiếu xuất kho liên kết. Vui lòng tạo phiếu xuất kho trước.");
             }
         }
 
@@ -922,8 +940,9 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        if (!in_array($sale->pl_status, [null, 'draft', 'rejected'])) {
-            return back()->with('error', 'P&L đã được gửi hoặc đã duyệt.');
+        // Allow re-submission if pending (to fix stuck cases) or draft/rejected
+        if (!in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
+            return back()->with('error', 'P&L đã được duyệt.');
         }
 
         // Xóa lịch sử duyệt cũ (nếu đang resubmit)
@@ -935,11 +954,17 @@ class SaleController extends Controller
         $result = $this->approvalService->submit($sale, 'sale_pnl');
 
         if (!$result['success']) {
-            // Fallback: chưa cấu hình workflow – dùng logic cũ
-            $sale->update(['pl_status' => 'pending']);
-            return redirect()->route('sales.show', $sale->id)
-                ->with('warning', 'Chưa cấu hình quy trình duyệt P&L. Đã chuyển sang chờ duyệt thủ công.')
-                ->withFragment('pnl');
+            $isSystemError = str_contains($result['message'] ?? '', 'Lỗi hệ thống');
+            
+            // Nếu là lỗi cấu hình thì mới chuyển sang thủ công
+            if (!$isSystemError) {
+                $sale->update(['pl_status' => 'pending']);
+                return redirect()->route('sales.show', $sale->id)
+                    ->with('warning', 'Chưa cấu hình quy trình duyệt P&L. Đã chuyển sang chờ duyệt thủ công.')
+                    ->withFragment('pnl');
+            }
+
+            return back()->with('error', 'Lỗi khi gửi duyệt P&L: ' . $result['message']);
         }
 
         // Đồng bộ pl_status theo kết quả
@@ -964,6 +989,8 @@ class SaleController extends Controller
      */
     public function approvePnL(Request $request, Sale $sale)
     {
+        $this->authorize('approvePnl', $sale);
+
         $request->validate(['comment' => 'nullable|string|max:500']);
 
         $result = $this->approvalService->approve($sale, 'sale_pnl', $request->comment);
@@ -972,14 +999,21 @@ class SaleController extends Controller
             return back()->with('error', $result['message']);
         }
 
-        // Đồng bộ pl_status
+        // Đồng bộ pl_status (sửa bug: dùng $sale->pl_status thay vì $sale->status)
         $sale->refresh();
-        if ($sale->status === 'approved') {
-            $sale->update([
-                'pl_status'      => 'approved',
-                'pl_approved_at' => now(),
-                'pl_approved_by' => auth()->id(),
-            ]);
+        if ($sale->pl_status !== 'approved') {
+            $checkDone = !\App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
+                ->where('document_id', $sale->id)
+                ->where('action', 'pending')
+                ->exists();
+            if ($checkDone) {
+                $sale->update([
+                    'pl_status'      => 'approved',
+                    'pl_approved_at' => now(),
+                    'pl_approved_by' => auth()->id(),
+                    'status'         => 'approved', // Đồng bộ trạng thái đơn hàng chính
+                ]);
+            }
         }
 
         return redirect()->route('sales.show', $sale->id)
@@ -992,6 +1026,8 @@ class SaleController extends Controller
      */
     public function rejectPnL(Request $request, Sale $sale)
     {
+        $this->authorize('approvePnl', $sale);
+
         $request->validate(['comment' => 'required|string|min:3|max:500']);
 
         $result = $this->approvalService->reject($sale, 'sale_pnl', $request->comment);

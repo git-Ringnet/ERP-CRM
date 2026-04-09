@@ -203,7 +203,23 @@ class Sale extends Model
      */
     public function isPlEditable(): bool
     {
-        return in_array($this->pl_status, ['draft', 'rejected', null]);
+        return in_array($this->pl_status, ['draft', 'rejected', null, '']);
+    }
+
+    /**
+     * Check if the sale is currently in the approval process
+     */
+    public function isPendingApproval(): bool
+    {
+        return $this->pl_status === 'pending';
+    }
+
+    /**
+     * Get the ID of the person who created this sale (for notifications)
+     */
+    public function getCreatorId(): ?int
+    {
+        return $this->user_id;
     }
 
     /**

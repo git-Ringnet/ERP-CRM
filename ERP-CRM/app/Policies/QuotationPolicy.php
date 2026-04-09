@@ -68,27 +68,8 @@ class QuotationPolicy extends BasePolicy
         return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
     }
 
-    /**
-     * Determine whether the user can delete the quotation.
-     *
-     * @param User $user
-     * @param Quotation $quotation
-     * @return bool
-     */
     public function delete(User $user, Quotation $quotation): bool
     {
         return $this->checkPermission($user, 'delete_quotations');
-    }
-
-    /**
-     * Determine whether the user can approve the quotation.
-     *
-     * @param User $user
-     * @param Quotation $quotation
-     * @return bool
-     */
-    public function approve(User $user, Quotation $quotation): bool
-    {
-        return $this->checkPermission($user, 'approve_quotations');
     }
 }

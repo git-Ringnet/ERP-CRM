@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Notification as CustomNotification;
 
 class ApprovalService
 {
@@ -50,6 +51,9 @@ class ApprovalService
             foreach ($skippedLevels as $sl) {
                 $this->logSkipped($document, $documentType, $sl);
             }
+
+            // Gửi thông báo cho người duyệt cấp đầu tiên
+            $this->notifyNextApprovers($document, $documentType, $firstLevel);
 
             DB::commit();
             return ['success' => true, 'message' => 'Đã gửi duyệt thành công.'];
@@ -136,13 +140,54 @@ class ApprovalService
                     } else {
                         // Tạo pending cho cấp tiếp theo và dừng lại
                         $this->createPendingHistory($document, $documentType, $nextNextLevel);
+                        
+                        // Thông báo cho người duyệt cấp tiếp theo
+                        $this->notifyNextApprovers($document, $documentType, $nextNextLevel);
+
                         $currentLevel = null;
                     }
                 }
             }
 
+            // Đồng bộ pl_status cho Sale nếu là quy trình P&L
+            if ($documentType === 'sale_pnl') {
+                $document->pl_status = $document->status;
+                if ($document->status === 'approved') {
+                    $document->pl_approved_at = now();
+                    $document->pl_approved_by = Auth::id();
+                }
+            }
+
             $document->save();
             DB::commit();
+
+            // Nếu đã duyệt xong hoàn tất, thông báo cho người tạo
+            if ($document->status === 'approved' || (isset($document->pl_status) && $document->pl_status === 'approved')) {
+                // TỰ ĐỘNG TẠO PHIẾU XUẤT KHO nếu là đơn hàng bán
+                if ($documentType === 'sale_pnl' && $document instanceof \App\Models\Sale) {
+                    try {
+                        $exportSyncService = app(\App\Services\SaleExportSyncService::class);
+                        $exportSyncService->createExportFromSale($document);
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::warning("Could not auto-create export for Sale #{$document->id} after approval: " . $e->getMessage());
+                    }
+                }
+
+                $creatorId = $this->getCreatorId($document);
+                if ($creatorId) {
+                    $docName = $this->getFriendlyDocumentType($documentType);
+                    $docTitle = $document->title ?? $document->code ?? "#{$document->id}";
+                    
+                    CustomNotification::create([
+                        'user_id' => $creatorId,
+                        'type'    => 'approval_approved',
+                        'title'   => 'Chứng từ đã được duyệt',
+                        'message' => "{$docName} ({$docTitle}) của bạn đã được phê duyệt hoàn tất.",
+                        'link'    => $this->getDocumentUrl($document, $documentType),
+                        'icon'    => 'fas fa-check-circle text-emerald-500',
+                    ]);
+                }
+            }
 
             return [
                 'success' => true, 
@@ -197,8 +242,28 @@ class ApprovalService
                 ], $historyData));
             }
 
-            $document->update(['status' => 'rejected']);
+            $statusData = ['status' => 'rejected'];
+            if ($documentType === 'sale_pnl') {
+                $statusData['pl_status'] = 'rejected';
+            }
+            $document->update($statusData);
             
+            // Thông báo cho người tạo là đã bị từ chối
+            $creatorId = $this->getCreatorId($document);
+            if ($creatorId) {
+                $docName = $this->getFriendlyDocumentType($documentType);
+                $docTitle = $document->title ?? $document->code ?? "#{$document->id}";
+                
+                CustomNotification::create([
+                    'user_id' => $creatorId,
+                    'type'    => 'approval_rejected',
+                    'title'   => 'Chứng từ bị từ chối',
+                    'message' => "{$docName} ({$docTitle}) đã bị từ chối. Lý do: {$comment}",
+                    'link'    => $this->getDocumentUrl($document, $documentType),
+                    'icon'    => 'fas fa-times-circle text-red-500',
+                ]);
+            }
+
             DB::commit();
             return ['success' => true, 'message' => 'Chứng từ đã bị từ chối.'];
         } catch (\Exception $e) {
@@ -363,5 +428,63 @@ class ApprovalService
             'comment' => 'Tự động bỏ qua do giá trị chứng từ (' . number_format($document->total ?? 0) . ') không nằm trong hạn mức cấu hình.',
             'action_at' => now(),
         ]);
+    }
+
+    /**
+     * Gửi thông báo đến những người có quyền duyệt cấp này
+     */
+    private function notifyNextApprovers(Model $document, string $documentType, ApprovalLevel $level): void
+    {
+        $approvers = $level->getApprovers();
+        if ($approvers->isNotEmpty()) {
+            $docName = $this->getFriendlyDocumentType($documentType);
+            $docTitle = $document->title ?? $document->code ?? "#{$document->id}";
+            $link = $this->getDocumentUrl($document, $documentType);
+
+            foreach ($approvers as $user) {
+                CustomNotification::create([
+                    'user_id' => $user->id,
+                    'type'    => 'approval_pending',
+                    'title'   => "Yêu cầu duyệt: {$docName}",
+                    'message' => "Hồ sơ {$docName} ({$docTitle}) đang chờ bạn phê duyệt ở bước: {$level->name}.",
+                    'link'    => $link,
+                    'icon'    => 'fas fa-clock text-amber-500',
+                ]);
+            }
+        }
+    }
+
+    private function getFriendlyDocumentType(string $type): string
+    {
+        return match ($type) {
+            'marketing_budget' => 'Ngân sách Marketing',
+            'sale_pnl'         => 'P&L / Hợp đồng bán hàng',
+            'purchase_order'   => 'Đơn mua hàng',
+            'quotation'        => 'Báo giá',
+            default            => $type,
+        };
+    }
+
+    private function getDocumentUrl(Model $document, string $type): string
+    {
+        return match ($type) {
+            'marketing_budget' => route('marketing-events.show', $document->id),
+            'sale_pnl'         => route('sales.show', $document->id),
+            'purchase_order'   => route('purchase-orders.show', $document->id),
+            'quotation'        => route('quotations.show', $document->id),
+            default            => '#',
+        };
+    }
+
+    /**
+     * Lấy ID người tạo chứng từ (hỗ trợ nhiều tên cột khác nhau)
+     */
+    private function getCreatorId(Model $document): ?int
+    {
+        if (method_exists($document, 'getCreatorId')) {
+            return $document->getCreatorId();
+        }
+
+        return $document->created_by ?? $document->user_id ?? $document->created_by_id ?? null;
     }
 }

@@ -279,7 +279,6 @@
 
     <script>
         let rowIndex = {{ count($quotation->items) }};
-        const products = @json($products);
 
         $(document).ready(function () {
             // Initialize Select2 for Customer

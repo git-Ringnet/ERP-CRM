@@ -73,11 +73,7 @@ class Quotation extends Model
 
     public function approvalHistories()
     {
-        return ApprovalHistory::where('document_type', 'quotation')
-            ->where('document_id', $this->id)
-            ->orderBy('level')
-            ->orderBy('created_at')
-            ->get();
+        return collect([]);
     }
 
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -129,57 +125,9 @@ class Quotation extends Model
         };
     }
 
-    public function getApprovalWorkflow(): ?ApprovalWorkflow
-    {
-        return ApprovalWorkflow::getForDocumentType('quotation');
-    }
-
-    public function getMaxApprovalLevel(): int
-    {
-        $workflow = $this->getApprovalWorkflow();
-        return $workflow ? $workflow->max_level : 0;
-    }
-
-    public function getCurrentApprovalLevel(): ?ApprovalLevel
-    {
-        $workflow = $this->getApprovalWorkflow();
-        if (!$workflow) return null;
-
-        return $workflow->levels()
-            ->where('level', $this->current_approval_level)
-            ->first();
-    }
-
-    public function getNextApprovalLevel(): ?ApprovalLevel
-    {
-        $workflow = $this->getApprovalWorkflow();
-        if (!$workflow) return null;
-
-        return $workflow->levels()
-            ->where('level', $this->current_approval_level + 1)
-            ->first();
-    }
-
     public function canBeApprovedBy(?User $user): bool
     {
-        if (!$user || $this->status !== 'pending') return false;
-
-        // 1. Kiểm tra xem người dùng có được ủy quyền cho cấp này không
-        $pendingHistory = ApprovalHistory::where('document_type', 'quotation')
-            ->where('document_id', $this->id)
-            ->where('action', 'pending')
-            ->orderBy('level')
-            ->first();
-            
-        if ($pendingHistory && $pendingHistory->approver_id == $user->id) {
-            return true;
-        }
-
-        // 2. Kiểm tra theo phân quyền Role/User mặc định của Workflow
-        $nextLevel = $this->getNextApprovalLevel();
-        if (!$nextLevel) return false;
-
-        return $nextLevel->canApprove($user, $this->total);
+        return false;
     }
 
     public function isExpired(): bool
@@ -189,8 +137,7 @@ class Quotation extends Model
 
     public function canConvertToSale(): bool
     {
-        return in_array($this->status, ['approved', 'sent', 'accepted']) 
-            && !$this->converted_to_sale_id
+        return !$this->converted_to_sale_id
             && !$this->isExpired();
     }
 }

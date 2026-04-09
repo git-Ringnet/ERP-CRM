@@ -188,7 +188,6 @@ class ApprovalWorkflowController extends Controller
     private function getDocumentTypes(): array
     {
         return [
-            'quotation'          => 'Báo giá',
             'contract'           => 'Hợp đồng',
             'order'              => 'Đơn hàng',
             'purchase'           => 'Đơn mua hàng',

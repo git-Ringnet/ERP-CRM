@@ -41,6 +41,7 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\Sale::class => \App\Policies\SalePolicy::class,
         \App\Models\Project::class => \App\Policies\ProjectPolicy::class,
         \App\Models\CustomerDebt::class => \App\Policies\CustomerDebtPolicy::class,
+        \App\Models\MarketingEvent::class => \App\Policies\MarketingEventPolicy::class,
         \App\Models\CostFormula::class => \App\Policies\CostFormulaPolicy::class,
         
         // Purchasing

@@ -23,7 +23,7 @@
                         <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Từ chối</option>
                     </select>
                 </form>
-                @can('create', App\Models\MarketingEvent::class)
+                @can('create_marketing_events')
                 <a href="{{ route('marketing-events.create') }}"
                    class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">
                     <i class="fas fa-plus mr-2"></i> Tạo sự kiện
@@ -70,11 +70,64 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-sm text-center text-gray-600">{{ $event->creator->name ?? '—' }}</td>
-                        <td class="px-4 py-3 text-center">
-                            <a href="{{ route('marketing-events.show', $event) }}" class="text-purple-600 hover:text-purple-800 mx-1" title="Xem"><i class="fas fa-eye"></i></a>
-                            @if($event->isEditable())
-                            <a href="{{ route('marketing-events.edit', $event) }}" class="text-yellow-500 hover:text-yellow-700 mx-1" title="Sửa"><i class="fas fa-edit"></i></a>
-                            @endif
+                        <td class="px-4 py-3 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{{ route('marketing-events.show', $event) }}" 
+                                   class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors" 
+                                   title="Xem chi tiết">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+
+                                @php
+                                    $canApprove = false;
+                                    if ($mktWorkflow && $event->status === 'pending') {
+                                        $pendingHist = $event->approvalHistories->where('action', 'pending')->sortBy('level')->first();
+                                        if ($pendingHist) {
+                                            $level = $mktWorkflow->levels->where('level', $pendingHist->level)->first();
+                                            $canApprove = $level?->canApprove(auth()->user(), (float)$event->budget) ?? false;
+                                        }
+                                    }
+                                @endphp
+
+                                @if($canApprove)
+                                <div class="flex items-center gap-1">
+                                    <form action="{{ route('marketing-events.approve', $event) }}" method="POST" class="inline">
+                                        @csrf
+                                        <button type="submit" 
+                                            onclick="return confirm('Duyệt ngân sách sự kiện này?')"
+                                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" 
+                                            title="Duyệt nhanh">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <a href="{{ route('marketing-events.show', $event) }}?reject=1" 
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors" 
+                                        title="Từ chối">
+                                        <i class="fas fa-times"></i>
+                                    </a>
+                                </div>
+                                @endif
+
+                                @if($event->isEditable())
+                                <a href="{{ route('marketing-events.edit', $event) }}" 
+                                   class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors" 
+                                   title="Chỉnh sửa">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                @endif
+
+                                @if($event->isEditable() || $event->status === 'cancelled')
+                                <form action="{{ route('marketing-events.destroy', $event) }}" method="POST" class="inline">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" 
+                                        onclick="return confirm('Xóa sự kiện này?')"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors" 
+                                        title="Xóa">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @empty

@@ -8,6 +8,7 @@
         <div class="bg-white rounded-lg shadow-sm p-6">
             <form action="{{ route('projects.store') }}" method="POST">
                 @csrf
+                <input type="hidden" name="marketing_event_id" value="{{ old('marketing_event_id', $preFill['marketing_event_id'] ?? '') }}">
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Cột trái: Thông tin chính -->
@@ -36,7 +37,7 @@
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                         <option value="">-- Chọn khách hàng --</option>
                                         @foreach($customers as $customer)
-                                            <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                            <option value="{{ $customer->id }}" {{ old('customer_id', $preFill['customer_id'] ?? '') == $customer->id ? 'selected' : '' }}>
                                                 {{ $customer->name }}
                                             </option>
                                         @endforeach
@@ -48,7 +49,7 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-1">
                                         Tên dự án <span class="text-red-500">*</span>
                                     </label>
-                                    <input type="text" name="name" value="{{ old('name') }}" required
+                                    <input type="text" name="name" value="{{ old('name', $preFill['name'] ?? '') }}" required
                                         placeholder="VD: Dự án cung cấp thiết bị văn phòng ABC"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('name') border-red-500 @enderror">
                                     @error('name')
@@ -89,7 +90,7 @@
                                     <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Mô tả / Diễn giải</label>
                                     <textarea name="description" id="description" rows="4"
                                         placeholder="Mô tả chi tiết về dự án..."
-                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('description') }}</textarea>
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('description', $preFill['description'] ?? '') }}</textarea>
                                 </div>
                                 <div>
                                     <label for="note" class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
@@ -146,11 +147,11 @@
                                 <label for="budget_display" class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Dự toán dự án (VNĐ)</label>
                                 <div class="relative">
                                     <input type="text" id="budget_display" oninput="formatCurrency(this)"
-                                        value="{{ number_format(old('budget', 0)) }}"
+                                        value="{{ number_format(old('budget', $preFill['budget'] ?? 0)) }}"
                                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary pr-12">
                                     <span class="absolute right-3 top-2 text-gray-400 text-xs">VNĐ</span>
                                 </div>
-                                <input type="hidden" name="budget" id="budget" value="{{ old('budget', 0) }}">
+                                <input type="hidden" name="budget" id="budget" value="{{ old('budget', $preFill['budget'] ?? 0) }}">
                             </div>
                         </div>
 

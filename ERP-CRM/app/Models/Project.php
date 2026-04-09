@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Builder;
 class Project extends Model
 {
     use HasFactory, LogsActivity;
-
     protected $fillable = [
         'code',
         'name',
@@ -24,6 +23,7 @@ class Project extends Model
         'status',
         'manager_id',
         'note',
+        'marketing_event_id',
     ];
 
     protected $casts = [
@@ -46,6 +46,14 @@ class Project extends Model
     public function manager()
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    /**
+     * Relationship with MarketingEvent
+     */
+    public function marketingEvent()
+    {
+        return $this->belongsTo(MarketingEvent::class, 'marketing_event_id');
     }
 
     /**

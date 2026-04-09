@@ -11,10 +11,8 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Currency;
-use App\Models\ApprovalWorkflow;
-use App\Models\ApprovalHistory;
 use App\Services\CurrencyService;
-use App\Exports\QuotationsExport;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -52,10 +50,6 @@ class QuotationController extends Controller
             $query->search($request->search);
         }
 
-        if ($request->filled('status')) {
-            $query->filterByStatus($request->status);
-        }
-
         $quotations = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return view('quotations.index', compact('quotations'));
@@ -66,7 +60,6 @@ class QuotationController extends Controller
         $this->authorize('create', Quotation::class);
 
         $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
 
         $prefill = [
@@ -77,7 +70,7 @@ class QuotationController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
+        return view('quotations.create', compact('customers', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
     }
 
     private function generateCode(): string
@@ -162,7 +155,6 @@ class QuotationController extends Controller
                 'delivery_time' => $validated['delivery_time'],
                 'note' => $validated['note'],
                 'status' => 'draft',
-                'current_approval_level' => 0,
                 'created_by' => auth()->id(),
             ]);
 
@@ -197,10 +189,9 @@ class QuotationController extends Controller
         }
 
         $quotation->load('items', 'customer');
-        $approvalHistories = $quotation->approvalHistories();
-        $workflow = $quotation->getApprovalWorkflow();
-
-        return view('quotations.show', compact('quotation', 'approvalHistories', 'workflow'));
+        $companySettings = Setting::where('group', 'company')->pluck('value', 'key');
+        
+        return view('quotations.show', compact('quotation', 'companySettings'));
     }
 
     public function edit(Quotation $quotation)
@@ -213,11 +204,10 @@ class QuotationController extends Controller
 
         $quotation->load('items');
         $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId'));
+        return view('quotations.edit', compact('quotation', 'customers', 'currencies', 'baseCurrencyId'));
     }
 
     public function update(Request $request, Quotation $quotation)
@@ -292,7 +282,6 @@ class QuotationController extends Controller
                 'delivery_time' => $validated['delivery_time'],
                 'note' => $validated['note'],
                 'status' => 'draft',
-                'current_approval_level' => 0,
             ]);
 
             $quotation->items()->delete();
@@ -309,11 +298,6 @@ class QuotationController extends Controller
                     'total' => $item['quantity'] * $item['price'],
                 ]);
             }
-
-            // Clear old approval histories
-            ApprovalHistory::where('document_type', 'quotation')
-                ->where('document_id', $quotation->id)
-                ->delete();
 
             DB::commit();
 
@@ -335,9 +319,6 @@ class QuotationController extends Controller
 
         DB::beginTransaction();
         try {
-            ApprovalHistory::where('document_type', 'quotation')
-                ->where('document_id', $quotation->id)
-                ->delete();
             $quotation->items()->delete();
             $quotation->delete();
             DB::commit();
@@ -348,83 +329,6 @@ class QuotationController extends Controller
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Submit quotation for approval
-     */
-    public function submitForApproval(Quotation $quotation)
-    {
-        $this->authorize('update', $quotation);
-
-        $result = $this->approvalService->submit($quotation, 'quotation');
-
-        if ($result['success']) {
-            return back()->with('success', $result['message']);
-        }
-
-        return back()->with('error', $result['message']);
-    }
-
-    /**
-     * Approve quotation
-     */
-    public function approve(Request $request, Quotation $quotation)
-    {
-        $this->authorize('approve', $quotation);
-
-        $request->validate([
-            'comment' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $result = $this->approvalService->approve($quotation, 'quotation', $request->comment);
-
-        if ($result['success']) {
-            return back()->with('success', $result['message']);
-        }
-
-        return back()->with('error', $result['message']);
-    }
-
-    /**
-     * Reject quotation
-     */
-    public function reject(Request $request, Quotation $quotation)
-    {
-        $this->authorize('approve', $quotation);
-
-        $request->validate([
-            'comment' => ['required', 'string', 'max:500'],
-        ]);
-
-        $result = $this->approvalService->reject($quotation, 'quotation', $request->comment);
-
-        if ($result['success']) {
-            return back()->with('success', $result['message']);
-        }
-
-        return back()->with('error', $result['message']);
-    }
-
-    /**
-     * Delegate approval turn to someone else
-     */
-    public function delegate(Request $request, Quotation $quotation)
-    {
-        $this->authorize('approve', $quotation);
-
-        $request->validate([
-            'to_user_id' => ['required', 'exists:users,id'],
-            'comment' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $result = $this->approvalService->delegate($quotation, 'quotation', $request->to_user_id, $request->comment);
-
-        if ($result['success']) {
-            return back()->with('success', $result['message']);
-        }
-
-        return back()->with('error', $result['message']);
     }
 
     /**
@@ -496,45 +400,6 @@ class QuotationController extends Controller
         return response()->json($products->concat($catalogItems));
     }
 
-    /**
-     * Mark as sent to customer
-     */
-    public function markAsSent(Quotation $quotation)
-    {
-        $this->authorize('update', $quotation);
-
-        if ($quotation->status !== 'approved') {
-            return back()->with('error', 'Chỉ có thể gửi báo giá đã được duyệt.');
-        }
-
-        $quotation->update(['status' => 'sent']);
-
-        return back()->with('success', 'Đã đánh dấu báo giá đã gửi khách.');
-    }
-
-    /**
-     * Customer response
-     */
-    public function customerResponse(Request $request, Quotation $quotation)
-    {
-        $this->authorize('update', $quotation);
-
-        $request->validate([
-            'response' => ['required', 'in:accepted,declined'],
-        ]);
-
-        if (!in_array($quotation->status, ['approved', 'sent'])) {
-            return back()->with('error', 'Báo giá chưa được duyệt hoặc gửi.');
-        }
-
-        $quotation->update(['status' => $request->response]);
-
-        $message = $request->response === 'accepted'
-            ? 'Khách hàng đã chấp nhận báo giá.'
-            : 'Khách hàng đã từ chối báo giá.';
-
-        return back()->with('success', $message);
-    }
 
     /**
      * Convert quotation to sale order
@@ -579,6 +444,8 @@ class QuotationController extends Controller
                 'debt_amount' => $quotation->total,
                 'payment_status' => 'unpaid',
                 'status' => 'pending',
+                'pl_status' => 'draft',
+                'user_id' => auth()->id(),
                 'note' => 'Chuyển từ báo giá: ' . $quotation->code,
             ]);
 
@@ -599,6 +466,9 @@ class QuotationController extends Controller
                 'status' => 'converted',
                 'converted_to_sale_id' => $sale->id,
             ]);
+
+            // P&L status khởi tạo là 'draft' (nháp) để Sales Team kiểm tra và chỉnh sửa trước khi gửi duyệt
+            $sale->update(['pl_status' => 'draft']);
 
             DB::commit();
 
@@ -621,7 +491,9 @@ class QuotationController extends Controller
         }
 
         $quotation->load('items', 'customer');
-        return view('quotations.print', compact('quotation'));
+        $companySettings = Setting::where('group', 'company')->pluck('value', 'key');
+
+        return view('quotations.print', compact('quotation', 'companySettings'));
     }
 
     /**

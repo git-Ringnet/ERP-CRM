@@ -72,6 +72,7 @@ class PermissionSeeder extends Seeder
             'warehouse_journal_entries' => ['view', 'create', 'export'],
             'employee_asset_assignments' => ['view', 'create', 'edit', 'delete'],
             'employee_asset_reports' => ['view', 'export'],
+            'marketing_events' => ['view', 'create', 'edit', 'delete'],
         ];
         
         $permissions = [];
@@ -181,6 +182,20 @@ class PermissionSeeder extends Seeder
                 'module' => 'dashboard',
                 'action' => 'export',
             ],
+            [
+                'name' => 'Duyệt Đơn hàng bán',
+                'slug' => 'approve_sales',
+                'description' => 'Quyền duyệt đơn hàng bán (thay đổi trạng thái đơn hàng)',
+                'module' => 'sales',
+                'action' => 'approve',
+            ],
+            [
+                'name' => 'Duyệt Ngân sách Marketing',
+                'slug' => 'approve_marketing_events',
+                'description' => 'Quyền duyệt ngân sách sự kiện marketing',
+                'module' => 'marketing_events',
+                'action' => 'approve',
+            ],
         ];
         
         foreach ($specialPermissions as $permission) {
@@ -253,6 +268,7 @@ class PermissionSeeder extends Seeder
             'reminders' => 'Nhắc nhở',
             'notifications' => 'Thông báo',
             'dashboard' => 'Trang chủ',
+            'marketing_events' => 'Sự kiện Marketing',
             'skills' => 'Kỹ năng',
             'employee_skills' => 'Kỹ năng nhân viên',
             'employee_assets' => 'Tài sản nhân viên',
@@ -332,6 +348,7 @@ class PermissionSeeder extends Seeder
             'reminders' => 'nhắc nhở',
             'notifications' => 'thông báo',
             'dashboard' => 'trang chủ',
+            'marketing_events' => 'sự kiện marketing',
             'skills' => 'kỹ năng',
             'employee_skills' => 'kỹ năng nhân viên',
             'employee_assets' => 'tài sản nhân viên',

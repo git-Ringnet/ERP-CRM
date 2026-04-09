@@ -56,7 +56,7 @@ class ProjectController extends Controller
     /**
      * Show the form for creating a new project.
      */
-    public function create()
+    public function create(Request $request)
     {
         $this->authorize('create', Project::class);
 
@@ -64,7 +64,22 @@ class ProjectController extends Controller
         $managers = User::orderBy('name')->get();
         $code = $this->generateProjectCode();
 
-        return view('projects.create', compact('customers', 'managers', 'code'));
+        // Handle pre-filling from MarketingEvent
+        $preFill = [];
+        if ($request->filled('marketing_event_id')) {
+            $mktEvent = \App\Models\MarketingEvent::find($request->marketing_event_id);
+            if ($mktEvent) {
+                $preFill['marketing_event_id'] = $mktEvent->id;
+                $preFill['name'] = "DA từ " . $mktEvent->title;
+                $preFill['budget'] = $mktEvent->budget;
+                $preFill['description'] = "Dự án phát sinh từ sự kiện: " . $mktEvent->title . "\n" . $mktEvent->description;
+            }
+        }
+        if ($request->filled('customer_id')) {
+            $preFill['customer_id'] = $request->customer_id;
+        }
+
+        return view('projects.create', compact('customers', 'managers', 'code', 'preFill'));
     }
 
     /**
@@ -106,6 +121,7 @@ class ProjectController extends Controller
             'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
             'note' => ['nullable', 'string'],
+            'marketing_event_id' => ['nullable', 'exists:marketing_events,id'],
         ]);
 
         // Get customer name

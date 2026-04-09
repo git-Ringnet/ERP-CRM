@@ -72,6 +72,12 @@ class RoleSeeder extends Seeder
                 'status' => 'active',
             ],
             [
+                'name' => 'Marketing',
+                'slug' => 'marketing',
+                'description' => 'Quản lý sự kiện marketing và gửi duyệt ngân sách',
+                'status' => 'active',
+            ],
+            [
                 'name' => 'BOD',
                 'slug' => 'director',
                 'description' => 'Phê duyệt hợp đồng, xem tất cả dữ liệu và báo cáo',
@@ -132,12 +138,12 @@ class RoleSeeder extends Seeder
         //            → Báo giá → Chốt BOM → Lập HĐMB → Đặt hàng → Theo dõi
         // ============================================================
         if (isset($roles['sales_manager'])) {
-            // Full CRUD modules
+            // Full CRUD modules (bao gồm marketing_events)
             $salesManagerPerms = $this->getPermissionsByModules(
                 $allPermissions,
                 ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
                  'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
-                 'milestone_templates', 'work_schedules', 'communication_logs', 'products']
+                 'milestone_templates', 'work_schedules', 'communication_logs', 'products', 'marketing_events']
             );
             // View-only: inventory, shipping, exports, cost_formulas, imports (đối soát thông tin nhập kho)
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
@@ -148,7 +154,7 @@ class RoleSeeder extends Seeder
                 ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit', 'export']
             );
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'approve_quotations', 'view_all_sales', 'view_all_quotations', 
+                'approve_quotations', 'approve_sales', 'view_all_sales', 'view_all_quotations', 
                 'view_dashboard', 'view_business_dashboard', 'export_business_reports',
                 'view_all_purchase_orders', 'view_all_purchase_requests'
             ]);
@@ -163,7 +169,7 @@ class RoleSeeder extends Seeder
             $salesStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
                 ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 
-                 'customer_care_stages', 'projects', 'communication_logs'],
+                 'customer_care_stages', 'projects', 'communication_logs', 'marketing_events'],
                 ['view', 'create', 'edit']
             );
             // View-only modules
@@ -182,24 +188,50 @@ class RoleSeeder extends Seeder
             $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $viewPerms, $purchasePerms, $ownPerms));
             $this->attachPermissionsToRole($roles['sales_staff'], $salesStaffPerms, $now);
         }
-        
+
         // ============================================================
-        // LEGAL TEAM - Pháp lý (MỚI)
-        // Quy trình: Review hợp đồng → Kiểm tra điều khoản & policy
-        //            → Yêu cầu điều chỉnh nếu chưa hợp lý
+        // MARKETING - Nhân viên Marketing
+        // Quy trình: Tạo sự kiện → Gửi duyệt ngân sách
+        //            → Quản lý danh sách khách hàng tham gia
         // ============================================================
-        if (isset($roles['legal_team'])) {
-            // View: sales, quotations, customers, products, approval_workflows
-            $legalPerms = $this->getPermissionsByModulesAndActions($allPermissions,
-                ['sales', 'quotations', 'customers', 'products', 'approval_workflows'],
+        if (isset($roles['marketing'])) {
+            // Full CRUD marketing_events
+            $mktPerms = $this->getPermissionsByModules(
+                $allPermissions,
+                ['marketing_events']
+            );
+            // View-only: customers (tìm kiếm KH để mời sự kiện), leads, opportunities
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['customers', 'leads', 'opportunities', 'activities'],
                 ['view']
             );
-            // Edit: approval_workflows (đánh dấu trạng thái review)
+            $ownPerms = $this->getPermissionsBySlugs($allPermissions, ['view_dashboard']);
+            $mktPerms = array_unique(array_merge($mktPerms, $viewPerms, $ownPerms));
+            $this->attachPermissionsToRole($roles['marketing'], $mktPerms, $now);
+        }
+
+        // ============================================================
+        // LEGAL TEAM - Pháp lý
+        // Quy trình (theo sơ đồ): Sales gửi HĐMB + P&L
+        //   → Legal Team review Cấp 1 (kiểm tra điều khoản & policy)
+        //   → Yêu cầu điều chỉnh nếu chưa hợp lý → BOD review Cấp 2
+        // ============================================================
+        if (isset($roles['legal_team'])) {
+            // View: toàn bộ sales, quotations, customers, purchase_orders để review
+            $legalPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['sales', 'quotations', 'customers', 'products', 'approval_workflows',
+                 'purchase_orders', 'marketing_events'],
+                ['view']
+            );
+            // Edit: approval_workflows (có thể cập nhật trạng thái)
             $editPerms = $this->getPermissionsByModulesAndActions($allPermissions,
                 ['approval_workflows'], ['edit']
             );
+            // approve_sales: cần thiết để Legal Team có thể gọi endpoint approvePnL
+            // (ApprovalService sẽ kiểm soát đúng cấp duyệt theo workflow)
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'view_dashboard', 'view_all_sales', 'view_all_quotations'
+                'view_dashboard', 'view_all_sales', 'view_all_quotations',
+                'approve_sales',  // Cho phép Legal review P&L ở Cấp 1
             ]);
             $legalPerms = array_unique(array_merge($legalPerms, $editPerms, $specialPerms));
             $this->attachPermissionsToRole($roles['legal_team'], $legalPerms, $now);
@@ -215,11 +247,12 @@ class RoleSeeder extends Seeder
             $reportPerms = $this->getPermissionsByModules($allPermissions, ['reports', 'sale_reports', 'purchase_reports', 'employee_asset_reports']);
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
                 'view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 
-                'view_business_dashboard', 'export_business_reports'
+                'view_business_dashboard', 'export_business_reports',
+                'approve_sales', 'approve_marketing_events',
             ]);
             $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
                 ['financial_transactions', 'transaction_categories', 'reconciliations', 
-                 'warehouse_journal_entries', 'employee_asset_assignments', 'projects'], 
+                 'warehouse_journal_entries', 'employee_asset_assignments', 'projects', 'marketing_events'], 
                 ['create', 'edit', 'delete']
             );
             $directorPerms = array_unique(array_merge($directorPerms, $reportPerms, $specialPerms, $financialPerms));
@@ -310,7 +343,7 @@ class RoleSeeder extends Seeder
         // Quy trình: Xuất hoá đơn chính thức → Theo dõi công nợ & thanh toán KH
         // ============================================================
         if (isset($roles['accountant'])) {
-            // View and export for all modules
+            // View and export for all modules (including marketing_events view)
             $accountantPerms = $this->getPermissionsByActions($allPermissions, ['view', 'export']);
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
                 'view_all_sales', 'view_all_quotations', 'view_all_purchase_orders'

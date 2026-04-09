@@ -57,5 +57,6 @@ return [
         'warehouse_journal_entries' => 'Nhật ký kế toán kho',
         'employee_asset_assignments' => 'Cấp phát / Thu hồi Tài sản',
         'employee_asset_reports' => 'Báo cáo Tài sản',
+        'marketing_events' => 'Sự kiện Marketing',
     ],
 ];

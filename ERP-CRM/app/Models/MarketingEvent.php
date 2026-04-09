@@ -55,6 +55,11 @@ class MarketingEvent extends Model
             ->orderBy('created_at');
     }
 
+    public function projects()
+    {
+        return $this->hasMany(Project::class, 'marketing_event_id');
+    }
+
     // --- Helpers ---
     public function getStatusLabelAttribute(): string
     {

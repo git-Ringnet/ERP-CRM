@@ -198,12 +198,6 @@ Route::middleware(['auth'])->group(function () {
     // Quotation routes (Báo giá)
     Route::get('/quotations/export/excel', [QuotationController::class, 'export'])->name('quotations.export');
     Route::resource('quotations', QuotationController::class);
-    Route::post('/quotations/{quotation}/submit', [QuotationController::class, 'submitForApproval'])->name('quotations.submit');
-    Route::post('/quotations/{quotation}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
-    Route::post('/quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
-    Route::post('/quotations/{quotation}/send', [QuotationController::class, 'markAsSent'])->name('quotations.send');
-    Route::post('/quotations/{quotation}/response', [QuotationController::class, 'customerResponse'])->name('quotations.response');
-    Route::post('/quotations/{quotation}/delegate', [QuotationController::class, 'delegate'])->name('quotations.delegate');
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
 

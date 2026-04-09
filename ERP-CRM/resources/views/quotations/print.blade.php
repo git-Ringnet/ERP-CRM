@@ -26,22 +26,44 @@
         }
 
         .header {
-            text-align: center;
+            display: flex;
+            align-items: center;
             margin-bottom: 30px;
             border-bottom: 2px solid #3498db;
             padding-bottom: 20px;
         }
 
+        .company-logo {
+            max-height: 80px;
+            margin-right: 20px;
+        }
+
+        .company-logo img {
+            max-height: 80px;
+        }
+
+        .header-content {
+            flex: 1;
+            text-align: left;
+        }
+
         .company-name {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             color: #2c3e50;
+            text-transform: uppercase;
+        }
+
+        .document-title-container {
+            text-align: center;
+            margin-top: 10px;
         }
 
         .document-title {
-            font-size: 20px;
+            font-size: 24px;
+            font-weight: bold;
             color: #3498db;
-            margin-top: 10px;
+            margin-top: 5px;
         }
 
         .info-section {
@@ -188,9 +210,26 @@
         {{-- Watermark removed as per user request --}}
 
         <div class="header">
-            <div class="company-name">CÔNG TY CỦA BẠN</div>
-            <div style="color: #666; margin-top: 5px;">Địa chỉ: 123 Đường ABC, Quận XYZ, TP. HCM</div>
-            <div style="color: #666;">ĐT: 0123 456 789 | Email: info@company.com</div>
+            @if(isset($companySettings['company_logo']) && $companySettings['company_logo'] && file_exists(public_path($companySettings['company_logo'])))
+                <div class="company-logo">
+                    <img src="{{ asset($companySettings['company_logo']) }}" alt="Logo">
+                </div>
+            @endif
+            <div class="header-content">
+                <div class="company-name">{{ $companySettings['company_name'] ?? 'CÔNG TY CỦA BẠN' }}</div>
+                <div style="color: #666; margin-top: 5px;">Địa chỉ: {{ $companySettings['company_address'] ?? 'N/A' }}</div>
+                <div style="color: #666;">
+                    @if(isset($companySettings['company_phone'])) ĐT: {{ $companySettings['company_phone'] }} @endif
+                    @if(isset($companySettings['company_email'])) | Email: {{ $companySettings['company_email'] }} @endif
+                    @php
+                        $taxCode = $companySettings['company_tax_code'] ?? $companySettings['company_tax'] ?? null;
+                    @endphp
+                    @if($taxCode) | MST: {{ $taxCode }} @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="document-title-container">
             <div class="document-title">BÁO GIÁ</div>
             <div style="color: #666;">Số: {{ $quotation->code }}</div>
         </div>

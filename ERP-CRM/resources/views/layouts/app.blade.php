@@ -401,7 +401,7 @@
                 </div>
                 @endif
 
-                @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports'])
+                @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports', 'view_marketing_events'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('sales')">
@@ -429,7 +429,7 @@
                                 </a>
                             @endcan
 
-                            @can('view_activities')
+                            {{-- @can('view_activities')
                                 <a href="{{ route('activities.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
@@ -443,13 +443,15 @@
                                     <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
                                 </a>
-                            @endcan
+                            @endcan --}}
 
-                            <a href="{{ route('marketing-events.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Marketing Events</span>
-                            </a>
+                            @can('view_marketing_events')
+                                <a href="{{ route('marketing-events.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Marketing Events</span>
+                                </a>
+                            @endcan
 
                             @can('view_quotations')
                                 <a href="{{ route('quotations.index') }}"

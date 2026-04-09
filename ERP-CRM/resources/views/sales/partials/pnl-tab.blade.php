@@ -150,7 +150,16 @@
                                         ->first();
                                     
                                     if ($priceItem) {
-                                        $plPrice = $priceItem->priceList->getPrimaryPriceForItem($priceItem) ?: 0;
+                                        $rawPlPrice = $priceItem->priceList->getPrimaryPriceForItem($priceItem) ?: 0;
+                                        $plCurrency = $priceItem->priceList->currency ?? 'USD';
+                                        $currentRate = $sale->exchange_rate ?: 24750;
+
+                                        // Nếu bảng giá là VND, quy đổi về USD để nạp vào cột PriceList USD
+                                        if (strtoupper($plCurrency) === 'VND' && $rawPlPrice > 0) {
+                                            $plPrice = $rawPlPrice / $currentRate;
+                                        } else {
+                                            $plPrice = $rawPlPrice;
+                                        }
                                     }
                                 }
                                 
@@ -166,7 +175,16 @@
                                         ->orderBy('supplier_price_list_items.id', 'desc')
                                         ->first();
                                     if ($priceItem) {
-                                        $plPrice = $priceItem->priceList->getPrimaryPriceForItem($priceItem) ?: 0;
+                                        $rawPlPrice = $priceItem->priceList->getPrimaryPriceForItem($priceItem) ?: 0;
+                                        $plCurrency = $priceItem->priceList->currency ?? 'USD';
+                                        $currentRate = $sale->exchange_rate ?: 24750;
+
+                                        // Nếu bảng giá là VND, quy đổi về USD để nạp vào cột PriceList USD
+                                        if (strtoupper($plCurrency) === 'VND' && $rawPlPrice > 0) {
+                                            $plPrice = $rawPlPrice / $currentRate;
+                                        } else {
+                                            $plPrice = $rawPlPrice;
+                                        }
                                     }
                                 }
                             }
@@ -334,7 +352,8 @@
             </table>
         </div>
 
-        <div class="p-6 bg-gray-50 border-t border-gray-200" x-data="{ showRejectForm: false }">
+    </form>
+    <div class="p-6 bg-gray-50 border-t border-gray-200" x-data="{ showRejectForm: false }">
             {{-- Lịch sử duyệt P&L --}}
             @php
                 $pnlHistory = \App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
@@ -367,15 +386,17 @@
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">
-                @if($sale->isPlEditable())
-                    <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150">
-                        <i class="fas fa-save mr-2"></i> Lưu nháp P&L
-                    </button>
+                @if($sale->isPlEditable() || $sale->pl_status === 'pending')
+                    @if($sale->isPlEditable())
+                        <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150">
+                            <i class="fas fa-save mr-2"></i> Lưu nháp P&L
+                        </button>
+                    @endif
 
                     @if($sale->pl_status !== null)
-                        <button type="button" onclick="confirmAction('{{ route('sales.submitPnL', $sale) }}', 'Gửi duyệt P&L này?')"
+                        <button type="button" onclick="confirmAction('{{ route('sales.submitPnL', $sale) }}', '{{ $sale->pl_status === 'pending' ? 'Gửi duyệt lại P&L này (Dùng để sửa lỗi nếu bị kẹt)?' : 'Gửi duyệt P&L này?' }}')"
                             class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150">
-                            <i class="fas fa-paper-plane mr-2"></i> Gửi duyệt P&L
+                            <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'pending']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
                         </button>
                     @endif
                 @endif
@@ -439,7 +460,7 @@
                 @endif
             </div>
         </div>
-    </form>
+    </div>
 </div>
 
 <script>

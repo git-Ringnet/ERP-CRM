@@ -10,177 +10,86 @@ class ApprovalWorkflowSeeder extends Seeder
 {
     public function run(): void
     {
-        // Quy trình duyệt báo giá - 2 cấp
-        $quotationWorkflow = ApprovalWorkflow::create([
-            'name' => 'Quy trình duyệt báo giá',
-            'document_type' => 'quotation',
-            'description' => 'Quy trình phê duyệt báo giá trước khi gửi khách hàng',
-            'is_active' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $quotationWorkflow->id,
-            'level' => 1,
-            'name' => 'Trưởng phòng',
-            'approver_type' => 'role',
-            'approver_value' => 'manager',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $quotationWorkflow->id,
-            'level' => 2,
-            'name' => 'Giám đốc',
-            'approver_type' => 'role',
-            'approver_value' => 'director',
-            'is_required' => true,
-        ]);
-
-        // Quy trình duyệt đơn hàng - 2 cấp
-        $orderWorkflow = ApprovalWorkflow::create([
-            'name' => 'Quy trình duyệt đơn hàng',
-            'document_type' => 'order',
-            'description' => 'Quy trình phê duyệt đơn hàng trước khi xuất kho',
-            'is_active' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $orderWorkflow->id,
-            'level' => 1,
-            'name' => 'Trưởng phòng',
-            'approver_type' => 'role',
-            'approver_value' => 'manager',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $orderWorkflow->id,
-            'level' => 2,
-            'name' => 'Giám đốc',
-            'approver_type' => 'role',
-            'approver_value' => 'director',
-            'is_required' => true,
-        ]);
-
-        // Quy trình duyệt hợp đồng - 3 cấp
-        $contractWorkflow = ApprovalWorkflow::create([
-            'name' => 'Quy trình duyệt hợp đồng',
-            'document_type' => 'contract',
-            'description' => 'Quy trình phê duyệt hợp đồng trước khi ký kết',
-            'is_active' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $contractWorkflow->id,
-            'level' => 1,
-            'name' => 'Trưởng phòng',
-            'approver_type' => 'role',
-            'approver_value' => 'manager',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $contractWorkflow->id,
-            'level' => 2,
-            'name' => 'Giám đốc',
-            'approver_type' => 'role',
-            'approver_value' => 'director',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $contractWorkflow->id,
-            'level' => 3,
-            'name' => 'Pháp chế',
-            'approver_type' => 'role',
-            'approver_value' => 'legal',
-            'is_required' => true,
-        ]);
-
-        // Quy trình duyệt đơn mua hàng - 3 cấp
-        $purchaseWorkflow = ApprovalWorkflow::create([
-            'name' => 'Quy trình duyệt đơn mua hàng',
-            'document_type' => 'purchase',
-            'description' => 'Quy trình phê duyệt đơn mua hàng từ nhà cung cấp',
-            'is_active' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $purchaseWorkflow->id,
-            'level' => 1,
-            'name' => 'Trưởng phòng mua hàng',
-            'approver_type' => 'role',
-            'approver_value' => 'manager',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $purchaseWorkflow->id,
-            'level' => 2,
-            'name' => 'Kế toán',
-            'approver_type' => 'role',
-            'approver_value' => 'accountant',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $purchaseWorkflow->id,
-            'level' => 3,
-            'name' => 'Giám đốc',
-            'approver_type' => 'role',
-            'approver_value' => 'director',
-            'is_required' => true,
-        ]);
-
-        // Quy trình duyệt phiếu chi - 2 cấp
-        $paymentWorkflow = ApprovalWorkflow::create([
-            'name' => 'Quy trình duyệt phiếu chi',
-            'document_type' => 'payment',
-            'description' => 'Quy trình phê duyệt phiếu chi thanh toán',
-            'is_active' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $paymentWorkflow->id,
-            'level' => 1,
-            'name' => 'Kế toán trưởng',
-            'approver_type' => 'role',
-            'approver_value' => 'accountant',
-            'is_required' => true,
-        ]);
-
-        ApprovalLevel::create([
-            'workflow_id' => $paymentWorkflow->id,
-            'level' => 2,
-            'name' => 'Giám đốc',
-            'approver_type' => 'role',
-            'approver_value' => 'director',
-            'is_required' => true,
-        ]);
-
-        // Thêm 10 quy trình nữa để test phân trang
-        for ($i = 1; $i <= 10; $i++) {
-            $workflow = ApprovalWorkflow::create([
-                'name' => "Quy trình duyệt mẫu $i",
-                'document_type' => "custom_type_$i",
-                'description' => "Quy trình phê duyệt mẫu số $i để test phân trang",
-                'is_active' => $i % 3 != 0, // Một số quy trình tắt
-            ]);
-
-            // Random 2-4 cấp duyệt
-            $levels = rand(2, 4);
-            $roles = ['manager', 'director', 'accountant', 'legal'];
-            
-            for ($j = 1; $j <= $levels; $j++) {
-                ApprovalLevel::create([
-                    'workflow_id' => $workflow->id,
-                    'level' => $j,
-                    'name' => "Cấp duyệt $j",
-                    'approver_type' => 'role',
-                    'approver_value' => $roles[array_rand($roles)],
-                    'is_required' => true,
-                ]);
+        // Dọn workflows không còn dùng (document_type sai từ seeder cũ hoặc đã loại bỏ)
+        $obsoleteTypes = ['order', 'contract', 'purchase', 'payment', 'quotation'];
+        foreach ($obsoleteTypes as $type) {
+            $old = ApprovalWorkflow::where('document_type', $type)->first();
+            if ($old) {
+                $old->levels()->delete();
+                $old->delete();
             }
         }
+
+        // =======================================================
+        // 2. QUY TRÌNH DUYỆT P&L + HỢP ĐỒNG (document_type = 'sale_pnl')
+        //    Dùng tại: SaleController::submitPnL()
+        //
+        //    Theo sơ đồ quy trình (ảnh 2):
+        //    Sales Team lập HĐMB/XNĐH + File P&L
+        //    → Legal Team review Cấp 1 (kiểm tra điều khoản, policy)
+        //    → BOD review Cấp 2 (phê duyệt cuối cùng)
+        // =======================================================
+        $pnlWf = ApprovalWorkflow::updateOrCreate(
+            ['document_type' => 'sale_pnl'],
+            [
+                'name'        => 'Quy trình duyệt P&L & Hợp đồng bán hàng',
+                'description' => 'Sales Team gửi P&L → Legal Team review → BOD phê duyệt',
+                'is_active'   => true,
+            ]
+        );
+        $pnlWf->levels()->delete();
+
+        ApprovalLevel::create([
+            'workflow_id'    => $pnlWf->id,
+            'level'          => 1,
+            'name'           => 'Legal Team review hợp đồng & P&L',
+            'approver_type'  => 'role',
+            'approver_value' => 'legal_team',
+            'min_amount'     => null,
+            'max_amount'     => null,
+            'is_required'    => true,
+        ]);
+
+        ApprovalLevel::create([
+            'workflow_id'    => $pnlWf->id,
+            'level'          => 2,
+            'name'           => 'BOD phê duyệt P&L & hợp đồng cuối cùng',
+            'approver_type'  => 'role',
+            'approver_value' => 'director',
+            'min_amount'     => null,
+            'max_amount'     => null,
+            'is_required'    => true,
+        ]);
+
+        // =======================================================
+        // 3. QUY TRÌNH DUYỆT NGÂN SÁCH MARKETING (document_type = 'marketing_budget')
+        //    Dùng tại: MarketingEventController::submitApproval()
+        //
+        //    Theo sơ đồ quy trình (ảnh 1):
+        //    Marketing Team tạo kế hoạch sự kiện
+        //    → BOD/Legal Team xét duyệt ngân sách (diamond "Xin duyệt ngân sách")
+        //    Cấp 1: Sales Manager (nếu ngân sách nhỏ ≤ 50tr, tự duyệt đủ)
+        //    Cấp 2: BOD (bắt buộc cho mọi ngân sách)
+        // =======================================================
+        $mktWf = ApprovalWorkflow::updateOrCreate(
+            ['document_type' => 'marketing_budget'],
+            [
+                'name'        => 'Quy trình duyệt Ngân sách Marketing',
+                'description' => 'Marketing Team gửi kế hoạch → BOD hoặc Legal Team xét duyệt',
+                'is_active'   => true,
+            ]
+        );
+        $mktWf->levels()->delete();
+
+        ApprovalLevel::create([
+            'workflow_id'    => $mktWf->id,
+            'level'          => 1,
+            'name'           => 'BOD hoặc Legal Team xét duyệt ngân sách',
+            'approver_type'  => 'role',
+            'approver_value' => 'director,legal_team',
+            'min_amount'     => null,
+            'max_amount'     => null,
+            'is_required'    => true,
+        ]);
     }
 }

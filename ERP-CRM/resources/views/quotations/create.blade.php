@@ -264,7 +264,6 @@
 
     <script>
         let productIndex = 1;
-        const products = @json($products);
 
         $(document).ready(function () {
             // Initialize Select2 for Customer

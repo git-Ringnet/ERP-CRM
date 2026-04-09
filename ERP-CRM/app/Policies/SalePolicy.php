@@ -62,17 +62,35 @@ class SalePolicy extends BasePolicy
      */
     public function update(User $user, Sale $sale): bool
     {
+        // If pending approval, only allow users with approve_sales permission (BOD/Legal) to edit
+        if ($sale->isPendingApproval()) {
+            return $this->checkPermission($user, 'approve_sales');
+        }
+
         return $this->checkPermission($user, 'edit_sales') || $this->checkPermission($user, 'approve_sales');
     }
 
     /**
-     * Determine whether the user can approve the sale.
+     * Determine whether the user can approve the sale (change status).
+     * Separated from update() to prevent sales_staff from approving orders.
      *
      * @param User $user
      * @param Sale $sale
      * @return bool
      */
     public function approve(User $user, Sale $sale): bool
+    {
+        return $this->checkPermission($user, 'approve_sales');
+    }
+
+    /**
+     * Determine whether the user can approve P&L for the sale.
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function approvePnl(User $user, Sale $sale): bool
     {
         return $this->checkPermission($user, 'approve_sales');
     }

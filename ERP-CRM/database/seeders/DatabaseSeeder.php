@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
                 // ProductSeeder::class,          // Bật lại ProductSeeder
             WarehouseSeeder::class,
             CurrencySeeder::class, //tien te chinh
+            ApprovalWorkflowSeeder::class, // Quy trình duyệt
             // InventorySeeder::class,
             // // New separate seeders for imports, exports, transfers
             // ImportSeeder::class,

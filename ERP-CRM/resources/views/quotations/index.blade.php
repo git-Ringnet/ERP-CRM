@@ -14,28 +14,7 @@
                         <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm báo giá..."
                             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                         <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        <input type="hidden" name="status" value="{{ request('status') }}">
                     </form>
-                </div>
-
-                <!-- Filter by Status -->
-                <div class="flex items-center gap-2">
-                    <select name="status"
-                        onchange="window.location.href='{{ route('quotations.index') }}?status='+this.value+'&search={{ request('search') }}'"
-                        class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Nháp</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ duyệt</option>
-                        <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
-                        <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Từ chối</option>
-                        <option value="sent" {{ request('status') == 'sent' ? 'selected' : '' }}>Đã gửi khách</option>
-                        <option value="accepted" {{ request('status') == 'accepted' ? 'selected' : '' }}>Khách chấp nhận
-                        </option>
-                        <option value="declined" {{ request('status') == 'declined' ? 'selected' : '' }}>Khách từ chối
-                        </option>
-                        <option value="converted" {{ request('status') == 'converted' ? 'selected' : '' }}>Đã chuyển ĐH
-                        </option>
-                    </select>
                 </div>
             </div>
 
@@ -51,12 +30,6 @@
                     Tạo báo giá
                 </a>
             </div>
-        </div>
-
-        <!-- Info Box -->
-        <div class="mx-4 mt-4 bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
-            <p class="text-blue-700 text-sm"><i class="fas fa-info-circle mr-2"></i>Quy trình: Nháp → Chờ duyệt → Đã duyệt →
-                Gửi khách → Chấp nhận/Từ chối → Chuyển đơn hàng</p>
         </div>
 
         <!-- Table - Desktop View -->
@@ -80,8 +53,6 @@
                         </th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng
                             tiền</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng
-                            thái</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
                             tác</th>
                     </tr>
@@ -130,18 +101,13 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $quotation->status_color }}">
-                                    {{ $quotation->status_label }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <a href="{{ route('quotations.show', $quotation) }}"
                                         class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
                                         title="Xem chi tiết">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    @if(in_array($quotation->status, ['draft', 'rejected']))
+                                    @if(!$quotation->converted_to_sale_id)
                                         <a href="{{ route('quotations.edit', $quotation) }}"
                                             class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
                                             title="Sửa">
@@ -188,9 +154,6 @@
                                 class="font-medium text-blue-600 hover:text-blue-800">{{ $quotation->code }}</a>
                             <div class="text-sm text-gray-500">{{ $quotation->customer_name }}</div>
                         </div>
-                        <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $quotation->status_color }}">
-                            {{ $quotation->status_label }}
-                        </span>
                     </div>
                     <div class="text-sm text-gray-700 mb-2 truncate">{{ $quotation->title }}</div>
                     <div class="space-y-1 text-sm text-gray-600 mb-3">
@@ -209,7 +172,7 @@
                             class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
                             <i class="fas fa-eye mr-1"></i>Xem
                         </a>
-                        @if(in_array($quotation->status, ['draft', 'rejected']))
+                        @if(!$quotation->converted_to_sale_id)
                             <a href="{{ route('quotations.edit', $quotation) }}"
                                 class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                                 <i class="fas fa-edit mr-1"></i>Sửa

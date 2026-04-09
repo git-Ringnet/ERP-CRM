@@ -39,7 +39,7 @@ class PermissionService implements PermissionServiceInterface
      */
     public function getUserPermissions(int $userId): Collection
     {
-        $cacheKey = sprintf(self::CACHE_KEY_FORMAT, $userId);
+        $cacheKey = $this->getCacheKey($userId);
 
         return $this->cache->remember(
             $cacheKey,
@@ -95,8 +95,7 @@ class PermissionService implements PermissionServiceInterface
      */
     public function invalidateUserCache(int $userId): void
     {
-        $cacheKey = sprintf(self::CACHE_KEY_FORMAT, $userId);
-        $this->cache->forget($cacheKey);
+        $this->cache->forget($this->getCacheKey($userId));
     }
 
     /**
@@ -107,19 +106,23 @@ class PermissionService implements PermissionServiceInterface
      */
     public function invalidateRoleUsersCache(int $roleId): void
     {
-        // Get the role to access its users
+        // Get all user IDs associated with this role
         $role = $this->roleRepo->findById($roleId);
+        if (!$role) return;
 
-        if (!$role) {
-            return;
-        }
-
-        // Get all users with this role
-        $users = $role->users;
+        $userIds = $role->users()->pluck('users.id')->toArray();
 
         // Invalidate cache for each user
-        foreach ($users as $user) {
-            $this->invalidateUserCache($user->id);
+        foreach ($userIds as $userId) {
+            $this->invalidateUserCache($userId);
         }
+    }
+
+    /**
+     * Get the cache key for a specific user's permissions.
+     */
+    private function getCacheKey(int $userId): string
+    {
+        return sprintf(self::CACHE_KEY_FORMAT, $userId);
     }
 }
