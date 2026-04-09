@@ -397,8 +397,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Chọn người nhận <span class="text-red-500">*</span></label>
                 <select name="to_user_id" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
                     <option value="">-- Chọn nhân viên --</option>
-                    @foreach(\App\Models\User::where('id', '!=', auth()->id())->where('is_active', true)->get() as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->role }})</option>
+                    @foreach(\App\Models\User::where('id', '!=', auth()->id())->where('status', 'active')->get() as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->position }})</option>
                     @endforeach
                 </select>
             </div>
