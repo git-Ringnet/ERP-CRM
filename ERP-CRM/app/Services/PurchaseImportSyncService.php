@@ -81,9 +81,22 @@ class PurchaseImportSyncService
                 // Use received_quantity if available, otherwise use ordered quantity
                 $quantity = $poItem->received_quantity ?? $poItem->quantity;
 
+                // Resolve product_id: use PO item's product_id, or look up by name
+                $productId = $poItem->product_id;
+                if (!$productId && $poItem->product_name) {
+                    $product = \App\Models\Product::where('name', $poItem->product_name)->first();
+                    $productId = $product?->id;
+                }
+
+                // Skip items without a valid product_id (cannot import without product)
+                if (!$productId) {
+                    Log::warning("Skipping PO item '{$poItem->product_name}' - no matching product found in database");
+                    continue;
+                }
+
                 ImportItem::create([
                     'import_id' => $import->id,
-                    'product_id' => $poItem->product_id,
+                    'product_id' => $productId,
                     'quantity' => $quantity,
                     'unit' => $poItem->unit,
                     'serial_number' => null,
