@@ -31,6 +31,9 @@ class QuotationItem extends Model
         return $this->belongsTo(Quotation::class);
     }
 
+    /**
+     * Product relationship - nullable for free-text products not in inventory
+     */
     public function product()
     {
         return $this->belongsTo(Product::class);

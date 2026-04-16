@@ -163,7 +163,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Cost Formula routes
     Route::resource('cost-formulas', CostFormulaController::class);
-    Route::post('/api/cost-formulas/calculate', [CostFormulaController::class, 'calculateForSale'])->name('cost-formulas.calculate');
+    Route::post('/ajax/cost-formulas/calculate', [CostFormulaController::class, 'calculateForSale'])->name('cost-formulas.calculate');
 
     // Settings routes
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
@@ -196,6 +196,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/export', [SaleController::class, 'getExport'])->name('sales.export.link');
 
     // Quotation routes (Báo giá)
+    Route::get('/quotations/search-catalog', [\App\Http\Controllers\QuotationController::class, 'searchCatalog'])->name('quotations.search-catalog');
     Route::get('/quotations/export/excel', [QuotationController::class, 'export'])->name('quotations.export');
     Route::resource('quotations', QuotationController::class);
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
@@ -214,7 +215,7 @@ Route::middleware(['auth'])->group(function () {
     // Project routes
     Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
     Route::get('/projects/export/excel', [ProjectController::class, 'export'])->name('projects.export');
-    Route::get('/api/projects', [ProjectController::class, 'getList'])->name('projects.list');
+    Route::get('/ajax/projects', [ProjectController::class, 'getList'])->name('projects.list');
     Route::resource('projects', ProjectController::class);
 
 
@@ -276,7 +277,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'show'])->name('supplier-price-lists.show');
     Route::post('/supplier-price-lists/{supplierPriceList}/toggle', [\App\Http\Controllers\SupplierPriceListController::class, 'toggle'])->name('supplier-price-lists.toggle');
     Route::delete('/supplier-price-lists/{supplierPriceList}', [\App\Http\Controllers\SupplierPriceListController::class, 'destroy'])->name('supplier-price-lists.destroy');
-    Route::get('/api/products/search', [\App\Http\Controllers\ProductController::class, 'apiSearch'])->name('api.products.search');
+    // Quotation enhanced methods
     Route::get('/api/supplier-price-lists/search', [\App\Http\Controllers\SupplierPriceListController::class, 'searchItems'])->name('supplier-price-lists.search');
     Route::post('/supplier-price-lists/{supplierPriceList}/apply-prices', [\App\Http\Controllers\SupplierPriceListController::class, 'applyPrices'])->name('supplier-price-lists.apply-prices');
     Route::get('/supplier-price-lists/{supplierPriceList}/preview-apply', [\App\Http\Controllers\SupplierPriceListController::class, 'previewApplyPrices'])->name('supplier-price-lists.preview-apply');
@@ -285,7 +286,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/supplier-price-lists/{supplierPriceList}/update-primary-column', [\App\Http\Controllers\SupplierPriceListController::class, 'updatePrimaryColumn'])->name('supplier-price-lists.update-primary-column');
 
     // Quotation enhanced methods
-    Route::get('/api/quotations/search-catalog', [\App\Http\Controllers\QuotationController::class, 'searchCatalog'])->name('quotations.search-catalog');
 
     // Notification routes (Thông báo)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

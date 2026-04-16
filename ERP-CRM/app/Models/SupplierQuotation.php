@@ -15,7 +15,8 @@ class SupplierQuotation extends Model
         'code', 'purchase_request_id', 'supplier_id', 'quotation_date', 'valid_until',
         'subtotal', 'discount_percent', 'discount_amount', 'shipping_cost',
         'vat_percent', 'vat_amount', 'total', 'delivery_days', 'payment_terms',
-        'warranty', 'status', 'note', 'created_by'
+        'warranty', 'status', 'note', 'created_by',
+        'currency_id', 'exchange_rate', 'total_foreign',
     ];
 
     protected $casts = [
@@ -28,6 +29,8 @@ class SupplierQuotation extends Model
         'vat_percent' => 'decimal:2',
         'vat_amount' => 'decimal:2',
         'total' => 'decimal:2',
+        'exchange_rate' => 'decimal:6',
+        'total_foreign' => 'decimal:4',
     ];
 
     public function purchaseRequest(): BelongsTo
@@ -38,6 +41,11 @@ class SupplierQuotation extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     public function items(): HasMany

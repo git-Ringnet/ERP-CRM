@@ -20,6 +20,14 @@
         .select2-container--default .select2-selection--single .select2-selection__rendered {
             line-height: 30px !important;
         }
+
+        .suggestions-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .suggestions-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
     </style>
 @endpush
 
@@ -95,7 +103,7 @@
                 </div>
             </div>
 
-            <!-- Products Section -->
+            <!-- Currency Section -->
             @php
                 $isForeign = $quotation->currency && !$quotation->currency->is_base;
                 $decimals = $isForeign ? ($quotation->currency->decimal_places ?? 2) : 0;
@@ -146,57 +154,56 @@
                 </button>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full" id="productsTable">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600 w-[40%]">Sản phẩm</th>
-                            <th class="px-4 py-2 text-center text-sm font-medium text-gray-600 w-[15%]">Số lượng</th>
-                            <th class="px-4 py-2 text-right text-sm font-medium text-gray-600 w-[15%]">Đơn giá (<span class="currency-symbol">₫</span>)</th>
-                            <th class="px-4 py-2 text-right text-sm font-medium text-gray-600 w-[15%]">Thành tiền (<span class="currency-symbol">₫</span>)</th>
-                            <th class="px-4 py-2 w-[5%]"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="productRows">
-                        @foreach($quotation->items as $index => $item)
-                            <tr class="product-row border-b">
-                                <td class="px-4 py-2">
-                                    <select name="products[{{ $index }}][product_id]" required
-                                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 product-select">
-                                        <option value="{{ $item->product_id }}" selected>
-                                            {{ $item->product_name }} ({{ $item->product_code }})
-                                        </option>
-                                    </select>
-                                </td>
-                                <td class="px-4 py-2">
-                                    <input type="number" name="products[{{ $index }}][quantity]" value="{{ $item->quantity }}"
-                                        min="1" required onchange="calculateRowTotal({{ $index }})"
-                                        class="w-full border border-gray-300 rounded px-3 py-2 text-center">
-                                </td>
-                                <td class="px-4 py-2">
-                                    <input type="text" name="products[{{ $index }}][price]"
-                                        value="{{ number_format($item->price, $decimals, '.', ',') }}" required
-                                        onchange="calculateRowTotal({{ $index }})"
-                                        class="w-full border border-gray-300 rounded px-3 py-2 text-right price-input">
-                                    <small class="block text-xs text-gray-500 mt-1 base-price-reference">
+            <div id="productList" class="p-4 space-y-3">
+                @foreach($quotation->items as $index => $item)
+                    <div class="product-item bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3" data-index="{{ $index }}">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                            <div class="md:col-span-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
+                                <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                                    @if($item->product_id)
+                                        <option value="p-{{ $item->product_id }}" selected>[KHO] {{ $item->product_code }} - {{ $item->product_name }}</option>
+                                    @else
+                                        <option value="{{ $item->product_name }}" selected>{{ $item->product_name }}</option>
+                                    @endif
+                                </select>
+                                <input type="hidden" name="products[{{ $index }}][product_name]" value="{{ $item->product_name }}" class="product-name-hidden">
+                            </div>
+                            <div class="md:col-span-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">SL</label>
+                                <input type="number" name="products[{{ $index }}][quantity]"
+                                    value="{{ $item->quantity }}" min="1" required
+                                    onchange="calculateRowTotal({{ $index }})"
+                                    class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
+                                <input type="text" name="products[{{ $index }}][price]"
+                                    value="{{ number_format($item->price, $decimals, '.', ',') }}" required
+                                    onchange="calculateRowTotal({{ $index }})"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-right price-input">
+                                <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none">
+                                    @if($item->product)
                                         Giá gốc kho: {{ number_format($item->product->calculated_selling_price ?? $item->product->price, 0, '.', ',') }} ₫
-                                    </small>
-                                </td>
-                                <td class="px-4 py-2">
-                                    <input type="text" readonly
-                                        class="w-full border border-gray-300 rounded px-3 py-2 text-right bg-gray-50 row-total"
-                                        value="{{ number_format($item->total, $decimals, '.', ',') }}">
-                                </td>
-                                <td class="px-4 py-2 text-center">
-                                    <button type="button" onclick="removeProductRow(this)"
-                                        class="text-red-600 hover:text-red-800">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                                    @endif
+                                </small>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
+                                <input type="text" readonly
+                                    class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-right row-total"
+                                    value="{{ number_format($item->total, $decimals, '.', ',') }}">
+                            </div>
+                            <div class="md:col-span-1 pt-7">
+                                <button type="button" onclick="removeProductRow(this)"
+                                    class="w-full h-[42px] flex items-center justify-center bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                    title="Xóa">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
             </div>
 
             <!-- Totals -->
@@ -223,7 +230,7 @@
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <div class="flex justify-between mb-3">
                             <span class="text-gray-600">Tổng tiền hàng:</span>
-                            <span id="subtotal" class="font-medium">0 ₫</span>
+                            <span id="subtotal" class="font-medium text-lg">0 ₫</span>
                         </div>
                         <div class="flex justify-between items-center mb-3">
                             <span class="text-gray-600">Chiết khấu (%):</span>
@@ -232,7 +239,7 @@
                                 <input type="number" name="discount" id="discount"
                                     value="{{ old('discount', (float)$quotation->discount) }}" min="0" max="100"
                                     onchange="calculateTotal()"
-                                    class="w-20 border border-gray-300 rounded px-2 py-1 text-right">
+                                    class="w-20 border border-gray-300 rounded px-2 py-1 text-right focus:ring-1 focus:ring-primary">
                             </div>
                         </div>
                         <div class="flex justify-between items-center mb-3">
@@ -241,14 +248,15 @@
                                 <span id="vatAmount" class="text-gray-500 text-sm">0 đ</span>
                                 <input type="number" name="vat" id="vat" value="{{ old('vat', (float)$quotation->vat) }}" min="0"
                                     onchange="calculateTotal()"
-                                    class="w-20 border border-gray-300 rounded px-2 py-1 text-right">
+                                    class="w-20 border border-gray-300 rounded px-2 py-1 text-right focus:ring-1 focus:ring-primary">
                             </div>
                         </div>
+                        <hr class="my-2">
                         <div class="flex justify-between items-center pt-3 border-t">
                             <span class="text-lg font-semibold">Tổng cộng:</span>
                             <div class="text-right">
-                                <span id="total" class="text-lg font-bold text-blue-600">0 ₫</span>
-                                <small id="totalVndReference" class="block text-xs text-gray-500 mt-1 text-right"></small>
+                                <span id="total" class="text-2xl font-bold text-primary">0 ₫</span>
+                                <small id="totalVndReference" class="block text-sm text-gray-500 mt-1 text-right"></small>
                             </div>
                         </div>
                     </div>
@@ -274,7 +282,7 @@
 @push('scripts')
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <!-- Select2 -->
+    <!-- Select2 (only for customer) -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
@@ -288,8 +296,10 @@
                 width: '100%'
             });
 
-            // Initialize Select2 for existing Products
-            initializeSelect2($('.product-select'));
+            // Initialize product selects for existing rows
+            $('.product-select').each(function() {
+                initProductSelect($(this));
+            });
 
             // Form submit handler to unformat prices
             $('#quotationForm').on('submit', function () {
@@ -298,38 +308,73 @@
                     $(this).val(unformatted);
                 });
             });
+
+            calculateTotal();
         });
 
-        function initializeSelect2(elements) {
-            elements.select2({
-                placeholder: "Tìm mã hoặc tên (Kho/Hãng)...",
+        function initProductSelect(element) {
+            const row = element.closest('.product-item');
+            
+            element.select2({
+                placeholder: "Tìm hoặc nhập tên sản phẩm...",
                 allowClear: true,
+                tags: true,
                 width: '100%',
                 ajax: {
-                    url: '{{ route("quotations.search-catalog") }}',
+                    url: "{{ route('quotations.search-catalog') }}",
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return { q: params.term };
+                        return { search: params.term };
                     },
                     processResults: function (data) {
-                        return { results: data };
+                        return {
+                            results: data.map(item => ({
+                                id: item.id,
+                                text: item.text,
+                                price: item.price,
+                                unit: item.unit,
+                                name: item.name
+                            }))
+                        };
                     },
-                    cache: true
+                    cache: true,
+                    error: function(xhr, status, error) {
+                        console.error('Select2 AJAX error:', error);
+                    }
                 },
-                minimumInputLength: 2
+                createTag: function (params) {
+                    const term = $.trim(params.term);
+                    if (term === '') return null;
+                    return { id: term, text: term, isNew: true };
+                }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
-                const name = $(this).attr('name');
-                const match = name.match(/products\[(\d+)\]/);
-                if (match) {
-                    const index = match[1];
-                    updateProductData(index, data);
+                const hiddenName = row.find('.product-name-hidden');
+                
+                // If it's a tag or doesn't have our prefixes (p- or c-)
+                const isManual = data.isNew || (typeof data.id === 'string' && !data.id.startsWith('p-') && !data.id.startsWith('c-'));
+                
+                if (isManual) {
+                    hiddenName.val(data.text);
+                    row.find('.base-price-reference').text('');
+                } else {
+                    hiddenName.val(data.name || data.text);
+                    if (data.price) {
+                        const basePriceVnd = parseFloat(data.price);
+                        row.find('.base-price-reference').text(`Giá gốc: ${formatMoney(basePriceVnd)} ₫`);
+                        
+                        const rate = parseFloat($('#exchangeRateInput').val()) || 1;
+                        row.find('.price-input').val(formatMoney(basePriceVnd / rate));
+                    }
                 }
+                const qtyInput = row.find('.quantity-input');
+                const nameAttr = qtyInput.attr('name');
+                const match = nameAttr.match(/products\[(\d+)\]/);
+                if (match) calculateRowTotal(match[1]);
             });
         }
 
-        // Format money input (supports decimals for foreign currencies)
         function formatMoney(value) {
             if (value === undefined || value === null || value === '') return '';
             const select = document.getElementById('currencySelect');
@@ -337,10 +382,7 @@
             const decimals = isVnd ? 0 : 2;
             const num = parseFloat(value.toString().replace(/[^0-9.]/g, ''));
             if (isNaN(num)) return '';
-            return num.toLocaleString('en-US', {
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals
-            });
+            return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         }
 
         function unformatMoney(value) {
@@ -348,252 +390,138 @@
             return parseFloat(value.toString().replace(/[^0-9.]/g, '')) || 0;
         }
 
-        function updateProductData(index, data) {
-            const priceInput = document.querySelector(`input[name="products[${index}][price]"]`);
-            const row = priceInput.closest('tr');
-            const basePriceRef = row.querySelector('.base-price-reference');
-
-            if (data.price) {
-                const basePriceVnd = parseFloat(data.price);
-                
-                // Show base price reference
-                if (basePriceRef) {
-                    basePriceRef.textContent = `Giá gốc kho: ${formatMoney(basePriceVnd)} ₫`;
-                }
-
-                const currentRate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-                // DIVISION logic: Price = VND / Rate
-                const priceInCurrency = basePriceVnd / currentRate;
-                if (priceInput) priceInput.value = formatMoney(priceInCurrency);
-            }
-            calculateRowTotal(index);
-        }
-
         function addProductRow() {
-            const tbody = document.getElementById('productRows');
-            const row = document.createElement('tr');
-            row.className = 'product-row border-b';
-            row.innerHTML = `
-                    <td class="px-4 py-2">
-                        <select name="products[${rowIndex}][product_id]" required
-                            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 product-select">
-                            <option value="">Chọn sản phẩm</option>
+            const productList = document.getElementById('productList');
+            const newRow = document.createElement('div');
+            newRow.className = 'product-item bg-gray-50 p-3 rounded-lg border border-gray-100';
+            newRow.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div class="md:col-span-12 relative">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
+                        <select name="products[${rowIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                            <option value=""></option>
                         </select>
-                    </td>
-                    <td class="px-4 py-2">
-                        <input type="number" name="products[${rowIndex}][quantity]" value="1" min="1" required
-                            onchange="calculateRowTotal(${rowIndex})" class="w-full border border-gray-300 rounded px-3 py-2 text-center">
-                    </td>
-                    <td class="px-4 py-2">
+                        <input type="hidden" name="products[${rowIndex}][product_name]" class="product-name-hidden">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
+                        <input type="number" name="products[${rowIndex}][quantity]" min="1" value="1" required
+                               onchange="calculateRowTotal(${rowIndex})"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-center quantity-input">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                         <input type="text" name="products[${rowIndex}][price]" value="0" required
-                            onchange="calculateRowTotal(${rowIndex})" 
-                            class="w-full border border-gray-300 rounded px-3 py-2 text-right price-input">
+                               onchange="calculateRowTotal(${rowIndex})"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-right price-input">
                         <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
-                    </td>
-                    <td class="px-4 py-2">
-                        <input type="text" readonly class="w-full border border-gray-300 rounded px-3 py-2 text-right bg-gray-50 row-total" value="0">
-                    </td>
-                    <td class="px-4 py-2 text-center">
-                        <button type="button" onclick="removeProductRow(this)" class="text-red-600 hover:text-red-800">
-                            <i class="fas fa-trash"></i>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
+                        <input type="text" readonly
+                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-right row-total" value="0">
+                    </div>
+                    <div class="md:col-span-2 flex items-end">
+                        <button type="button" onclick="removeProductRow(this)"
+                                class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                            <i class="fas fa-trash mr-2"></i> Xóa
                         </button>
-                    </td>
-                `;
-            tbody.appendChild(row);
-
-            // Initialize select2 for the new select
-            initializeSelect2($(row).find('.product-select'));
-
+                    </div>
+                </div>`;
+            productList.appendChild(newRow);
+            initProductSelect($(newRow).find('.product-select'));
             rowIndex++;
         }
 
         function removeProductRow(btn) {
-            const rows = document.querySelectorAll('.product-row');
-            if (rows.length > 1) {
-                // Destroy select2
-                $(btn).closest('tr').find('.product-select').select2('destroy');
-                btn.closest('tr').remove();
+            const items = document.querySelectorAll('.product-item');
+            if (items.length > 1) {
+                btn.closest('.product-item').remove();
                 calculateTotal();
             }
         }
 
-
-
         function calculateRowTotal(index) {
-            const qtyInput = document.querySelector(`input[name="products[${index}][quantity]"]`);
-            const priceInput = document.querySelector(`input[name="products[${index}][price]"]`);
-            if (!qtyInput || !priceInput) return;
-            const qty = parseFloat(qtyInput.value) || 0;
-            const price = unformatMoney(priceInput.value);
+            const row = $(`.quantity-input[name="products[${index}][quantity]"]`).closest('.product-item');
+            const qty = parseFloat(row.find('.quantity-input').val()) || 0;
+            const price = unformatMoney(row.find('.price-input').val());
             const total = qty * price;
-            const row = qtyInput.closest('tr');
-            if (row) {
-                row.querySelector('.row-total').value = formatMoney(total);
-            }
+            row.find('.row-total').val(formatMoney(total));
             calculateTotal();
         }
 
         function calculateTotal() {
-            const select = document.getElementById('currencySelect');
-            const option = select.options[select.selectedIndex];
-            const symbol = option.dataset.symbol || '';
-
+            const option = $('#currencySelect option:selected');
+            const symbol = option.data('symbol') || '';
             let subtotal = 0;
-            document.querySelectorAll('.product-row').forEach(row => {
-                const totalInput = row.querySelector('.row-total');
-                if (totalInput) {
-                    subtotal += unformatMoney(totalInput.value);
-                }
-            });
-
-            const discountInput = document.getElementById('discount');
-            const vatInput = document.getElementById('vat');
-            const discount = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
-            const vat = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
-
-            const discountAmount = Math.round((subtotal * discount / 100) * 100) / 100;
+            $('.row-total').each(function() { subtotal += unformatMoney($(this).val()); });
+            const discount = parseFloat($('#discount').val()) || 0;
+            const vat = parseFloat($('#vat').val()) || 0;
+            const discountAmount = subtotal * discount / 100;
             const afterDiscount = subtotal - discountAmount;
-            const vatAmount = Math.round((afterDiscount * vat / 100) * 100) / 100;
-            const total = Math.round((afterDiscount + vatAmount) * 100) / 100;
-
-            const subtotalEl = document.getElementById('subtotal');
-            const totalEl = document.getElementById('total');
-            const discountAmountEl = document.getElementById('discountAmount');
-            const vatAmountEl = document.getElementById('vatAmount');
-
-            if (subtotalEl) subtotalEl.textContent = formatMoney(subtotal) + ' ' + symbol;
-            if (totalEl) {
-                totalEl.textContent = formatMoney(total) + ' ' + symbol;
-
-                // Update VND reference for total
-                const totalVndRef = document.getElementById('totalVndReference');
-                if (totalVndRef) {
-                    if (option.dataset.isBase === '1') {
-                        totalVndRef.textContent = '';
-                    } else {
-                        const exchangeRate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-                        const vndValue = Math.round(total * exchangeRate);
-                        totalVndRef.textContent = `= ${formatMoney(vndValue)} ₫`;
-                    }
-                }
+            const vatAmount = afterDiscount * vat / 100;
+            const total = afterDiscount + vatAmount;
+            $('#subtotal').text(formatMoney(subtotal) + ' ' + symbol);
+            $('#discountAmount').text(formatMoney(discountAmount) + ' ' + symbol);
+            $('#vatAmount').text(formatMoney(vatAmount) + ' ' + symbol);
+            $('#total').text(formatMoney(total) + ' ' + symbol);
+            const vndRef = $('#totalVndReference');
+            if (option.data('is-base') === 1) { vndRef.text(''); } else {
+                const rate = parseFloat($('#exchangeRateInput').val()) || 1;
+                vndRef.text(`= ${formatMoney(total * rate)} ₫`);
             }
-            if (discountAmountEl) discountAmountEl.textContent = formatMoney(discountAmount) + ' ' + symbol;
-            if (vatAmountEl) vatAmountEl.textContent = formatMoney(vatAmount) + ' ' + symbol;
-
-            // Update currency labels
-            document.querySelectorAll('.currency-symbol').forEach(el => {
-                el.textContent = symbol;
-            });
+            $('.currency-symbol').text(symbol);
         }
 
-        function formatNumber(num) {
-            return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        }
-
-        // Initialize
-        calculateTotal();
-
-        // ─── Multi-Currency Functions ───
-        const baseCurrencyId = {{ $baseCurrencyId ?? 'null' }};
-        let currentExchangeRate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-
+        let currentExchangeRate = parseFloat($('#exchangeRateInput').val()) || 1;
         function onCurrencyChange() {
-            const select = document.getElementById('currencySelect');
-            const option = select.options[select.selectedIndex];
-            const isBase = option.dataset.isBase === '1';
-            
-            const oldRate = currentExchangeRate;
-
-            if (isBase) {
-                document.getElementById('exchangeRateGroup').classList.add('hidden');
-                document.getElementById('exchangeRateInput').value = 1;
-                currentExchangeRate = 1;
+            const option = $('#currencySelect option:selected');
+            if (option.data('is-base') === 1) {
+                $('#exchangeRateGroup').addClass('hidden');
+                $('#exchangeRateInput').val(1);
+                updatePricesAfterRateChange(1);
             } else {
-                document.getElementById('exchangeRateGroup').classList.remove('hidden');
-                fetchExchangeRate(select.value).then(() => {
-                    const newRate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-                    recalculateAllPrices(oldRate, newRate);
-                    currentExchangeRate = newRate;
-                });
-                return;
+                $('#exchangeRateGroup').removeClass('hidden');
+                fetchExchangeRate(option.val());
             }
-            
-            recalculateAllPrices(oldRate, currentExchangeRate);
-            calculateTotal();
-        }
-
-        function recalculateAllPrices(oldRate, newRate) {
-            if (oldRate === newRate) return;
-            document.querySelectorAll('.product-row').forEach(row => {
-                const priceInput = row.querySelector('.price-input');
-                if (priceInput && priceInput.value) {
-                    const oldPrice = unformatMoney(priceInput.value);
-                    const baseVnd = oldPrice * oldRate;
-                    const newPrice = baseVnd / newRate;
-                    priceInput.value = formatMoney(newPrice);
-                    
-                    // Trigger total row recalculation
-                    const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
-                    row.querySelector('.row-total').value = formatMoney(qty * newPrice);
-                }
-            });
-            
-            // Sync Row Totals and Overall Total
-            document.querySelectorAll('.product-row').forEach((_, idx) => {
-                // We need to find the data-index or similar if row index isn't 0,1,2...
-                // But in this form, rows are added with increasing rowIndex.
-                // However, calculateRowTotal expects the index used in the name attribute.
-                const rowTotalInput = _.querySelector('.row-total');
-                if (rowTotalInput) {
-                    // Just call calculateTotal for each row to be sure
-                    const qty = parseFloat(_.querySelector('input[name*="[quantity]"]').value) || 0;
-                    const price = unformatMoney(_.querySelector('.price-input').value);
-                    rowTotalInput.value = formatMoney(qty * price);
-                }
-            });
-            calculateTotal();
         }
 
         async function fetchExchangeRate(currencyId) {
-            const dateInput = document.querySelector('input[name="date"]');
-            const date = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+            const date = $('input[name="date"]').val();
             try {
                 const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
                 const data = await response.json();
-                if (data.rate && !data.is_base) {
-                    document.getElementById('exchangeRateInput').value = data.rate;
-                    document.getElementById('rateSource').textContent = data.source === 'auto' ? '(Vietcombank)' : '(Thủ công)';
-                    document.getElementById('rateHint').textContent = `Ngày: ${data.effective_date || date}`;
-                    calculateTotal();
-                } else if (!data.rate && !data.is_base) {
-                    document.getElementById('rateHint').textContent = '⚠ Chưa có tỷ giá. Nhập thủ công.';
+                if (data.rate) {
+                    $('#exchangeRateInput').val(data.rate);
+                    $('#rateSource').text(data.source === 'auto' ? '(Vietcombank)' : '(Thủ công)');
+                    $('#rateHint').text(`Ngày: ${data.effective_date || date}`);
+                    updatePricesAfterRateChange(data.rate);
                 }
             } catch (e) { console.error(e); }
         }
 
-        function updateDualPriceDisplay(foreignTotal) {
-            const select = document.getElementById('currencySelect');
-            const option = select.options[select.selectedIndex];
-            if (option.dataset.isBase === '1') return;
-            const display = document.getElementById('dualPriceDisplay');
-            if (!display) return;
-            const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
-            const vndTotal = Math.round(foreignTotal * rate);
-            display.innerHTML = `<span class="font-semibold">${option.dataset.symbol}${formatNumber(foreignTotal)}</span> × ${formatNumber(rate)} = <span class="font-bold text-blue-900">${formatNumber(vndTotal)} ₫</span>`;
+        function updatePricesAfterRateChange(newRate) {
+            const oldRate = currentExchangeRate;
+            if (oldRate === newRate) return;
+            $('.product-item').each(function() {
+                const priceInput = $(this).find('.price-input');
+                const oldPrice = unformatMoney(priceInput.val());
+                const baseVnd = oldPrice * oldRate;
+                const newPrice = baseVnd / newRate;
+                priceInput.val(formatMoney(newPrice));
+                
+                const qtyStr = $(this).find('.quantity-input').val();
+                const qty = parseFloat(qtyStr) || 0;
+                $(this).find('.row-total').val(formatMoney(qty * newPrice));
+            });
+            currentExchangeRate = newRate;
+            calculateTotal();
         }
 
-        document.querySelector('input[name="date"]')?.addEventListener('change', function() {
-            const select = document.getElementById('currencySelect');
-            const option = select.options[select.selectedIndex];
-            if (option.dataset.isBase !== '1') fetchExchangeRate(select.value);
+        $('input[name="date"]').on('change', function() {
+            const option = $('#currencySelect option:selected');
+            if (option.data('is-base') !== 1) fetchExchangeRate(option.val());
         });
-
-        setTimeout(() => {
-            const select = document.getElementById('currencySelect');
-            if (select) {
-                const option = select.options[select.selectedIndex];
-                if (option.dataset.isBase !== '1') calculateTotal();
-            }
-        }, 100);
+        $('#exchangeRateInput').on('change', function() { updatePricesAfterRateChange(parseFloat($(this).val()) || 1); });
     </script>
 @endpush

@@ -73,7 +73,14 @@
                                         {{ $quotation->valid_until->format('d/m/Y') }}
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($quotation->total) }}đ</td>
+                                <td class="px-4 py-3 text-right">
+                                    @if($quotation->currency && !$quotation->currency->is_base)
+                                        <div class="font-semibold text-primary">{{ number_format($quotation->total_foreign, $quotation->currency->decimal_places ?? 2) }} {{ $quotation->currency->symbol }}</div>
+                                        <div class="text-xs text-gray-500">≈ {{ number_format($quotation->total) }} ₫</div>
+                                    @else
+                                        <div class="font-semibold">{{ number_format($quotation->total) }} ₫</div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">
                                     @if($quotation->status == 'pending')
                                         <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>

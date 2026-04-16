@@ -83,6 +83,41 @@
                 </div>
             </div>
 
+            <!-- Tiền tệ báo giá -->
+            <div class="border-t border-gray-200 pt-4 mb-6">
+                <h4 class="text-lg font-medium text-gray-900 mb-3">
+                    <i class="fas fa-money-bill-wave text-green-500 mr-2"></i>Tiền tệ báo giá
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Loại tiền tệ</label>
+                        <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()"
+                            class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                            @foreach($currencies as $currency)
+                                <option value="{{ $currency->id }}"
+                                    data-is-base="{{ $currency->is_base ? '1' : '0' }}"
+                                    data-code="{{ $currency->code }}"
+                                    data-symbol="{{ $currency->symbol }}"
+                                    {{ old('currency_id', $baseCurrencyId) == $currency->id ? 'selected' : '' }}>
+                                    {{ $currency->code }} - {{ $currency->name_vi }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div id="exchangeRateGroup" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Tỷ giá (1 ngoại tệ = ? VND)
+                            <span id="rateSource" class="text-xs text-blue-500 ml-1"></span>
+                        </label>
+                        <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0"
+                            value="{{ old('exchange_rate', 1) }}"
+                            onchange="calculateTotal()"
+                            class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                        <p class="text-xs text-gray-500 mt-1" id="rateHint">Tỷ giá sẽ tự động lấy từ Vietcombank</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Danh sách sản phẩm -->
             <div class="border-t border-gray-200 pt-4 mb-6">
                 <div class="flex justify-between items-center mb-3">
@@ -110,13 +145,13 @@
                                         onchange="calculateRow(this)">
                                 </div>
                                 <div class="col-span-2">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                                     <input type="number" name="items[{{ $index }}][unit_price]" min="0" required placeholder="0"
                                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price"
                                         onchange="calculateRow(this)">
                                 </div>
                                 <div class="col-span-3">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
                                     <input type="text"
                                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total"
                                         readonly value="0">
@@ -144,13 +179,13 @@
                                     onchange="calculateRow(this)">
                             </div>
                             <div class="col-span-2">
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                                 <input type="number" name="items[0][unit_price]" min="0" required placeholder="0"
                                     class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price"
                                     onchange="calculateRow(this)">
                             </div>
                             <div class="col-span-3">
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
                                 <input type="text"
                                     class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total"
                                     readonly value="0">
@@ -177,32 +212,64 @@
                         class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
                 </div>
                 <div class="space-y-3">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600 text-sm">Tổng tiền hàng:</span>
-                        <span id="subtotal" class="font-medium">0đ</span>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 space-y-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-600 font-medium">Tổng tiền hàng:</span>
+                        <div class="text-right">
+                            <span id="subtotal" class="font-semibold text-gray-900 text-lg">0đ</span>
+                            <small id="subtotalVndRef" class="block text-xs text-gray-400 mt-1"></small>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600 text-sm">Chiết khấu (%):</span>
-                        <input type="number" name="discount_percent" value="0" min="0" max="100"
-                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                            onchange="calculateTotal()">
+                    
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-600 font-medium whitespace-nowrap">Chiết khấu (%):</span>
+                            <input type="number" name="discount_percent" value="0" min="0" max="100"
+                                class="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500"
+                                onchange="calculateTotal()">
+                        </div>
+                        <div class="text-right">
+                            <span id="discountValue" class="text-red-600 font-medium">0đ</span>
+                            <small id="discountVndRef" class="block text-xs text-gray-400 mt-0.5"></small>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600 text-sm">Phí vận chuyển:</span>
-                        <input type="number" name="shipping_cost" value="0" min="0"
-                            class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                            onchange="calculateTotal()">
+
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-600 font-medium whitespace-nowrap">Phí vận chuyển:</span>
+                            <input type="number" name="shipping_cost" value="0" min="0"
+                                class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500"
+                                onchange="calculateTotal()">
+                        </div>
+                        <div class="text-right">
+                            <span id="shippingValue" class="text-gray-700 font-medium">0đ</span>
+                            <small id="shippingVndRef" class="block text-xs text-gray-400 mt-0.5"></small>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600 text-sm">VAT (%):</span>
-                        <input type="number" name="vat_percent" value="10" min="0"
-                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right"
-                            onchange="calculateTotal()">
+
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-600 font-medium whitespace-nowrap">VAT (%):</span>
+                            <input type="number" name="vat_percent" value="10" min="0"
+                                class="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500"
+                                onchange="calculateTotal()">
+                        </div>
+                        <div class="text-right">
+                            <span id="vatValue" class="text-gray-700 font-medium">0đ</span>
+                            <small id="vatVndRef" class="block text-xs text-gray-400 mt-0.5"></small>
+                        </div>
                     </div>
-                    <div class="flex justify-between pt-3 border-t">
-                        <span class="text-lg font-semibold">Tổng cộng:</span>
-                        <span id="total" class="text-lg font-bold text-blue-600">0đ</span>
+
+                    <hr class="border-gray-200">
+
+                    <div class="flex justify-between items-start pt-1">
+                        <span class="text-lg font-bold text-gray-800">TỔNG CỘNG:</span>
+                        <div class="text-right">
+                            <span id="total" class="text-2xl font-bold text-blue-600">0đ</span>
+                            <div id="totalVndReference" class="text-sm font-semibold text-gray-500 mt-1"></div>
+                        </div>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -301,8 +368,8 @@
                         return;
                     }
 
-                    const matches = products.filter(p => 
-                        p.name.toLowerCase().includes(val) || 
+                    const matches = products.filter(p =>
+                        p.name.toLowerCase().includes(val) ||
                         p.code.toLowerCase().includes(val)
                     ).slice(0, 20);
                     renderSuggestions(matches);
@@ -310,18 +377,13 @@
 
                 input.addEventListener('focus', function() {
                     if (this.value.trim() === '') {
-                        // Show recent or top products if empty? Or show nothing?
-                        // User request: "click vào input cho hiện dropdown"
-                        // So show all (sliced)
                         renderSuggestions(products.slice(0, 20));
                     } else {
-                        // Trigger search logic
                          this.dispatchEvent(new Event('input'));
                     }
                 });
 
                 input.addEventListener('blur', function() {
-                    // Delay hiding to allow click
                    setTimeout(() => suggestions.classList.add('hidden'), 200);
                 });
             }
@@ -339,7 +401,21 @@
                 calculateTotal();
             }
 
+            function formatValue(value, isVnd = false) {
+                const decimals = isVnd ? 0 : 2;
+                return value.toLocaleString('en-US', {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals
+                });
+            }
+
             function calculateTotal() {
+                const select = document.getElementById('currencySelect');
+                const option = select ? select.options[select.selectedIndex] : null;
+                const symbol = option ? (option.dataset.symbol || '₫') : '₫';
+                const isBase = option ? option.dataset.isBase === '1' : true;
+                const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
+
                 let subtotal = 0;
                 document.querySelectorAll('.item-row').forEach(row => {
                     const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
@@ -347,18 +423,52 @@
                     subtotal += qty * price;
                 });
 
-                const discount = parseFloat(document.querySelector('[name="discount_percent"]').value) || 0;
+                const discountPercent = parseFloat(document.querySelector('[name="discount_percent"]').value) || 0;
                 const shipping = parseFloat(document.querySelector('[name="shipping_cost"]').value) || 0;
-                const vat = parseFloat(document.querySelector('[name="vat_percent"]').value) || 0;
+                const vatPercent = parseFloat(document.querySelector('[name="vat_percent"]').value) || 0;
 
-                const discountAmount = subtotal * (discount / 100);
+                const discountAmount = subtotal * (discountPercent / 100);
                 const afterDiscount = subtotal - discountAmount;
                 const beforeVat = afterDiscount + shipping;
-                const vatAmount = beforeVat * (vat / 100);
+                const vatAmount = beforeVat * (vatPercent / 100);
                 const total = beforeVat + vatAmount;
 
-                document.getElementById('subtotal').textContent = subtotal.toLocaleString('vi-VN') + 'đ';
-                document.getElementById('total').textContent = Math.round(total).toLocaleString('vi-VN') + 'đ';
+                // Update Main Display
+                document.getElementById('subtotal').textContent = formatValue(subtotal, isBase) + ' ' + symbol;
+                document.getElementById('discountValue').textContent = '-' + formatValue(discountAmount, isBase) + ' ' + symbol;
+                document.getElementById('shippingValue').textContent = formatValue(shipping, isBase) + ' ' + symbol;
+                document.getElementById('vatValue').textContent = formatValue(vatAmount, isBase) + ' ' + symbol;
+                document.getElementById('total').textContent = formatValue(total, isBase) + ' ' + symbol;
+
+                // Update VND References
+                const updateRef = (elId, val) => {
+                    const el = document.getElementById(elId);
+                    if (el) {
+                        if (isBase) {
+                            el.textContent = '';
+                        } else {
+                            el.textContent = `≈ ${formatValue(Math.round(val * rate), true)} ₫`;
+                        }
+                    }
+                };
+
+                updateRef('subtotalVndRef', subtotal);
+                updateRef('discountVndRef', discountAmount);
+                updateRef('shippingVndRef', shipping);
+                updateRef('vatVndRef', vatAmount);
+                
+                const totalVndRef = document.getElementById('totalVndReference');
+                if (totalVndRef) {
+                    if (isBase) {
+                        totalVndRef.textContent = '';
+                    } else {
+                        totalVndRef.textContent = `= ${formatValue(Math.round(total * rate), true)} ₫`;
+                    }
+                }
+
+                document.querySelectorAll('.currency-symbol').forEach(el => {
+                    el.textContent = symbol;
+                });
             }
 
             document.getElementById('addItem').addEventListener('click', function () {
@@ -377,11 +487,11 @@
                     <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
                 </div>
                 <div class="col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                     <input type="number" name="items[${itemIndex}][unit_price]" min="0" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
                 </div>
                 <div class="col-span-3">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
                     <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
                 </div>
                 <div class="col-span-1 flex justify-center">
@@ -408,6 +518,53 @@
                     row.querySelector('.remove-item').style.display = rows.length > 1 ? 'block' : 'none';
                 });
             }
+
+            // ─── Multi-Currency Functions ───
+            const baseCurrencyId = {{ $baseCurrencyId ?? 'null' }};
+
+            function onCurrencyChange() {
+                const select = document.getElementById('currencySelect');
+                const option = select.options[select.selectedIndex];
+                const isBase = option.dataset.isBase === '1';
+
+                if (isBase) {
+                    document.getElementById('exchangeRateGroup').classList.add('hidden');
+                    document.getElementById('exchangeRateInput').value = 1;
+                } else {
+                    document.getElementById('exchangeRateGroup').classList.remove('hidden');
+                    fetchExchangeRate(select.value);
+                }
+                calculateTotal();
+            }
+
+            async function fetchExchangeRate(currencyId) {
+                const dateInput = document.querySelector('input[name="quotation_date"]');
+                const date = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+                try {
+                    const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
+                    const data = await response.json();
+                    if (data.rate && !data.is_base) {
+                        document.getElementById('exchangeRateInput').value = data.rate;
+                        document.getElementById('rateSource').textContent = data.source === 'auto' ? '(Vietcombank)' : '(Thủ công)';
+                        document.getElementById('rateHint').textContent = `Ngày: ${data.effective_date || date}`;
+                        calculateTotal();
+                    } else if (!data.rate && !data.is_base) {
+                        document.getElementById('rateHint').textContent = '⚠ Chưa có tỷ giá. Nhập thủ công.';
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            // Re-fetch rate when date changes
+            document.querySelector('input[name="quotation_date"]')?.addEventListener('change', function() {
+                const select = document.getElementById('currencySelect');
+                const option = select.options[select.selectedIndex];
+                if (option.dataset.isBase !== '1') fetchExchangeRate(select.value);
+            });
+
+            // Init on page load
+            onCurrencyChange();
         </script>
     @endpush
 @endsection

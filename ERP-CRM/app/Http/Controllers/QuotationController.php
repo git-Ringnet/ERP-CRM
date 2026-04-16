@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class QuotationController extends Controller
 {
@@ -60,6 +61,7 @@ class QuotationController extends Controller
         $this->authorize('create', Quotation::class);
 
         $customers = Customer::orderBy('name')->get();
+        $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
 
         $prefill = [
@@ -70,7 +72,7 @@ class QuotationController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.create', compact('customers', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
+        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
     }
 
     private function generateCode(): string
@@ -103,7 +105,8 @@ class QuotationController extends Controller
             'delivery_time' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'string'],
+            'products.*.product_name' => ['required', 'string'],
+            'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
@@ -114,7 +117,8 @@ class QuotationController extends Controller
             'code.required' => 'Vui lòng nhập mã báo giá.',
             'customer_id.required' => 'Vui lòng chọn khách hàng.',
             'title.required' => 'Vui lòng nhập tiêu đề.',
-            'products.required' => 'Vui lòng chọn ít nhất một sản phẩm.',
+            'products.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
+            'products.*.product_name.required' => 'Vui lòng nhập tên sản phẩm.',
         ]);
 
         DB::beginTransaction();
@@ -159,12 +163,24 @@ class QuotationController extends Controller
             ]);
 
             foreach ($validated['products'] as $item) {
-                $product = $this->getOrSyncProduct($item['product_id']);
+                $productId = null;
+                $productName = $item['product_name'];
+                $productCode = null;
+
+                if (!empty($item['product_id'])) {
+                    $product = $this->getOrSyncProduct($item['product_id'], $item['product_name']);
+                    if ($product) {
+                        $productId = $product->id;
+                        $productName = $product->name;
+                        $productCode = $product->code;
+                    }
+                }
+
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
-                    'product_code' => $product->code,
+                    'product_id' => $productId,
+                    'product_name' => $productName,
+                    'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
                     'total' => $item['quantity'] * $item['price'],
@@ -204,10 +220,11 @@ class QuotationController extends Controller
 
         $quotation->load('items');
         $customers = Customer::orderBy('name')->get();
+        $products = Product::orderBy('name')->get();
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.edit', compact('quotation', 'customers', 'currencies', 'baseCurrencyId'));
+        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId'));
     }
 
     public function update(Request $request, Quotation $quotation)
@@ -230,7 +247,8 @@ class QuotationController extends Controller
             'delivery_time' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'string'],
+            'products.*.product_name' => ['required', 'string'],
+            'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
@@ -241,7 +259,8 @@ class QuotationController extends Controller
             'code.required' => 'Vui lòng nhập mã báo giá.',
             'customer_id.required' => 'Vui lòng chọn khách hàng.',
             'title.required' => 'Vui lòng nhập tiêu đề.',
-            'products.required' => 'Vui lòng chọn ít nhất một sản phẩm.',
+            'products.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
+            'products.*.product_name.required' => 'Vui lòng nhập tên sản phẩm.',
         ]);
 
         DB::beginTransaction();
@@ -287,12 +306,24 @@ class QuotationController extends Controller
             $quotation->items()->delete();
 
             foreach ($validated['products'] as $item) {
-                $product = $this->getOrSyncProduct($item['product_id']);
+                $productId = null;
+                $productName = $item['product_name'];
+                $productCode = null;
+
+                if (!empty($item['product_id'])) {
+                    $product = $this->getOrSyncProduct($item['product_id'], $item['product_name']);
+                    if ($product) {
+                        $productId = $product->id;
+                        $productName = $product->name;
+                        $productCode = $product->code;
+                    }
+                }
+
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
-                    'product_code' => $product->code,
+                    'product_id' => $productId,
+                    'product_name' => $productName,
+                    'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
                     'total' => $item['quantity'] * $item['price'],
@@ -336,7 +367,7 @@ class QuotationController extends Controller
      */
     public function searchCatalog(Request $request)
     {
-        $search = $request->get('q');
+        $search = $request->get('search') ?? $request->get('q');
 
         // 1. Search in local Products
         $productQuery = Product::query();
@@ -512,15 +543,16 @@ class QuotationController extends Controller
     /**
      * Helper to get local product or create from catalog
      */
-    private function getOrSyncProduct($productIdRaw)
+    private function getOrSyncProduct($productIdRaw, $fallbackName = null)
     {
+        if (empty($productIdRaw) && empty($fallbackName)) return null;
+
+        // 1. Catalog item sync
         if (str_starts_with($productIdRaw, 'c-')) {
             $catalogId = substr($productIdRaw, 2);
             $catalogItem = SupplierPriceListItem::find($catalogId);
             
-            if (!$catalogItem) {
-                throw new \Exception("Không tìm thấy hàng trong Catalog với ID: {$catalogId}");
-            }
+            if (!$catalogItem) return null;
 
             $sku = $this->cleanSku($catalogItem->sku);
             $product = Product::where('code', $sku)->first();
@@ -537,19 +569,55 @@ class QuotationController extends Controller
             return $product;
         }
 
-        // Handle 'p-1' or just '1'
-        $id = str_starts_with($productIdRaw, 'p-') ? substr($productIdRaw, 2) : $productIdRaw;
-        return Product::findOrFail($id);
+        // 2. Local product
+        if (str_starts_with($productIdRaw, 'p-')) {
+            $id = substr($productIdRaw, 2);
+            return Product::find($id);
+        }
+
+        // 3. Raw numeric ID
+        if (is_numeric($productIdRaw)) {
+            return Product::find($productIdRaw);
+        }
+
+        // 4. Manual text entry - Check if exists by name first, then create
+        $name = !empty($fallbackName) ? $fallbackName : $productIdRaw;
+        
+        // Search for existing product by name (exact match)
+        $existingProduct = Product::where('name', $name)->first();
+        if ($existingProduct) {
+            return $existingProduct;
+        }
+
+        // Search for existing product by code (if the manual entry looks like a code)
+        if (!empty($productIdRaw) && strlen($productIdRaw) < 50) {
+            $existingByCode = Product::where('code', strtoupper($productIdRaw))->first();
+            if ($existingByCode) {
+                return $existingByCode;
+            }
+        }
+
+        // Create new product if not found
+        try {
+            return Product::create([
+                'code' => 'M-' . strtoupper(Str::random(6)),
+                'name' => $name,
+                'unit' => 'Bộ',
+                'category' => 'Z',
+                'description' => 'Sản phẩm tự động tạo từ báo giá',
+            ]);
+        } catch (\Exception $e) {
+            // If creation fails (e.g. code collision), return null to fallback to transient data
+            return null;
+        }
     }
 
     /**
-     * Clean SKU matching SupplierPriceListController
+     * Helper to clean SKU
      */
     private function cleanSku($sku)
     {
-        if (empty($sku)) return '';
-        $clean = strtoupper(trim($sku));
-        $clean = preg_replace('/[^A-Z0-9\-_]/', '', $clean);
-        return $clean;
+        return preg_replace('/[^A-Za-z0-9]/', '', $sku);
     }
+
 }

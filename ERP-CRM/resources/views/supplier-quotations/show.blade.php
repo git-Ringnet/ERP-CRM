@@ -83,8 +83,14 @@
         </div>
 
         <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-6 py-4 border-b bg-gray-50">
-                <h3 class="font-semibold">Chi tiết sản phẩm</h3>
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 class="font-semibold text-gray-800">Chi tiết sản phẩm</h3>
+                @if($supplierQuotation->currency && !$supplierQuotation->currency->is_base)
+                    <div class="text-sm px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Tỷ giá: 1 {{ $supplierQuotation->currency->code }} = {{ number_format($supplierQuotation->exchange_rate) }} ₫
+                    </div>
+                @endif
             </div>
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -92,49 +98,63 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
+                        @php
+                            $symbol = $supplierQuotation->currency->symbol ?? '₫';
+                            $isForeign = $supplierQuotation->currency && !$supplierQuotation->currency->is_base;
+                            $decimals = $isForeign ? ($supplierQuotation->currency->decimal_places ?? 2) : 0;
+                        @endphp
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá ({{ $symbol }})</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền ({{ $symbol }})</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @foreach($supplierQuotation->items as $index => $item)
-                        <tr>
-                            <td class="px-4 py-3">{{ $index + 1 }}</td>
-                            <td class="px-4 py-3 font-medium">{{ $item->product_name }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($item->quantity) }} {{ $item->unit }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($item->unit_price) }}đ</td>
-                            <td class="px-4 py-3 text-right font-medium">{{ number_format($item->total) }}đ</td>
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
+                            <td class="px-4 py-3 font-medium text-gray-900 border-l border-transparent hover:border-primary">{{ $item->product_name }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-900">{{ number_format($item->quantity) }} {{ $item->unit }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-900">{{ number_format($item->unit_price, $decimals) }} {{ $symbol }}</td>
+                            <td class="px-4 py-3 text-right font-medium text-gray-900">{{ number_format($item->total, $decimals) }} {{ $symbol }}</td>
                         </tr>
                     @endforeach
                 </tbody>
-                <tfoot class="bg-gray-50">
-                    <tr>
-                        <td colspan="4" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
-                        <td class="px-4 py-2 text-right font-medium">{{ number_format($supplierQuotation->subtotal) }}đ</td>
-                    </tr>
+                <tfoot class="bg-gray-50 border-t-2 border-gray-100">
+                    @php
+                        $rate = $supplierQuotation->exchange_rate ?? 1;
+                        $renderRow = function($label, $val, $isVnd = false, $class = "text-gray-600", $valClass = "font-medium text-gray-900") use ($symbol, $decimals, $isForeign, $rate) {
+                            $formattedForeign = number_format($val, $decimals) . ' ' . $symbol;
+                            $formattedVnd = number_format(round($val * $rate)) . ' ₫';
+                            $html = "<tr>
+                                <td colspan=\"4\" class=\"px-4 py-2 text-right $class\">$label:</td>
+                                <td class=\"px-4 py-2 text-right\">
+                                    <div class=\"$valClass\">$formattedForeign</div>";
+                            if ($isForeign) {
+                                $html .= "<div class=\"text-xs text-gray-400 mt-0.5\">≈ $formattedVnd</div>";
+                            }
+                            $html .= "</td></tr>";
+                            return $html;
+                        };
+                    @endphp
+
+                    {!! $renderRow("Tổng tiền hàng", $subtotal) !!}
+
                     @if($supplierQuotation->discount_percent > 0)
-                        <tr>
-                            <td colspan="4" class="px-4 py-2 text-right text-gray-600">Chiết khấu
-                                ({{ $supplierQuotation->discount_percent }}%):</td>
-                            <td class="px-4 py-2 text-right text-red-600">
-                                -{{ number_format($supplierQuotation->discount_amount) }}đ</td>
-                        </tr>
+                        {!! $renderRow("Chiết khấu ({$supplierQuotation->discount_percent}%)", -$discount, false, "text-gray-600", "font-medium text-red-600") !!}
                     @endif
+
                     @if($supplierQuotation->shipping_cost > 0)
-                        <tr>
-                            <td colspan="4" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
-                            <td class="px-4 py-2 text-right">{{ number_format($supplierQuotation->shipping_cost) }}đ</td>
-                        </tr>
+                        {!! $renderRow("Phí vận chuyển", $supplierQuotation->shipping_cost) !!}
                     @endif
-                    <tr>
-                        <td colspan="4" class="px-4 py-2 text-right text-gray-600">VAT
-                            ({{ $supplierQuotation->vat_percent }}%):</td>
-                        <td class="px-4 py-2 text-right">{{ number_format($supplierQuotation->vat_amount) }}đ</td>
-                    </tr>
-                    <tr class="font-bold">
-                        <td colspan="4" class="px-4 py-3 text-right text-lg">Tổng cộng:</td>
-                        <td class="px-4 py-3 text-right text-lg text-primary">
-                            {{ number_format($supplierQuotation->total) }}đ
+
+                    {!! $renderRow("VAT ({$supplierQuotation->vat_percent}%)", $vat) !!}
+
+                    <tr class="bg-blue-50/50">
+                        <td colspan="4" class="px-4 py-4 text-right text-lg font-bold text-gray-800 uppercase tracking-wider">Tổng cộng:</td>
+                        <td class="px-4 py-4 text-right">
+                            <div class="text-2xl font-bold text-primary">{{ number_format($total, $decimals) }} {{ $symbol }}</div>
+                            @if($isForeign)
+                                <div class="text-sm font-semibold text-gray-500 mt-1">= {{ number_format($supplierQuotation->total) }} ₫</div>
+                            @endif
                         </td>
                     </tr>
                 </tfoot>

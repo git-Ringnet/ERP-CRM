@@ -7,6 +7,8 @@ use App\Models\SupplierQuotationItem;
 use App\Models\PurchaseRequest;
 use App\Models\Supplier;
 use App\Models\Product;
+use App\Models\Currency;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +17,13 @@ use Illuminate\Support\Str;
 
 class SupplierQuotationController extends Controller
 {
+    protected CurrencyService $currencyService;
+
+    public function __construct(CurrencyService $currencyService)
+    {
+        $this->currencyService = $currencyService;
+    }
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', SupplierQuotation::class);
@@ -58,7 +67,10 @@ class SupplierQuotationController extends Controller
             $selectedRequest = PurchaseRequest::with('items')->find($request->purchase_request_id);
         }
 
-        return view('supplier-quotations.create', compact('suppliers', 'products', 'purchaseRequests', 'code', 'selectedRequest'));
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
+
+        return view('supplier-quotations.create', compact('suppliers', 'products', 'purchaseRequests', 'code', 'selectedRequest', 'currencies', 'baseCurrencyId'));
     }
 
     public function store(Request $request)
@@ -75,10 +87,16 @@ class SupplierQuotationController extends Controller
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'currency_id' => 'nullable|exists:currencies,id',
+            'exchange_rate' => 'nullable|numeric|min:0.000001',
         ]);
 
         DB::beginTransaction();
         try {
+            $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
+            $exchangeRate = $validated['exchange_rate'] ?? 1;
+            $isForeign = $this->currencyService->isForeignTransaction($currencyId);
+
             $quotation = SupplierQuotation::create([
                 'code' => $validated['code'],
                 'purchase_request_id' => $request->purchase_request_id,
@@ -93,6 +111,8 @@ class SupplierQuotationController extends Controller
                 'vat_percent' => $request->vat_percent ?? 10,
                 'note' => $request->note,
                 'status' => 'pending',
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $subtotal = 0;
@@ -116,12 +136,14 @@ class SupplierQuotationController extends Controller
             $afterDiscount = $subtotal - $discountAmount;
             $beforeVat = $afterDiscount + $quotation->shipping_cost;
             $vatAmount = $beforeVat * ($quotation->vat_percent / 100);
+            $totalAmount = $beforeVat + $vatAmount;
 
             $quotation->update([
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'vat_amount' => $vatAmount,
-                'total' => $beforeVat + $vatAmount,
+                'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
+                'discount_amount' => $isForeign ? $this->currencyService->toBase($discountAmount, $exchangeRate) : $discountAmount,
+                'vat_amount' => $isForeign ? $this->currencyService->toBase($vatAmount, $exchangeRate) : $vatAmount,
+                'total' => $isForeign ? $this->currencyService->toBase($totalAmount, $exchangeRate) : $totalAmount,
+                'total_foreign' => $isForeign ? $totalAmount : null,
             ]);
 
             // Cập nhật trạng thái yêu cầu báo giá
@@ -169,8 +191,10 @@ class SupplierQuotationController extends Controller
         $suppliers = Supplier::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $supplierQuotation->load('items');
+        $currencies = $this->currencyService->getActiveCurrencies();
+        $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('supplier-quotations.edit', compact('supplierQuotation', 'suppliers', 'products'));
+        return view('supplier-quotations.edit', compact('supplierQuotation', 'suppliers', 'products', 'currencies', 'baseCurrencyId'));
     }
 
     public function update(Request $request, SupplierQuotation $supplierQuotation)
@@ -186,10 +210,16 @@ class SupplierQuotationController extends Controller
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'currency_id' => 'nullable|exists:currencies,id',
+            'exchange_rate' => 'nullable|numeric|min:0.000001',
         ]);
 
         DB::beginTransaction();
         try {
+            $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
+            $exchangeRate = $validated['exchange_rate'] ?? 1;
+            $isForeign = $this->currencyService->isForeignTransaction($currencyId);
+
             $supplierQuotation->update([
                 'valid_until' => $validated['valid_until'],
                 'delivery_days' => $request->delivery_days,
@@ -199,6 +229,8 @@ class SupplierQuotationController extends Controller
                 'shipping_cost' => $request->shipping_cost ?? 0,
                 'vat_percent' => $request->vat_percent ?? 10,
                 'note' => $request->note,
+                'currency_id' => $currencyId,
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $supplierQuotation->items()->delete();
@@ -222,12 +254,14 @@ class SupplierQuotationController extends Controller
             $afterDiscount = $subtotal - $discountAmount;
             $beforeVat = $afterDiscount + $supplierQuotation->shipping_cost;
             $vatAmount = $beforeVat * ($supplierQuotation->vat_percent / 100);
+            $totalAmount = $beforeVat + $vatAmount;
 
             $supplierQuotation->update([
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'vat_amount' => $vatAmount,
-                'total' => $beforeVat + $vatAmount,
+                'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
+                'discount_amount' => $isForeign ? $this->currencyService->toBase($discountAmount, $exchangeRate) : $discountAmount,
+                'vat_amount' => $isForeign ? $this->currencyService->toBase($vatAmount, $exchangeRate) : $vatAmount,
+                'total' => $isForeign ? $this->currencyService->toBase($totalAmount, $exchangeRate) : $totalAmount,
+                'total_foreign' => $isForeign ? $totalAmount : null,
             ]);
 
             DB::commit();
@@ -266,6 +300,16 @@ class SupplierQuotationController extends Controller
                     ->where('id', '!=', $supplierQuotation->id)
                     ->where('status', 'pending')
                     ->update(['status' => 'rejected']);
+            }
+
+            // Sync manual products to Product module before confirming selection
+            foreach ($supplierQuotation->items as $item) {
+                if (empty($item->product_id)) {
+                    $product = $this->getOrSyncProduct($item->product_name);
+                    if ($product) {
+                        $item->update(['product_id' => $product->id]);
+                    }
+                }
             }
 
             $supplierQuotation->update(['status' => 'selected']);
@@ -694,4 +738,32 @@ class SupplierQuotationController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Helper to get local product or create from manual text
+     */
+    private function getOrSyncProduct($name)
+    {
+        if (empty($name)) return null;
+
+        // Search for existing product by name (exact match)
+        $existingProduct = Product::where('name', $name)->first();
+        if ($existingProduct) {
+            return $existingProduct;
+        }
+
+        // Create new product if not found
+        try {
+            return Product::create([
+                'code' => 'S-' . strtoupper(Str::random(6)),
+                'name' => $name,
+                'unit' => 'Bộ',
+                'category' => 'Z',
+                'description' => 'Sản phẩm tự động tạo từ báo giá NCC',
+            ]);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
 }
