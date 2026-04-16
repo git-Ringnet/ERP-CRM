@@ -11,9 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Step 1: Drop index in a separate block
+        try {
+            Schema::table('products', function (Blueprint $table) {
+                $table->dropIndex(['name']);
+            });
+        } catch (\Exception $e) {
+            // Index might already be gone
+        }
+
+        // Step 2: Change column to TEXT in a separate block
         Schema::table('products', function (Blueprint $table) {
-            // Drop index first because TEXT columns can't be indexed without prefix length in MySQL
-            $table->dropIndex(['name']);
             $table->text('name')->change();
         });
     }
