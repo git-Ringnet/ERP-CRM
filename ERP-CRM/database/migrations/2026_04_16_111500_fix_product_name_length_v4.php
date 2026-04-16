@@ -12,6 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('products', function (Blueprint $table) {
+            // Drop index first because TEXT columns can't be indexed without prefix length in MySQL
+            $table->dropIndex(['name']);
             $table->text('name')->change();
         });
     }
@@ -23,6 +25,7 @@ return new class extends Migration
     {
         Schema::table('products', function (Blueprint $table) {
             $table->string('name', 255)->change();
+            $table->index('name');
         });
     }
 };
