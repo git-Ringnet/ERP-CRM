@@ -45,7 +45,7 @@
                             </div>
                             <div>
                                 <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại <span class="text-red-500">*</span></label>
-                                <input type="text" name="phone" id="phone" value="{{ old('phone', $supplier->phone) }}" required
+                                <input type="tel" name="phone" id="phone" value="{{ old('phone', $supplier->phone) }}" required pattern="[0-9]+" title="Chỉ được nhập số"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
                                 @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>

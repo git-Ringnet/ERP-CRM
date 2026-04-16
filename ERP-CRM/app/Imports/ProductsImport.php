@@ -7,12 +7,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-class ProductsImport implements ToCollection, WithHeadingRow
+class ProductsImport implements ToCollection, WithHeadingRow, WithChunkReading, WithCalculatedFormulas
 {
     protected $errors = [];
+    protected $warnings = [];
     protected $imported = 0;
     protected $updated = 0;
 
@@ -30,6 +33,11 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 $code = strtoupper(trim($row['ma_sp'] ?? $row['code'] ?? ''));
                 $name = trim($row['ten_san_pham'] ?? $row['name'] ?? '');
 
+                // Allow up to 1000 chars for name, truncate beyond that
+                if (mb_strlen($name) > 1000) {
+                    $name = mb_substr($name, 0, 1000);
+                }
+
                 if (empty($code) || empty($name)) {
                     $this->errors[] = "Dòng {$rowNumber}: Thiếu mã SP hoặc tên sản phẩm";
                     continue;
@@ -37,8 +45,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
 
                 $category = strtoupper(trim($row['danh_muc'] ?? $row['category'] ?? ''));
                 if (!empty($category) && !preg_match('/^[A-Z]$/', $category)) {
-                    $this->errors[] = "Dòng {$rowNumber}: Danh mục phải là 1 chữ cái A-Z";
-                    continue;
+                    $this->warnings[] = "Dòng {$rowNumber}: Danh mục '{$category}' không hợp lệ (phải là 1 chữ cái A-Z), đã bỏ qua";
+                    $category = '';
                 }
 
                 $warrantyMonths = (int) ($row['bao_hanh_thang'] ?? $row['warranty_months'] ?? 0);
@@ -47,7 +55,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     'code' => $code,
                     'name' => $name,
                     'category' => $category ?: null,
-                    'unit' => trim($row['don_vi'] ?? $row['unit'] ?? 'Cái') ?: 'Cái',
+                    'unit' => $this->sanitizeUnit($row['don_vi'] ?? $row['unit'] ?? 'Cái'),
                     'warranty_months' => $warrantyMonths,
                     'description' => trim($row['mo_ta'] ?? $row['description'] ?? '') ?: null,
                     'note' => trim($row['ghi_chu'] ?? $row['note'] ?? '') ?: null,
@@ -91,6 +99,27 @@ class ProductsImport implements ToCollection, WithHeadingRow
     public function getUpdated(): int
     {
         return $this->updated;
+    }
+
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+
+    public function chunkSize(): int
+    {
+        return 1000;
+    }
+
+    protected function sanitizeUnit($unit): string
+    {
+        $unit = trim((string)$unit);
+        // If it looks like a formula (starts with =), just default to 'Cái'
+        // or if it's too long (formulas can be long)
+        if (str_starts_with($unit, '=') || strlen($unit) > 20) {
+            return 'Cái';
+        }
+        return $unit ?: 'Cái';
     }
 
     public static function generateTemplate(): string

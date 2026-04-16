@@ -12,7 +12,7 @@
                 <!-- Search -->
                 <div class="relative lg:col-span-2">
                     <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Tìm kiếm theo mã, tên, email, SĐT..." 
+                           placeholder="Tìm kiếm theo mã, tên, email, SĐT..." autocomplete="off"
                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                     <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                 </div>

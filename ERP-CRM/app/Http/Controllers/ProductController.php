@@ -69,7 +69,7 @@ class ProductController extends Controller
         // Validation - only basic fields
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:products,code'],
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:2000'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
@@ -129,7 +129,7 @@ class ProductController extends Controller
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('products')->ignore($id)],
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:2000'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
@@ -223,6 +223,9 @@ class ProductController extends Controller
     {
         $this->authorize('create', Product::class);
         
+        ini_set('memory_limit', '1024M'); // Increased further for 25k rows
+        set_time_limit(0); // No limit for import
+
         $request->validate([
             'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);
@@ -238,7 +241,21 @@ class ProductController extends Controller
         $imported = $import->getImported();
         $updated = $import->getUpdated();
 
-        return back()->with('success', "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}");
+        $message = "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}";
+        
+        $warnings = $import->getWarnings();
+        if (!empty($warnings)) {
+            // Limit warnings shown to first 10 to avoid huge messages
+            $shown = array_slice($warnings, 0, 10);
+            $remaining = count($warnings) - count($shown);
+            $warningText = implode('<br>', $shown);
+            if ($remaining > 0) {
+                $warningText .= "<br>... và {$remaining} cảnh báo khác";
+            }
+            return back()->with('success', $message)->with('warning', $warningText);
+        }
+
+        return back()->with('success', $message);
     }
 
     /**
