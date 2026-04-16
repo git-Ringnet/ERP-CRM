@@ -4,7 +4,7 @@
 @section('page-title', 'Chi tiết báo giá: ' . $supplierQuotation->code)
 
 @section('content')
-    <div class="mx-auto space-y-6">
+    <div class="space-y-6">
         <div class="flex justify-between items-center">
             <a href="{{ route('supplier-quotations.index') }}" class="text-gray-600 hover:text-gray-800">
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
@@ -141,7 +141,7 @@
             </table>
         </div>
 
-        @if(count($compareQuotations) > 0)
+        @if(isset($compareQuotations) && count($compareQuotations) > 0)
             <div class="bg-white rounded-lg shadow p-6">
                 <h3 class="font-semibold mb-4">So sánh với báo giá khác cùng yêu cầu</h3>
                 <div class="grid grid-cols-1 md:grid-cols-{{ min(count($compareQuotations) + 1, 3) }} gap-4">
