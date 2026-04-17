@@ -212,9 +212,7 @@
                     'amount' => $e->amount,
                     'description' => $e->description ?? '',
                 ])->toArray();
-                if (empty($expenseData)) {
-                    $expenseData = \App\Models\SaleExpense::defaultExpenses();
-                }
+                // Không tự động load expenses mặc định nếu rỗng - cho phép user xóa hết
             @endphp
             @include('sales.partials.expense-section', [
                 'expenses' => $expenseData,

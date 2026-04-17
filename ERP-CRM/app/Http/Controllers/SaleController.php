@@ -881,6 +881,7 @@ class SaleController extends Controller
             'items.*.id' => ['required', 'exists:sale_items,id'],
             'items.*.finance_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.overdue_interest_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.overdue_interest_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.management_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.support_247_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.other_support_cost' => ['nullable', 'numeric', 'min:0'],

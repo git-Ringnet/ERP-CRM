@@ -37,6 +37,7 @@ class SaleItem extends Model
         'estimated_cost_usd',
         'finance_cost_percent',
         'overdue_interest_cost',
+        'overdue_interest_percent',
         'management_cost_percent',
         'support_247_cost_percent',
         'other_support_cost',

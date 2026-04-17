@@ -177,7 +177,24 @@ class SupplierQuotationController extends Controller
         $vat = $afterDiscount * ($supplierQuotation->vat_percent / 100);
         $total = $afterDiscount + $vat + $supplierQuotation->shipping_cost;
 
-        return view('supplier-quotations.show', compact('supplierQuotation', 'subtotal', 'discount', 'afterDiscount', 'vat', 'total'));
+        // Fetch other quotations for the same purchase request to compare
+        $compareQuotations = collect();
+        if ($supplierQuotation->purchase_request_id) {
+            $compareQuotations = SupplierQuotation::where('purchase_request_id', $supplierQuotation->purchase_request_id)
+                ->where('id', '!=', $supplierQuotation->id)
+                ->with('supplier')
+                ->get();
+        }
+
+        return view('supplier-quotations.show', compact(
+            'supplierQuotation', 
+            'subtotal', 
+            'discount', 
+            'afterDiscount', 
+            'vat', 
+            'total',
+            'compareQuotations'
+        ));
     }
 
     public function edit(SupplierQuotation $supplierQuotation)

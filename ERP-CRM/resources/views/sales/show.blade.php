@@ -197,6 +197,14 @@
     </div>
     @endif
 
+    <!-- Note -->
+    @if($sale->note)
+    <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Ghi chú</h3>
+        <p class="text-gray-700">{{ $sale->note }}</p>
+    </div>
+    @endif
+
     <!-- Sale Info -->
     <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -531,13 +539,6 @@
         </div>
     </div>
     <!-- End Tabs Wrapper -->
-    <!-- Note -->
-    @if($sale->note)
-    <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Ghi chú</h3>
-        <p class="text-gray-700">{{ $sale->note }}</p>
-    </div>
-    @endif
 
     <!-- Payment Modal -->
     <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">

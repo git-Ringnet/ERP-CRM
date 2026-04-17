@@ -34,7 +34,54 @@
         $extraExpenses = $allExpenses->whereNotIn('type', $standardTypes);
         
         $totalCostBase = $sale->items->sum('cost_total') ?: 1;
-        $totalColspan = 8 + $extraExpenses->count();
+        
+        // Kiểm tra cột nào có dữ liệu thực sự (> 0 hoặc có giá trị percent)
+        // HOẶC có trong danh sách chi phí đơn hàng (SaleExpense)
+        $expenseTypes = $sale->expenses->pluck('type')->toArray();
+        
+        $hasFinanceCost = in_array('Chi phí Tài chính', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->finance_cost_percent) && $item->finance_cost_percent !== '' && $item->finance_cost_percent > 0;
+        })->count() > 0;
+        
+        $hasOverdueInterest = in_array('Lãi vay phát sinh do nợ quá hạn', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->overdue_interest_cost) && $item->overdue_interest_cost > 0;
+        })->count() > 0;
+        
+        $hasManagementCost = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->management_cost_percent) && $item->management_cost_percent !== '' && $item->management_cost_percent > 0;
+        })->count() > 0;
+        
+        $hasSupport247 = in_array('24x7 Support cost', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->support_247_cost_percent) && $item->support_247_cost_percent !== '' && $item->support_247_cost_percent > 0;
+        })->count() > 0;
+        
+        $hasOtherSupport = in_array('Other Support', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->other_support_cost) && $item->other_support_cost > 0;
+        })->count() > 0;
+        
+        $hasTechnicalPoc = in_array('Technical support/POC', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->technical_poc_cost) && $item->technical_poc_cost > 0;
+        })->count() > 0;
+        
+        $hasImplementation = in_array('Chi phí triển khai hợp đồng', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->implementation_cost) && $item->implementation_cost > 0;
+        })->count() > 0;
+        
+        $hasContractorTax = in_array('Thuế nhà thầu', $expenseTypes) || $sale->items->filter(function($item) {
+            return !is_null($item->contractor_tax) && $item->contractor_tax > 0;
+        })->count() > 0;
+        
+        $visibleStandardCols = 0;
+        if ($hasFinanceCost) $visibleStandardCols++;
+        if ($hasOverdueInterest) $visibleStandardCols++;
+        if ($hasManagementCost) $visibleStandardCols++;
+        if ($hasSupport247) $visibleStandardCols++;
+        if ($hasOtherSupport) $visibleStandardCols++;
+        if ($hasTechnicalPoc) $visibleStandardCols++;
+        if ($hasImplementation) $visibleStandardCols++;
+        if ($hasContractorTax) $visibleStandardCols++;
+        
+        $totalColspan = $visibleStandardCols + $extraExpenses->count();
     @endphp
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST">
@@ -68,7 +115,8 @@
                         <th class="px-2 py-1 border border-gray-800">VND</th>
                         <th class="px-2 py-1 border border-gray-800">%</th>
                         
-                        {{-- Standard columns --}}
+                        {{-- Standard columns - chỉ hiển thị cột có dữ liệu --}}
+                        @if($hasFinanceCost)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
                             Chi phí Tài chính
                             <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -77,9 +125,18 @@
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                             </div>
                         </th>
+                        @endif
+                        @if($hasOverdueInterest)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
                             Lãi vay phát sinh do nợ quá hạn
+                            <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
+                                <input type="number" step="0.1" x-model="overdue_p" @input="$dispatch('pnl-recalc')" 
+                                    class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
+                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                            </div>
                         </th>
+                        @endif
+                        @if($hasManagementCost)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
                             Chi phí Quản lí, Back Office & kỹ thuật
                             <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -88,6 +145,8 @@
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                             </div>
                         </th>
+                        @endif
+                        @if($hasSupport247)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
                             24x7 Support cost
                             <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -96,6 +155,8 @@
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                             </div>
                         </th>
+                        @endif
+                        @if($hasOtherSupport)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
                             Other Support
                             <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -104,9 +165,16 @@
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                             </div>
                         </th>
+                        @endif
+                        @if($hasTechnicalPoc)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Technical support/POC 30%</th>
+                        @endif
+                        @if($hasImplementation)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Chi phí triển khai hợp đồng (Tiếp khách, cấu hình)</th>
+                        @endif
+                        @if($hasContractorTax)
                         <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Thuế nhà thầu</th>
+                        @endif
                         
                         {{-- Extra columns --}}
                         @foreach($extraExpenses as $extra)
@@ -189,6 +257,15 @@
                                 }
                             }
                         @endphp
+                        @php
+                            // Kiểm tra xem các loại chi phí có trong danh sách expenses không
+                            $expenseTypes = $sale->expenses->pluck('type')->toArray();
+                            $hasFinanceInExpenses = in_array('Chi phí Tài chính', $expenseTypes);
+                            $hasOverdueInExpenses = in_array('Lãi vay phát sinh do nợ quá hạn', $expenseTypes);
+                            $hasMgmtInExpenses = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes);
+                            $hasSupport247InExpenses = in_array('24x7 Support cost', $expenseTypes);
+                            $hasOtherInExpenses = in_array('Other Support', $expenseTypes);
+                        @endphp
                         <tr class="hover:bg-gray-50 transition-colors border border-gray-400" 
                             x-data="pnlRow({
                                 id: {{ $item->id }},
@@ -200,10 +277,11 @@
                                 cost_price: {{ $item->cost_price ?: 0 }},
                                 cost_total: {{ $item->cost_total ?: 0 }},
                                 revenue_total: {{ $item->total }},
-                                finance_na: {{ $item->finance_cost_percent ? 'false' : 'true' }},
-                                mgmt_na: {{ $item->management_cost_percent ? 'false' : 'true' }},
-                                support_na: {{ $item->support_247_cost_percent ? 'false' : 'true' }},
-                                other_na: {{ $item->other_support_cost ? 'false' : 'true' }},
+                                finance_na: {{ (is_null($item->finance_cost_percent) || $item->finance_cost_percent === '') && !$hasFinanceInExpenses ? 'true' : 'false' }},
+                                overdue_na: {{ (is_null($item->overdue_interest_percent) || $item->overdue_interest_percent === '') && !$hasOverdueInExpenses ? 'true' : 'false' }},
+                                mgmt_na: {{ (is_null($item->management_cost_percent) || $item->management_cost_percent === '') && !$hasMgmtInExpenses ? 'true' : 'false' }},
+                                support_na: {{ (is_null($item->support_247_cost_percent) || $item->support_247_cost_percent === '') && !$hasSupport247InExpenses ? 'true' : 'false' }},
+                                other_na: {{ (is_null($item->other_support_cost) || $item->other_support_cost === '') && !$hasOtherInExpenses ? 'true' : 'false' }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},
                                 poc: {{ $item->technical_poc_cost ?: 0 }},
                                 imp: {{ $item->implementation_cost ?: 0 }},
@@ -226,6 +304,32 @@
                                 <input type="hidden" name="items[{{ $index }}][cost_price]" :value="cost_price">
                                 <input type="hidden" name="items[{{ $index }}][cost_total]" :value="cost_total">
                                 <input type="hidden" name="items[{{ $index }}][estimated_cost_usd]" :value="est_usd_total">
+                                
+                                {{-- Hidden inputs cho các trường chi phí không hiển thị --}}
+                                @if(!$hasFinanceCost)
+                                <input type="hidden" name="items[{{ $index }}][finance_cost_percent]" value="">
+                                @endif
+                                @if(!$hasOverdueInterest)
+                                <input type="hidden" name="items[{{ $index }}][overdue_interest_cost]" value="0">
+                                @endif
+                                @if(!$hasManagementCost)
+                                <input type="hidden" name="items[{{ $index }}][management_cost_percent]" value="">
+                                @endif
+                                @if(!$hasSupport247)
+                                <input type="hidden" name="items[{{ $index }}][support_247_cost_percent]" value="">
+                                @endif
+                                @if(!$hasOtherSupport)
+                                <input type="hidden" name="items[{{ $index }}][other_support_cost]" value="0">
+                                @endif
+                                @if(!$hasTechnicalPoc)
+                                <input type="hidden" name="items[{{ $index }}][technical_poc_cost]" value="0">
+                                @endif
+                                @if(!$hasImplementation)
+                                <input type="hidden" name="items[{{ $index }}][implementation_cost]" value="0">
+                                @endif
+                                @if(!$hasContractorTax)
+                                <input type="hidden" name="items[{{ $index }}][contractor_tax]" value="0">
+                                @endif
                             </td>
                             <td class="px-2 py-2 text-center border border-gray-400">{{ number_format($item->quantity) }}</td>
                             
@@ -273,38 +377,48 @@
                             <!-- Lãi/Lỗ % -->
                             <td class="px-2 py-2 text-center border border-gray-400 font-bold" :class="gross_profit >= 0 ? 'text-green-700' : 'text-red-700'" x-text="gross_p + '%'"></td>
                             
-                            <!-- Chi phí - VND = giá nhập × % header (click để toggle n/a) -->
+                            <!-- Chi phí - chỉ hiển thị cột có dữ liệu -->
+                            @if($hasFinanceCost)
                             <!-- Chi phí Tài chính -->
                             <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
                                 @click="if($sale_editable) { finance_na = !finance_na; calculate() }" :title="finance_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
                                 <input type="hidden" name="items[{{ $index }}][finance_cost_percent]" :value="finance_na ? '' : finance_p">
                                 <span x-text="finance_na ? 'n/a' : formatNumber(finance_v)" :class="finance_na ? 'text-gray-400' : ''"></span>
                             </td>
-                            <!-- Lãi vay phát sinh (nhập VND trực tiếp) -->
-                            <td class="px-1 py-1 border border-gray-400 bg-orange-50">
-                                <input type="number" name="items[{{ $index }}][overdue_interest_cost]" 
-                                    x-model="oic" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                            @endif
+                            @if($hasOverdueInterest)
+                            <!-- Lãi vay phát sinh (% như các trường khác) -->
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
+                                @click="if($sale_editable) { overdue_na = !overdue_na; calculate() }" :title="overdue_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                                <input type="hidden" name="items[{{ $index }}][overdue_interest_percent]" :value="overdue_na ? '' : overdue_p">
+                                <span x-text="overdue_na ? 'n/a' : formatNumber(overdue_v)" :class="overdue_na ? 'text-gray-400' : ''"></span>
                             </td>
+                            @endif
+                            @if($hasManagementCost)
                             <!-- Chi phí Quản lí -->
                             <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
                                 @click="if($sale_editable) { mgmt_na = !mgmt_na; calculate() }" :title="mgmt_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
                                 <input type="hidden" name="items[{{ $index }}][management_cost_percent]" :value="mgmt_na ? '' : mgmt_p">
                                 <span x-text="mgmt_na ? 'n/a' : formatNumber(mgmt_v)" :class="mgmt_na ? 'text-gray-400' : ''"></span>
                             </td>
+                            @endif
+                            @if($hasSupport247)
                             <!-- 24x7 Support -->
                             <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
                                 @click="if($sale_editable) { support_na = !support_na; calculate() }" :title="support_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
                                 <input type="hidden" name="items[{{ $index }}][support_247_cost_percent]" :value="support_na ? '' : support_p">
                                 <span x-text="support_na ? 'n/a' : formatNumber(support_v)" :class="support_na ? 'text-gray-400' : ''"></span>
                             </td>
+                            @endif
+                            @if($hasOtherSupport)
                             <!-- Other Support -->
                             <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
                                 @click="if($sale_editable) { other_na = !other_na; calculate() }" :title="other_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
                                 <input type="hidden" name="items[{{ $index }}][other_support_cost]" :value="other_na ? '' : other_p">
                                 <span x-text="other_na ? 'n/a' : formatNumber(other_v)" :class="other_na ? 'text-gray-400' : ''"></span>
                             </td>
+                            @endif
+                            @if($hasTechnicalPoc)
                             <!-- Technical POC -->
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50">
                                 <input type="number" name="items[{{ $index }}][technical_poc_cost]" 
@@ -312,6 +426,8 @@
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
+                            @endif
+                            @if($hasImplementation)
                             <!-- Chi phí triển khai -->
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50">
                                 <input type="number" name="items[{{ $index }}][implementation_cost]" 
@@ -319,6 +435,8 @@
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
+                            @endif
+                            @if($hasContractorTax)
                             <!-- Thuế nhà thầu -->
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50">
                                 <input type="number" name="items[{{ $index }}][contractor_tax]" 
@@ -326,6 +444,7 @@
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
+                            @endif
                             
                             {{-- Extra Expenses Cells --}}
                             @foreach($extraExpenses as $eIdx => $extra)
@@ -468,6 +587,7 @@
         return {
             // Global percentages (shared across all items, shown in header)
             finance_p: {{ $sale->items->whereNotNull('finance_cost_percent')->where('finance_cost_percent', '>', 0)->first()?->finance_cost_percent ?? 1 }},
+            overdue_p: {{ $sale->items->whereNotNull('overdue_interest_percent')->where('overdue_interest_percent', '>', 0)->first()?->overdue_interest_percent ?? 1 }},
             mgmt_p: {{ $sale->items->whereNotNull('management_cost_percent')->where('management_cost_percent', '>', 0)->first()?->management_cost_percent ?? 1 }},
             support_p: {{ $sale->items->whereNotNull('support_247_cost_percent')->where('support_247_cost_percent', '>', 0)->first()?->support_247_cost_percent ?? 0.5 }},
             other_p: {{ $sale->items->where('other_support_cost', '>', 0)->first()?->other_support_cost ?? 1 }},
@@ -492,6 +612,7 @@
             
             // Per-item n/a flags (true = cost not applicable)
             finance_na: data.finance_na,
+            overdue_na: data.overdue_na,
             mgmt_na: data.mgmt_na,
             support_na: data.support_na,
             other_na: data.other_na,
@@ -513,6 +634,7 @@
             gross_profit: 0,
             gross_p: 0,
             finance_v: 0,
+            overdue_v: 0,
             mgmt_v: 0,
             support_v: 0,
             other_v: 0,
@@ -541,6 +663,7 @@
 
                 // Chi phí (%) chuẩn
                 this.finance_v = this.finance_na ? 0 : Math.round(this.cost_total * (this.finance_p / 100));
+                this.overdue_v = this.overdue_na ? 0 : Math.round(this.cost_total * (this.overdue_p / 100));
                 this.mgmt_v = this.mgmt_na ? 0 : Math.round(this.cost_total * (this.mgmt_p / 100));
                 this.support_v = this.support_na ? 0 : Math.round(this.cost_total * (this.support_p / 100));
                 this.other_v = this.other_na ? 0 : Math.round(this.cost_total * (this.other_p / 100));
@@ -563,7 +686,7 @@
                 
                 this.total_costs = Math.round(
                     this.finance_v + 
-                    parseFloat(this.oic || 0) +
+                    this.overdue_v +
                     this.mgmt_v + 
                     this.support_v + 
                     this.other_v + 
