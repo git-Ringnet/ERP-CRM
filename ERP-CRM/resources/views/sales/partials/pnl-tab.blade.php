@@ -293,6 +293,7 @@
                                 mgmt_na: {{ (is_null($item->management_cost_percent) || $item->management_cost_percent === '') && !$hasMgmtInExpenses ? 'true' : 'false' }},
                                 support_na: {{ (is_null($item->support_247_cost_percent) || $item->support_247_cost_percent === '') && !$hasSupport247InExpenses ? 'true' : 'false' }},
                                 other_na: {{ ((is_null($item->other_support_cost) || floatval($item->other_support_cost) <= 0) && !$hasOtherInExpenses) ? 'true' : 'false' }},
+                                has_overdue_cost: {{ $hasOverdueInterest ? 'true' : 'false' }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},
                                 poc: {{ $item->technical_poc_cost ?: 0 }},
                                 imp: {{ $item->implementation_cost ?: 0 }},
@@ -677,6 +678,7 @@
             mgmt_na: data.mgmt_na,
             support_na: data.support_na,
             other_na: data.other_na,
+            has_overdue_cost: data.has_overdue_cost || false,
             
             // Fixed amount costs (per item)
             oic: data.oic,
@@ -785,7 +787,7 @@
                 }
                 
                 // Lãi vay phát sinh
-                if (!this.overdue_na && this.overdue_v > 0) {
+                if ((!this.overdue_na || this.has_overdue_cost) && this.overdue_v > 0) {
                     this.total_costs += this.overdue_v;
                 }
 
