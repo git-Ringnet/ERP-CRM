@@ -457,12 +457,11 @@
                 $grossMargin = $sale->total - $totalCostOfGoods;
                 $grossMarginPercent = $sale->total > 0 ? ($grossMargin / $sale->total) * 100 : 0;
                 
-                // Lấy tổng chi phí trực tiếp từ cột "Tổng chi phí VND" trong P&L
-                // Đây là giá trị đã được tính toán đúng trong bảng P&L
                 $totalOpex = 0;
                 $opexDetails = [];
-                
-                // Duyệt qua từng item để lấy chi phí đã tính
+                $costBaseTotal = $sale->items->sum('cost_total') ?: 0;
+
+                // Chi phí theo item (đồng bộ logic với bảng P&L)
                 foreach ($sale->items as $item) {
                     $costBase = $item->cost_total ?: 0;
                     
@@ -477,12 +476,74 @@
                         $val = round($costBase * $item->overdue_interest_percent / 100);
                         $opexDetails['Lãi vay phát sinh do nợ quá hạn'] = ($opexDetails['Lãi vay phát sinh do nợ quá hạn'] ?? 0) + $val;
                     }
+
+                    // Chi phí Quản lý
+                    if (!is_null($item->management_cost_percent) && $item->management_cost_percent > 0) {
+                        $val = round($costBase * $item->management_cost_percent / 100);
+                        $opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] = ($opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] ?? 0) + $val;
+                    }
+
+                    // 24x7 Support
+                    if (!is_null($item->support_247_cost_percent) && $item->support_247_cost_percent > 0) {
+                        $val = round($costBase * $item->support_247_cost_percent / 100);
+                        $opexDetails['24x7 Support cost'] = ($opexDetails['24x7 Support cost'] ?? 0) + $val;
+                    }
+
+                    // Other Support (%)
+                    if (!is_null($item->other_support_cost) && $item->other_support_cost > 0) {
+                        $val = round($costBase * $item->other_support_cost / 100);
+                        $opexDetails['Other Support'] = ($opexDetails['Other Support'] ?? 0) + $val;
+                    }
+
+                    // Chi phí cố định theo item
+                    if (($item->technical_poc_cost ?? 0) > 0) {
+                        $opexDetails['Technical support/POC'] = ($opexDetails['Technical support/POC'] ?? 0) + ($item->technical_poc_cost ?? 0);
+                    }
+
+                    if (($item->implementation_cost ?? 0) > 0) {
+                        $opexDetails['Chi phí triển khai hợp đồng'] = ($opexDetails['Chi phí triển khai hợp đồng'] ?? 0) + ($item->implementation_cost ?? 0);
+                    }
                 }
-                
-                // Thuế nhà thầu từ SaleExpense
-                $contractorTaxExpense = $sale->expenses->where('type', 'Thuế nhà thầu')->first();
-                if ($contractorTaxExpense) {
-                    $opexDetails['Thuế nhà thầu'] = $contractorTaxExpense->amount;
+
+                // Thuế nhà thầu: ưu tiên từ SaleExpense fixed, fallback từ item
+                $contractorTaxExpense = $sale->expenses->first(function ($e) {
+                    return $e->type === 'Thuế nhà thầu';
+                });
+                if ($contractorTaxExpense && $contractorTaxExpense->input_mode === 'fixed') {
+                    $opexDetails['Thuế nhà thầu'] = round($contractorTaxExpense->amount);
+                } else {
+                    $itemContractorTax = round($sale->items->sum('contractor_tax'));
+                    if ($itemContractorTax > 0) {
+                        $opexDetails['Thuế nhà thầu'] = $itemContractorTax;
+                    }
+                }
+
+                // Extra SaleExpense (ví dụ: Chi phí khách hàng)
+                $standardExpenseTypes = [
+                    'Chi phí Tài chính',
+                    'Lãi vay phát sinh do nợ quá hạn',
+                    'Chi phí Quản lí, Back Office & kỹ thuật',
+                    '24x7 Support cost',
+                    'Other Support',
+                    'Technical support/POC',
+                    'Chi phí triển khai hợp đồng',
+                    'Thuế nhà thầu',
+                ];
+
+                foreach ($sale->expenses as $expense) {
+                    if (in_array($expense->type, $standardExpenseTypes, true)) {
+                        continue;
+                    }
+
+                    if ($expense->input_mode === 'percent') {
+                        $amount = round($costBaseTotal * (($expense->percent_value ?: 0) / 100));
+                    } else {
+                        $amount = round($expense->amount ?: 0);
+                    }
+
+                    if ($amount > 0) {
+                        $opexDetails[$expense->type] = ($opexDetails[$expense->type] ?? 0) + $amount;
+                    }
                 }
                 
                 // Tính tổng OpEx

@@ -44,7 +44,8 @@
         })->count() > 0;
         
         $hasOverdueInterest = in_array('Lãi vay phát sinh do nợ quá hạn', $expenseTypes) || $sale->items->filter(function($item) {
-            return !is_null($item->overdue_interest_cost) && $item->overdue_interest_cost > 0;
+            return (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0)
+                || (!is_null($item->overdue_interest_cost) && $item->overdue_interest_cost > 0);
         })->count() > 0;
         
         $hasManagementCost = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes) || $sale->items->filter(function($item) {
@@ -278,6 +279,7 @@
                         <tr class="hover:bg-gray-50 transition-colors border border-gray-400" 
                             x-data="pnlRow({
                                 id: {{ $item->id }},
+                                row_index: {{ $index }},
                                 qty: {{ $item->quantity }},
                                 usd_price: {{ (float)$item->usd_price > 0 ? $item->usd_price : $plPrice }},
                                 discount_rate: {{ $item->discount_rate ?? 0 }},
@@ -290,7 +292,7 @@
                                 overdue_na: {{ (is_null($item->overdue_interest_percent) || $item->overdue_interest_percent === '') && !$hasOverdueInExpenses ? 'true' : 'false' }},
                                 mgmt_na: {{ (is_null($item->management_cost_percent) || $item->management_cost_percent === '') && !$hasMgmtInExpenses ? 'true' : 'false' }},
                                 support_na: {{ (is_null($item->support_247_cost_percent) || $item->support_247_cost_percent === '') && !$hasSupport247InExpenses ? 'true' : 'false' }},
-                                other_na: {{ (is_null($item->other_support_cost) || $item->other_support_cost === '') && !$hasOtherInExpenses ? 'true' : 'false' }},
+                                other_na: {{ ((is_null($item->other_support_cost) || floatval($item->other_support_cost) <= 0) && !$hasOtherInExpenses) ? 'true' : 'false' }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},
                                 poc: {{ $item->technical_poc_cost ?: 0 }},
                                 imp: {{ $item->implementation_cost ?: 0 }},
@@ -298,10 +300,29 @@
                                 tax_allocated: {{ $contractorTaxAllocated }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
+                                        @php
+                                            $extraFixedAllocated = 0;
+                                            $extraAmount = (float)($extra->amount ?? 0);
+                                            $saleItemCount = $sale->items->count();
+                                            $saleRevenueBase = $sale->items->sum('total') ?: 0;
+
+                                            if ($extra->input_mode === 'fixed' && $extraAmount > 0) {
+                                                if ($saleItemCount === 1) {
+                                                    $extraFixedAllocated = round($extraAmount);
+                                                } elseif ($totalCostBase > 0 && ($item->cost_total ?: 0) > 0) {
+                                                    $extraFixedAllocated = round($extraAmount * (($item->cost_total ?: 0) / $totalCostBase));
+                                                } elseif ($saleRevenueBase > 0 && ($item->total ?: 0) > 0) {
+                                                    $extraFixedAllocated = round($extraAmount * (($item->total ?: 0) / $saleRevenueBase));
+                                                } elseif ($index === 0) {
+                                                    $extraFixedAllocated = round($extraAmount);
+                                                }
+                                            }
+                                        @endphp
                                         {
                                             type: '{{ $extra->type }}',
                                             mode: '{{ $extra->input_mode }}',
-                                            val: {{ $extra->input_mode === 'percent' ? ($extra->percent_value ?: 0) : ($extra->amount ?: 0) }}
+                                            val: {{ $extra->input_mode === 'percent' ? (floatval($extra->percent_value) ?: 0) : (floatval($extra->amount) ?: 0) }},
+                                            fixed_allocated: {{ $extraFixedAllocated }}
                                         },
                                     @endforeach
                                 ]
@@ -465,8 +486,30 @@
                             
                             {{-- Extra Expenses Cells --}}
                             @foreach($extraExpenses as $eIdx => $extra)
+                                @php
+                                    $extraFixedAllocated = 0;
+                                    $extraAmount = (float)($extra->amount ?? 0);
+                                    $saleItemCount = $sale->items->count();
+                                    $saleRevenueBase = $sale->items->sum('total') ?: 0;
+
+                                    if ($extra->input_mode === 'fixed' && $extraAmount > 0) {
+                                        if ($saleItemCount === 1) {
+                                            $extraFixedAllocated = round($extraAmount);
+                                        } elseif ($totalCostBase > 0 && ($item->cost_total ?: 0) > 0) {
+                                            $extraFixedAllocated = round($extraAmount * (($item->cost_total ?: 0) / $totalCostBase));
+                                        } elseif ($saleRevenueBase > 0 && ($item->total ?: 0) > 0) {
+                                            $extraFixedAllocated = round($extraAmount * (($item->total ?: 0) / $saleRevenueBase));
+                                        } elseif ($index === 0) {
+                                            $extraFixedAllocated = round($extraAmount);
+                                        }
+                                    }
+                                @endphp
                                 <td class="px-2 py-2 text-right border border-gray-400 text-[10px] bg-orange-50/30">
-                                    <span x-text="formatNumber(extra_vals[{{ $eIdx }}])"></span>
+                                    @if($extra->input_mode === 'fixed')
+                                        <span>{{ number_format($extraFixedAllocated) }}</span>
+                                    @else
+                                        <span x-text="isNaN(extra_vals[{{ $eIdx }}]) ? '0' : formatNumber(extra_vals[{{ $eIdx }}])"></span>
+                                    @endif
                                 </td>
                             @endforeach
                             
@@ -618,6 +661,7 @@
     function pnlRow(data) {
         return {
             id: data.id,
+            row_index: data.row_index || 0,
             qty: data.qty,
             usd_p: data.usd_price,
             disc: data.discount_rate,
@@ -689,20 +733,40 @@
                 // Chi phí động (Extra)
                 let extraSum = 0;
                 this.extra_vals = [];
-                this.extra_costs.forEach(ec => {
+                const totalBase = {{ $totalCostBase }};
+                const revenueBase = {{ $sale->items->sum('total') ?: 0 }};
+                const itemCount = {{ $sale->items->count() }};
+                
+                this.extra_costs.forEach((ec) => {
                     let v = 0;
                     const ecVal = parseFloat(ec.val) || 0;
                     
                     if (ec.mode === 'percent') {
                         v = Math.round(this.cost_total * (ecVal / 100));
                     } else {
-                        // Phân bổ phí cố định theo tỉ lệ giá vốn của dòng này trên tổng giá vốn đơn hàng
-                        const totalBase = {{ $totalCostBase }};
-                        if (totalBase > 0 && this.cost_total > 0 && ecVal > 0) {
+                        // Ưu tiên giá trị fixed đã phân bổ từ server để đảm bảo hiển thị đúng
+                        if (typeof ec.fixed_allocated !== 'undefined') {
+                            v = Math.round(parseFloat(ec.fixed_allocated) || 0);
+                        }
+
+                        // Phân bổ phí cố định:
+                        // 1) 1 dòng sản phẩm => nhận toàn bộ
+                        // 2) ưu tiên theo tỷ lệ giá vốn
+                        // 3) fallback theo tỷ lệ doanh thu
+                        // 4) fallback cuối: chia đều
+                        if (v <= 0 && ecVal > 0 && itemCount === 1) {
+                            v = Math.round(ecVal);
+                        } else if (v <= 0 && totalBase > 0 && this.cost_total > 0 && ecVal > 0) {
                             const share = this.cost_total / totalBase;
                             v = Math.round(ecVal * share);
-                        } else {
-                            v = 0;
+                        } else if (v <= 0 && revenueBase > 0 && this.revenue_total > 0 && ecVal > 0) {
+                            const share = this.revenue_total / revenueBase;
+                            v = Math.round(ecVal * share);
+                        } else if (v <= 0 && ecVal > 0 && itemCount > 0) {
+                            v = Math.round(ecVal / itemCount);
+                        } else if (v <= 0 && ecVal > 0 && this.row_index === 0) {
+                            // Fallback an toàn: nếu mọi base đều không usable, dồn vào dòng đầu
+                            v = Math.round(ecVal);
                         }
                     }
                     this.extra_vals.push(v);
@@ -724,11 +788,33 @@
                 if (!this.overdue_na && this.overdue_v > 0) {
                     this.total_costs += this.overdue_v;
                 }
+
+                // Chi phí Quản lý
+                if (!this.mgmt_na && this.mgmt_v > 0) {
+                    this.total_costs += this.mgmt_v;
+                }
+
+                // 24x7 Support
+                if (!this.support_na && this.support_v > 0) {
+                    this.total_costs += this.support_v;
+                }
+
+                // Other Support
+                if (!this.other_na && this.other_v > 0) {
+                    this.total_costs += this.other_v;
+                }
                 
                 // Thuế nhà thầu
                 if (taxValue > 0) {
                     this.total_costs += taxValue;
                 }
+
+                // Chi phí cố định trên từng item
+                this.total_costs += (parseFloat(this.poc) || 0);
+                this.total_costs += (parseFloat(this.imp) || 0);
+
+                // Chi phí "extra" từ Chi phí đơn hàng (ví dụ Chi phí khách hàng)
+                this.total_costs += extraSum;
                 
                 // Làm tròn
                 this.total_costs = Math.round(this.total_costs);
