@@ -461,6 +461,27 @@ class SaleController extends Controller
                 'total_foreign' => $totalForeign,
             ]);
 
+            // Lưu dữ liệu P&L của items cũ trước khi xóa
+            $oldPnlData = [];
+            foreach ($sale->items as $oldItem) {
+                $oldPnlData[$oldItem->product_id] = [
+                    'usd_price' => $oldItem->usd_price,
+                    'exchange_rate' => $oldItem->exchange_rate,
+                    'discount_rate' => $oldItem->discount_rate,
+                    'import_cost_rate' => $oldItem->import_cost_rate,
+                    'estimated_cost_usd' => $oldItem->estimated_cost_usd,
+                    'finance_cost_percent' => $oldItem->finance_cost_percent,
+                    'overdue_interest_cost' => $oldItem->overdue_interest_cost,
+                    'overdue_interest_percent' => $oldItem->overdue_interest_percent,
+                    'management_cost_percent' => $oldItem->management_cost_percent,
+                    'support_247_cost_percent' => $oldItem->support_247_cost_percent,
+                    'other_support_cost' => $oldItem->other_support_cost,
+                    'technical_poc_cost' => $oldItem->technical_poc_cost,
+                    'implementation_cost' => $oldItem->implementation_cost,
+                    'contractor_tax' => $oldItem->contractor_tax,
+                ];
+            }
+            
             // Delete old items and create new ones with cost price and project
             $sale->items()->delete();
 
@@ -477,6 +498,9 @@ class SaleController extends Controller
                     ? (int) $item['warranty_months']
                     : $product->warranty_months;
 
+                // Khôi phục dữ liệu P&L nếu sản phẩm đã tồn tại trước đó
+                $pnlData = $oldPnlData[$item['product_id']] ?? [];
+                
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -490,6 +514,21 @@ class SaleController extends Controller
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
+                    // Khôi phục dữ liệu P&L
+                    'usd_price' => $pnlData['usd_price'] ?? 0,
+                    'exchange_rate' => $pnlData['exchange_rate'] ?? ($exchangeRate ?: 1),
+                    'discount_rate' => $pnlData['discount_rate'] ?? 0,
+                    'import_cost_rate' => $pnlData['import_cost_rate'] ?? 0,
+                    'estimated_cost_usd' => $pnlData['estimated_cost_usd'] ?? 0,
+                    'finance_cost_percent' => $pnlData['finance_cost_percent'] ?? null,
+                    'overdue_interest_cost' => $pnlData['overdue_interest_cost'] ?? 0,
+                    'overdue_interest_percent' => $pnlData['overdue_interest_percent'] ?? null,
+                    'management_cost_percent' => $pnlData['management_cost_percent'] ?? null,
+                    'support_247_cost_percent' => $pnlData['support_247_cost_percent'] ?? null,
+                    'other_support_cost' => $pnlData['other_support_cost'] ?? 0,
+                    'technical_poc_cost' => $pnlData['technical_poc_cost'] ?? 0,
+                    'implementation_cost' => $pnlData['implementation_cost'] ?? 0,
+                    'contractor_tax' => $pnlData['contractor_tax'] ?? 0,
                 ]);
             }
 

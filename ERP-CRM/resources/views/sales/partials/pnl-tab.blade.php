@@ -265,6 +265,15 @@
                             $hasMgmtInExpenses = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes);
                             $hasSupport247InExpenses = in_array('24x7 Support cost', $expenseTypes);
                             $hasOtherInExpenses = in_array('Other Support', $expenseTypes);
+                            
+                            // Tính giá trị phân bổ cho Thuế nhà thầu từ SaleExpense (nếu có)
+                            $contractorTaxExpense = $sale->expenses->where('type', 'Thuế nhà thầu')->first();
+                            $contractorTaxAllocated = 0;
+                            if ($contractorTaxExpense && $contractorTaxExpense->input_mode === 'fixed') {
+                                $totalCostBase = $sale->items->sum('cost_total') ?: 1;
+                                $share = $item->cost_total / $totalCostBase;
+                                $contractorTaxAllocated = round($contractorTaxExpense->amount * $share);
+                            }
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors border border-gray-400" 
                             x-data="pnlRow({
@@ -286,6 +295,7 @@
                                 poc: {{ $item->technical_poc_cost ?: 0 }},
                                 imp: {{ $item->implementation_cost ?: 0 }},
                                 tax: {{ $item->contractor_tax ?: 0 }},
+                                tax_allocated: {{ $contractorTaxAllocated }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
                                         {
@@ -438,12 +448,19 @@
                             @endif
                             @if($hasContractorTax)
                             <!-- Thuế nhà thầu -->
+                            @if($contractorTaxExpense && $contractorTaxExpense->input_mode === 'fixed')
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs bg-gray-50">
+                                <input type="hidden" name="items[{{ $index }}][contractor_tax]" value="0">
+                                <span>{{ number_format($contractorTaxAllocated) }}</span>
+                            </td>
+                            @else
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50">
                                 <input type="number" name="items[{{ $index }}][contractor_tax]" 
                                     x-model="tax" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
+                            @endif
                             @endif
                             
                             {{-- Extra Expenses Cells --}}
@@ -622,6 +639,7 @@
             poc: data.poc,
             imp: data.imp,
             tax: data.tax,
+            tax_allocated: data.tax_allocated || 0,
             
             // Extra dynamic costs
             extra_costs: data.extra_costs || [],
@@ -673,14 +691,16 @@
                 this.extra_vals = [];
                 this.extra_costs.forEach(ec => {
                     let v = 0;
+                    const ecVal = parseFloat(ec.val) || 0;
+                    
                     if (ec.mode === 'percent') {
-                        v = Math.round(this.cost_total * (ec.val / 100));
+                        v = Math.round(this.cost_total * (ecVal / 100));
                     } else {
                         // Phân bổ phí cố định theo tỉ lệ giá vốn của dòng này trên tổng giá vốn đơn hàng
                         const totalBase = {{ $totalCostBase }};
-                        if (totalBase > 0 && this.cost_total > 0) {
+                        if (totalBase > 0 && this.cost_total > 0 && ecVal > 0) {
                             const share = this.cost_total / totalBase;
-                            v = Math.round(ec.val * share);
+                            v = Math.round(ecVal * share);
                         } else {
                             v = 0;
                         }
@@ -689,17 +709,29 @@
                     extraSum += v;
                 });
                 
-                this.total_costs = Math.round(
-                    this.finance_v + 
-                    this.overdue_v +
-                    this.mgmt_v + 
-                    this.support_v + 
-                    this.other_v + 
-                    parseFloat(this.poc || 0) + 
-                    parseFloat(this.imp || 0) + 
-                    parseFloat(this.tax || 0) +
-                    extraSum
-                );
+                // Sử dụng tax_allocated nếu có, nếu không dùng tax
+                const taxValue = this.tax_allocated > 0 ? this.tax_allocated : parseFloat(this.tax || 0);
+                
+                // Tính tổng đơn giản - chỉ cộng các giá trị thực sự hiển thị
+                this.total_costs = 0;
+                
+                // Chi phí Tài chính
+                if (!this.finance_na && this.finance_v > 0) {
+                    this.total_costs += this.finance_v;
+                }
+                
+                // Lãi vay phát sinh
+                if (!this.overdue_na && this.overdue_v > 0) {
+                    this.total_costs += this.overdue_v;
+                }
+                
+                // Thuế nhà thầu
+                if (taxValue > 0) {
+                    this.total_costs += taxValue;
+                }
+                
+                // Làm tròn
+                this.total_costs = Math.round(this.total_costs);
                                   
                 this.net_profit = this.gross_profit - this.total_costs;
                 this.margin_p = this.revenue_total > 0 ? ((this.net_profit / this.revenue_total) * 100).toFixed(1) : 0;
