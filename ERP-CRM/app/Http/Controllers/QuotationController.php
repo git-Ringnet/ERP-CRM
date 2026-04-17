@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\QuotationsExport;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\SupplierPriceList;
@@ -344,8 +345,8 @@ class QuotationController extends Controller
     {
         $this->authorize('delete', $quotation);
 
-        if (!in_array($quotation->status, ['draft', 'rejected', 'expired'])) {
-            return back()->with('error', 'Không thể xóa báo giá ở trạng thái này.');
+        if (!$quotation->canBeDeleted()) {
+            return back()->with('error', "Không thể xóa báo giá ở trạng thái {$quotation->status_label}.");
         }
 
         DB::beginTransaction();

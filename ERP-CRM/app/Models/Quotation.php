@@ -140,4 +140,10 @@ class Quotation extends Model
         return !$this->converted_to_sale_id
             && !$this->isExpired();
     }
+
+    public function canBeDeleted(): bool
+    {
+        return !$this->converted_to_sale_id
+            && in_array($this->status, ['draft', 'rejected', 'expired'], true);
+    }
 }

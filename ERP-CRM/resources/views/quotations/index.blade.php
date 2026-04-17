@@ -113,16 +113,18 @@
                                             title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                            onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="inline-block">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
-                                                title="Xóa">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
+                                        @if($quotation->canBeDeleted())
+                                            <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
+                                                onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="inline-block">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                    class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
+                                                    title="Xóa">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     @endif
                                     <a href="{{ route('quotations.print', $quotation) }}" target="_blank"
                                         class="p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -177,15 +179,17 @@
                                 class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                                 <i class="fas fa-edit mr-1"></i>Sửa
                             </a>
-                            <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="flex-1">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit"
-                                    class="w-full text-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
-                                    <i class="fas fa-trash mr-1"></i>Xóa
-                                </button>
-                            </form>
+                            @if($quotation->canBeDeleted())
+                                <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
+                                    onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="flex-1">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                        class="w-full text-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
+                                        <i class="fas fa-trash mr-1"></i>Xóa
+                                    </button>
+                                </form>
+                            @endif
                         @endif
                         <a href="{{ route('quotations.print', $quotation) }}" target="_blank"
                             class="flex-1 text-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
