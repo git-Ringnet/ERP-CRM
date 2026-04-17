@@ -84,7 +84,7 @@
 @push('scripts')
 <script>
 let itemIndex = 0;
-const products = @json($products);
+const PRODUCT_SEARCH_URL = '{{ route("products.ajax-search") }}';
 const warehouses = @json($warehouses);
 const existingItems = @json($existingItems);
 const defaultWarehouseId = {{ $transfer->from_warehouse_id ?? 'null' }};
@@ -109,8 +109,9 @@ function addItem(existingData = null) {
     ).join('');
     
     // Pre-fill product text if existing
-    const selectedProduct = existingData ? products.find(p => p.id == existingData.product_id) : null;
-    const productText = selectedProduct ? `${selectedProduct.code} - ${selectedProduct.name}` : '';
+    const productText = existingData && existingData.product_code 
+        ? `${existingData.product_code} - ${existingData.product_name}` 
+        : '';
     
     itemDiv.innerHTML = `
         <div class="flex justify-between items-center mb-3">
@@ -129,13 +130,6 @@ function addItem(existingData = null) {
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off" value="${productText}">
                     <input type="hidden" name="items[${itemIndex}][product_id]" required class="product-id-input" value="${existingData ? existingData.product_id || '' : ''}">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
-                        ${products.map(p => `
-                            <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
-                                 data-value="${p.id}" 
-                                 data-text="${p.code} - ${p.name}">
-                                ${p.code} - ${p.name}
-                            </div>
-                        `).join('')}
                     </div>
                 </div>
             </div>
@@ -617,98 +611,103 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Searchable Select Functions
+// AJAX Searchable Select for Products
+let searchTimers = {};
+
 function initSearchableSelect(container) {
     const input = container.querySelector('.searchable-input');
     const hiddenInput = container.querySelector('input[type="hidden"]');
     const dropdown = container.querySelector('.searchable-dropdown');
-    const options = dropdown.querySelectorAll('.searchable-option');
     const itemIdx = parseInt(container.dataset.index);
     
-    input.addEventListener('focus', () => {
-        dropdown.classList.remove('hidden');
-        filterOptions('');
-    });
-    
     input.addEventListener('input', (e) => {
-        filterOptions(e.target.value);
-    });
-    
-    function filterOptions(query) {
-        const q = query.toLowerCase();
-        let hasResults = false;
+        clearTimeout(searchTimers[itemIdx]);
+        const query = e.target.value.trim();
         
-        // Lấy danh sách ID sản phẩm đã chọn ở các dòng khác
-        const selectedProductIds = [];
-        document.querySelectorAll('.product-id-input').forEach(input => {
-            if (input.value && input !== hiddenInput) {
-                selectedProductIds.push(input.value);
-            }
-        });
-
-        options.forEach(opt => {
-            const text = opt.dataset.text.toLowerCase();
-            const value = opt.dataset.value;
-            
-            // Ẩn nếu sản phẩm đã được chọn ở dòng khác
-            if (selectedProductIds.includes(value)) {
-                opt.classList.add('hidden');
-            } else if (text.includes(q)) {
-                opt.classList.remove('hidden');
-                hasResults = true;
-            } else {
-                opt.classList.add('hidden');
-            }
-        });
-        
-        // Show no results message
-        let noResults = dropdown.querySelector('.no-results');
-        if (!hasResults) {
-            if (!noResults) {
-                noResults = document.createElement('div');
-                noResults.className = 'no-results px-3 py-2 text-gray-500 italic text-sm';
-                noResults.textContent = 'Không tìm thấy sản phẩm';
-                dropdown.appendChild(noResults);
-            }
-            noResults.classList.remove('hidden');
-        } else if (noResults) {
-            noResults.classList.add('hidden');
-        }
-    }
-    
-    options.forEach(opt => {
-        opt.addEventListener('click', () => {
-            input.value = opt.dataset.text;
-            hiddenInput.value = opt.dataset.value;
+        if (query.length < 1) {
             dropdown.classList.add('hidden');
-            loadStockInfo(itemIdx);
-        });
+            dropdown.innerHTML = '';
+            return;
+        }
+        
+        // Show loading
+        dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>Đang tìm...</div>';
+        dropdown.classList.remove('hidden');
+        
+        searchTimers[itemIdx] = setTimeout(async () => {
+            try {
+                const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+                
+                // Get already-selected product IDs
+                const selectedIds = [];
+                document.querySelectorAll('.product-id-input').forEach(inp => {
+                    if (inp.value && inp !== hiddenInput) selectedIds.push(inp.value);
+                });
+                
+                const filtered = results.filter(p => !selectedIds.includes(p.id.toString()));
+                
+                dropdown.innerHTML = '';
+                if (filtered.length === 0) {
+                    dropdown.innerHTML = '<div class="px-3 py-2 text-gray-500 italic text-sm">Không tìm thấy sản phẩm</div>';
+                } else {
+                    filtered.forEach(p => {
+                        const opt = document.createElement('div');
+                        opt.className = 'searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm';
+                        opt.dataset.value = p.id;
+                        opt.dataset.text = `${p.code} - ${p.name}`;
+                        const displayName = p.name.length > 60 ? p.name.substring(0, 57) + '...' : p.name;
+                        opt.textContent = `${p.code} - ${displayName}`;
+                        opt.addEventListener('click', () => {
+                            input.value = `${p.code} - ${p.name}`;
+                            hiddenInput.value = p.id;
+                            dropdown.classList.add('hidden');
+                            loadStockInfo(itemIdx);
+                        });
+                        dropdown.appendChild(opt);
+                    });
+                }
+                dropdown.classList.remove('hidden');
+            } catch (err) {
+                dropdown.innerHTML = '<div class="px-3 py-2 text-red-500 text-sm">Lỗi tìm kiếm</div>';
+            }
+        }, 300);
     });
     
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
     // Keyboard navigation
     input.addEventListener('keydown', (e) => {
-        const visibleOptions = [...options].filter(o => !o.classList.contains('hidden'));
+        const options = dropdown.querySelectorAll('.searchable-option');
         const highlighted = dropdown.querySelector('.searchable-option.highlighted');
         
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (!highlighted && visibleOptions.length) {
-                visibleOptions[0].classList.add('highlighted');
+            if (!highlighted && options.length) {
+                options[0].classList.add('highlighted');
             } else if (highlighted) {
-                const idx = visibleOptions.indexOf(highlighted);
-                if (idx < visibleOptions.length - 1) {
+                const opts = [...options];
+                const idx = opts.indexOf(highlighted);
+                if (idx < opts.length - 1) {
                     highlighted.classList.remove('highlighted');
-                    visibleOptions[idx + 1].classList.add('highlighted');
-                    visibleOptions[idx + 1].scrollIntoView({ block: 'nearest' });
+                    opts[idx + 1].classList.add('highlighted');
+                    opts[idx + 1].scrollIntoView({ block: 'nearest' });
                 }
             }
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             if (highlighted) {
-                const idx = visibleOptions.indexOf(highlighted);
+                const opts = [...options];
+                const idx = opts.indexOf(highlighted);
                 if (idx > 0) {
                     highlighted.classList.remove('highlighted');
-                    visibleOptions[idx - 1].classList.add('highlighted');
-                    visibleOptions[idx - 1].scrollIntoView({ block: 'nearest' });
+                    opts[idx - 1].classList.add('highlighted');
+                    opts[idx - 1].scrollIntoView({ block: 'nearest' });
                 }
             }
         } else if (e.key === 'Enter') {
@@ -718,14 +717,23 @@ function initSearchableSelect(container) {
             dropdown.classList.add('hidden');
         }
     });
-    
-    // Close on click outside
-    document.addEventListener('click', (e) => {
-        if (!container.contains(e.target)) {
-            dropdown.classList.add('hidden');
-        }
-    });
 }
+
+// Initialize searchable selects
+const originalAddItem = addItem;
+addItem = function(existingData = null) {
+    originalAddItem(existingData);
+    setTimeout(() => {
+        const lastItem = document.querySelector(`[data-index="${itemIndex - 1}"]`);
+        if (lastItem) {
+            const searchable = lastItem.querySelector('.product-searchable');
+            if (searchable && !searchable.dataset.initialized) {
+                initSearchableSelect(searchable);
+                searchable.dataset.initialized = 'true';
+            }
+        }
+    }, 0);
+};
 </script>
 @endpush
 

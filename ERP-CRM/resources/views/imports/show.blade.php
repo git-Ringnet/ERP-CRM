@@ -235,8 +235,8 @@
                                 <td class="px-4 py-3">
                                     @php
                                         $serialCollection = collect($serials);
-                                        $realSerials = $serialCollection->filter(fn($s) => !str_starts_with($s, 'NOSKU'));
-                                        $noSkuCount = $serialCollection->filter(fn($s) => str_starts_with($s, 'NOSKU'))->count();
+                                        $realSerials = $serialCollection->filter(fn($s) => !str_starts_with($s, 'NOSKU') && !str_starts_with($s, 'NOSERIAL'));
+                                        $noSkuCount = $serialCollection->filter(fn($s) => str_starts_with($s, 'NOSKU') || str_starts_with($s, 'NOSERIAL'))->count();
                                         
                                         // For pending: calculate how many items will be NOSKU
                                         if ($import->status === 'pending') {

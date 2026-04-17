@@ -91,11 +91,10 @@ class TransferController extends Controller
         $this->authorize('create', Transfer::class);
 
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
         $code = Transfer::generateCode();
 
-        return view('transfers.create', compact('warehouses', 'products', 'employees', 'code'));
+        return view('transfers.create', compact('warehouses', 'employees', 'code'));
     }
 
     /**
@@ -161,11 +160,9 @@ class TransferController extends Controller
 
         $transfer->load(['items.product']);
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
 
         $existingItems = $transfer->items->map(function ($item) use ($transfer) {
-            // Get selected product_item_ids from serial_number JSON
             $productItemIds = [];
             if (!empty($item->serial_number)) {
                 $decoded = json_decode($item->serial_number, true);
@@ -176,6 +173,8 @@ class TransferController extends Controller
 
             return [
                 'product_id' => $item->product_id,
+                'product_code' => $item->product->code ?? '',
+                'product_name' => $item->product->name ?? '',
                 'warehouse_id' => $transfer->from_warehouse_id,
                 'to_warehouse_id' => $transfer->to_warehouse_id,
                 'quantity' => $item->quantity,
@@ -184,7 +183,7 @@ class TransferController extends Controller
             ];
         })->toArray();
 
-        return view('transfers.edit', compact('transfer', 'warehouses', 'products', 'employees', 'existingItems'));
+        return view('transfers.edit', compact('transfer', 'warehouses', 'employees', 'existingItems'));
     }
 
     /**
@@ -384,19 +383,19 @@ class TransferController extends Controller
             'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        // Get items with real serial (not NOSKU)
+        // Get items with real serial (not NOSKU/NOSERIAL)
         $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->where('sku', 'not like', 'NOSKU%')
+            ->hasSerial()
             ->select('id', 'sku', 'cost_usd', 'price_tiers')
             ->get();
 
-        // Count items without serial (NOSKU)
+        // Count items without serial (NOSKU/NOSERIAL)
         $noSkuCount = ProductItem::where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->where('sku', 'like', 'NOSKU%')
+            ->noSerial()
             ->count();
 
         // Get avg_cost from inventory

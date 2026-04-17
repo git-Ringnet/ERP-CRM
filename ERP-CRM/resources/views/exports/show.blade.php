@@ -189,8 +189,8 @@
                                 if ($export->status === 'completed') {
                                     // Completed: get from ProductItem
                                     $exportedSerials = $exportedItems[$item->product_id] ?? collect();
-                                    $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));
-                                    $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU'))->count();
+                                    $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU') && !str_starts_with($pi->sku, 'NOSERIAL'));
+                                    $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU') || str_starts_with($pi->sku, 'NOSERIAL'))->count();
                                 } else {
                                     // Pending: get from serial_number JSON (stores product_item_ids)
                                     if (!empty($item->serial_number)) {

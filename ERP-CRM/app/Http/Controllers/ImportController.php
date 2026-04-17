@@ -90,43 +90,17 @@ class ImportController extends Controller
         $this->authorize('create', Import::class);
 
         $warehouses = Warehouse::active()->get();
-        
-        // Load products with calculated cost but optimize the query
-        // Only eager load the relationships needed for cost calculation
-        $products = Product::with(['supplierPriceListItems' => function($query) {
-                $query->with(['priceList' => function($q) {
-                    $q->where('is_active', true)
-                      ->where(function($q2) {
-                          $q2->whereNull('effective_date')
-                             ->orWhere('effective_date', '<=', now());
-                      });
-                }]);
-            }])
-            ->select('id', 'code', 'name', 'unit', 'category')
-            ->orderBy('name')
-            ->get()
-            ->map(function ($product) {
-                // Only calculate cost if there are price list items
-                $product->default_cost = $product->supplierPriceListItems->isNotEmpty() 
-                    ? $product->calculated_cost 
-                    : 0;
-                // Unset the relationship to reduce memory
-                unset($product->supplierPriceListItems);
-                return $product;
-            });
-            
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
         $code = Import::generateCode();
         
         // Get approved or completed shipping allocations for selection
-        // Allow both approved and completed allocations to be reused
         $shippingAllocations = \App\Models\ShippingAllocation::with(['purchaseOrder', 'warehouse'])
             ->whereIn('status', ['approved', 'completed'])
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('imports.create', compact('warehouses', 'products', 'employees', 'suppliers', 'code', 'shippingAllocations'));
+        return view('imports.create', compact('warehouses', 'employees', 'suppliers', 'code', 'shippingAllocations'));
     }
 
     /**
@@ -208,37 +182,11 @@ class ImportController extends Controller
 
         $import->load(['items.product', 'items.warehouse']);
         $warehouses = Warehouse::active()->get();
-        
-        // Load products with calculated cost but optimize the query
-        // Only eager load the relationships needed for cost calculation
-        $products = Product::with(['supplierPriceListItems' => function($query) {
-                $query->with(['priceList' => function($q) {
-                    $q->where('is_active', true)
-                      ->where(function($q2) {
-                          $q2->whereNull('effective_date')
-                             ->orWhere('effective_date', '<=', now());
-                      });
-                }]);
-            }])
-            ->select('id', 'code', 'name', 'unit', 'category')
-            ->orderBy('name')
-            ->get()
-            ->map(function ($product) {
-                // Only calculate cost if there are price list items
-                $product->default_cost = $product->supplierPriceListItems->isNotEmpty() 
-                    ? $product->calculated_cost 
-                    : 0;
-                // Unset the relationship to reduce memory
-                unset($product->supplierPriceListItems);
-                return $product;
-            });
-            
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
 
-        // Prepare existing items data for JavaScript
+        // Prepare existing items data for JavaScript (include product info for display)
         $existingItems = $import->items->map(function ($item) {
-            // Get serials from serial_number JSON field
             $serials = [];
             if (!empty($item->serial_number)) {
                 $decoded = json_decode($item->serial_number, true);
@@ -251,6 +199,8 @@ class ImportController extends Controller
 
             return [
                 'product_id' => $item->product_id,
+                'product_code' => $item->product->code ?? '',
+                'product_name' => $item->product->name ?? '',
                 'warehouse_id' => $item->warehouse_id,
                 'quantity' => $item->quantity,
                 'serials' => $serials,
@@ -259,7 +209,7 @@ class ImportController extends Controller
             ];
         })->toArray();
 
-        return view('imports.edit', compact('import', 'warehouses', 'products', 'employees', 'suppliers', 'existingItems'));
+        return view('imports.edit', compact('import', 'warehouses', 'employees', 'suppliers', 'existingItems'));
     }
 
     /**
@@ -287,6 +237,8 @@ class ImportController extends Controller
             $import->items()->delete();
 
             // Update import
+            // Determine total quantity first to calculate service cost per unit
+            $totalQty = collect($data['items'])->sum('quantity');
             $import->update([
                 'warehouse_id' => $mainWarehouseId,
                 'supplier_id' => $data['supplier_id'] ?? null,
@@ -298,20 +250,23 @@ class ImportController extends Controller
                 'other_cost' => $data['other_cost'] ?? 0,
                 'total_service_cost' => ($data['shipping_cost'] ?? 0) + ($data['loading_cost'] ?? 0) + ($data['inspection_cost'] ?? 0) + ($data['other_cost'] ?? 0),
                 'note' => $data['note'] ?? null,
+                'total_qty' => $totalQty,
             ]);
 
-            // Create new items (store serials as JSON, ProductItem created on approve)
-            $totalQty = 0;
+            $serviceCostPerUnit = $import->getServiceCostPerUnit();
+
+            // Create new items
             foreach ($data['items'] as $itemData) {
-                // Get serials from array or from serial_list textarea
+                // Get serials...
                 $serials = $itemData['serials'] ?? [];
                 if (empty($serials) && !empty($itemData['serial_list'])) {
-                    // Parse serial_list (newline or comma separated)
                     $serials = preg_split('/[\n,]+/', $itemData['serial_list']);
                     $serials = array_map('trim', $serials);
                 }
-                // Filter out empty serials
                 $serials = array_values(array_filter($serials, fn($s) => !empty(trim($s))));
+
+                $itemCost = $itemData['cost'] ?? 0;
+                $warehousePrice = $itemCost + $serviceCostPerUnit;
 
                 $import->items()->create([
                     'product_id' => $itemData['product_id'],
@@ -319,9 +274,9 @@ class ImportController extends Controller
                     'quantity' => $itemData['quantity'],
                     'serial_number' => !empty($serials) ? json_encode($serials) : null,
                     'comments' => $itemData['comments'] ?? null,
-                    'cost' => $itemData['cost'] ?? 0,
+                    'cost' => $itemCost,
+                    'warehouse_price' => $warehousePrice,
                 ]);
-                $totalQty += $itemData['quantity'];
             }
 
             $import->update(['total_qty' => $totalQty]);

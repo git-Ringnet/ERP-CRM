@@ -67,7 +67,7 @@ class ProductItemService
             $importId,
             &$items
         ) {
-            // If SKUs provided, create one item per SKU
+            // If Serials provided, create one item per Serial
             if (!empty($skus)) {
                 foreach ($skus as $sku) {
                     $items[] = ProductItem::create([
@@ -85,7 +85,7 @@ class ProductItemService
                 }
             }
 
-            // Create remaining items with auto-generated NOSKU
+            // Create remaining items with auto-generated NOSERIAL
             $remainingQty = $quantity - count($skus);
             for ($i = 0; $i < $remainingQty; $i++) {
                 // Use microtime + random to ensure uniqueness

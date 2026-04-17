@@ -257,8 +257,8 @@
                                                     $exportedSerials = \App\Models\ProductItem::where('export_id', $export->id)
                                                         ->where('product_id', $item->product_id)
                                                         ->get();
-                                                    $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU'));
-                                                    $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU'))->count();
+                                                    $serialsWithSku = $exportedSerials->filter(fn($pi) => !str_starts_with($pi->sku, 'NOSKU') && !str_starts_with($pi->sku, 'NOSERIAL'));
+                                                    $noSkuCount = $exportedSerials->filter(fn($pi) => str_starts_with($pi->sku, 'NOSKU') || str_starts_with($pi->sku, 'NOSERIAL'))->count();
                                                 } else {
                                                     if (!empty($item->serial_number)) {
                                                         $productItemIds = json_decode($item->serial_number, true);

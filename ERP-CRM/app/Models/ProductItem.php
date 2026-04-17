@@ -25,7 +25,8 @@ class ProductItem extends Model
      * NO_SKU prefix for items without physical SKU
      * Requirements: 3.4
      */
-    public const NO_SKU_PREFIX = 'NOSKU';
+    public const NO_SKU_PREFIX = 'NOSERIAL';
+    public const OLD_NO_SKU_PREFIX = 'NOSKU';
 
     /**
      * Fillable fields
@@ -92,14 +93,17 @@ class ProductItem extends Model
 
     /**
      * Generate NO_SKU identifier for items without physical SKU
-     * Format: NOSKU-{product_id}-{sequential_number}
+     * Format: NOSERIAL-{product_id}-{sequential_number}
      * Requirements: 3.4
      */
     public static function generateNoSku(int $productId): string
     {
-        // Get the next sequential number for this product's NO_SKU items
+        // Get the next sequential number for this product's NO_SKU items (checking both prefixes)
         $lastNoSku = self::where('product_id', $productId)
-            ->where('sku', 'like', self::NO_SKU_PREFIX . '-' . $productId . '-%')
+            ->where(function($query) use ($productId) {
+                $query->where('sku', 'like', self::NO_SKU_PREFIX . '-' . $productId . '-%')
+                      ->orWhere('sku', 'like', self::OLD_NO_SKU_PREFIX . '-' . $productId . '-%');
+            })
             ->orderBy('sku', 'desc')
             ->value('sku');
 
@@ -112,7 +116,7 @@ class ProductItem extends Model
             $nextNumber = 1;
         }
 
-        // Format: NOSKU-{product_id}-{sequential_number} (3-digit padded)
+        // Format: NOSERIAL-{product_id}-{sequential_number} (3-digit padded)
         return sprintf('%s-%d-%03d', self::NO_SKU_PREFIX, $productId, $nextNumber);
     }
 
@@ -122,7 +126,27 @@ class ProductItem extends Model
      */
     public function isNoSku(): bool
     {
-        return str_starts_with($this->sku, self::NO_SKU_PREFIX . '-');
+        return str_starts_with($this->sku, self::NO_SKU_PREFIX) || str_starts_with($this->sku, self::OLD_NO_SKU_PREFIX);
+    }
+
+    /**
+     * Scope for items without serial
+     */
+    public function scopeNoSerial($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('sku', 'like', self::NO_SKU_PREFIX . '%')
+                ->orWhere('sku', 'like', self::OLD_NO_SKU_PREFIX . '%');
+        });
+    }
+
+    /**
+     * Scope for items with serial
+     */
+    public function scopeHasSerial($query)
+    {
+        return $query->where('sku', 'not like', self::NO_SKU_PREFIX . '%')
+            ->where('sku', 'not like', self::OLD_NO_SKU_PREFIX . '%');
     }
 
     /**
