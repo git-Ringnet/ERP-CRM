@@ -677,8 +677,13 @@
                         v = Math.round(this.cost_total * (ec.val / 100));
                     } else {
                         // Phân bổ phí cố định theo tỉ lệ giá vốn của dòng này trên tổng giá vốn đơn hàng
-                        const share = this.cost_total / {{ $totalCostBase }};
-                        v = Math.round(ec.val * share);
+                        const totalBase = {{ $totalCostBase }};
+                        if (totalBase > 0 && this.cost_total > 0) {
+                            const share = this.cost_total / totalBase;
+                            v = Math.round(ec.val * share);
+                        } else {
+                            v = 0;
+                        }
                     }
                     this.extra_vals.push(v);
                     extraSum += v;

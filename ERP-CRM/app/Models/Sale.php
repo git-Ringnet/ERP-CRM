@@ -277,10 +277,50 @@ class Sale extends Model
 
     /**
      * Calculate total cost from expenses
+     * Tính tổng chi phí từ P&L (sale_items) thay vì sale_expenses
      */
     public function calculateTotalCost(): void
     {
-        $this->cost = $this->expenses()->sum('amount');
+        $totalCost = 0;
+        
+        foreach ($this->items as $item) {
+            // Tính chi phí % dựa trên cost_total
+            $costBase = $item->cost_total ?: 0;
+            
+            // Chi phí Tài chính
+            if (!is_null($item->finance_cost_percent) && $item->finance_cost_percent > 0) {
+                $totalCost += ($costBase * $item->finance_cost_percent / 100);
+            }
+            
+            // Lãi vay phát sinh (% hoặc fixed)
+            if (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0) {
+                $totalCost += ($costBase * $item->overdue_interest_percent / 100);
+            } else {
+                $totalCost += ($item->overdue_interest_cost ?: 0);
+            }
+            
+            // Chi phí Quản lí
+            if (!is_null($item->management_cost_percent) && $item->management_cost_percent > 0) {
+                $totalCost += ($costBase * $item->management_cost_percent / 100);
+            }
+            
+            // 24x7 Support
+            if (!is_null($item->support_247_cost_percent) && $item->support_247_cost_percent > 0) {
+                $totalCost += ($costBase * $item->support_247_cost_percent / 100);
+            }
+            
+            // Other Support
+            if (!is_null($item->other_support_cost) && $item->other_support_cost > 0) {
+                $totalCost += ($costBase * $item->other_support_cost / 100);
+            }
+            
+            // Chi phí cố định
+            $totalCost += ($item->technical_poc_cost ?: 0);
+            $totalCost += ($item->implementation_cost ?: 0);
+            $totalCost += ($item->contractor_tax ?: 0);
+        }
+        
+        $this->cost = round($totalCost);
     }
 
     /**

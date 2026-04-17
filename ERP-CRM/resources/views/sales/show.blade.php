@@ -456,7 +456,80 @@
                 $totalCostOfGoods = $sale->items->sum('cost_total');
                 $grossMargin = $sale->total - $totalCostOfGoods;
                 $grossMarginPercent = $sale->total > 0 ? ($grossMargin / $sale->total) * 100 : 0;
-                $netMargin = $grossMargin - $sale->cost;
+                
+                // Tính chi phí từ P&L items
+                $opexDetails = [];
+                $totalOpex = 0;
+                
+                foreach ($sale->items as $item) {
+                    $costBase = $item->cost_total ?: 0;
+                    
+                    // Chi phí Tài chính
+                    if (!is_null($item->finance_cost_percent) && $item->finance_cost_percent > 0) {
+                        $val = round($costBase * $item->finance_cost_percent / 100);
+                        $opexDetails['Chi phí Tài chính'] = ($opexDetails['Chi phí Tài chính'] ?? 0) + $val;
+                        $totalOpex += $val;
+                    }
+                    
+                    // Lãi vay phát sinh
+                    if (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0) {
+                        $val = round($costBase * $item->overdue_interest_percent / 100);
+                        $opexDetails['Lãi vay phát sinh do nợ quá hạn'] = ($opexDetails['Lãi vay phát sinh do nợ quá hạn'] ?? 0) + $val;
+                        $totalOpex += $val;
+                    } elseif ($item->overdue_interest_cost > 0) {
+                        $opexDetails['Lãi vay phát sinh do nợ quá hạn'] = ($opexDetails['Lãi vay phát sinh do nợ quá hạn'] ?? 0) + $item->overdue_interest_cost;
+                        $totalOpex += $item->overdue_interest_cost;
+                    }
+                    
+                    // Chi phí Quản lí
+                    if (!is_null($item->management_cost_percent) && $item->management_cost_percent > 0) {
+                        $val = round($costBase * $item->management_cost_percent / 100);
+                        $opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] = ($opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] ?? 0) + $val;
+                        $totalOpex += $val;
+                    }
+                    
+                    // 24x7 Support
+                    if (!is_null($item->support_247_cost_percent) && $item->support_247_cost_percent > 0) {
+                        $val = round($costBase * $item->support_247_cost_percent / 100);
+                        $opexDetails['24x7 Support cost'] = ($opexDetails['24x7 Support cost'] ?? 0) + $val;
+                        $totalOpex += $val;
+                    }
+                    
+                    // Other Support
+                    if (!is_null($item->other_support_cost) && $item->other_support_cost > 0) {
+                        $val = round($costBase * $item->other_support_cost / 100);
+                        $opexDetails['Other Support'] = ($opexDetails['Other Support'] ?? 0) + $val;
+                        $totalOpex += $val;
+                    }
+                    
+                    // Chi phí cố định
+                    if ($item->technical_poc_cost > 0) {
+                        $opexDetails['Technical support/POC'] = ($opexDetails['Technical support/POC'] ?? 0) + $item->technical_poc_cost;
+                        $totalOpex += $item->technical_poc_cost;
+                    }
+                    if ($item->implementation_cost > 0) {
+                        $opexDetails['Chi phí triển khai hợp đồng'] = ($opexDetails['Chi phí triển khai hợp đồng'] ?? 0) + $item->implementation_cost;
+                        $totalOpex += $item->implementation_cost;
+                    }
+                    if ($item->contractor_tax > 0) {
+                        $opexDetails['Thuế nhà thầu'] = ($opexDetails['Thuế nhà thầu'] ?? 0) + $item->contractor_tax;
+                        $totalOpex += $item->contractor_tax;
+                    }
+                }
+                
+                // Thêm extra expenses
+                foreach ($sale->expenses as $expense) {
+                    if ($expense->input_mode === 'percent') {
+                        $val = round($totalCostOfGoods * $expense->percent_value / 100);
+                        $opexDetails[$expense->type] = ($opexDetails[$expense->type] ?? 0) + $val;
+                        $totalOpex += $val;
+                    } else {
+                        $opexDetails[$expense->type] = ($opexDetails[$expense->type] ?? 0) + $expense->amount;
+                        $totalOpex += $expense->amount;
+                    }
+                }
+                
+                $netMargin = $grossMargin - $totalOpex;
                 $netMarginPercent = $sale->total > 0 ? ($netMargin / $sale->total) * 100 : 0;
             @endphp
             
@@ -492,16 +565,18 @@
                             <div class="bg-red-50 rounded-lg p-4">
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm font-medium text-red-700">Chi phí vận hành (OpEx)</span>
-                                    <span class="text-lg font-bold text-red-700">{{ number_format($sale->cost) }} đ</span>
+                                    <span class="text-lg font-bold text-red-700">{{ number_format($totalOpex) }} đ</span>
                                 </div>
+                                @if(count($opexDetails) > 0)
                                 <div class="mt-2 text-xs space-y-1">
-                                    @foreach($sale->expenses as $expense)
+                                    @foreach($opexDetails as $type => $amount)
                                     <div class="flex justify-between text-red-600">
-                                        <span>{{ $expense->type_label }}: {{ $expense->description }}</span>
-                                        <span>{{ number_format($expense->amount) }} đ</span>
+                                        <span>{{ $type }}</span>
+                                        <span>{{ number_format($amount) }} đ</span>
                                     </div>
                                     @endforeach
                                 </div>
+                                @endif
                             </div>
                         </div>
                         
