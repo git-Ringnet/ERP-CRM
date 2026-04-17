@@ -20,7 +20,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', Product::class);
-        
+
         $query = Product::query();
 
         // Search functionality
@@ -48,7 +48,7 @@ class ProductController extends Controller
     public function create()
     {
         $this->authorize('create', Product::class);
-        
+
         $categories = Product::CATEGORIES;
         return view('products.create', compact('categories'));
     }
@@ -60,7 +60,7 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         $this->authorize('create', Product::class);
-        
+
         // Normalize code before validation
         if ($request->has('code')) {
             $request->merge(['code' => strtoupper(trim($request->code))]);
@@ -89,13 +89,15 @@ class ProductController extends Controller
      */
     public function show($id)
     {
-        $product = Product::with(['items' => function ($query) {
-            $query->orderBy('created_at', 'desc');
-        }])->findOrFail($id);
-        
+        $product = Product::findOrFail($id);
+
         $this->authorize('view', $product);
 
-        return view('products.show', compact('product'));
+        $items = $product->items()
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
+
+        return view('products.show', compact('product', 'items'));
     }
 
     /**
@@ -106,7 +108,7 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         $this->authorize('update', $product);
-        
+
         $categories = Product::CATEGORIES;
 
         return view('products.edit', compact('product', 'categories'));
@@ -150,7 +152,7 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         $this->authorize('delete', $product);
-        
+
         $product->delete();
 
         return redirect()->route('products.index')
@@ -165,7 +167,7 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         $this->authorize('view', $product);
-        
+
         $items = $product->items()
             ->with('warehouse')
             ->orderBy('created_at', 'desc')
@@ -185,7 +187,7 @@ class ProductController extends Controller
     public function export(Request $request, ExportService $exportService)
     {
         $this->authorize('viewAny', Product::class);
-        
+
         $query = Product::query();
 
         // Apply filters if present
@@ -211,7 +213,7 @@ class ProductController extends Controller
     public function importTemplate()
     {
         $this->authorize('create', Product::class);
-        
+
         $filepath = ProductsImport::generateTemplate();
         return response()->download($filepath, 'mau-import-san-pham.xlsx')->deleteFileAfterSend(true);
     }
@@ -222,7 +224,7 @@ class ProductController extends Controller
     public function import(Request $request)
     {
         $this->authorize('create', Product::class);
-        
+
         ini_set('memory_limit', '1024M'); // Increased further for 25k rows
         set_time_limit(0); // No limit for import
 
@@ -242,7 +244,7 @@ class ProductController extends Controller
         $updated = $import->getUpdated();
 
         $message = "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}";
-        
+
         $warnings = $import->getWarnings();
         if (!empty($warnings)) {
             // Limit warnings shown to first 10 to avoid huge messages
@@ -258,15 +260,43 @@ class ProductController extends Controller
         return back()->with('success', $message);
     }
 
+    public function ajaxSearch(Request $request)
+    {
+        $q = trim($request->get('q', ''));
+
+        if (mb_strlen($q) < 1) {
+            return response()->json([]);
+        }
+
+        $products = Product::search($q)
+            ->with(['supplierPriceListItems.priceList'])
+            ->select('id', 'code', 'name', 'unit', 'warranty_months')
+            ->orderBy('code')
+            ->limit(30)
+            ->get();
+
+        return response()->json($products->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'unit' => $product->unit,
+                'warranty_months' => $product->warranty_months,
+                'cost' => $product->calculated_cost,
+                'price' => $product->calculated_selling_price,
+            ];
+        }));
+    }
+
     /**
      * API for searching products (AJAX)
      */
     public function apiSearch(Request $request)
     {
         $q = $request->get('q');
-        
+
         $query = Product::query();
-        
+
         if (!empty($q)) {
             $query->search($q);
         }

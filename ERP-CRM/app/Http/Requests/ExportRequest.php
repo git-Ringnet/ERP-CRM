@@ -76,14 +76,14 @@ class ExportRequest extends FormRequest
                 ->where('warehouse_id', $warehouseId)
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->where('quantity', '>', 0)
-                ->whereRaw("sku NOT LIKE 'NOSKU%'")
+                ->hasSerial()
                 ->get();
 
             $noSkuCount = ProductItem::where('product_id', $productId)
                 ->where('warehouse_id', $warehouseId)
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->where('quantity', '>', 0)
-                ->whereRaw("sku LIKE 'NOSKU%'")
+                ->noSerial()
                 ->count();
 
             $totalStock = $serialItems->count() + $noSkuCount;

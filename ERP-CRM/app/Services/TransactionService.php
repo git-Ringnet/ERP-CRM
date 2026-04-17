@@ -319,11 +319,11 @@ class TransactionService
                         : ProductItem::STATUS_IN_STOCK;
 
                     if ($remainingQty > 0) {
-                        // 1. Try NOSKU items with correct status
+                        // 1. Try No Serial items with correct status
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->warehouse_id)
                             ->where('status', $targetStatus)
-                            ->where('sku', 'like', 'NOSKU%')
+                            ->noSerial()
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
@@ -495,7 +495,7 @@ class TransactionService
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->from_warehouse_id)
                             ->where('status', ProductItem::STATUS_IN_STOCK)
-                            ->where('sku', 'like', 'NOSKU%')
+                            ->noSerial()
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();

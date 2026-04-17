@@ -275,7 +275,7 @@
     @push('scripts')
         <script>
             let itemIndex = 0;
-            const products = @json($products);
+            const PRODUCT_SEARCH_URL = '{{ route("products.ajax-search") }}';
             const warehouses = @json($warehouses);
 
             function addItem(existingData = null) {
@@ -283,11 +283,6 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'item-card bg-gray-50 rounded-lg p-4 border border-gray-200';
                 itemDiv.dataset.index = itemIndex;
-
-                const productOptions = products.map(p => {
-                    const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
-                    return `<div class="searchable-option" data-value="${p.id}" data-text="${p.code} - ${p.name}" data-code="${p.code}" data-name="${p.name}" data-unit="${p.unit || 'Cái'}" data-cost="${p.default_cost || 0}">${p.code} - ${displayName}</div>`;
-                }).join('');
 
                 const warehouseOptions = warehouses.map(w =>
                     `<option value="${w.id}" ${existingData && existingData.warehouse_id == w.id ? 'selected' : ''}>${w.name}</option>`
@@ -310,8 +305,6 @@
                                    placeholder="Tìm sản phẩm..." autocomplete="off">
                             <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id-input" value="${existingData ? existingData.product_id : ''}" required>
                             <div class="searchable-dropdown">
-                                <div class="searchable-option" data-value="">-- Chọn sản phẩm --</div>
-                                ${productOptions}
                             </div>
                         </div>
                     </div>
@@ -357,15 +350,20 @@
                 </div>
 
                 <p id="serialInfo_${itemIndex}" class="text-xs text-gray-500">
-                    <i class="fas fa-info-circle mr-1"></i>Số lượng: 1, Serial đã nhập: 0 → 1 sản phẩm sẽ được tạo mã tạm (NOSKU)
+                    <i class="fas fa-info-circle mr-1"></i>Số lượng: 1, Serial đã nhập: 0 → <span class="text-blue-600 font-medium">1 sản phẩm không serial</span>
                 </p>
             `;
 
                 container.appendChild(itemDiv);
-                initSearchableSelectEnhanced(itemDiv.querySelector('.product-searchable'), (val, option) => {
-                    updateProductPrice(itemDiv.dataset.index, option);
+                initProductSearchable(itemDiv.querySelector('.product-searchable'), (val, opt) => {
+                    // Store unit in data attribute for summary table
+                    const idInput = itemDiv.querySelector('.product-id-input');
+                    if (idInput && opt.dataset.unit) {
+                        idInput.dataset.unit = opt.dataset.unit;
+                    }
+                    updateProductPrice(itemDiv.dataset.index, opt);
                     updateSummary();
-                });
+                }, existingData);
                 updateSerialInfo(itemIndex);
                 itemIndex++;
                 updateSummary();
@@ -407,7 +405,7 @@
                     <span class="text-yellow-600">Cảnh báo: Số serial (${filledSerials}) nhiều hơn số lượng (${qty}). Chỉ ${qty} serial đầu tiên sẽ được sử dụng.</span>`;
                 } else if (noSkuCount > 0) {
                     infoEl.innerHTML = `<i class="fas fa-info-circle mr-1"></i>
-                    Số lượng: ${qty}, Serial đã nhập: ${filledSerials} → <span class="text-blue-600 font-medium">${noSkuCount} sản phẩm sẽ được tạo mã tạm (NOSKU)</span>`;
+                    Số lượng: ${qty}, Serial đã nhập: ${filledSerials} → <span class="text-blue-600 font-medium">${noSkuCount} sản phẩm không serial</span>`;
                 } else {
                     infoEl.innerHTML = `<i class="fas fa-check-circle mr-1 text-green-600"></i>
                     <span class="text-green-600">Đủ serial cho ${qty} sản phẩm</span>`;
@@ -498,10 +496,13 @@
 
                     if (!productIdInput || !productIdInput.value) return;
 
-                    const selectedOption = card.querySelector(`.searchable-option[data-value="${productIdInput.value}"]`);
-                    const productCode = selectedOption ? (selectedOption.dataset.code || '') : '';
-                    const productName = selectedOption ? (selectedOption.dataset.name || '') : '';
-                    const productUnit = selectedOption ? (selectedOption.dataset.unit || 'Cái') : 'Cái';
+                    const searchable = card.querySelector('.product-searchable');
+                    const input = searchable.querySelector('.searchable-input');
+                    const productText = input.value;
+                    const dashIndex = productText.indexOf(' - ');
+                    const productCode = dashIndex > -1 ? productText.substring(0, dashIndex) : '';
+                    const productName = dashIndex > -1 ? productText.substring(dashIndex + 3) : productText;
+                    const productUnit = productIdInput.dataset.unit || 'Cái';
 
                     const warehouseName = warehouseSelect && warehouseSelect.value
                         ? warehouseSelect.options[warehouseSelect.selectedIndex].text
@@ -626,7 +627,85 @@
                 return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
             }
 
-            // Enhanced initSearchableSelect with accent-insensitive search
+            // AJAX Product Searchable Select
+            let searchTimers = {};
+            
+            function initProductSearchable(container, onSelectCallback, existingData) {
+                const input = container.querySelector('.searchable-input');
+                const hiddenInput = container.querySelector('input[type="hidden"]');
+                const dropdown = container.querySelector('.searchable-dropdown');
+                const itemIdx = parseInt(container.dataset.index);
+                
+                // If editing existing data, set display value
+                if (existingData && existingData.product_code) {
+                    input.value = `${existingData.product_code} - ${existingData.product_name}`;
+                }
+                
+                input.addEventListener('input', () => {
+                    clearTimeout(searchTimers[itemIdx]);
+                    const query = input.value.trim();
+                    
+                    if (query.length < 1) {
+                        dropdown.style.display = 'none';
+                        dropdown.innerHTML = '';
+                        return;
+                    }
+                    
+                    dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>Đang tìm...</div>';
+                    dropdown.style.display = 'block';
+                    
+                    searchTimers[itemIdx] = setTimeout(async () => {
+                        try {
+                            const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                            const results = await response.json();
+                            
+                            const selectedIds = [];
+                            document.querySelectorAll('.product-id-input').forEach(inp => {
+                                if (inp.value && inp !== hiddenInput) selectedIds.push(inp.value);
+                            });
+                            
+                            const filtered = results.filter(p => !selectedIds.includes(p.id.toString()));
+                            
+                            dropdown.innerHTML = '';
+                            if (filtered.length === 0) {
+                                dropdown.innerHTML = '<div class="px-3 py-2 text-gray-500 italic text-sm">Không tìm thấy sản phẩm</div>';
+                            } else {
+                                filtered.forEach(p => {
+                                    const opt = document.createElement('div');
+                                    opt.className = 'searchable-option';
+                                    opt.dataset.value = p.id;
+                                    opt.dataset.text = `${p.code} - ${p.name}`;
+                                    opt.dataset.code = p.code;
+                                    opt.dataset.name = p.name;
+                                    opt.dataset.unit = p.unit || 'Cái';
+                                    opt.dataset.cost = p.cost || '0';
+                                    const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
+                                    opt.textContent = `${p.code} - ${displayName}`;
+                                    opt.addEventListener('click', () => {
+                                        input.value = `${p.code} - ${p.name}`;
+                                        hiddenInput.value = p.id;
+                                        hiddenInput.dataset.unit = p.unit || 'Cái'; // Store unit
+                                        dropdown.style.display = 'none';
+                                        if (onSelectCallback) onSelectCallback(p.id, opt);
+                                    });
+                                    dropdown.appendChild(opt);
+                                });
+                            }
+                            dropdown.style.display = filtered.length > 0 || results.length === 0 ? 'block' : 'none';
+                        } catch (err) {
+                            dropdown.innerHTML = '<div class="px-3 py-2 text-red-500 text-sm">Lỗi tìm kiếm</div>';
+                        }
+                    }, 300);
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!container.contains(e.target)) {
+                        dropdown.style.display = 'none';
+                    }
+                });
+            }
+
+            // Enhanced initSearchableSelect for STATIC dropdowns (employee, supplier)
             function initSearchableSelectEnhanced(container, onSelectCallback) {
                 const input = container.querySelector('.searchable-input');
                 const hiddenInput = container.querySelector('input[type="hidden"]');

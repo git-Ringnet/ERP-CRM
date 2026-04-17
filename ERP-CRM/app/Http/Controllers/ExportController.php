@@ -106,13 +106,12 @@ class ExportController extends Controller
         $this->authorize('create', Export::class);
 
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         $customers = \App\Models\Customer::orderBy('name')->get();
         $code = Export::generateCode();
 
-        return view('exports.create', compact('warehouses', 'products', 'employees', 'projects', 'customers', 'code'));
+        return view('exports.create', compact('warehouses', 'employees', 'projects', 'customers', 'code'));
     }
 
     /**
@@ -184,13 +183,11 @@ class ExportController extends Controller
 
         $export->load(['items.product']);
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
         $employees = User::whereNotNull('employee_code')->get();
         $projects = \App\Models\Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         $customers = \App\Models\Customer::orderBy('name')->get();
 
         $existingItems = $export->items->map(function ($item) use ($export) {
-            // Get selected product_item_ids from serial_number JSON
             $productItemIds = [];
             if (!empty($item->serial_number)) {
                 $decoded = json_decode($item->serial_number, true);
@@ -201,6 +198,8 @@ class ExportController extends Controller
 
             return [
                 'product_id' => $item->product_id,
+                'product_code' => $item->product->code ?? '',
+                'product_name' => $item->product->name ?? '',
                 'warehouse_id' => $export->warehouse_id,
                 'quantity' => $item->quantity,
                 'requested_quantity' => $item->requested_quantity,
@@ -211,7 +210,7 @@ class ExportController extends Controller
             ];
         })->toArray();
 
-        return view('exports.edit', compact('export', 'warehouses', 'products', 'employees', 'projects', 'customers', 'existingItems'));
+        return view('exports.edit', compact('export', 'warehouses', 'employees', 'projects', 'customers', 'existingItems'));
     }
 
     /**
@@ -428,19 +427,19 @@ class ExportController extends Controller
             'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        // Get items with real serial (not NOSKU)
+        // Get items with real serial (not NOSKU/NOSERIAL)
         $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->where('sku', 'not like', 'NOSKU%')
+            ->hasSerial()
             ->select('id', 'sku', 'cost_usd', 'price_tiers')
             ->get();
 
-        // Count items without serial (NOSKU)
+        // Count items without serial (NOSKU/NOSERIAL)
         $noSkuCount = ProductItem::where('product_id', $request->product_id)
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->where('sku', 'like', 'NOSKU%')
+            ->noSerial()
             ->count();
 
         // Get avg_cost from inventory

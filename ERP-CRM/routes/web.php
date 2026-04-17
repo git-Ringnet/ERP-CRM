@@ -68,6 +68,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('employees', EmployeeController::class);
     Route::resource('products', ProductController::class);
     Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
+    Route::get('/ajax/products/search', [ProductController::class, 'ajaxSearch'])->name('products.ajax-search');
 
     // Export routes
     Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');

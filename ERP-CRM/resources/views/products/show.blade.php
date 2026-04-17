@@ -76,14 +76,14 @@
             <!-- Requirements: 3.5, 6.4 -->
             <div class="bg-white rounded-lg shadow-sm">
                 <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                    <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-list mr-2 text-primary"></i>Danh sách SKU / Items</h2>
-                    <span class="text-sm text-gray-500">Tổng: {{ $product->items->count() }} items</span>
+                    <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-list mr-2 text-primary"></i>Danh sách Serial / Items</h2>
+                    <span class="text-sm text-gray-500">Tổng: {{ $items->total() }} items</span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mô tả</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá nhập</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
@@ -91,26 +91,32 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @forelse($product->items as $item)
-                            <tr class="hover:bg-gray-50">
+                            @forelse($items as $item)
+                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="font-medium text-gray-900 {{ Str::startsWith($item->sku, 'NOSKU') ? 'text-gray-400 italic' : '' }}">
-                                        {{ $item->sku }}
-                                    </span>
+                                    @if(Str::startsWith($item->sku, 'NOSKU') || Str::startsWith($item->sku, 'NOSERIAL'))
+                                        <span class="text-gray-400 italic text-xs">Không serial</span>
+                                        <div class="text-[10px] text-gray-300">{{ $item->sku }}</div>
+                                    @else
+                                        <span class="font-medium text-gray-900">
+                                            {{ $item->sku }}
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ Str::limit($item->description, 30) }}</td>
-                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
                                     @if($item->cost_usd > 0)
                                         <div class="font-medium text-gray-800">${{ number_format($item->cost_usd, 2) }}</div>
                                     @endif
                                     @php
-                                        $inv = \App\Models\Inventory::where('product_id', $product->id)
+                                        $importItem = \App\Models\ImportItem::where('import_id', $item->import_id)
+                                            ->where('product_id', $item->product_id)
                                             ->where('warehouse_id', $item->warehouse_id)
                                             ->first();
-                                        $avgCostVnd = $inv ? $inv->avg_cost : 0;
+                                        $importCost = $importItem ? $importItem->cost : 0;
                                     @endphp
-                                    @if($avgCostVnd > 0)
-                                        <div class="text-xs text-green-700">{{ number_format($avgCostVnd, 0, ',', '.') }} đ</div>
+                                    @if($importCost > 0)
+                                        <div class="text-xs text-green-700">{{ number_format($importCost, 0, ',', '.') }} đ</div>
                                     @elseif($item->cost_usd <= 0)
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -149,6 +155,11 @@
                         </tbody>
                     </table>
                 </div>
+                @if($items->hasPages())
+                    <div class="px-4 py-3 border-t border-gray-100 bg-gray-50">
+                        {{ $items->links() }}
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -161,23 +172,23 @@
                 <div class="p-4 space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Tổng số items:</span>
-                        <span class="text-sm font-semibold text-gray-900">{{ $product->items->count() }}</span>
+                        <span class="text-sm font-semibold text-gray-900">{{ $product->total_quantity }}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Trong kho:</span>
-                        <span class="text-sm font-semibold text-green-600">{{ $product->items->where('status', 'in_stock')->sum('quantity') }}</span>
+                        <span class="text-sm font-semibold text-green-600">{{ $product->in_stock_quantity }}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Đã bán:</span>
-                        <span class="text-sm font-semibold text-blue-600">{{ $product->items->where('status', 'sold')->sum('quantity') }}</span>
+                        <span class="text-sm font-semibold text-blue-600">{{ $product->items()->where('status', 'sold')->sum('quantity') }}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Hư hỏng:</span>
-                        <span class="text-sm font-semibold text-red-600">{{ $product->items->where('status', 'damaged')->sum('quantity') }}</span>
+                        <span class="text-sm font-semibold text-red-600">{{ $product->items()->where('status', 'damaged')->sum('quantity') }}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Thanh lý:</span>
-                        <span class="text-sm font-semibold text-indigo-600">{{ $product->items->where('status', 'liquidation')->sum('quantity') }}</span>
+                        <span class="text-sm font-semibold text-indigo-600">{{ $product->liquidation_quantity }}</span>
                     </div>
                 </div>
             </div>
