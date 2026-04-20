@@ -306,6 +306,7 @@
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <form action="{{ route('sales.destroy', $sale->id) }}" method="POST"
+                                        onsubmit="return confirm('Bạn có chắc muốn xóa đơn hàng bán này?')"
                                         class="inline delete-form">
                                         @csrf
                                         @method('DELETE')
@@ -362,7 +363,8 @@
                             class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
-                        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" class="flex-1 delete-form">
+                        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST"
+                            onsubmit="return confirm('Bạn có chắc muốn xóa đơn hàng bán này?')" class="flex-1 delete-form">
                             @csrf
                             @method('DELETE')
                             <button type="submit"

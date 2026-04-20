@@ -42,7 +42,9 @@
 
                     <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
-                        <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode" @change="recalcRow(idx)"
+                        <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode"
+                                @focus="exp._modeBeforeFocus = exp.input_mode"
+                                @change="onExpenseInputModeChange(idx)"
                                 class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer">
                             <option value="percent">% (Phần trăm)</option>
                             <option value="fixed">VND (Số tiền)</option>
@@ -96,33 +98,8 @@
         </div>
     </div>
 
-    {{-- Detailed Summary Footer --}}
-    <div class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-2">
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500">Tổng chi phí theo tỉ lệ:</span>
-                    <div class="text-right">
-                        <span class="font-bold text-purple-700" x-text="totalPercent + '%'"></span>
-                        <span class="text-gray-400 mx-1">→</span>
-                        <span class="font-medium text-gray-900" x-text="formatCurrency(totalPercentAmount)"></span>
-                    </div>
-                </div>
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500">Tổng chi phí cố định:</span>
-                    <span class="font-bold text-orange-600" x-text="formatCurrency(totalFixedAmount)"></span>
-                </div>
-                <div class="text-[10px] text-gray-400 italic mt-1">
-                    * Chi phí % được tính dựa trên giá vốn (Cost Base) của đơn hàng.
-                </div>
-            </div>
-            
-            <div class="flex flex-col justify-center items-end border-t md:border-t-0 md:border-l pt-3 md:pt-0 md:pl-6 border-gray-200">
-                <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Tổng chi phí đơn hàng</div>
-                <div class="text-2xl font-black text-red-600" x-text="formatCurrency(totalExpenses)"></div>
-            </div>
-        </div>
-    </div>
+    {{-- Keep total cost for JS calculations, but hide from UI --}}
+    <span id="totalCost" class="hidden" x-text="Math.round(totalExpenses)"></span>
 </div>
 
 @push('scripts')
@@ -135,6 +112,7 @@ function expenseManager() {
         expenses: existingExpenses.map(e => ({
             type: e.type || '',
             input_mode: e.input_mode || 'fixed',
+            _modeBeforeFocus: e.input_mode || 'fixed',
             input_value: e.input_mode === 'percent' ? (parseFloat(e.percent_value) || 0) : (parseFloat(e.amount) || 0),
             calculated_amount: parseFloat(e.amount) || 0,
             description: e.description || '',
@@ -175,10 +153,26 @@ function expenseManager() {
             this.expenses.push({
                 type: '',
                 input_mode: 'fixed',
+                _modeBeforeFocus: 'fixed',
                 input_value: 0,
                 calculated_amount: 0,
                 description: '',
             });
+        },
+
+        onExpenseInputModeChange(idx) {
+            const exp = this.expenses[idx];
+            const prev = exp._modeBeforeFocus ?? exp.input_mode;
+            const now = exp.input_mode;
+            const base = this.costBase || 0;
+            let v = parseFloat(exp.input_value) || 0;
+            if (prev === 'fixed' && now === 'percent' && base > 0 && v > 0) {
+                exp.input_value = Math.round((v / base) * 1e6) / 1e4;
+            } else if (prev === 'percent' && now === 'fixed' && base > 0 && v > 0) {
+                exp.input_value = Math.round((v * base) / 100);
+            }
+            exp._modeBeforeFocus = now;
+            this.recalcRow(idx);
         },
 
         removeExpense(idx) {

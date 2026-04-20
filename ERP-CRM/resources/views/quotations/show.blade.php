@@ -23,6 +23,12 @@
                     <span class="font-medium ml-2">{{ $quotation->date->format('d/m/Y') }}</span>
                 </div>
                 <div>
+                    <span class="text-gray-500">Trạng thái:</span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-2 {{ $quotation->status_color }}">
+                        {{ $quotation->status_label }}
+                    </span>
+                </div>
+                <div>
                     <span class="text-gray-500">Khách hàng:</span>
                     <span class="font-medium ml-2">{{ $quotation->customer_name }}</span>
                 </div>
@@ -300,19 +306,17 @@
                     </form>
                 @endif
 
-                @if(!$quotation->converted_to_sale_id)
-                    @can('delete', $quotation)
-                    @if($quotation->canBeDeleted())
-                        <form action="{{ route('quotations.destroy', $quotation) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
-                                <i class="fas fa-trash mr-2"></i> Xóa báo giá
-                            </button>
-                        </form>
-                    @endif
-                    @endcan
+                @can('delete', $quotation)
+                @if($quotation->canBeDeleted())
+                    <form action="{{ route('quotations.destroy', $quotation) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                            <i class="fas fa-trash mr-2"></i> Xóa báo giá
+                        </button>
+                    </form>
                 @endif
+                @endcan
             </div>
         </div>
 

@@ -575,29 +575,6 @@
                                 </div>
                             </div>
                             
-                            <div class="bg-orange-50 rounded-lg p-4">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-medium text-orange-700">Giá vốn hàng bán (COGS)</span>
-                                    <span class="text-lg font-bold text-orange-700">{{ number_format($totalCostOfGoods) }} đ</span>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-red-50 rounded-lg p-4">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-medium text-red-700">Chi phí vận hành (OpEx)</span>
-                                    <span class="text-lg font-bold text-red-700">{{ number_format($totalOpex) }} đ</span>
-                                </div>
-                                @if(count($opexDetails) > 0)
-                                <div class="mt-2 text-xs space-y-1">
-                                    @foreach($opexDetails as $type => $amount)
-                                    <div class="flex justify-between text-red-600">
-                                        <span>{{ $type }}</span>
-                                        <span>{{ number_format($amount) }} đ</span>
-                                    </div>
-                                    @endforeach
-                                </div>
-                                @endif
-                            </div>
                         </div>
                         
                         <!-- Right Summary -->

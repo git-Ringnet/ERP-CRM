@@ -101,10 +101,10 @@ class Quotation extends Model
             'approved' => 'Đã duyệt',
             'rejected' => 'Từ chối',
             'sent' => 'Đã gửi khách',
-            'accepted' => 'Khách chấp nhận',
+            'accepted' => 'KH chốt giá',
             'declined' => 'Khách từ chối',
             'expired' => 'Hết hạn',
-            'converted' => 'Đã chuyển đơn hàng',
+            'converted' => 'KH chốt giá - Đã chuyển đơn hàng',
             default => 'Không xác định',
         };
     }
@@ -143,7 +143,6 @@ class Quotation extends Model
 
     public function canBeDeleted(): bool
     {
-        return !$this->converted_to_sale_id
-            && in_array($this->status, ['draft', 'rejected', 'expired'], true);
+        return true;
     }
 }

@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -298,18 +299,26 @@ class SaleController extends Controller
             if (!empty($validated['expenses'])) {
                 foreach ($validated['expenses'] as $expense) {
                     if (empty($expense['type'])) continue;
-                    $amount = floatval($expense['amount'] ?? 0);
-                    if ($amount == 0 && empty($expense['percent_value'])) continue;
+                    $inputMode = $expense['input_mode'] ?? 'fixed';
+                    $amount = $inputMode === 'percent'
+                        ? 0
+                        : round(floatval($expense['amount'] ?? 0), 2);
+                    $percentValue = $inputMode === 'percent'
+                        ? round(floatval($expense['percent_value'] ?? 0), 2)
+                        : null;
+
                     SaleExpense::create([
                         'sale_id' => $sale->id,
                         'type' => $expense['type'],
-                        'input_mode' => $expense['input_mode'] ?? 'fixed',
-                        'percent_value' => ($expense['input_mode'] ?? 'fixed') === 'percent' ? ($expense['percent_value'] ?? null) : null,
+                        'input_mode' => $inputMode,
+                        'percent_value' => $percentValue,
                         'description' => $expense['description'] ?? '',
-                        'amount' => round($amount, 2),
+                        'amount' => $amount,
                     ]);
                 }
             }
+
+            $this->syncOrderExpensesToPnlItems($sale);
 
             // Calculate margin and debt
             $sale->calculateMargin();
@@ -477,8 +486,11 @@ class SaleController extends Controller
                     'support_247_cost_percent' => $oldItem->support_247_cost_percent,
                     'other_support_cost' => $oldItem->other_support_cost,
                     'technical_poc_cost' => $oldItem->technical_poc_cost,
+                    'technical_poc_percent' => $oldItem->technical_poc_percent,
                     'implementation_cost' => $oldItem->implementation_cost,
+                    'implementation_cost_percent' => $oldItem->implementation_cost_percent,
                     'contractor_tax' => $oldItem->contractor_tax,
+                    'contractor_tax_percent' => $oldItem->contractor_tax_percent,
                 ];
             }
             
@@ -527,8 +539,11 @@ class SaleController extends Controller
                     'support_247_cost_percent' => $pnlData['support_247_cost_percent'] ?? null,
                     'other_support_cost' => $pnlData['other_support_cost'] ?? 0,
                     'technical_poc_cost' => $pnlData['technical_poc_cost'] ?? 0,
+                    'technical_poc_percent' => $pnlData['technical_poc_percent'] ?? null,
                     'implementation_cost' => $pnlData['implementation_cost'] ?? 0,
+                    'implementation_cost_percent' => $pnlData['implementation_cost_percent'] ?? null,
                     'contractor_tax' => $pnlData['contractor_tax'] ?? 0,
+                    'contractor_tax_percent' => $pnlData['contractor_tax_percent'] ?? null,
                 ]);
             }
 
@@ -537,18 +552,26 @@ class SaleController extends Controller
             if (!empty($validated['expenses'])) {
                 foreach ($validated['expenses'] as $expense) {
                     if (empty($expense['type'])) continue;
-                    $amount = floatval($expense['amount'] ?? 0);
-                    if ($amount == 0 && empty($expense['percent_value'])) continue;
+                    $inputMode = $expense['input_mode'] ?? 'fixed';
+                    $amount = $inputMode === 'percent'
+                        ? 0
+                        : round(floatval($expense['amount'] ?? 0), 2);
+                    $percentValue = $inputMode === 'percent'
+                        ? round(floatval($expense['percent_value'] ?? 0), 2)
+                        : null;
+
                     SaleExpense::create([
                         'sale_id' => $sale->id,
                         'type' => $expense['type'],
-                        'input_mode' => $expense['input_mode'] ?? 'fixed',
-                        'percent_value' => ($expense['input_mode'] ?? 'fixed') === 'percent' ? ($expense['percent_value'] ?? null) : null,
+                        'input_mode' => $inputMode,
+                        'percent_value' => $percentValue,
                         'description' => $expense['description'] ?? '',
-                        'amount' => round($amount, 2),
+                        'amount' => $amount,
                     ]);
                 }
             }
+
+            $this->syncOrderExpensesToPnlItems($sale);
 
             // Calculate margin and debt AFTER creating new items
             $sale->calculateMargin();
@@ -915,6 +938,19 @@ class SaleController extends Controller
             return back()->with('error', 'P&L hiện không thể chỉnh sửa (đang chờ duyệt hoặc đã duyệt).');
         }
 
+        $itemsPayload = $request->input('items', []);
+        foreach ($itemsPayload as $i => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            foreach (['technical_poc_percent', 'implementation_cost_percent', 'contractor_tax_percent'] as $pctField) {
+                if (array_key_exists($pctField, $row) && $row[$pctField] === '') {
+                    $itemsPayload[$i][$pctField] = null;
+                }
+            }
+        }
+        $request->merge(['items' => $itemsPayload]);
+
         $validated = $request->validate([
             'items' => ['required', 'array'],
             'items.*.id' => ['required', 'exists:sale_items,id'],
@@ -925,8 +961,11 @@ class SaleController extends Controller
             'items.*.support_247_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.other_support_cost' => ['nullable', 'numeric', 'min:0'],
             'items.*.technical_poc_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.technical_poc_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.implementation_cost' => ['nullable', 'numeric', 'min:0'],
+            'items.*.implementation_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.contractor_tax' => ['nullable', 'numeric', 'min:0'],
+            'items.*.contractor_tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.usd_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.discount_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.import_cost_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -936,6 +975,8 @@ class SaleController extends Controller
             'expenses' => ['nullable', 'array'],
             'expenses.*.id' => ['nullable', 'exists:sale_expenses,id'],
             'expenses.*.type' => ['nullable', 'string'],
+            'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
+            'expenses.*.percent_value' => ['nullable', 'numeric', 'min:0'],
             'expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
             'expenses.*.description' => ['nullable', 'string'],
         ]);
@@ -944,6 +985,7 @@ class SaleController extends Controller
         try {
             foreach ($validated['items'] as $itemData) {
                 $item = SaleItem::where('id', $itemData['id'])->where('sale_id', $sale->id)->firstOrFail();
+                unset($itemData['id']);
                 $item->update($itemData);
             }
 
@@ -952,12 +994,28 @@ class SaleController extends Controller
                 foreach ($validated['expenses'] as $expenseData) {
                     if (!empty($expenseData['id'])) {
                         $expense = SaleExpense::where('id', $expenseData['id'])->where('sale_id', $sale->id)->firstOrFail();
-                        $expense->update($expenseData);
-                    } elseif (!empty($expenseData['type']) && !empty($expenseData['amount'])) {
-                        $sale->expenses()->create($expenseData);
+                        $inputMode = $expenseData['input_mode'] ?? $expense->input_mode ?? 'fixed';
+                        $expense->update([
+                            'type' => $expenseData['type'] ?? $expense->type,
+                            'input_mode' => $inputMode,
+                            'percent_value' => $inputMode === 'percent' ? ($expenseData['percent_value'] ?? 0) : null,
+                            'amount' => $inputMode === 'fixed' ? ($expenseData['amount'] ?? 0) : 0,
+                            'description' => $expenseData['description'] ?? ($expense->description ?? ''),
+                        ]);
+                    } elseif (!empty($expenseData['type'])) {
+                        $sale->expenses()->create([
+                            'type' => $expenseData['type'],
+                            'input_mode' => $expenseData['input_mode'] ?? 'fixed',
+                            'percent_value' => ($expenseData['input_mode'] ?? 'fixed') === 'percent' ? ($expenseData['percent_value'] ?? 0) : null,
+                            'amount' => ($expenseData['input_mode'] ?? 'fixed') === 'fixed' ? ($expenseData['amount'] ?? 0) : 0,
+                            'description' => $expenseData['description'] ?? '',
+                        ]);
                     }
                 }
             }
+
+            $sale->load(['items', 'expenses']);
+            $this->syncPnlItemsToOrderExpenses($sale);
 
             $sale->pl_status = 'draft';
             $sale->calculateMargin();
@@ -970,6 +1028,250 @@ class SaleController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Lỗi khi cập nhật P&L: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Normalize expense type for robust matching (case/diacritics/spacing insensitive).
+     */
+    private function normalizeExpenseType(?string $type): string
+    {
+        $normalized = Str::ascii((string) $type);
+        $normalized = Str::lower($normalized);
+        $normalized = preg_replace('/[^a-z0-9]+/u', '', $normalized) ?? '';
+
+        return $normalized;
+    }
+
+    /**
+     * Find first sale_expenses row matching any of the given type labels.
+     */
+    private function findOrderExpenseByTypes(Sale $sale, array $types): ?SaleExpense
+    {
+        $orderedExpenses = $sale->expenses->sortByDesc('id')->values();
+
+        foreach ($types as $type) {
+            $expense = $orderedExpenses->firstWhere('type', $type);
+            if ($expense) {
+                return $expense;
+            }
+        }
+
+        $normalizedNeedles = array_map(fn ($type) => $this->normalizeExpenseType($type), $types);
+        foreach ($orderedExpenses as $expense) {
+            $normalizedExpenseType = $this->normalizeExpenseType($expense->type);
+            if (in_array($normalizedExpenseType, $normalizedNeedles, true)) {
+                return $expense;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Push aggregated P&L item fields into sale_expenses so "Chi phí đơn hàng" stays in sync.
+     */
+    private function syncPnlItemsToOrderExpenses(Sale $sale): void
+    {
+        $items = $sale->items;
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $upsert = function (array $typeKeys, string $defaultType, string $inputMode, ?float $percent, float $amount) use ($sale) {
+            $existing = $this->findOrderExpenseByTypes($sale, $typeKeys);
+            $type = $existing?->type ?? $defaultType;
+            $payload = [
+                'input_mode' => $inputMode,
+                'percent_value' => $inputMode === 'percent' ? round((float) $percent, 4) : null,
+                'amount' => $inputMode === 'fixed' ? round((float) $amount, 2) : 0,
+                'description' => $existing?->description ?? '',
+            ];
+            if ($existing) {
+                $existing->update($payload);
+            } else {
+                SaleExpense::create(array_merge([
+                    'sale_id' => $sale->id,
+                    'type' => $type,
+                ], $payload));
+            }
+        };
+
+        $syncPercentExpense = function (array $typeKeys, string $defaultType, float $maxPercent) use ($sale, $upsert) {
+            $existing = $this->findOrderExpenseByTypes($sale, $typeKeys);
+
+            if ($maxPercent > 0) {
+                $upsert($typeKeys, $defaultType, 'percent', $maxPercent, 0);
+                return;
+            }
+
+            // Không ép fixed -> percent(0) khi lưu nháp P&L.
+            if ($existing && ($existing->input_mode ?? 'fixed') === 'fixed') {
+                return;
+            }
+
+            if (! $existing) {
+                return;
+            }
+
+            $upsert($typeKeys, $defaultType, 'percent', 0, 0);
+        };
+
+        $maxFinance = (float) $items->max(fn ($i) => (float) ($i->finance_cost_percent ?? 0));
+        $syncPercentExpense(['Chi phí Tài chính'], 'Chi phí Tài chính', $maxFinance);
+
+        $maxOverdueP = (float) $items->max(fn ($i) => (float) ($i->overdue_interest_percent ?? 0));
+        $sumOverdueC = (float) $items->sum(fn ($i) => (float) ($i->overdue_interest_cost ?? 0));
+        if ($maxOverdueP > 0) {
+            $upsert(['Lãi vay phát sinh do nợ quá hạn'], 'Lãi vay phát sinh do nợ quá hạn', 'percent', $maxOverdueP, 0);
+        } else {
+            $upsert(['Lãi vay phát sinh do nợ quá hạn'], 'Lãi vay phát sinh do nợ quá hạn', 'fixed', null, $sumOverdueC);
+        }
+
+        $maxMgmt = (float) $items->max(fn ($i) => (float) ($i->management_cost_percent ?? 0));
+        $syncPercentExpense(['Chi phí Quản lí, Back Office & kỹ thuật'], 'Chi phí Quản lí, Back Office & kỹ thuật', $maxMgmt);
+
+        $max247 = (float) $items->max(fn ($i) => (float) ($i->support_247_cost_percent ?? 0));
+        $syncPercentExpense(['24x7 Support cost'], '24x7 Support cost', $max247);
+
+        $maxOther = (float) $items->max(fn ($i) => (float) ($i->other_support_cost ?? 0));
+        $syncPercentExpense(['Other Support'], 'Other Support', $maxOther);
+
+        $maxPocP = (float) $items->max(fn ($i) => (float) ($i->technical_poc_percent ?? 0));
+        $sumPoc = (float) $items->sum(fn ($i) => (float) ($i->technical_poc_cost ?? 0));
+        $pocExisting = $this->findOrderExpenseByTypes($sale, ['Technical support/POC 30%', 'Technical support/POC']);
+        $pocType = $pocExisting?->type ?? 'Technical support/POC 30%';
+        if ($maxPocP > 0) {
+            $upsert(['Technical support/POC 30%', 'Technical support/POC'], $pocType, 'percent', $maxPocP, 0);
+        } else {
+            $upsert(['Technical support/POC 30%', 'Technical support/POC'], $pocType, 'fixed', null, $sumPoc);
+        }
+
+        $maxImplP = (float) $items->max(fn ($i) => (float) ($i->implementation_cost_percent ?? 0));
+        $sumImpl = (float) $items->sum(fn ($i) => (float) ($i->implementation_cost ?? 0));
+        if ($maxImplP > 0) {
+            $upsert(['Chi phí triển khai hợp đồng'], 'Chi phí triển khai hợp đồng', 'percent', $maxImplP, 0);
+        } else {
+            $upsert(['Chi phí triển khai hợp đồng'], 'Chi phí triển khai hợp đồng', 'fixed', null, $sumImpl);
+        }
+
+        $maxTaxP = (float) $items->max(fn ($i) => (float) ($i->contractor_tax_percent ?? 0));
+        $sumTax = (float) $items->sum(fn ($i) => (float) ($i->contractor_tax ?? 0));
+        if ($maxTaxP > 0) {
+            $upsert(['Thuế nhà thầu'], 'Thuế nhà thầu', 'percent', $maxTaxP, 0);
+        } else {
+            $upsert(['Thuế nhà thầu'], 'Thuế nhà thầu', 'fixed', null, $sumTax);
+        }
+
+        $sale->load('expenses');
+    }
+
+    /**
+     * Sync order-level expenses to item-level P&L fields.
+     */
+    private function syncOrderExpensesToPnlItems(Sale $sale): void
+    {
+        // Sau khi items()->delete() + create lại (update đơn), quan hệ items có thể vẫn là collection cũ;
+        // loadMissing không nạp lại → đồng bộ chi phí ghi nhầm và item đã xóa, P&L không đổi theo kiểu %/VND.
+        $sale->unsetRelation('items');
+        $sale->unsetRelation('expenses');
+        $sale->load(['items', 'expenses']);
+        $items = $sale->items;
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $totalCostBase = (float) $items->sum(fn ($item) => (float) ($item->cost_total ?? 0));
+        $totalRevenueBase = (float) $items->sum(fn ($item) => (float) ($item->total ?? 0));
+        $itemCount = $items->count();
+
+        $getExpense = fn (array $types) => $this->findOrderExpenseByTypes($sale, $types);
+
+        $finance = $getExpense(['Chi phí Tài chính']);
+        $overdue = $getExpense(['Lãi vay phát sinh do nợ quá hạn']);
+        $management = $getExpense(['Chi phí Quản lí, Back Office & kỹ thuật']);
+        $support247 = $getExpense(['24x7 Support cost']);
+        $otherSupport = $getExpense(['Other Support']);
+        $technicalPoc = $getExpense(['Technical support/POC', 'Technical support/POC 30%']);
+        $implementation = $getExpense(['Chi phí triển khai hợp đồng']);
+        $contractorTax = $getExpense(['Thuế nhà thầu']);
+
+        foreach ($items as $index => $item) {
+            $costTotal = (float) ($item->cost_total ?? 0);
+            $revenueTotal = (float) ($item->total ?? 0);
+
+            $share = 0.0;
+            if ($itemCount === 1) {
+                $share = 1.0;
+            } elseif ($totalCostBase > 0 && $costTotal > 0) {
+                $share = $costTotal / $totalCostBase;
+            } elseif ($totalRevenueBase > 0 && $revenueTotal > 0) {
+                $share = $revenueTotal / $totalRevenueBase;
+            } elseif ($index === 0) {
+                $share = 1.0;
+            }
+
+            $item->finance_cost_percent = ($finance && $finance->input_mode === 'percent')
+                ? (float) ($finance->percent_value ?? 0)
+                : null;
+
+            if ($overdue && $overdue->input_mode === 'percent') {
+                $item->overdue_interest_percent = (float) ($overdue->percent_value ?? 0);
+                $item->overdue_interest_cost = 0;
+            } elseif ($overdue && $overdue->input_mode === 'fixed') {
+                $item->overdue_interest_percent = null;
+                $item->overdue_interest_cost = round(((float) ($overdue->amount ?? 0)) * $share, 2);
+            } else {
+                $item->overdue_interest_percent = null;
+                $item->overdue_interest_cost = 0;
+            }
+
+            $item->management_cost_percent = ($management && $management->input_mode === 'percent')
+                ? (float) ($management->percent_value ?? 0)
+                : null;
+
+            $item->support_247_cost_percent = ($support247 && $support247->input_mode === 'percent')
+                ? (float) ($support247->percent_value ?? 0)
+                : null;
+
+            $item->other_support_cost = ($otherSupport && $otherSupport->input_mode === 'percent')
+                ? (float) ($otherSupport->percent_value ?? 0)
+                : 0;
+
+            if ($technicalPoc && $technicalPoc->input_mode === 'percent') {
+                $item->technical_poc_percent = (float) ($technicalPoc->percent_value ?? 0);
+                $item->technical_poc_cost = 0;
+            } elseif ($technicalPoc && $technicalPoc->input_mode === 'fixed') {
+                $item->technical_poc_percent = null;
+                $item->technical_poc_cost = round(((float) ($technicalPoc->amount ?? 0)) * $share, 2);
+            } else {
+                $item->technical_poc_percent = null;
+                $item->technical_poc_cost = 0;
+            }
+
+            if ($implementation && $implementation->input_mode === 'percent') {
+                $item->implementation_cost_percent = (float) ($implementation->percent_value ?? 0);
+                $item->implementation_cost = 0;
+            } elseif ($implementation && $implementation->input_mode === 'fixed') {
+                $item->implementation_cost_percent = null;
+                $item->implementation_cost = round(((float) ($implementation->amount ?? 0)) * $share, 2);
+            } else {
+                $item->implementation_cost_percent = null;
+                $item->implementation_cost = 0;
+            }
+
+            if ($contractorTax && $contractorTax->input_mode === 'percent') {
+                $item->contractor_tax_percent = (float) ($contractorTax->percent_value ?? 0);
+                $item->contractor_tax = 0;
+            } elseif ($contractorTax && $contractorTax->input_mode === 'fixed') {
+                $item->contractor_tax_percent = null;
+                $item->contractor_tax = round(((float) ($contractorTax->amount ?? 0)) * $share, 2);
+            } else {
+                $item->contractor_tax_percent = null;
+                $item->contractor_tax = 0;
+            }
+
+            $item->save();
         }
     }
 

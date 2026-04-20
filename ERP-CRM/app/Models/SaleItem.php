@@ -42,8 +42,11 @@ class SaleItem extends Model
         'support_247_cost_percent',
         'other_support_cost',
         'technical_poc_cost',
+        'technical_poc_percent',
         'implementation_cost',
+        'implementation_cost_percent',
         'contractor_tax',
+        'contractor_tax_percent',
     ];
 
     protected $casts = [
@@ -66,8 +69,11 @@ class SaleItem extends Model
         'support_247_cost_percent' => 'decimal:2',
         'other_support_cost' => 'decimal:2',
         'technical_poc_cost' => 'decimal:2',
+        'technical_poc_percent' => 'decimal:2',
         'implementation_cost' => 'decimal:2',
+        'implementation_cost_percent' => 'decimal:2',
         'contractor_tax' => 'decimal:2',
+        'contractor_tax_percent' => 'decimal:2',
     ];
 
     /**
@@ -116,14 +122,24 @@ class SaleItem extends Model
      */
     public function getTotalExpensesAttribute(): float
     {
-        return $this->finance_cost + 
+        $pocVnd = ! is_null($this->technical_poc_percent)
+            ? (float) $this->cost_total * ((float) $this->technical_poc_percent / 100)
+            : (float) ($this->technical_poc_cost ?: 0);
+        $implVnd = ! is_null($this->implementation_cost_percent)
+            ? (float) $this->cost_total * ((float) $this->implementation_cost_percent / 100)
+            : (float) ($this->implementation_cost ?: 0);
+        $taxVnd = ! is_null($this->contractor_tax_percent)
+            ? (float) $this->cost_total * ((float) $this->contractor_tax_percent / 100)
+            : (float) ($this->contractor_tax ?: 0);
+
+        return $this->finance_cost +
                ($this->overdue_interest_cost ?: 0) +
-               $this->management_cost + 
-               $this->support_247_cost + 
-               $this->other_support_cost_vnd + 
-               $this->technical_poc_cost + 
-               $this->implementation_cost + 
-               $this->contractor_tax;
+               $this->management_cost +
+               $this->support_247_cost +
+               $this->other_support_cost_vnd +
+               $pocVnd +
+               $implVnd +
+               $taxVnd;
     }
 
     /**

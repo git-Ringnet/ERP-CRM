@@ -57,9 +57,9 @@ class QuotationsExport implements FromCollection, WithHeadings, WithMapping, Wit
             'approved' => 'Đã duyệt',
             'rejected' => 'Từ chối',
             'sent' => 'Đã gửi khách',
-            'accepted' => 'Khách chấp nhận',
+            'accepted' => 'KH chốt giá',
             'declined' => 'Khách từ chối',
-            'converted' => 'Đã chuyển ĐH',
+            'converted' => 'KH chốt giá - Đã chuyển ĐH',
             'expired' => 'Hết hạn',
         ];
 

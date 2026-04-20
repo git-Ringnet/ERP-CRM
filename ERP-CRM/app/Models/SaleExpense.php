@@ -35,7 +35,7 @@ class SaleExpense extends Model
             ['type' => 'Chi phí Quản lí, Back Office & kỹ thuật', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => '24x7 Support cost', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Other Support', 'input_mode' => 'percent', 'percent_value' => '', 'amount' => '', 'description' => ''],
-            ['type' => 'Technical support/POC', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
+            ['type' => 'Technical support/POC 30%', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Chi phí triển khai hợp đồng', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
             ['type' => 'Thuế nhà thầu', 'input_mode' => 'fixed', 'percent_value' => '', 'amount' => '', 'description' => ''],
         ];

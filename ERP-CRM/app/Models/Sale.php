@@ -314,10 +314,22 @@ class Sale extends Model
                 $totalCost += ($costBase * $item->other_support_cost / 100);
             }
             
-            // Chi phí cố định
-            $totalCost += ($item->technical_poc_cost ?: 0);
-            $totalCost += ($item->implementation_cost ?: 0);
-            $totalCost += ($item->contractor_tax ?: 0);
+            // POC / Triển khai / Thuế nhà thầu: VND hoặc % trên giá vốn dòng
+            if (! is_null($item->technical_poc_percent)) {
+                $totalCost += ($costBase * (float) $item->technical_poc_percent / 100);
+            } else {
+                $totalCost += ($item->technical_poc_cost ?: 0);
+            }
+            if (! is_null($item->implementation_cost_percent)) {
+                $totalCost += ($costBase * (float) $item->implementation_cost_percent / 100);
+            } else {
+                $totalCost += ($item->implementation_cost ?: 0);
+            }
+            if (! is_null($item->contractor_tax_percent)) {
+                $totalCost += ($costBase * (float) $item->contractor_tax_percent / 100);
+            } else {
+                $totalCost += ($item->contractor_tax ?: 0);
+            }
         }
         
         $this->cost = round($totalCost);

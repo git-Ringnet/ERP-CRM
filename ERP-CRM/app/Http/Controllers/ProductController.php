@@ -320,6 +320,7 @@ class ProductController extends Controller
                 'code' => $product->code,
                 'name' => $product->name,
                 'price' => $suggestedPrice,
+                'cost' => $product->calculated_cost,
                 'warranty_months' => $product->warranty_months,
                 'is_liquidation' => 0,
                 'liquidation_count' => $product->liquidation_count

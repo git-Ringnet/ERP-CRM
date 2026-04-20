@@ -51,6 +51,8 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn BG
                         </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái
+                        </th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng
                             tiền</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
@@ -88,6 +90,11 @@
                                     <i class="fas fa-exclamation-circle ml-1" title="Đã hết hạn"></i>
                                 @endif
                             </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $quotation->status_color }}">
+                                    {{ $quotation->status_label }}
+                                </span>
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
                                 @if($quotation->currency && !$quotation->currency->is_base)
                                     <div class="text-gray-900">
@@ -113,18 +120,18 @@
                                             title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        @if($quotation->canBeDeleted())
-                                            <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                                onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="inline-block">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit"
-                                                    class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
-                                                    title="Xóa">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @endif
+                                    @if($quotation->canBeDeleted())
+                                        <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
+                                            onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="inline-block">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
+                                                title="Xóa">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     @endif
                                     <a href="{{ route('quotations.print', $quotation) }}" target="_blank"
                                         class="p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -136,7 +143,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-file-alt text-4xl mb-2"></i>
                                 <p>Chưa có báo giá nào</p>
                             </td>
@@ -156,6 +163,9 @@
                                 class="font-medium text-blue-600 hover:text-blue-800">{{ $quotation->code }}</a>
                             <div class="text-sm text-gray-500">{{ $quotation->customer_name }}</div>
                         </div>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $quotation->status_color }}">
+                            {{ $quotation->status_label }}
+                        </span>
                     </div>
                     <div class="text-sm text-gray-700 mb-2 truncate">{{ $quotation->title }}</div>
                     <div class="space-y-1 text-sm text-gray-600 mb-3">
@@ -179,17 +189,17 @@
                                 class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                                 <i class="fas fa-edit mr-1"></i>Sửa
                             </a>
-                            @if($quotation->canBeDeleted())
-                                <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                    onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="flex-1">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit"
-                                        class="w-full text-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
-                                        <i class="fas fa-trash mr-1"></i>Xóa
-                                    </button>
-                                </form>
-                            @endif
+                        @endif
+                        @if($quotation->canBeDeleted())
+                            <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
+                                onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="flex-1">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                    class="w-full text-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
+                                    <i class="fas fa-trash mr-1"></i>Xóa
+                                </button>
+                            </form>
                         @endif
                         <a href="{{ route('quotations.print', $quotation) }}" target="_blank"
                             class="flex-1 text-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">

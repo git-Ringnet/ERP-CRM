@@ -226,16 +226,6 @@
                                class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
                     </div>
                     <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium text-gray-700">Tổng chi phí (<span class="currency-symbol">{{ $sale->currency ? ($sale->currency->symbol ?? $sale->currency->code) : '₫' }}</span>)</label>
-                        <input type="text" id="totalCost" readonly value="0"
-                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-red-600">
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium text-gray-700">Lợi nhuận gộp (VNĐ)</label>
-                        <input type="text" id="grossProfit" readonly value="0"
-                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-green-600">
-                    </div>
-                    <div class="flex justify-between items-center">
                         <label class="text-sm font-medium text-gray-700">Chiết khấu (%)</label>
                         <div class="flex gap-2 items-center">
                             <input type="number" name="discount" id="discount" value="{{ old('discount', $sale->discount ? (int)$sale->discount : '') }}" min="0" max="100" step="1"
