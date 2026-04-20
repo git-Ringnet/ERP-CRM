@@ -3,6 +3,39 @@
 @section('title', 'Sửa báo cáo hư hỏng')
 @section('page-title', 'Chỉnh Sửa Báo Cáo: ' . $damagedGood->code)
 
+@section('push-styles')
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .select2-container .select2-selection--single {
+            height: 38px !important;
+            border-color: #d1d5db !important;
+            border-radius: 0.5rem !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 36px !important;
+            padding-left: 12px !important;
+            color: #374151 !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px !important;
+        }
+        .select2-dropdown {
+            border-color: #d1d5db !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+            z-index: 9999;
+        }
+        .select2-results__option {
+            padding: 8px 12px !important;
+            font-size: 0.875rem !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+        }
+        .select2-container {
+            max-width: 100% !important;
+        }
+    </style>
+@endsection
+
 @section('content')
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200 flex justify-between items-center">
@@ -24,10 +57,8 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('type') border-red-500 @enderror"
                         required>
                         <option value="">-- Chọn loại --</option>
-                        <option value="damaged" {{ old('type', $damagedGood->type) == 'damaged' ? 'selected' : '' }}>Hàng hư
-                            hỏng</option>
-                        <option value="liquidation" {{ old('type', $damagedGood->type) == 'liquidation' ? 'selected' : '' }}>
-                            Thanh lý</option>
+                        <option value="damaged" {{ old('type', $damagedGood->type) == 'damaged' ? 'selected' : '' }}>Hàng hư hỏng</option>
+                        <option value="liquidation" {{ old('type', $damagedGood->type) == 'liquidation' ? 'selected' : '' }}>Thanh lý</option>
                     </select>
                     @error('type')
                         <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
@@ -40,12 +71,9 @@
                     <select name="product_id" id="product_id"
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('product_id') border-red-500 @enderror"
                         required>
-                        <option value="">-- Chọn sản phẩm --</option>
-                        @foreach($products as $product)
-                            <option value="{{ $product->id }}" {{ old('product_id', $damagedGood->product_id) == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }} ({{ $product->code }})
-                            </option>
-                        @endforeach
+                        <option value="{{ $product->id }}" selected>
+                            {{ $product->name }} ({{ $product->code }})
+                        </option>
                     </select>
                     @error('product_id')
                         <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
@@ -53,9 +81,37 @@
                 </div>
 
                 <div>
+                    <label for="warehouse_id" class="block text-sm font-medium text-gray-700 mb-1">Kho hàng <span
+                            class="text-red-500">*</span> <span id="warehouse_stock_info"
+                            class="text-blue-600 ml-2 font-normal"></span></label>
+                    <select name="warehouse_id" id="warehouse_id"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('warehouse_id') border-red-500 @enderror"
+                        required>
+                        <option value="">-- Chọn kho hàng --</option>
+                        @foreach($warehouses as $warehouse)
+                            <option value="{{ $warehouse->id }}" {{ old('warehouse_id', $damagedGood->warehouse_id) == $warehouse->id ? 'selected' : '' }}>
+                                {{ $warehouse->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('warehouse_id')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div id="product_item_container" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Chi tiết (Serial/Mã nhập)</label>
+                    <div class="border border-gray-300 rounded-lg p-2 max-h-48 overflow-y-auto bg-gray-50" id="item_list">
+                        <!-- Checkboxes will be injected here -->
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Chọn nhiều serial nếu cần. Số lượng sẽ tự động cập nhật theo số
+                        serial đã chọn.</p>
+                </div>
+
+                <div>
                     <label for="quantity" class="block text-sm font-medium text-gray-700 mb-1">Số lượng <span
                             class="text-red-500">*</span></label>
-                    <input type="number" step="0.01" name="quantity" id="quantity"
+                    <input type="number" step="0.01" name="quantity" id="quantity" 
                         value="{{ old('quantity', $damagedGood->quantity) }}"
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('quantity') border-red-500 @enderror"
                         required>
@@ -67,7 +123,7 @@
                 <div>
                     <label for="original_value" class="block text-sm font-medium text-gray-700 mb-1">Giá trị gốc <span
                             class="text-red-500">*</span></label>
-                    <input type="text" name="original_value" id="original_value"
+                    <input type="text" name="original_value" id="original_value" 
                         value="{{ old('original_value', number_format($damagedGood->original_value, 0, '', '')) }}"
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('original_value') border-red-500 @enderror"
                         required>
@@ -79,7 +135,7 @@
                 <div>
                     <label for="recovery_value" class="block text-sm font-medium text-gray-700 mb-1">Giá trị thu hồi <span
                             class="text-red-500">*</span></label>
-                    <input type="text" name="recovery_value" id="recovery_value"
+                    <input type="text" name="recovery_value" id="recovery_value" 
                         value="{{ old('recovery_value', number_format($damagedGood->recovery_value, 0, '', '')) }}"
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('recovery_value') border-red-500 @enderror"
                         required>
@@ -162,41 +218,134 @@
 @endsection
 
 @push('scripts')
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const currencyInputs = ['original_value', 'recovery_value'];
-
-            function formatCurrency(input) {
-                let value = input.value.replace(/\D/g, '');
-                if (value === '') return;
-                input.value = new Intl.NumberFormat('en-US').format(value);
-            }
-
-            currencyInputs.forEach(id => {
-                const input = document.getElementById(id);
-                if (input) {
-                    // Format initial value
-                    formatCurrency(input);
-
-                    // Format on input
-                    input.addEventListener('input', function () {
-                        formatCurrency(this);
-                    });
+        $(document).ready(function() {
+            const $productSelect = $('#product_id');
+            const $warehouseSelect = $('#warehouse_id');
+            const selectedItemIds = @json($selectedItemIds);
+            
+            $productSelect.select2({
+                placeholder: "-- Chọn sản phẩm --",
+                allowClear: true,
+                width: '100%',
+                ajax: {
+                    url: "{{ route('products.ajax-search') }}",
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.name + ' (' + item.code + ')'
+                                };
+                            })
+                        };
+                    },
+                    cache: true
                 }
             });
 
-            // Clean before submit
-            const form = document.querySelector('form');
-            if (form) {
-                form.addEventListener('submit', function () {
-                    currencyInputs.forEach(id => {
-                        const input = document.getElementById(id);
-                        if (input) {
-                            input.value = input.value.replace(/,/g, '');
-                        }
-                    });
-                });
+            $productSelect.on('change select2:select select2:unselect select2:clear', function() {
+                loadProductItems();
+            });
+
+            $warehouseSelect.on('change', function() {
+                loadProductItems();
+            });
+
+            // Initial load
+            loadProductItems(selectedItemIds);
+        });
+
+        function loadProductItems(preSelectedIds = []) {
+            const productId = $('#product_id').val();
+            const warehouseId = $('#warehouse_id').val();
+            const $container = $('#product_item_container');
+            const $itemList = $('#item_list');
+            const $stockInfo = $('#warehouse_stock_info');
+
+            if (!productId || !warehouseId) {
+                $container.addClass('hidden');
+                return;
             }
+
+            $itemList.html('<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i> Đang tải...</div>');
+            $container.removeClass('hidden');
+
+            $.get("{{ route('damaged-goods.items') }}", {
+                product_id: productId,
+                warehouse_id: warehouseId
+            }, function(data) {
+                $itemList.empty();
+                const items = data.items || [];
+                const totalStock = data.total_stock || 0;
+
+                if ($stockInfo.length) {
+                    $stockInfo.text(`(Tồn: ${totalStock})`);
+                    $stockInfo.attr('class', totalStock > 0 ? 'text-blue-600 ml-2 font-normal' : 'text-red-500 ml-2 font-normal');
+                }
+
+                if (items.length > 0) {
+                    items.forEach(item => {
+                        const isChecked = preSelectedIds.map(id => String(id)).includes(String(item.id));
+                        const div = `
+                            <div class="flex items-center space-x-2 p-1 hover:bg-gray-100 rounded">
+                                <input type="checkbox" name="product_item_ids[]" value="${item.id}"
+                                    class="item-checkbox rounded border-gray-300 text-primary focus:ring-primary"
+                                    ${isChecked ? 'checked' : ''}
+                                    onchange="updateQuantity()">
+                                <span class="text-sm text-gray-700">${item.sku} (SL: ${item.quantity})</span>
+                            </div>`;
+                        $itemList.append(div);
+                    });
+                } else {
+                    $itemList.html('<span class="text-sm text-gray-500 p-2">Không có sản phẩm trong kho này.</span>');
+                }
+                updateQuantity();
+            }).fail(function() {
+                $itemList.html('<span class="text-sm text-red-500 p-2">Lỗi tải dữ liệu.</span>');
+            });
+        }
+
+        function updateQuantity() {
+            const checkboxes = document.querySelectorAll('.item-checkbox:checked');
+            const $quantityInput = $('#quantity');
+
+            if (checkboxes.length > 0) {
+                $quantityInput.val(checkboxes.length);
+                $quantityInput.prop('readonly', true).addClass('bg-gray-100');
+            } else {
+                $quantityInput.prop('readonly', false).removeClass('bg-gray-100');
+            }
+        }
+
+        // Currency Formatting
+        const currencyInputs = ['original_value', 'recovery_value'];
+        function formatCurrency(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value === '') return;
+            input.value = new Intl.NumberFormat('en-US').format(value);
+        }
+
+        currencyInputs.forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                if (input.value) formatCurrency(input);
+                input.addEventListener('input', function() { formatCurrency(this); });
+            }
+        });
+
+        $('form').on('submit', function() {
+            currencyInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input) input.value = input.value.replace(/,/g, '');
+            });
         });
     </script>
 @endpush

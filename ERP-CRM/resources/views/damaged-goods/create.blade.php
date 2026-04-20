@@ -3,6 +3,40 @@
 @section('title', 'Tạo báo cáo hư hỏng')
 @section('page-title', 'Tạo Báo Cáo Hàng Hư Hỏng / Thanh Lý')
 
+@push('styles')
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .select2-container .select2-selection--single {
+            height: 38px !important;
+            border-color: #d1d5db !important;
+            border-radius: 0.5rem !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 36px !important;
+            padding-left: 12px !important;
+            color: #374151 !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px !important;
+        }
+        .select2-dropdown {
+            border-color: #d1d5db !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+            z-index: 9999;
+        }
+        .select2-results__option {
+            padding: 8px 12px !important;
+            font-size: 0.875rem !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+        }
+        /* Fix overflow for very long names */
+        .select2-container {
+            max-width: 100% !important;
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200 flex justify-between items-center">
@@ -36,13 +70,8 @@
                             class="text-red-500">*</span></label>
                     <select name="product_id" id="product_id"
                         class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('product_id') border-red-500 @enderror"
-                        required onchange="loadProductItems()">
+                        required>
                         <option value="">-- Chọn sản phẩm --</option>
-                        @foreach($products as $product)
-                            <option value="{{ $product->id }}" {{ old('product_id') == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }} ({{ $product->code }})
-                            </option>
-                        @endforeach
                     </select>
                     @error('product_id')
                         <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
@@ -184,58 +213,105 @@
 @endsection
 
 @push('scripts')
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
-        function loadProductItems() {
-            const productId = document.getElementById('product_id').value;
-            const warehouseId = document.getElementById('warehouse_id').value;
-            const itemList = document.getElementById('item_list');
-            const container = document.getElementById('product_item_container');
-            const quantityInput = document.getElementById('quantity');
+        $(document).ready(function() {
+            const $productSelect = $('#product_id');
+            const $warehouseSelect = $('#warehouse_id');
+            
+            $productSelect.select2({
+                placeholder: "-- Chọn sản phẩm --",
+                allowClear: true,
+                width: '100%',
+                ajax: {
+                    url: "{{ route('products.ajax-search') }}",
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.name + ' (' + item.code + ')'
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
 
-            // Reset
-            itemList.innerHTML = '';
-            quantityInput.readOnly = false;
-            quantityInput.classList.remove('bg-gray-100');
-            quantityInput.value = ''; // Clear quantity when product/warehouse changes
+            // Trigger load on any change
+            $productSelect.on('change select2:select select2:unselect select2:clear', function() {
+                loadProductItems();
+            });
+
+            $warehouseSelect.on('change', function() {
+                loadProductItems();
+            });
+
+            // Initial load
+            loadProductItems();
+        });
+
+        function loadProductItems() {
+            const productId = $('#product_id').val();
+            const warehouseId = $('#warehouse_id').val();
+            const $container = $('#product_item_container');
+            const $itemList = $('#item_list');
+            const $quantityInput = $('#quantity');
+            const $stockInfo = $('#warehouse_stock_info');
+
+            console.log('Loading items for Product:', productId, 'Warehouse:', warehouseId);
 
             if (!productId || !warehouseId) {
-                container.classList.add('hidden');
+                $container.addClass('hidden');
                 return;
             }
 
-            fetch(`{{ route('damaged-goods.items') }}?product_id=${productId}&warehouse_id=${warehouseId}`)
-                .then(response => response.json())
-                .then(data => {
-                    const items = data.items || [];
-                    const totalStock = data.total_stock || 0;
+            // Show loading state
+            $itemList.html('<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i> Đang tải danh sách...</div>');
+            $container.removeClass('hidden');
 
-                    // Update stock info label
-                    const stockInfo = document.getElementById('warehouse_stock_info');
-                    if (stockInfo) {
-                        stockInfo.textContent = `(Tồn: ${totalStock})`;
-                        stockInfo.className = totalStock > 0 ? 'text-blue-600 ml-2 font-normal' : 'text-red-500 ml-2 font-normal';
-                    }
+            $.get("{{ route('damaged-goods.items') }}", {
+                product_id: productId,
+                warehouse_id: warehouseId
+            }, function(data) {
+                console.log('Data received:', data);
+                $itemList.empty();
+                
+                const items = data.items || [];
+                const totalStock = data.total_stock || 0;
 
-                    if (items.length > 0) {
-                        items.forEach(item => {
-                            const div = document.createElement('div');
-                            div.className = 'flex items-center space-x-2 p-1 hover:bg-gray-100 rounded';
-                            div.innerHTML = `
-                                                    <input type="checkbox" name="product_item_ids[]" value="${item.id}"
-                                                        class="item-checkbox rounded border-gray-300 text-primary focus:ring-primary"
-                                                        onchange="updateQuantity()">
-                                                    <span class="text-sm text-gray-700">${item.sku} (SL: ${item.quantity})</span>
-                                                `;
-                            itemList.appendChild(div);
-                        });
-                        container.classList.remove('hidden');
-                    } else {
-                        container.classList.add('hidden');
-                        itemList.innerHTML = '<span class="text-sm text-gray-500 p-2">Không có item nào trong kho này.</span>';
-                        container.classList.remove('hidden');
-                    }
-                })
-                .catch(error => console.error('Error loading items:', error));
+                if ($stockInfo.length) {
+                    $stockInfo.text(`(Tồn: ${totalStock})`);
+                    $stockInfo.attr('class', totalStock > 0 ? 'text-blue-600 ml-2 font-normal' : 'text-red-500 ml-2 font-normal');
+                }
+
+                if (items.length > 0) {
+                    items.forEach(item => {
+                        const div = `
+                            <div class="flex items-center space-x-2 p-1 hover:bg-gray-100 rounded">
+                                <input type="checkbox" name="product_item_ids[]" value="${item.id}"
+                                    class="item-checkbox rounded border-gray-300 text-primary focus:ring-primary"
+                                    onchange="updateQuantity()">
+                                <span class="text-sm text-gray-700">${item.sku} (SL: ${item.quantity})</span>
+                            </div>`;
+                        $itemList.append(div);
+                    });
+                } else {
+                    $itemList.html('<span class="text-sm text-gray-500 p-2">Không có sản phẩm này trong kho đã chọn.</span>');
+                }
+                $container.removeClass('hidden');
+                updateQuantity();
+            }).fail(function(xhr) {
+                console.error('Error loading items:', xhr);
+                $itemList.html('<span class="text-sm text-red-500 p-2">Lỗi khi tải danh sách sản phẩm.</span>');
+            });
         }
 
         function updateQuantity() {

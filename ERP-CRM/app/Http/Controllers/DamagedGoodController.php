@@ -59,11 +59,10 @@ class DamagedGoodController extends Controller
     {
         $this->authorize('create', DamagedGood::class);
 
-        $products = Product::orderBy('name')->get();
         $users = User::orderBy('name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
 
-        return view('damaged-goods.create', compact('products', 'users', 'warehouses'));
+        return view('damaged-goods.create', compact('users', 'warehouses'));
     }
 
     public function store(DamagedGoodRequest $request)
@@ -166,11 +165,17 @@ class DamagedGoodController extends Controller
                 ->with('error', 'Không thể chỉnh sửa báo cáo đã được xử lý hoặc duyệt.');
         }
 
-        $products = Product::orderBy('name')->get();
         $users = User::orderBy('name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
+        $product = $damagedGood->product;
+        
+        // Get already selected item IDs
+        $selectedItemIds = $damagedGood->items->pluck('id')->toArray();
+        if (empty($selectedItemIds) && $damagedGood->product_item_id) {
+            $selectedItemIds = [$damagedGood->product_item_id];
+        }
 
-        return view('damaged-goods.edit', compact('damagedGood', 'products', 'users', 'warehouses'));
+        return view('damaged-goods.edit', compact('damagedGood', 'users', 'warehouses', 'product', 'selectedItemIds'));
     }
 
     public function update(DamagedGoodRequest $request, DamagedGood $damagedGood)
@@ -182,6 +187,15 @@ class DamagedGoodController extends Controller
         }
 
         $damagedGood->update($request->validated());
+
+        // Sync items
+        if ($request->has('product_item_ids')) {
+            $damagedGood->items()->sync($request->product_item_ids);
+        } elseif ($request->has('product_item_id')) {
+            $damagedGood->items()->sync([$request->product_item_id]);
+        } else {
+            $damagedGood->items()->detach();
+        }
 
         return redirect()
             ->route('damaged-goods.show', $damagedGood)
