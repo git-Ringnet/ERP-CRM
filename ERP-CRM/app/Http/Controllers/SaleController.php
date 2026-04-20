@@ -985,6 +985,37 @@ class SaleController extends Controller
         try {
             foreach ($validated['items'] as $itemData) {
                 $item = SaleItem::where('id', $itemData['id'])->where('sale_id', $sale->id)->firstOrFail();
+                // N/A từ UI thường gửi chuỗi rỗng; ép về giá trị an toàn theo schema DB.
+                // - Các cột percent có thể null
+                // - Các cột amount dạng decimal NOT NULL phải về 0
+                $nullablePercentFields = [
+                    'finance_cost_percent',
+                    'overdue_interest_percent',
+                    'management_cost_percent',
+                    'support_247_cost_percent',
+                    'technical_poc_percent',
+                    'implementation_cost_percent',
+                    'contractor_tax_percent',
+                ];
+                $nonNullAmountFields = [
+                    'overdue_interest_cost',
+                    'other_support_cost',
+                    'technical_poc_cost',
+                    'implementation_cost',
+                    'contractor_tax',
+                ];
+
+                foreach ($nullablePercentFields as $field) {
+                    if (array_key_exists($field, $itemData) && $itemData[$field] === '') {
+                        $itemData[$field] = null;
+                    }
+                }
+                foreach ($nonNullAmountFields as $field) {
+                    if (!array_key_exists($field, $itemData) || $itemData[$field] === '' || is_null($itemData[$field])) {
+                        $itemData[$field] = 0;
+                    }
+                }
+
                 unset($itemData['id']);
                 $item->update($itemData);
             }
