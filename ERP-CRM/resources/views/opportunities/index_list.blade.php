@@ -83,10 +83,11 @@
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <form action="{{ route('opportunities.destroy', $opportunity) }}" method="POST"
-                                        class="inline-block" onsubmit="return confirm('Bạn có chắc muốn xóa?')">
+                                        class="inline-block">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                                        <button type="button" onclick="confirmDelete(this.form, 'cơ hội {{ $opportunity->name }}')"
+                                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
                                             title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>

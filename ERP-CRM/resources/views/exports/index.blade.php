@@ -226,12 +226,12 @@
                                             <i class="fas fa-times"></i>
                                         </button>
                                     @elseif($export->status === 'rejected')
-                                        <form action="{{ route('exports.destroy', $export) }}" method="POST" class="inline-block"
-                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa phiếu xuất kho này?')">
+                                        <form action="{{ route('exports.destroy', $export) }}" method="POST" class="inline-block">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
-                                                title="Xóa">
+                                            <button type="button"
+                                                onclick="confirmDelete(this.form, 'phiếu xuất kho {{ $export->code }}')"
+                                                class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Xóa">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>

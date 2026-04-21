@@ -155,9 +155,10 @@
                             <form action="{{ route('customers.destroy', $customer->id) }}" method="POST" class="inline delete-form">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" 
+                                <button type="button" 
+                                        onclick="confirmDelete(this.form, '{{ $customer->name }}')"
                                         class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors delete-btn" 
-                                        data-name="{{ $customer->name }}" title="Xóa">
+                                        title="Xóa">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
@@ -216,9 +217,9 @@
                 <form action="{{ route('customers.destroy', $customer->id) }}" method="POST" class="flex-1 delete-form">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" 
-                            class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm delete-btn"
-                            data-name="{{ $customer->name }}">
+                    <button type="button" 
+                            onclick="confirmDelete(this.form, '{{ $customer->name }}')"
+                            class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm delete-btn">
                         <i class="fas fa-trash mr-1"></i>Xóa
                     </button>
                 </form>

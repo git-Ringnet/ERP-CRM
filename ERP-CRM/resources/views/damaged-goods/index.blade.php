@@ -147,11 +147,11 @@
                                             title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <form action="{{ route('damaged-goods.destroy', $item) }}" method="POST" class="inline"
-                                            onsubmit="return confirm('Bạn có chắc muốn xóa?')">
+                                        <form action="{{ route('damaged-goods.destroy', $item) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit"
+                                            <button type="button"
+                                                onclick="confirmDelete(this.form, 'phiếu hư hỏng {{ $item->code }}')"
                                                 class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
                                                 title="Xóa">
                                                 <i class="fas fa-trash"></i>
@@ -224,12 +224,13 @@
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
                         @if($item->status !== 'processed')
-                            <form action="{{ route('damaged-goods.destroy', $item) }}" method="POST" class="flex-1"
-                                onsubmit="return confirm('Bạn có chắc muốn xóa?')">
+                            <form action="{{ route('damaged-goods.destroy', $item) }}" method="POST"
+                                class="flex-1">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit"
-                                    class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
+                                <button type="button"
+                                    onclick="confirmDelete(this.form, 'phiếu hư hỏng {{ $item->code }}')"
+                                    class="w-full px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-sm">
                                     <i class="fas fa-trash mr-1"></i>Xóa
                                 </button>
                             </form>

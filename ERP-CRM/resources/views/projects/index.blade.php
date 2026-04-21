@@ -150,12 +150,12 @@
                                             title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <form action="{{ route('projects.destroy', $project->id) }}" method="POST"
-                                            class="inline" onsubmit="return confirm('Bạn có chắc muốn xóa dự án này?')">
+                                        <form action="{{ route('projects.destroy', $project) }}" method="POST"
+                                            class="inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit"
-                                                class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
+                                            <button type="button" onclick="confirmDelete(this.form, 'dự án {{ $project->name }}')"
+                                                class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
                                                 title="Xóa">
                                                 <i class="fas fa-trash"></i>
                                             </button>

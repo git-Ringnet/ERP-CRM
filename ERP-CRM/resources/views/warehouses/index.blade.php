@@ -145,9 +145,10 @@
                                         class="inline delete-form">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit"
+                                        <button type="button"
+                                            onclick="confirmDelete(this.form, '{{ $warehouse->name }}')"
                                             class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors delete-btn"
-                                            data-name="{{ $warehouse->name }}" title="Xóa">
+                                            title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>

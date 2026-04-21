@@ -136,11 +136,11 @@
                                         title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('suppliers.destroy', $supplier->id) }}" method="POST" class="inline"
-                                        onsubmit="return confirmDelete(this, 'Bạn có chắc chắn muốn xóa nhà cung cấp {{ $supplier->name }}?')">
+                                    <form action="{{ route('suppliers.destroy', $supplier->id) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit"
+                                        <button type="button"
+                                            onclick="confirmDelete(this.form, '{{ $supplier->name }}')"
                                             class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
                                             title="Xóa">
                                             <i class="fas fa-trash"></i>
@@ -226,12 +226,5 @@
             }
         }
     });
-
-    function confirmDelete(form, message) {
-        if (confirm(message)) {
-            form.submit();
-        }
-        return false;
-    }
 </script>
 @endpush

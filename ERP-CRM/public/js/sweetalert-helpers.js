@@ -113,3 +113,24 @@ async function confirmReject(url, documentName = 'phiếu') {
         window.location.reload();
     }
 }
+
+/**
+ * Confirm và xóa bản ghi
+ */
+async function confirmDelete(form, documentName = 'bản ghi') {
+    const result = await Swal.fire({
+        title: 'Xác nhận xóa',
+        text: `Bạn có chắc chắn muốn xóa ${documentName} này không? Hành động này không thể hoàn tác!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c', // Màu đỏ cho nút xóa
+        cancelButtonColor: '#95a5a6', // Màu xám cho nút hủy
+        confirmButtonText: 'Xóa ngay',
+        cancelButtonText: 'Hủy',
+        reverseButtons: true // Đưa nút Hủy sang trái, Xóa sang phải
+    });
+
+    if (result.isConfirmed) {
+        form.submit();
+    }
+}

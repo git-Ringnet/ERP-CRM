@@ -973,14 +973,6 @@
                 }
             });
 
-            window.confirmDelete = function (form, message = 'Bạn có chắc chắn muốn xóa?') {
-                if (confirm(message)) {
-                    form.submit();
-                    return true;
-                }
-                return false;
-            };
-
             window.showLoading = function () {
                 if (loadingOverlay) loadingOverlay.classList.remove('hidden');
             };

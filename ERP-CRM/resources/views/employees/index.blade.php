@@ -181,11 +181,11 @@
                                     <i class="fas fa-{{ $employee->is_locked ? 'unlock' : 'lock' }}"></i>
                                 </button>
                             </form>
-                            <form action="{{ route('employees.destroy', $employee->id) }}" method="POST" class="inline"
-                                  onsubmit="return confirmDelete(this, 'Bạn có chắc chắn muốn xóa nhân viên {{ $employee->name }}?')">
+                            <form action="{{ route('employees.destroy', $employee->id) }}" method="POST" class="inline">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" 
+                                <button type="button" 
+                                        onclick="confirmDelete(this.form, '{{ $employee->name }}')"
                                         class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors" 
                                         title="Xóa">
                                     <i class="fas fa-trash"></i>

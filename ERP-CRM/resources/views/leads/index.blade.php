@@ -74,11 +74,11 @@
                                         class="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200" title="Chỉnh sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('leads.destroy', $lead) }}" method="POST" class="inline-block"
-                                        onsubmit="return confirm('Bạn có chắc muốn xóa?')">
+                                    <form action="{{ route('leads.destroy', $lead) }}" method="POST" class="inline-block">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                                        <button type="button" onclick="confirmDelete(this.form, 'đấu mối {{ $lead->name }}')"
+                                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
                                             title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>

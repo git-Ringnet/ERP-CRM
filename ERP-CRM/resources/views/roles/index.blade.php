@@ -62,11 +62,12 @@
                                     @endcan
 
                                     @can('delete_roles')
-                                        <form action="{{ route('roles.destroy', $role->id) }}" method="POST" class="inline"
-                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa vai trò này?');">
+                                        <form action="{{ route('roles.destroy', $role->id) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="text-red-600 hover:text-red-900 text-sm">
+                                            <button type="button" 
+                                                onclick="confirmDelete(this.form, 'vai trò {{ $role->name }}')"
+                                                class="text-red-600 hover:text-red-900 text-sm">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>

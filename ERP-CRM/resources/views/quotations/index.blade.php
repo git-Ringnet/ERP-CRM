@@ -123,10 +123,11 @@
                                     @endif
                                     @if($quotation->canBeDeleted())
                                         <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                            onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="inline-block">
+                                            class="inline-block">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit"
+                                            <button type="button"
+                                                onclick="confirmDelete(this.form, 'báo giá {{ $quotation->code }}')"
                                                 class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
                                                 title="Xóa">
                                                 <i class="fas fa-trash"></i>
@@ -192,10 +193,11 @@
                         @endif
                         @if($quotation->canBeDeleted())
                             <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
-                                onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?')" class="flex-1">
+                                class="flex-1">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit"
+                                <button type="button"
+                                    onclick="confirmDelete(this.form, 'báo giá {{ $quotation->code }}')"
                                     class="w-full text-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
                                     <i class="fas fa-trash mr-1"></i>Xóa
                                 </button>

@@ -305,14 +305,13 @@
                                         title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('sales.destroy', $sale->id) }}" method="POST"
-                                        onsubmit="return confirm('Bạn có chắc muốn xóa đơn hàng bán này?')"
-                                        class="inline delete-form">
+                                    <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit"
-                                            class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors delete-btn"
-                                            data-name="{{ $sale->code }}" title="Xóa">
+                                        <button type="button" 
+                                            onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
+                                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                                            title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
@@ -363,13 +362,13 @@
                             class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
-                        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST"
-                            onsubmit="return confirm('Bạn có chắc muốn xóa đơn hàng bán này?')" class="flex-1 delete-form">
+                        <form action="{{ route('sales.destroy', $sale) }}" method="POST"
+                            class="flex-1">
                             @csrf
                             @method('DELETE')
-                            <button type="submit"
-                                class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm delete-btn"
-                                data-name="{{ $sale->code }}">
+                            <button type="button" 
+                                onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
+                                class="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
                                 <i class="fas fa-trash mr-1"></i>Xóa
                             </button>
                         </form>
