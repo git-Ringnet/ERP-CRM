@@ -31,49 +31,80 @@
 
         <!-- Filters -->
         <div class="p-4 border-b border-gray-200 bg-gray-50">
-            <form action="{{ route('imports.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
-                <div class="flex-1 min-w-[200px]">
-                    <label class="block text-xs text-gray-600 mb-1">Tìm kiếm</label>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div class="w-full sm:w-48">
-                    <label class="block text-xs text-gray-600 mb-1">Kho nhập</label>
-                    <select name="warehouse_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                        <option value="">-- Tất cả kho --</option>
-                        @foreach($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                                {{ $warehouse->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="w-full sm:w-48">
-                    <label class="block text-xs text-gray-600 mb-1">Trạng thái</label>
-                    <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                        <option value="">-- Tất cả trạng thái --</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
-                    </select>
-                </div>
-                <div class="w-full sm:w-40">
-                    <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
-                    <input type="text" id="date_from" name="date_from" value="{{ request('date_from') }}"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Từ ngày">
-                </div>
-                <div class="w-full sm:w-40">
-                    <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
-                    <input type="text" id="date_to" name="date_to" value="{{ request('date_to') }}"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Đến ngày">
-                </div>
-                <div class="flex gap-2">
-                    <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm">
-                        <i class="fas fa-search mr-1"></i>Lọc
-                    </button>
-                    <a href="{{ route('imports.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
-                        <i class="fas fa-redo mr-1"></i>Reset
-                    </a>
+            <form action="{{ route('imports.index') }}" method="GET">
+                <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-3 items-end">
+                    <!-- Search -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Tìm kiếm</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fas fa-search text-xs"></i>
+                            </span>
+                            <input type="text" name="search" value="{{ request('search') }}" 
+                                placeholder="Tìm theo mã phiếu..."
+                                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Warehouse -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Kho nhập</label>
+                        <select name="warehouse_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                            <option value="">-- Tất cả kho --</option>
+                            @foreach($warehouses as $warehouse)
+                                <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
+                                    {{ $warehouse->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Trạng thái</label>
+                        <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                            <option value="">-- Tất cả trạng thái --</option>
+                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                            <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Đã từ chối</option>
+                        </select>
+                    </div>
+
+                    <!-- Date From -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Từ ngày</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fas fa-calendar-alt text-xs"></i>
+                            </span>
+                            <input type="text" id="date_from" name="date_from" value="{{ request('date_from') }}"
+                                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" 
+                                placeholder="d/m/Y">
+                        </div>
+                    </div>
+
+                    <!-- Date To -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Đến ngày</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fas fa-calendar-alt text-xs"></i>
+                            </span>
+                            <input type="text" id="date_to" name="date_to" value="{{ request('date_to') }}"
+                                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" 
+                                placeholder="d/m/Y">
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 h-[38px]">
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm">
+                            <i class="fas fa-filter mr-1"></i> Lọc
+                        </button>
+                        <a href="{{ route('imports.index') }}" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium">
+                            <i class="fas fa-redo"></i>
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>
