@@ -32,7 +32,7 @@
         <!-- Filters -->
         <div class="p-4 border-b border-gray-200 bg-gray-50">
             <form action="{{ route('imports.index') }}" method="GET">
-                <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-3 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-3 items-end">
                     <!-- Search -->
                     <div class="flex flex-col">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Tìm kiếm</label>

@@ -26,7 +26,7 @@
 
         <div class="p-4 border-b border-gray-200 bg-gray-50">
             <form action="{{ route('exports.index') }}" method="GET">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8 gap-x-4 gap-y-3 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-x-4 gap-y-3 items-end">
                     <!-- Search -->
                     <div class="flex flex-col">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Tìm kiếm</label>
