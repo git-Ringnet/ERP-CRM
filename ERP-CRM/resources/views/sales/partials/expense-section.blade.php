@@ -55,11 +55,13 @@
                     <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Giá trị</label>
                         <div class="relative">
-                            <input type="number" step="0.01" min="0"
-                                   x-model.number="exp.input_value"
+                            <input type="text"
+                                   x-model="exp.input_value"
                                    @input="recalcRow(idx)"
+                                   @blur="exp.input_value = formatRawInput(exp.input_value)"
+                                   @focus="exp.input_value = (exp.input_value || '').toString().replace(/,/g, '')"
                                    :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400">
+                                   class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400">
                             <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400"
                                   x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
                         </div>
@@ -116,7 +118,11 @@ function expenseManager() {
             input_value: e.input_mode === 'percent' ? (parseFloat(e.percent_value) || 0) : (parseFloat(e.amount) || 0),
             calculated_amount: parseFloat(e.amount) || 0,
             description: e.description || '',
-        })),
+        })).map(e => {
+            // Initial format
+            e.input_value = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(e.input_value);
+            return e;
+        }),
 
         get totalPercent() {
             let p = this.expenses.reduce((sum, e) => sum + (e.input_mode === 'percent' ? (parseFloat(e.input_value) || 0) : 0), 0);
@@ -128,7 +134,7 @@ function expenseManager() {
         },
 
         get totalFixedAmount() {
-            return this.expenses.reduce((sum, e) => sum + (e.input_mode === 'fixed' ? (parseFloat(e.input_value) || 0) : 0), 0);
+            return this.expenses.reduce((sum, e) => sum + (e.input_mode === 'fixed' ? (this.parseValue(e.input_value) || 0) : 0), 0);
         },
 
         get totalExpenses() {
@@ -165,11 +171,11 @@ function expenseManager() {
             const prev = exp._modeBeforeFocus ?? exp.input_mode;
             const now = exp.input_mode;
             const base = this.costBase || 0;
-            let v = parseFloat(exp.input_value) || 0;
+            let v = this.parseValue(exp.input_value) || 0;
             if (prev === 'fixed' && now === 'percent' && base > 0 && v > 0) {
-                exp.input_value = Math.round((v / base) * 1e6) / 1e4;
+                exp.input_value = this.formatRawInput(Math.round((v / base) * 1e6) / 1e4);
             } else if (prev === 'percent' && now === 'fixed' && base > 0 && v > 0) {
-                exp.input_value = Math.round((v * base) / 100);
+                exp.input_value = this.formatRawInput(Math.round((v * base) / 100));
             }
             exp._modeBeforeFocus = now;
             this.recalcRow(idx);
@@ -182,10 +188,11 @@ function expenseManager() {
 
         recalcRow(idx) {
             const exp = this.expenses[idx];
+            const val = this.parseValue(exp.input_value);
             if (exp.input_mode === 'percent') {
-                exp.calculated_amount = Math.round((exp.input_value || 0) * this.costBase / 100);
+                exp.calculated_amount = Math.round((val || 0) * this.costBase / 100);
             } else {
-                exp.calculated_amount = parseFloat(exp.input_value) || 0;
+                exp.calculated_amount = val || 0;
             }
         },
 
@@ -199,8 +206,20 @@ function expenseManager() {
         },
 
         formatCurrency(value) {
-            if (!value || value === 0) return '0 ₫';
-            return new Intl.NumberFormat('vi-VN').format(Math.round(value)) + ' ₫';
+            if (!value && value !== 0) return '0 ₫';
+            return new Intl.NumberFormat('en-US').format(Math.round(value)) + ' ₫';
+        },
+
+        parseValue(val) {
+            if (!val && val !== 0) return 0;
+            return parseFloat(val.toString().replace(/,/g, '')) || 0;
+        },
+
+        formatRawInput(val) {
+            if (!val && val !== 0) return '';
+            const n = parseFloat(val.toString().replace(/,/g, ''));
+            if (isNaN(n)) return '';
+            return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n);
         },
 
         init() {

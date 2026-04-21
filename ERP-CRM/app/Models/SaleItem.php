@@ -47,6 +47,7 @@ class SaleItem extends Model
         'implementation_cost_percent',
         'contractor_tax',
         'contractor_tax_percent',
+        'extra_expenses_data',
     ];
 
     protected $casts = [
@@ -74,6 +75,7 @@ class SaleItem extends Model
         'implementation_cost_percent' => 'decimal:2',
         'contractor_tax' => 'decimal:2',
         'contractor_tax_percent' => 'decimal:2',
+        'extra_expenses_data' => 'array',
     ];
 
     /**

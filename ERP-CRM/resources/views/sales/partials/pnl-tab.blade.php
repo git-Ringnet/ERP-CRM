@@ -1,3 +1,409 @@
+@php
+    $standardTypes = [
+        'Chi phí Tài chính',
+        'Lãi vay phát sinh do nợ quá hạn',
+        'Chi phí Quản lí, Back Office & kỹ thuật',
+        '24x7 Support cost',
+        'Other Support',
+        'Technical support/POC',
+        'Technical support/POC 30%',
+        'Chi phí triển khai hợp đồng',
+        'Thuế nhà thầu'
+    ];
+    
+    $allExpenses = $sale->expenses;
+    $normalizeExpenseType = function ($type) {
+        $normalized = \Illuminate\Support\Str::ascii((string) $type);
+        $normalized = \Illuminate\Support\Str::lower($normalized);
+        return preg_replace('/[^a-z0-9]+/u', '', $normalized) ?? '';
+    };
+    $findExpenseByTypes = function ($types) use ($allExpenses, $normalizeExpenseType) {
+        foreach ($types as $type) {
+            $exact = $allExpenses->firstWhere('type', $type);
+            if ($exact) {
+                return $exact;
+            }
+        }
+        $needles = array_map($normalizeExpenseType, $types);
+        return $allExpenses->first(function ($expense) use ($needles, $normalizeExpenseType) {
+            return in_array($normalizeExpenseType($expense->type), $needles, true);
+        });
+    };
+    $standardExpenses = $allExpenses->whereIn('type', $standardTypes);
+    $extraExpenses = $allExpenses->whereNotIn('type', $standardTypes);
+    $financeExpense = $findExpenseByTypes(['Chi phí Tài chính']);
+    $financeInputMode = $financeExpense->input_mode ?? 'percent';
+    $overdueExpense = $findExpenseByTypes(['Lãi vay phát sinh do nợ quá hạn']);
+    $overdueInputMode = $overdueExpense->input_mode ?? 'percent';
+    $managementExpense = $findExpenseByTypes(['Chi phí Quản lí, Back Office & kỹ thuật']);
+    $managementInputMode = $managementExpense->input_mode ?? 'percent';
+    $supportExpense = $findExpenseByTypes(['24x7 Support cost']);
+    $supportInputMode = $supportExpense->input_mode ?? 'percent';
+    $otherSupportExpense = $findExpenseByTypes(['Other Support']);
+    $otherSupportInputMode = $otherSupportExpense->input_mode ?? 'percent';
+    
+    $totalCostBase = $sale->items->sum('cost_total') ?: 1;
+
+    // Visibility flags
+    $expenseTypes = $sale->expenses->pluck('type')->toArray();
+    
+    $hasFinanceCost = in_array('Chi phí Tài chính', $expenseTypes) || $sale->items->filter(function($item) {
+        return !is_null($item->finance_cost_percent) && $item->finance_cost_percent !== '' && $item->finance_cost_percent > 0;
+    })->count() > 0;
+    
+    $hasOverdueInterest = in_array('Lãi vay phát sinh do nợ quá hạn', $expenseTypes) || $sale->items->filter(function($item) {
+        return (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0)
+            || (!is_null($item->overdue_interest_cost) && $item->overdue_interest_cost > 0);
+    })->count() > 0;
+    
+    $hasManagementCost = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes) || $sale->items->filter(function($item) {
+        return !is_null($item->management_cost_percent) && $item->management_cost_percent !== '' && $item->management_cost_percent > 0;
+    })->count() > 0;
+    
+    $hasSupport247 = in_array('24x7 Support cost', $expenseTypes) || $sale->items->filter(function($item) {
+        return !is_null($item->support_247_cost_percent) && $item->support_247_cost_percent !== '' && $item->support_247_cost_percent > 0;
+    })->count() > 0;
+    
+    $hasOtherSupport = in_array('Other Support', $expenseTypes) || $sale->items->filter(function($item) {
+        return !is_null($item->other_support_cost) && $item->other_support_cost > 0;
+    })->count() > 0;
+    
+    $hasTechnicalPoc = in_array('Technical support/POC', $expenseTypes)
+        || in_array('Technical support/POC 30%', $expenseTypes)
+        || $sale->items->filter(function ($item) {
+            return ! is_null($item->technical_poc_percent)
+                || (! is_null($item->technical_poc_cost) && (float) $item->technical_poc_cost > 0);
+        })->count() > 0;
+    
+    $hasImplementation = in_array('Chi phí triển khai hợp đồng', $expenseTypes) || $sale->items->filter(function ($item) {
+        return ! is_null($item->implementation_cost_percent)
+            || (! is_null($item->implementation_cost) && (float) $item->implementation_cost > 0);
+    })->count() > 0;
+    
+    $hasContractorTax = in_array('Thuế nhà thầu', $expenseTypes) || $sale->items->filter(function ($item) {
+        return ! is_null($item->contractor_tax_percent)
+            || (! is_null($item->contractor_tax) && (float) $item->contractor_tax > 0);
+    })->count() > 0;
+    
+    $visibleStandardCols = 0;
+    if ($hasFinanceCost) $visibleStandardCols++;
+    if ($hasOverdueInterest) $visibleStandardCols++;
+    if ($hasManagementCost) $visibleStandardCols++;
+    if ($hasSupport247) $visibleStandardCols++;
+    if ($hasOtherSupport) $visibleStandardCols++;
+    if ($hasTechnicalPoc) $visibleStandardCols++;
+    if ($hasImplementation) $visibleStandardCols++;
+    if ($hasContractorTax) $visibleStandardCols++;
+    
+    $totalColspan = $visibleStandardCols + $extraExpenses->count();
+@endphp
+
+<script>
+    function pnlEditor() {
+        return {
+            finance_p: {{ ($financeExpense && $financeExpense->input_mode === 'percent') ? (float) ($financeExpense->percent_value ?? 0) : 0 }},
+            overdue_p: {{ ($overdueExpense && $overdueExpense->input_mode === 'percent') ? (float) ($overdueExpense->percent_value ?? 0) : 0 }},
+            mgmt_p: {{ ($managementExpense && $managementExpense->input_mode === 'percent') ? (float) ($managementExpense->percent_value ?? 0) : 0 }},
+            support_p: {{ ($supportExpense && $supportExpense->input_mode === 'percent') ? (float) ($supportExpense->percent_value ?? 0) : 0 }},
+            other_p: {{ ($otherSupportExpense && $otherSupportExpense->input_mode === 'percent') ? (float) ($otherSupportExpense->percent_value ?? 0) : 0 }},
+            
+            finance_amt: {{ (float) ($financeExpense->amount ?? 0) }},
+            mgmt_amt: {{ (float) ($managementExpense->amount ?? 0) }},
+            support_amt: {{ (float) ($supportExpense->amount ?? 0) }},
+            other_amt: {{ (float) ($otherSupportExpense->amount ?? 0) }},
+
+            extra_modes: {
+                @foreach($extraExpenses as $extra)
+                    '{{ $extra->id }}': '{{ $extra->input_mode }}',
+                @endforeach
+            },
+
+            // Fixed amounts for Extra Expenses (Order Level) — used as fallback
+            extra_amts: {
+                @foreach($extraExpenses as $extra)
+                    '{{ $extra->id }}': {{ (float) ($extra->amount ?? 0) }},
+                @endforeach
+            },
+
+            updateExtraMode(id, mode) {
+                this.extra_modes[id] = mode;
+                this.$dispatch('pnl-recalc');
+            },
+
+            getExtraMode(expenseId) {
+                return this.extra_modes[expenseId] || 'fixed';
+            },
+
+            // Compute auto-sum of per-item fixed values for a given extra expense
+            getExtraFixedTotal(expenseId) {
+                return this.extra_amts[expenseId] || 0;
+            },
+
+            // Recalculate extra_amts from all row DOM inputs
+            syncExtraAmtsFromRows() {
+                const sums = {};
+                document.querySelectorAll('.extra-item-input').forEach(el => {
+                    const eid = el.dataset.expenseId;
+                    if (!eid) return;
+                    if (!sums[eid]) sums[eid] = 0;
+                    sums[eid] += parseFloat(el.value.toString().replace(/,/g, '')) || 0;
+                });
+                for (const eid of Object.keys(sums)) {
+                    this.extra_amts[eid] = Math.round(sums[eid]);
+                }
+            },
+            
+            unformat(val) {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                return parseFloat(val.toString().replace(/,/g, '')) || 0;
+            },
+
+            formatNumber(n) {
+                return new Intl.NumberFormat('en-US').format(Math.round(n));
+            },
+
+            getGlobalBases() {
+                let totalCost = 0;
+                let totalRevenue = 0;
+                let itemCount = 0;
+
+                // Scan all row inputs in the DOM
+                document.querySelectorAll('.row-cost-total-input').forEach(el => {
+                    totalCost += parseFloat(el.value) || 0;
+                    itemCount++;
+                });
+                document.querySelectorAll('.row-revenue-total-input').forEach(el => {
+                    totalRevenue += parseFloat(el.value) || 0;
+                });
+
+                return { totalCost, totalRevenue, itemCount };
+            },
+
+            init() {
+                // Listen for row extra expense changes and sync totals
+                this.$watch('extra_amts', () => {}, { deep: true });
+                // Sync extra_amts on initial load after rows render
+                setTimeout(() => this.syncExtraAmtsFromRows(), 300);
+            }
+        }
+    }
+
+    function pnlRow(data) {
+        return {
+            id: data.id,
+            row_index: data.row_index || 0,
+            qty: data.qty,
+            usd_p: data.usd_price,
+            disc: data.discount_rate,
+            imp_r: data.import_cost_rate,
+            rate: data.exchange_rate,
+            cost_price: data.cost_price,
+            cost_total: data.cost_total,
+            revenue_total: data.revenue_total,
+            
+            finance_na: data.finance_na,
+            finance_mode: data.finance_mode || 'percent',
+            finance_allocated: data.finance_allocated || 0,
+            overdue_na: data.overdue_na,
+            overdue_mode: data.overdue_mode || 'percent',
+            mgmt_na: data.mgmt_na,
+            mgmt_mode: data.mgmt_mode || 'percent',
+            mgmt_allocated: data.mgmt_allocated || 0,
+            support_na: data.support_na,
+            support_mode: data.support_mode || 'percent',
+            support_allocated: data.support_allocated || 0,
+            other_na: data.other_na,
+            other_mode: data.other_mode || 'percent',
+            other_allocated: data.other_allocated || 0,
+            
+            oic: data.oic,
+            poc: data.poc,
+            poc_mode: data.poc_mode || 'fixed',
+            poc_p: data.poc_p || 0,
+            imp: data.imp,
+            imp_mode: data.imp_mode || 'fixed',
+            imp_p: data.imp_p || 0,
+            tax: data.tax,
+            tax_mode: data.tax_mode || 'fixed',
+            tax_p: data.tax_p || 0,
+            tax_allocated: data.tax_allocated || 0,
+            
+            extra_costs: data.extra_costs || [],
+            extra_vals: [],
+            extra_fixed_vals: data.extra_fixed_vals || {},
+            
+            $sale_editable: {{ $sale->isPlEditable() ? 'true' : 'false' }},
+            
+            est_usd_total: 0,
+            gross_profit: 0,
+            gross_p: 0,
+            finance_v: 0,
+            overdue_v: 0,
+            mgmt_v: 0,
+            support_v: 0,
+            other_v: 0,
+            total_costs: 0,
+            poc_v: 0,
+            imp_v: 0,
+            tax_v: 0,
+            net_profit: 0,
+            margin_p: 0,
+
+            init() {
+                // Defer first calculation to ensure all rows are in DOM
+                setTimeout(() => {
+                    this.calculate();
+                }, 200);
+            },
+
+            calculate() {
+                // Determine dynamic totals for distribution from parent component
+                const bases = this.getGlobalBases();
+                
+                // Prioritize Dynamic Totals, then Dynamic Revenue, finally initial totals if > 1000
+                const totalBase = bases.totalCost > 1000 ? bases.totalCost : (bases.totalRevenue > 1000 ? bases.totalRevenue : ({{ (float) $totalCostBase }} > 1000 ? {{ (float) $totalCostBase }} : 0));
+                const revenueBase = bases.totalRevenue > 1000 ? bases.totalRevenue : ({{ (float) ($sale->items->sum('total') ?: 0) }} > 1000 ? {{ (float) ($sale->items->sum('total') ?: 0) }} : 0);
+                const itemCount = bases.itemCount || {{ $sale->items->count() }};
+
+                const unformat = (val) => {
+                    if (typeof val === 'number') return val;
+                    if (!val) return 0;
+                    return parseFloat(val.toString().replace(/,/g, '')) || 0;
+                };
+
+                function calcShareFromTotal(totalAmtRaw, rowCost, rowRev, idx) {
+                    const totalAmt = unformat(totalAmtRaw);
+                    if (totalAmt <= 0) return 0;
+                    
+                    if (itemCount <= 1) return totalAmt;
+                    
+                    // Distribution logic: Cost share > Revenue share > Equal share
+                    if (totalBase > 1000 && rowCost > 0) {
+                        return totalAmt * (rowCost / totalBase);
+                    }
+                    if (revenueBase > 1000 && rowRev > 0) {
+                        return totalAmt * (rowRev / revenueBase);
+                    }
+                    return totalAmt / itemCount;
+                }
+
+                // Core Calculations
+                this.est_usd_total = Math.round(this.usd_p * (1 - this.disc / 100) * (1 + this.imp_r / 100) * 100) / 100;
+                this.cost_price = Math.round(this.est_usd_total * this.rate);
+                this.cost_total = Math.round(this.cost_price * this.qty);
+                this.gross_profit = this.revenue_total - this.cost_total;
+                this.gross_p = this.revenue_total > 0 ? ((this.gross_profit / this.revenue_total) * 100).toFixed(1) : 0;
+
+                this.finance_v = this.finance_na ? 0 : (this.finance_mode === 'fixed' ? Math.round(calcShareFromTotal(this.finance_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.finance_p / 100)));
+                this.overdue_v = this.overdue_na ? 0 : (this.overdue_mode === 'fixed' ? (unformat(this.oic) || 0) : Math.round(this.cost_total * (this.overdue_p / 100)));
+                this.mgmt_v = this.mgmt_na ? 0 : (this.mgmt_mode === 'fixed' ? Math.round(calcShareFromTotal(this.mgmt_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.mgmt_p / 100)));
+                this.support_v = this.support_na ? 0 : (this.support_mode === 'fixed' ? Math.round(calcShareFromTotal(this.support_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.support_p / 100)));
+                this.other_v = this.other_na ? 0 : (this.other_mode === 'fixed' ? Math.round(calcShareFromTotal(this.other_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.other_p / 100)));
+
+                if (this.poc_mode === 'percent') {
+                   this.poc_v = Math.round(this.cost_total * ((parseFloat(this.poc_p) || 0) / 100));
+                } else {
+                    this.poc_v = Math.round(unformat(this.poc));
+                }
+
+                if (this.imp_mode === 'percent') {
+                   this.imp_v = Math.round(this.cost_total * ((parseFloat(this.imp_p) || 0) / 100));
+                } else {
+                    this.imp_v = Math.round(unformat(this.imp));
+                }
+
+                if (this.tax_mode === 'percent') {
+                   this.tax_v = Math.round(this.cost_total * ((parseFloat(this.tax_p) || 0) / 100));
+                } else {
+                    this.tax_v = Math.round(unformat(this.tax));
+                }
+                
+                let extraSum = 0;
+                this.extra_vals = [];
+                
+                this.extra_costs.forEach((ec) => {
+                    let v = 0;
+                    const currentMode = this.getExtraMode(ec.id);
+                    
+                    if (currentMode === 'percent') {
+                        // For percent, find the header input or use ec.val
+                        const expenseInput = document.querySelector(`.extra-expense-input[data-expense-id="${ec.id}"][data-mode="percent"]`);
+                        const ecVal = expenseInput ? unformat(expenseInput.value) : (parseFloat(ec.val) || 0);
+                        v = Math.round(this.cost_total * (ecVal / 100));
+                    } else {
+                        // For fixed, use per-item value directly (no distribution)
+                        v = Math.round(unformat(this.extra_fixed_vals[ec.id] || 0));
+                    }
+                    this.extra_vals.push(v);
+                    extraSum += v;
+                });
+                
+                this.total_costs = Math.round((!this.finance_na ? this.finance_v : 0) + (!this.overdue_na ? this.overdue_v : 0) + (!this.mgmt_na ? this.mgmt_v : 0) + (!this.support_na ? this.support_v : 0) + (!this.other_na ? this.other_v : 0) + this.tax_v + this.poc_v + this.imp_v + extraSum);
+                this.net_profit = this.gross_profit - this.total_costs;
+                this.margin_p = this.revenue_total > 0 ? ((this.net_profit / this.revenue_total) * 100).toFixed(1) : 0;
+            },
+
+            formatNumber(n, decimals = 0) {
+                return new Intl.NumberFormat('en-US', {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals
+                }).format(n);
+            }
+        }
+    }
+
+    function formatExpenseMoneyValue(rawValue) {
+        if (!rawValue && rawValue !== 0) return '';
+        // Remove only commas (thousands separator)
+        const clean = rawValue.toString().replace(/,/g, '');
+        const numeric = parseFloat(clean);
+        if (isNaN(numeric)) return '';
+        return new Intl.NumberFormat('en-US', { 
+            maximumFractionDigits: 2 
+        }).format(numeric);
+    }
+
+    function initExtraExpenseMoneyInputs() {
+        const inputs = document.querySelectorAll('.extra-expense-money');
+        inputs.forEach((input) => {
+            if (input.dataset.moneyBound === '1') return;
+            input.value = formatExpenseMoneyValue(input.value);
+            input.addEventListener('focus', function() { 
+                // When focusing, show raw number with dot decimal
+                this.value = (this.value || '').toString().replace(/,/g, ''); 
+            });
+            input.addEventListener('blur', function() { this.value = formatExpenseMoneyValue(this.value); });
+            input.dataset.moneyBound = '1';
+        });
+    }
+
+    function confirmAction(url, message) {
+        if (confirm(message)) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = url;
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden'; csrf.name = '_token'; csrf.value = '{{ csrf_token() }}';
+            form.appendChild(csrf);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { 
+        initExtraExpenseMoneyInputs(); 
+        const pnlForm = document.getElementById('pnlForm');
+        if (pnlForm) {
+            pnlForm.addEventListener('submit', function() {
+                document.querySelectorAll('.extra-expense-money').forEach((input) => {
+                    input.value = (input.value || '').toString().replace(/,/g, '');
+                });
+            });
+        }
+    });
+</script>
+
 <div x-data="pnlEditor()" class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
     <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
         <h3 class="text-lg font-bold text-gray-800">
@@ -17,141 +423,41 @@
         </div>
     </div>
 
-    @php
-        $standardTypes = [
-            'Chi phí Tài chính',
-            'Lãi vay phát sinh do nợ quá hạn',
-            'Chi phí Quản lí, Back Office & kỹ thuật',
-            '24x7 Support cost',
-            'Other Support',
-            'Technical support/POC',
-            'Technical support/POC 30%',
-            'Chi phí triển khai hợp đồng',
-            'Thuế nhà thầu'
-        ];
-        
-        $allExpenses = $sale->expenses;
-        $normalizeExpenseType = function ($type) {
-            $normalized = \Illuminate\Support\Str::ascii((string) $type);
-            $normalized = \Illuminate\Support\Str::lower($normalized);
-            return preg_replace('/[^a-z0-9]+/u', '', $normalized) ?? '';
-        };
-        $findExpenseByTypes = function ($types) use ($allExpenses, $normalizeExpenseType) {
-            foreach ($types as $type) {
-                $exact = $allExpenses->firstWhere('type', $type);
-                if ($exact) {
-                    return $exact;
-                }
-            }
-            $needles = array_map($normalizeExpenseType, $types);
-            return $allExpenses->first(function ($expense) use ($needles, $normalizeExpenseType) {
-                return in_array($normalizeExpenseType($expense->type), $needles, true);
-            });
-        };
-        $standardExpenses = $allExpenses->whereIn('type', $standardTypes);
-        $extraExpenses = $allExpenses->whereNotIn('type', $standardTypes);
-        $financeExpense = $findExpenseByTypes(['Chi phí Tài chính']);
-        $financeInputMode = $financeExpense->input_mode ?? 'percent';
-        $overdueExpense = $findExpenseByTypes(['Lãi vay phát sinh do nợ quá hạn']);
-        $overdueInputMode = $overdueExpense->input_mode ?? 'percent';
-        $managementExpense = $findExpenseByTypes(['Chi phí Quản lí, Back Office & kỹ thuật']);
-        $managementInputMode = $managementExpense->input_mode ?? 'percent';
-        $supportExpense = $findExpenseByTypes(['24x7 Support cost']);
-        $supportInputMode = $supportExpense->input_mode ?? 'percent';
-        $otherSupportExpense = $findExpenseByTypes(['Other Support']);
-        $otherSupportInputMode = $otherSupportExpense->input_mode ?? 'percent';
-        
-        $totalCostBase = $sale->items->sum('cost_total') ?: 1;
-        
-        // Kiểm tra cột nào có dữ liệu thực sự (> 0 hoặc có giá trị percent)
-        // HOẶC có trong danh sách chi phí đơn hàng (SaleExpense)
-        $expenseTypes = $sale->expenses->pluck('type')->toArray();
-        
-        $hasFinanceCost = in_array('Chi phí Tài chính', $expenseTypes) || $sale->items->filter(function($item) {
-            return !is_null($item->finance_cost_percent) && $item->finance_cost_percent !== '' && $item->finance_cost_percent > 0;
-        })->count() > 0;
-        
-        $hasOverdueInterest = in_array('Lãi vay phát sinh do nợ quá hạn', $expenseTypes) || $sale->items->filter(function($item) {
-            return (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0)
-                || (!is_null($item->overdue_interest_cost) && $item->overdue_interest_cost > 0);
-        })->count() > 0;
-        
-        $hasManagementCost = in_array('Chi phí Quản lí, Back Office & kỹ thuật', $expenseTypes) || $sale->items->filter(function($item) {
-            return !is_null($item->management_cost_percent) && $item->management_cost_percent !== '' && $item->management_cost_percent > 0;
-        })->count() > 0;
-        
-        $hasSupport247 = in_array('24x7 Support cost', $expenseTypes) || $sale->items->filter(function($item) {
-            return !is_null($item->support_247_cost_percent) && $item->support_247_cost_percent !== '' && $item->support_247_cost_percent > 0;
-        })->count() > 0;
-        
-        $hasOtherSupport = in_array('Other Support', $expenseTypes) || $sale->items->filter(function($item) {
-            return !is_null($item->other_support_cost) && $item->other_support_cost > 0;
-        })->count() > 0;
-        
-        $hasTechnicalPoc = in_array('Technical support/POC', $expenseTypes)
-            || in_array('Technical support/POC 30%', $expenseTypes)
-            || $sale->items->filter(function ($item) {
-                return ! is_null($item->technical_poc_percent)
-                    || (! is_null($item->technical_poc_cost) && (float) $item->technical_poc_cost > 0);
-            })->count() > 0;
-        
-        $hasImplementation = in_array('Chi phí triển khai hợp đồng', $expenseTypes) || $sale->items->filter(function ($item) {
-            return ! is_null($item->implementation_cost_percent)
-                || (! is_null($item->implementation_cost) && (float) $item->implementation_cost > 0);
-        })->count() > 0;
-        
-        $hasContractorTax = in_array('Thuế nhà thầu', $expenseTypes) || $sale->items->filter(function ($item) {
-            return ! is_null($item->contractor_tax_percent)
-                || (! is_null($item->contractor_tax) && (float) $item->contractor_tax > 0);
-        })->count() > 0;
-        
-        $visibleStandardCols = 0;
-        if ($hasFinanceCost) $visibleStandardCols++;
-        if ($hasOverdueInterest) $visibleStandardCols++;
-        if ($hasManagementCost) $visibleStandardCols++;
-        if ($hasSupport247) $visibleStandardCols++;
-        if ($hasOtherSupport) $visibleStandardCols++;
-        if ($hasTechnicalPoc) $visibleStandardCols++;
-        if ($hasImplementation) $visibleStandardCols++;
-        if ($hasContractorTax) $visibleStandardCols++;
-        
-        $totalColspan = $visibleStandardCols + $extraExpenses->count();
-    @endphp
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST">
         @csrf
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse table-pnl-editor min-w-[2400px]">
+            <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
                 <thead>
                     <!-- Header Row 1: Main sections -->
                     <tr class="bg-yellow-400 text-xs font-bold text-center border border-gray-800">
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">P/N<br/>Supplier</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">Hàng hóa/Dịch vụ</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">SL</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">PriceList<br/>USD</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">Tỷ lệ<br/>discount</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">Tỷ lệ chi phí<br/>nhập hàng</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">Giá kho tạm tính<br/>(USD)</th>
-                        <th class="px-2 py-2 border border-gray-800" rowspan="2">Tỷ giá</th>
-                        <th class="px-2 py-2 border border-gray-800" colspan="2">Giá đầu vào (chưa VAT)</th>
-                        <th class="px-2 py-2 border border-gray-800" colspan="2">Giá bán (chưa VAT)</th>
-                        <th class="px-2 py-2 border border-gray-800" colspan="2">Lợi nhuận gộp</th>
-                        <th class="px-2 py-2 border border-gray-800 bg-yellow-400" colspan="{{ $totalColspan }}">Chi phí</th>
-                        <th class="px-2 py-2 border border-gray-800 bg-yellow-400" rowspan="2">Tổng chi phí<br/><span class="font-normal text-[10px]">VND</span></th>
-                        <th class="px-2 py-2 border border-gray-800 bg-gray-200" colspan="2">Lợi nhuận sau chi phí</th>
+                        <th class="px-2 py-1 border border-gray-800" style="min-width: 180px; width: 180px;" rowspan="2">P/N<br/>Supplier</th>
+                        <th class="px-2 py-1 border border-gray-800" style="min-width: 600px; width: 600px;" rowspan="2">Hàng hóa/Dịch vụ</th>
+                        <th class="px-2 py-1 border border-gray-800" style="min-width: 80px; width: 80px;" rowspan="2">SL</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[130px]" rowspan="2">PriceList<br/>USD</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[100px]" rowspan="2">Tỷ lệ<br/>discount</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[100px]" rowspan="2">Tỷ lệ chi phí<br/>nhập hàng</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[150px]" rowspan="2">Giá kho tạm tính<br/>(USD)</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[100px]" rowspan="2">Tỷ giá</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[280px]" colspan="2">Giá đầu vào (chưa VAT)</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[280px]" colspan="2">Giá bán (chưa VAT)</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[200px]" colspan="2">Lợi nhuận gộp</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[600px]" colspan="{{ $totalColspan ?? 1 }}">Chi phí</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[180px]" rowspan="2">Tổng chi phí<br/><span class="font-normal text-[10px]">VND</span></th>
+                        <th class="px-2 py-1 border border-gray-800 bg-gray-200 min-w-[300px]" colspan="2">Lợi nhuận sau chi phí</th>
                     </tr>
                     <!-- Header Row 2: Column details -->
                     <tr class="bg-yellow-400 text-[10px] font-bold text-center border border-gray-800">
-                        <th class="px-2 py-1 border border-gray-800">Giá VND</th>
-                        <th class="px-2 py-1 border border-gray-800">Thành tiền</th>
-                        <th class="px-2 py-1 border border-gray-800">Đơn Giá bán</th>
-                        <th class="px-2 py-1 border border-gray-800">Thành tiền</th>
-                        <th class="px-2 py-1 border border-gray-800">VND</th>
-                        <th class="px-2 py-1 border border-gray-800">%</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[140px]">Giá VND</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[140px]">Thành tiền</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[140px]">Đơn Giá bán</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[140px]">Thành tiền</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[120px]">VND</th>
+                        <th class="px-2 py-1 border border-gray-800 min-w-[80px]">%</th>
                         
                         {{-- Standard columns - chỉ hiển thị cột có dữ liệu --}}
                         @if($hasFinanceCost)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">
                             Chi phí Tài chính
                             @if($financeInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -165,7 +471,7 @@
                         </th>
                         @endif
                         @if($hasOverdueInterest)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">
                             Lãi vay phát sinh do nợ quá hạn
                             @if($overdueInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -179,7 +485,7 @@
                         </th>
                         @endif
                         @if($hasManagementCost)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">
                             Chi phí Quản lí, Back Office & kỹ thuật
                             @if($managementInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -193,7 +499,7 @@
                         </th>
                         @endif
                         @if($hasSupport247)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">
                             24x7 Support cost
                             @if($supportInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -207,7 +513,7 @@
                         </th>
                         @endif
                         @if($hasOtherSupport)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">
                             Other Support
                             @if($otherSupportInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
@@ -221,30 +527,53 @@
                         </th>
                         @endif
                         @if($hasTechnicalPoc)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Technical support/POC 30%</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">Technical support/POC 30%</th>
                         @endif
                         @if($hasImplementation)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Chi phí triển khai hợp đồng (Tiếp khách, cấu hình)</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[150px]">Chi phí triển khai hợp đồng (Tiếp khách, cấu hình)</th>
                         @endif
                         @if($hasContractorTax)
-                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400">Thuế nhà thầu</th>
+                        <th class="px-2 py-1 border border-gray-800 bg-yellow-400 min-w-[120px]">Thuế nhà thầu</th>
                         @endif
                         
                         {{-- Extra columns --}}
                         @foreach($extraExpenses->values() as $extraIndex => $extra)
-                            <th class="px-2 py-1 border border-gray-800 bg-orange-100">
-                                {{ $extra->type }}
+                            <th class="px-2 py-1 border border-gray-800 bg-orange-100 min-w-[200px]">
+                                <div class="mb-0.5">{{ $extra->type }}</div>
                                 <input type="hidden" name="expenses[{{ $extraIndex }}][id]" value="{{ $extra->id }}">
                                 <input type="hidden" name="expenses[{{ $extraIndex }}][type]" value="{{ $extra->type }}">
-                                <select name="expenses[{{ $extraIndex }}][input_mode]"
-                                        data-expense-id="{{ $extra->id }}"
-                                        class="extra-expense-mode mt-1 w-full text-[10px] border border-orange-300 rounded bg-white"
-                                        @change="$dispatch('pnl-recalc')"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
-                                    <option value="percent" {{ $extra->input_mode === 'percent' ? 'selected' : '' }}>%</option>
-                                    <option value="fixed" {{ $extra->input_mode === 'fixed' ? 'selected' : '' }}>VND</option>
-                                </select>
-                                <div class="text-orange-600 font-normal text-[10px] mt-1">Nhập ở dòng trắng</div>
+                                
+                                <div class="flex flex-col items-center justify-center min-h-[32px] mt-1 space-y-1">
+                                    {{-- Mode Selector --}}
+                                    <select name="expenses[{{ $extraIndex }}][input_mode]"
+                                            data-expense-id="{{ $extra->id }}"
+                                            class="extra-expense-mode text-[10px] text-gray-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:ring-1 focus:ring-orange-400"
+                                            @change="updateExtraMode('{{ $extra->id }}', $event.target.value)"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        <option value="percent" {{ $extra->input_mode === 'percent' ? 'selected' : '' }}>Chế độ: %</option>
+                                        <option value="fixed" {{ $extra->input_mode === 'fixed' ? 'selected' : '' }}>Chế độ: VND</option>
+                                    </select>
+
+                                    {{-- Percent Input (Header) --}}
+                                    <div x-show="getExtraMode('{{ $extra->id }}') === 'percent'" 
+                                         class="text-red-600 font-bold flex items-center justify-center gap-1">
+                                        <input type="number" step="0.1"
+                                            data-expense-id="{{ $extra->id }}"
+                                            data-mode="percent"
+                                            name="expenses[{{ $extraIndex }}][percent_value]"
+                                            class="extra-expense-input w-16 text-center text-red-600 font-bold text-[11px] p-0.5 border-0 border-b-2 border-red-400 bg-transparent focus:ring-0"
+                                            value="{{ (floatval($extra->percent_value) ?: 0) }}"
+                                            @input="$dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
+                                    </div>
+                                    
+                                    {{-- Fixed Mode: Hidden sum total (used for persistence) --}}
+                                    <div x-show="getExtraMode('{{ $extra->id }}') === 'fixed'" 
+                                         class="w-full text-center">
+                                        <input type="hidden" name="expenses[{{ $extraIndex }}][amount]" 
+                                               :value="getExtraFixedTotal('{{ $extra->id }}')">
+                                    </div>
+                                </div>
                             </th>
                         @endforeach
                         
@@ -372,12 +701,24 @@
                                 $contractorTaxAllocated = round($item->cost_total * ((float) $item->contractor_tax_percent / 100));
                             }
 
+                            // POC & Imp: Manual only per item
+                            $pocAllocated = 0;
+                            $implAllocated = 0;
+
                             $pocModeRow = ! is_null($item->technical_poc_percent) ? 'percent' : 'fixed';
                             $pocPercentRow = (float) ($item->technical_poc_percent ?? 0);
                             $implModeRow = ! is_null($item->implementation_cost_percent) ? 'percent' : 'fixed';
                             $implPercentRow = (float) ($item->implementation_cost_percent ?? 0);
                             $taxModeRow = ! is_null($item->contractor_tax_percent) ? 'percent' : 'fixed';
                             $taxPercentRow = (float) ($item->contractor_tax_percent ?? 0);
+
+                            $allExpensesList = $sale->expenses->values();
+                            $getExpIdx = fn($type) => $allExpensesList->search(fn($e) => $e->type === $type);
+                            
+                            $fIdx = $getExpIdx('Chi phí Tài chính');
+                            $mIdx = $getExpIdx('Chi phí Quản lí, Back Office & kỹ thuật');
+                            $sIdx = $getExpIdx('24x7 Support cost');
+                            $oIdx = $getExpIdx('Other Support');
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors border border-gray-400" 
                             x-data="pnlRow({
@@ -391,68 +732,78 @@
                                 cost_price: {{ $item->cost_price ?: 0 }},
                                 cost_total: {{ $item->cost_total ?: 0 }},
                                 revenue_total: {{ $item->total }},
-                                finance_na: {{ ((floatval($item->finance_cost_percent) <= 0) && !$hasFinanceInExpenses) ? 'true' : 'false' }},
+                                finance_na: {{ (!is_null($item->finance_cost_percent) && floatval($item->finance_cost_percent) <= 0) ? 'true' : 'false' }},
                                 finance_mode: '{{ $financeMode }}',
                                 finance_allocated: {{ $financeAllocated }},
-                                overdue_na: {{ ((floatval($item->overdue_interest_percent) <= 0 && floatval($item->overdue_interest_cost) <= 0) && !$hasOverdueInExpenses) ? 'true' : 'false' }},
+                                overdue_na: {{ (!is_null($item->overdue_interest_percent) && floatval($item->overdue_interest_percent) <= 0 && (!is_null($item->overdue_interest_cost) && floatval($item->overdue_interest_cost) <= 0)) ? 'true' : 'false' }},
                                 overdue_mode: '{{ $overdueMode }}',
-                                mgmt_na: {{ ((floatval($item->management_cost_percent) <= 0) && !$hasMgmtInExpenses) ? 'true' : 'false' }},
+                                mgmt_na: {{ (!is_null($item->management_cost_percent) && floatval($item->management_cost_percent) <= 0) ? 'true' : 'false' }},
                                 mgmt_mode: '{{ $managementMode }}',
                                 mgmt_allocated: {{ $managementAllocated }},
-                                support_na: {{ ((floatval($item->support_247_cost_percent) <= 0) && !$hasSupport247InExpenses) ? 'true' : 'false' }},
+                                support_na: {{ (!is_null($item->support_247_cost_percent) && floatval($item->support_247_cost_percent) <= 0) ? 'true' : 'false' }},
                                 support_mode: '{{ $supportMode }}',
                                 support_allocated: {{ $supportAllocated }},
-                                other_na: {{ ((is_null($item->other_support_cost) || floatval($item->other_support_cost) <= 0) && !$hasOtherInExpenses) ? 'true' : 'false' }},
+                                other_na: {{ (!is_null($item->other_support_cost) && floatval($item->other_support_cost) <= 0) ? 'true' : 'false' }},
                                 other_mode: '{{ $otherSupportMode }}',
                                 other_allocated: {{ $otherSupportAllocated }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},
                                 poc: {{ $item->technical_poc_cost ?: 0 }},
                                 poc_mode: '{{ $pocModeRow }}',
                                 poc_p: {{ $pocPercentRow }},
+                                poc_allocated: {{ $pocAllocated }},
                                 imp: {{ $item->implementation_cost ?: 0 }},
                                 imp_mode: '{{ $implModeRow }}',
                                 imp_p: {{ $implPercentRow }},
+                                imp_allocated: {{ $implAllocated }},
                                 tax: {{ $item->contractor_tax ?: 0 }},
                                 tax_mode: '{{ $taxModeRow }}',
                                 tax_p: {{ $taxPercentRow }},
                                 tax_allocated: {{ $contractorTaxAllocated }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
-                                        @php
-                                            $extraFixedAllocated = 0;
-                                            $extraAmount = (float)($extra->amount ?? 0);
-                                            $saleItemCount = $sale->items->count();
-                                            $saleRevenueBase = $sale->items->sum('total') ?: 0;
-
-                                            if ($extra->input_mode === 'fixed' && $extraAmount > 0) {
-                                                if ($saleItemCount === 1) {
-                                                    $extraFixedAllocated = round($extraAmount);
-                                                } elseif ($totalCostBase > 0 && ($item->cost_total ?: 0) > 0) {
-                                                    $extraFixedAllocated = round($extraAmount * (($item->cost_total ?: 0) / $totalCostBase));
-                                                } elseif ($saleRevenueBase > 0 && ($item->total ?: 0) > 0) {
-                                                    $extraFixedAllocated = round($extraAmount * (($item->total ?: 0) / $saleRevenueBase));
-                                                } elseif ($index === 0) {
-                                                    $extraFixedAllocated = round($extraAmount);
-                                                }
-                                            }
-                                        @endphp
                                         {
                                             id: {{ $extra->id }},
                                             type: '{{ $extra->type }}',
                                             mode: '{{ $extra->input_mode }}',
-                                            val: {{ $extra->input_mode === 'percent' ? (floatval($extra->percent_value) ?: 0) : (floatval($extra->amount) ?: 0) }},
-                                            fixed_allocated: {{ $extraFixedAllocated }}
+                                            val: {{ $extra->input_mode === 'percent' ? (floatval($extra->percent_value) ?: 0) : 0 }}
                                         },
                                     @endforeach
-                                ]
+                                ],
+                                extra_fixed_vals: {
+                                    @foreach($extraExpenses as $extra)
+                                        @php
+                                            $itemExtraData = $item->extra_expenses_data ?? [];
+                                            $perItemVal = null;
+                                            if (isset($itemExtraData[(string)$extra->id])) {
+                                                $perItemVal = (float) $itemExtraData[(string)$extra->id];
+                                            }
+
+                                            // Fallback: If no per-item data exists, and it's the first row,
+                                            // default to the full expense amount found in the general section.
+                                            if (is_null($perItemVal) && $index === 0 && ($extra->input_mode === 'fixed')) {
+                                                $perItemVal = (float)($extra->amount ?? 0);
+                                            }
+                                        @endphp
+                                        '{{ $extra->id }}': {{ $perItemVal ?: 0 }},
+                                    @endforeach
+                                }
                             })"
                             @pnl-recalc.window="calculate()">
                             <td class="px-2 py-2 text-center border border-gray-400 text-xs">{{ $item->product->code ?? '' }}</td>
                             <td class="px-2 py-2 border border-gray-400">
                                 {{ $item->product_name }}
+                                <!-- P&L Row Hidden Fields -->
                                 <input type="hidden" name="items[{{ $index }}][id]" value="{{ $item->id }}">
+                                <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id }}">
+                                <input type="hidden" name="items[{{ $index }}][finance_na]" :value="finance_na ? 1 : 0">
+                                <input type="hidden" name="items[{{ $index }}][overdue_na]" :value="overdue_na ? 1 : 0">
+                                <input type="hidden" name="items[{{ $index }}][management_na]" :value="mgmt_na ? 1 : 0">
+                                <input type="hidden" name="items[{{ $index }}][support_na]" :value="support_na ? 1 : 0">
+                                <input type="hidden" name="items[{{ $index }}][other_na]" :value="other_na ? 1 : 0">
+                                
                                 <input type="hidden" name="items[{{ $index }}][cost_price]" :value="cost_price">
-                                <input type="hidden" name="items[{{ $index }}][cost_total]" :value="cost_total">
+                                <input type="hidden" name="items[{{ $index }}][cost_total]" :value="cost_total" class="row-cost-total-input">
+                                <input type="hidden" name="items[{{ $index }}][total]" :value="revenue_total" class="row-revenue-total-input">
                                 <input type="hidden" name="items[{{ $index }}][estimated_cost_usd]" :value="est_usd_total">
                                 
                                 {{-- Hidden inputs cho các trường chi phí không hiển thị --}}
@@ -461,6 +812,7 @@
                                 @endif
                                 @if(!$hasOverdueInterest)
                                 <input type="hidden" name="items[{{ $index }}][overdue_interest_cost]" value="0">
+                                <input type="hidden" name="items[{{ $index }}][overdue_interest_percent]" value="">
                                 @endif
                                 @if(!$hasManagementCost)
                                 <input type="hidden" name="items[{{ $index }}][management_cost_percent]" value="">
@@ -533,10 +885,26 @@
                             <!-- Chi phí - chỉ hiển thị cột có dữ liệu -->
                             @if($hasFinanceCost)
                             <!-- Chi phí Tài chính -->
-                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
-                                @click="if($sale_editable) { finance_na = !finance_na; calculate() }" :title="finance_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs">
                                 <input type="hidden" name="items[{{ $index }}][finance_cost_percent]" :value="finance_na || finance_mode !== 'percent' ? '' : finance_p">
-                                <span x-text="finance_na ? 'n/a' : formatNumber(finance_v)" :class="finance_na ? 'text-gray-400' : ''"></span>
+                                
+                                <div class="flex flex-col items-end space-y-1">
+                                    <div x-show="finance_mode === 'fixed' && row_index === 0" class="w-full">
+                                        @if($fIdx !== false)
+                                        <input type="text" inputmode="numeric" 
+                                            class="w-full text-xs p-1 border-2 border-red-300 rounded text-right bg-red-50 focus:bg-white font-bold extra-expense-money"
+                                            name="expenses[{{ $fIdx }}][amount]"
+                                            x-model="finance_amt"
+                                            @input="$dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        @endif
+                                    </div>
+                                    <span x-show="finance_mode !== 'fixed' || row_index !== 0"
+                                        @click="if($sale_editable) { finance_na = !finance_na; calculate() }"
+                                        class="cursor-pointer hover:bg-yellow-50 px-1 rounded block w-full"
+                                        x-text="finance_na ? 'n/a' : formatNumber(finance_v)" 
+                                        :class="finance_na ? 'text-gray-400' : ''"></span>
+                                </div>
                             </td>
                             @endif
                             @if($hasOverdueInterest)
@@ -550,26 +918,74 @@
                             @endif
                             @if($hasManagementCost)
                             <!-- Chi phí Quản lí -->
-                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
-                                @click="if($sale_editable) { mgmt_na = !mgmt_na; calculate() }" :title="mgmt_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs">
                                 <input type="hidden" name="items[{{ $index }}][management_cost_percent]" :value="mgmt_na || mgmt_mode !== 'percent' ? '' : mgmt_p">
-                                <span x-text="mgmt_na ? 'n/a' : formatNumber(mgmt_v)" :class="mgmt_na ? 'text-gray-400' : ''"></span>
+                                
+                                <div class="flex flex-col items-end space-y-1">
+                                    <div x-show="mgmt_mode === 'fixed' && row_index === 0" class="w-full">
+                                        @if($mIdx !== false)
+                                        <input type="text" inputmode="numeric" 
+                                            class="w-full text-xs p-1 border-2 border-red-300 rounded text-right bg-red-50 focus:bg-white font-bold extra-expense-money"
+                                            name="expenses[{{ $mIdx }}][amount]"
+                                            x-model="mgmt_amt"
+                                            @input="$dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        @endif
+                                    </div>
+                                    <span x-show="mgmt_mode !== 'fixed' || row_index !== 0"
+                                        @click="if($sale_editable) { mgmt_na = !mgmt_na; calculate() }"
+                                        class="cursor-pointer hover:bg-yellow-50 px-1 rounded block w-full"
+                                        x-text="mgmt_na ? 'n/a' : formatNumber(mgmt_v)" 
+                                        :class="mgmt_na ? 'text-gray-400' : ''"></span>
+                                </div>
                             </td>
                             @endif
                             @if($hasSupport247)
                             <!-- 24x7 Support -->
-                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
-                                @click="if($sale_editable) { support_na = !support_na; calculate() }" :title="support_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs">
                                 <input type="hidden" name="items[{{ $index }}][support_247_cost_percent]" :value="support_na || support_mode !== 'percent' ? '' : support_p">
-                                <span x-text="support_na ? 'n/a' : formatNumber(support_v)" :class="support_na ? 'text-gray-400' : ''"></span>
+                                
+                                <div class="flex flex-col items-end space-y-1">
+                                    <div x-show="support_mode === 'fixed' && row_index === 0" class="w-full">
+                                        @if($sIdx !== false)
+                                        <input type="text" inputmode="numeric" 
+                                            class="w-full text-xs p-1 border-2 border-red-300 rounded text-right bg-red-50 focus:bg-white font-bold extra-expense-money"
+                                            name="expenses[{{ $sIdx }}][amount]"
+                                            x-model="support_amt"
+                                            @input="$dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        @endif
+                                    </div>
+                                    <span x-show="support_mode !== 'fixed' || row_index !== 0"
+                                        @click="if($sale_editable) { support_na = !support_na; calculate() }"
+                                        class="cursor-pointer hover:bg-yellow-50 px-1 rounded block w-full"
+                                        x-text="support_na ? 'n/a' : formatNumber(support_v)" 
+                                        :class="support_na ? 'text-gray-400' : ''"></span>
+                                </div>
                             </td>
                             @endif
                             @if($hasOtherSupport)
                             <!-- Other Support -->
-                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
-                                @click="if($sale_editable) { other_na = !other_na; calculate() }" :title="other_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs">
                                 <input type="hidden" name="items[{{ $index }}][other_support_cost]" :value="other_na || other_mode !== 'percent' ? '' : other_p">
-                                <span x-text="other_na ? 'n/a' : formatNumber(other_v)" :class="other_na ? 'text-gray-400' : ''"></span>
+                                
+                                <div class="flex flex-col items-end space-y-1">
+                                    <div x-show="other_mode === 'fixed' && row_index === 0" class="w-full">
+                                        @if($oIdx !== false)
+                                        <input type="text" inputmode="numeric" 
+                                            class="w-full text-xs p-1 border-2 border-red-300 rounded text-right bg-red-50 focus:bg-white font-bold extra-expense-money"
+                                            name="expenses[{{ $oIdx }}][amount]"
+                                            x-model="other_amt"
+                                            @input="$dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                        @endif
+                                    </div>
+                                    <span x-show="other_mode !== 'fixed' || row_index !== 0"
+                                        @click="if($sale_editable) { other_na = !other_na; calculate() }"
+                                        class="cursor-pointer hover:bg-yellow-50 px-1 rounded block w-full"
+                                        x-text="other_na ? 'n/a' : formatNumber(other_v)" 
+                                        :class="other_na ? 'text-gray-400' : ''"></span>
+                                </div>
                             </td>
                             @endif
                             @if($hasTechnicalPoc)
@@ -577,91 +993,66 @@
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-right text-xs">
                                 <input type="hidden" name="items[{{ $index }}][technical_poc_percent]" :value="poc_mode === 'percent' ? poc_p : ''">
                                 <input type="hidden" name="items[{{ $index }}][technical_poc_cost]" :value="poc_v">
-                                <span x-show="poc_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(poc_v)"></span>
-                                <input type="number" step="1" min="0"
-                                    x-show="poc_mode !== 'percent'"
-                                    x-model.number="poc" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                <div class="flex flex-col items-end">
+                                    <span x-show="poc_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(poc_v)"></span>
+                                    <input type="text" inputmode="numeric"
+                                        x-show="poc_mode !== 'percent'"
+                                        x-model="poc" @input="calculate()"
+                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                </div>
                             </td>
                             @endif
                             @if($hasImplementation)
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-right text-xs">
                                 <input type="hidden" name="items[{{ $index }}][implementation_cost_percent]" :value="imp_mode === 'percent' ? imp_p : ''">
                                 <input type="hidden" name="items[{{ $index }}][implementation_cost]" :value="imp_v">
-                                <span x-show="imp_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(imp_v)"></span>
-                                <input type="number" step="1" min="0"
-                                    x-show="imp_mode !== 'percent'"
-                                    x-model.number="imp" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                <div class="flex flex-col items-end">
+                                    <span x-show="imp_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(imp_v)"></span>
+                                    <input type="text" inputmode="numeric"
+                                        x-show="imp_mode !== 'percent'"
+                                        x-model="imp" @input="calculate()"
+                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                </div>
                             </td>
                             @endif
                             @if($hasContractorTax)
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-right text-xs">
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax_percent]" :value="tax_mode === 'percent' ? tax_p : ''">
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
-                                <span x-show="tax_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(tax_v)"></span>
-                                <input type="number" step="1" min="0"
-                                    x-show="tax_mode !== 'percent'"
-                                    x-model.number="tax" @input="calculate()"
-                                    class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                    {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                <div class="flex flex-col items-end">
+                                    <span x-show="tax_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(tax_v)"></span>
+                                    <input type="text" inputmode="numeric"
+                                        x-show="tax_mode !== 'percent'"
+                                        x-model="tax" @input="calculate()"
+                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                </div>
                             </td>
                             @endif
                             
                             {{-- Extra Expenses Cells --}}
                             @foreach($extraExpenses->values() as $eIdx => $extra)
-                                @php
-                                    $extraFixedAllocated = 0;
-                                    $extraAmount = (float)($extra->amount ?? 0);
-                                    $saleItemCount = $sale->items->count();
-                                    $saleRevenueBase = $sale->items->sum('total') ?: 0;
-
-                                    if ($extra->input_mode === 'fixed' && $extraAmount > 0) {
-                                        if ($saleItemCount === 1) {
-                                            $extraFixedAllocated = round($extraAmount);
-                                        } elseif ($totalCostBase > 0 && ($item->cost_total ?: 0) > 0) {
-                                            $extraFixedAllocated = round($extraAmount * (($item->cost_total ?: 0) / $totalCostBase));
-                                        } elseif ($saleRevenueBase > 0 && ($item->total ?: 0) > 0) {
-                                            $extraFixedAllocated = round($extraAmount * (($item->total ?: 0) / $saleRevenueBase));
-                                        } elseif ($index === 0) {
-                                            $extraFixedAllocated = round($extraAmount);
-                                        }
-                                    }
-                                @endphp
-                                <td class="px-2 py-2 text-right border border-gray-400 text-[10px] bg-orange-50/30">
-                                    @if($index === 0)
-                                        @php
-                                            $extraRawVal = $extra->input_mode === 'percent'
-                                                ? (float) ($extra->percent_value ?? 0)
-                                                : (float) ($extra->amount ?? 0);
-                                            $extraInputVal = fmod($extraRawVal, 1.0) === 0.0
-                                                ? (string) (int) $extraRawVal
-                                                : rtrim(rtrim(number_format($extraRawVal, 2, '.', ''), '0'), '.');
-                                        @endphp
-                                        <input type="number" step="0.1"
-                                            data-expense-id="{{ $extra->id }}"
-                                            data-mode="percent"
-                                            x-show="getExtraMode({{ $extra->id }}) === 'percent'"
-                                            class="extra-expense-input w-20 border border-orange-300 rounded px-2 py-1 text-right text-xs bg-white focus:ring-1 focus:ring-orange-400"
-                                            name="expenses[{{ $eIdx }}][percent_value]"
-                                            value="{{ $extra->input_mode === 'percent' ? $extraInputVal : '0' }}"
-                                            @input="$dispatch('pnl-recalc')"
-                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                <td class="px-1 py-1 text-right border border-gray-400 text-[10px] bg-orange-50/30">
+                                    {{-- Percent mode: show calculated value --}}
+                                    <span x-show="getExtraMode('{{ $extra->id }}') === 'percent'"
+                                          class="cursor-pointer hover:bg-orange-100 px-1 rounded transition-colors block"
+                                          x-text="isNaN(extra_vals[{{ $eIdx }}]) ? '0' : formatNumber(extra_vals[{{ $eIdx }}])"></span>
+                                    {{-- Fixed mode: editable per-row input --}}
+                                    <div x-show="getExtraMode('{{ $extra->id }}') === 'fixed'">
                                         <input type="text" inputmode="numeric"
                                             data-expense-id="{{ $extra->id }}"
-                                            data-mode="fixed"
-                                            x-show="getExtraMode({{ $extra->id }}) === 'fixed'"
-                                            class="extra-expense-input extra-expense-money w-24 border border-orange-300 rounded px-2 py-1 text-right text-xs bg-white focus:ring-1 focus:ring-orange-400"
-                                            name="expenses[{{ $eIdx }}][amount]"
-                                            value="{{ $extra->input_mode === 'fixed' ? number_format((float) $extra->amount, 0, '.', '') : '0' }}"
-                                            @input="$dispatch('pnl-recalc')"
+                                            class="extra-item-input extra-expense-money w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                            x-model="extra_fixed_vals['{{ $extra->id }}']"
+                                            @input="calculate(); setTimeout(() => { syncExtraAmtsFromRows(); $dispatch('pnl-recalc'); }, 50)"
+                                            @blur="extra_fixed_vals['{{ $extra->id }}'] = Math.round(parseFloat(($event.target.value || '0').toString().replace(/,/g, '')) || 0); calculate(); setTimeout(() => { syncExtraAmtsFromRows(); $dispatch('pnl-recalc'); }, 50)"
                                             {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
-                                        <div class="text-[9px] text-gray-500 mt-1">Phân bổ dòng này: <span x-text="isNaN(extra_vals[{{ $eIdx }}]) ? '0' : formatNumber(extra_vals[{{ $eIdx }}])"></span></div>
-                                    @else
-                                        <span x-text="isNaN(extra_vals[{{ $eIdx }}]) ? '0' : formatNumber(extra_vals[{{ $eIdx }}])"></span>
-                                    @endif
+                                    </div>
+                                    {{-- Hidden input to submit per-item data --}}
+                                    <input type="hidden" 
+                                           :name="'items[{{ $index }}][extra_expenses_data][{{ $extra->id }}]'"
+                                           :value="extra_fixed_vals['{{ $extra->id }}'] || 0">
                                 </td>
                             @endforeach
                             
@@ -794,367 +1185,10 @@
     </div>
 </div>
 
-<script>
-    function pnlEditor() {
-        return {
-            // Global percentages (shared across all items, shown in header)
-            finance_p: {{ $sale->items->whereNotNull('finance_cost_percent')->where('finance_cost_percent', '>', 0)->first()?->finance_cost_percent ?? 1 }},
-            overdue_p: {{ $sale->items->whereNotNull('overdue_interest_percent')->where('overdue_interest_percent', '>', 0)->first()?->overdue_interest_percent ?? 1 }},
-            mgmt_p: {{ $sale->items->whereNotNull('management_cost_percent')->where('management_cost_percent', '>', 0)->first()?->management_cost_percent ?? 1 }},
-            support_p: {{ $sale->items->whereNotNull('support_247_cost_percent')->where('support_247_cost_percent', '>', 0)->first()?->support_247_cost_percent ?? 0.5 }},
-            other_p: {{ $sale->items->where('other_support_cost', '>', 0)->first()?->other_support_cost ?? 1 }},
-            
-            formatNumber(n) {
-                return new Intl.NumberFormat('vi-VN').format(Math.round(n));
-            }
-        }
-    }
-
-    function pnlRow(data) {
-        return {
-            id: data.id,
-            row_index: data.row_index || 0,
-            qty: data.qty,
-            usd_p: data.usd_price,
-            disc: data.discount_rate,
-            imp_r: data.import_cost_rate,
-            rate: data.exchange_rate,
-            cost_price: data.cost_price,
-            cost_total: data.cost_total,
-            revenue_total: data.revenue_total,
-            
-            // Per-item n/a flags (true = cost not applicable)
-            finance_na: data.finance_na,
-            finance_mode: data.finance_mode || 'percent',
-            finance_allocated: data.finance_allocated || 0,
-            overdue_na: data.overdue_na,
-            overdue_mode: data.overdue_mode || 'percent',
-            mgmt_na: data.mgmt_na,
-            mgmt_mode: data.mgmt_mode || 'percent',
-            mgmt_allocated: data.mgmt_allocated || 0,
-            support_na: data.support_na,
-            support_mode: data.support_mode || 'percent',
-            support_allocated: data.support_allocated || 0,
-            other_na: data.other_na,
-            other_mode: data.other_mode || 'percent',
-            other_allocated: data.other_allocated || 0,
-            
-            // Fixed amount costs (per item)
-            oic: data.oic,
-            poc: data.poc,
-            poc_mode: data.poc_mode || 'fixed',
-            poc_p: data.poc_p || 0,
-            imp: data.imp,
-            imp_mode: data.imp_mode || 'fixed',
-            imp_p: data.imp_p || 0,
-            tax: data.tax,
-            tax_mode: data.tax_mode || 'fixed',
-            tax_p: data.tax_p || 0,
-            tax_allocated: data.tax_allocated || 0,
-            
-            // Extra dynamic costs
-            extra_costs: data.extra_costs || [],
-            extra_vals: [],
-            
-            // Editable flag
-            $sale_editable: {{ $sale->isPlEditable() ? 'true' : 'false' }},
-            
-            est_usd_total: 0,
-            gross_profit: 0,
-            gross_p: 0,
-            finance_v: 0,
-            overdue_v: 0,
-            mgmt_v: 0,
-            support_v: 0,
-            other_v: 0,
-            total_costs: 0,
-            poc_v: 0,
-            imp_v: 0,
-            tax_v: 0,
-            net_profit: 0,
-            margin_p: 0,
-
-            init() {
-                this.calculate();
-            },
-
-            getExtraMode(expenseId) {
-                const modeEl = document.querySelector(`.extra-expense-mode[data-expense-id="${expenseId}"]`);
-                return modeEl ? modeEl.value : 'fixed';
-            },
-
-            calculate() {
-                // Giá kho tạm tính (USD) = Price USD * (1 - Disc) * (1 + Import)
-                const estimatedCostUsd = this.usd_p * (1 - (this.disc / 100)) * (1 + (this.imp_r / 100));
-                this.est_usd_total = estimatedCostUsd;
-                
-                // Giá VND (Đơn giá) = Giá kho tạm tính (USD) * Exchange Rate
-                this.cost_price = Math.round(estimatedCostUsd * this.rate);
-                
-                // Giá VND (Thành tiền) = Đơn giá VND * SL
-                this.cost_total = this.cost_price * this.qty;
-                
-                // Lợi nhuận gộp VND = Revenue - Cost VND
-                this.gross_profit = this.revenue_total - this.cost_total;
-                this.gross_p = this.revenue_total > 0 ? ((this.gross_profit / this.revenue_total) * 100).toFixed(1) : 0;
-
-                // Chi phí (%) chuẩn
-                this.finance_v = this.finance_na
-                    ? 0
-                    : (this.finance_mode === 'fixed'
-                        ? Math.round(parseFloat(this.finance_allocated) || 0)
-                        : Math.round(this.cost_total * (this.finance_p / 100)));
-                this.overdue_v = this.overdue_na
-                    ? 0
-                    : (this.overdue_mode === 'fixed'
-                        ? (parseFloat(this.oic) || 0)
-                        : Math.round(this.cost_total * (this.overdue_p / 100)));
-                this.mgmt_v = this.mgmt_na
-                    ? 0
-                    : (this.mgmt_mode === 'fixed'
-                        ? Math.round(parseFloat(this.mgmt_allocated) || 0)
-                        : Math.round(this.cost_total * (this.mgmt_p / 100)));
-                this.support_v = this.support_na
-                    ? 0
-                    : (this.support_mode === 'fixed'
-                        ? Math.round(parseFloat(this.support_allocated) || 0)
-                        : Math.round(this.cost_total * (this.support_p / 100)));
-                this.other_v = this.other_na
-                    ? 0
-                    : (this.other_mode === 'fixed'
-                        ? Math.round(parseFloat(this.other_allocated) || 0)
-                        : Math.round(this.cost_total * (this.other_p / 100)));
-
-                this.poc_v = this.poc_mode === 'percent'
-                    ? Math.round(this.cost_total * ((parseFloat(this.poc_p) || 0) / 100))
-                    : Math.round(parseFloat(this.poc) || 0);
-                this.imp_v = this.imp_mode === 'percent'
-                    ? Math.round(this.cost_total * ((parseFloat(this.imp_p) || 0) / 100))
-                    : Math.round(parseFloat(this.imp) || 0);
-                if (this.tax_mode === 'percent') {
-                    this.tax_v = Math.round(this.cost_total * ((parseFloat(this.tax_p) || 0) / 100));
-                } else if (this.tax_allocated > 0) {
-                    this.tax_v = Math.round(this.tax_allocated);
-                } else {
-                    this.tax_v = Math.round(parseFloat(this.tax) || 0);
-                }
-                
-                // Chi phí động (Extra)
-                let extraSum = 0;
-                this.extra_vals = [];
-                const totalBase = {{ $totalCostBase }};
-                const revenueBase = {{ $sale->items->sum('total') ?: 0 }};
-                const itemCount = {{ $sale->items->count() }};
-                
-                this.extra_costs.forEach((ec) => {
-                    let v = 0;
-                    const modeEl = document.querySelector(`.extra-expense-mode[data-expense-id="${ec.id}"]`);
-                    const currentMode = modeEl ? modeEl.value : ec.mode;
-                    const expenseInput = document.querySelector(`.extra-expense-input[data-expense-id="${ec.id}"][data-mode="${currentMode}"]`);
-                    const ecVal = expenseInput
-                        ? (parseFloat((expenseInput.value || '').toString().replace(/,/g, '')) || 0)
-                        : (parseFloat(ec.val) || 0);
-                    
-                    if (currentMode === 'percent') {
-                        v = Math.round(this.cost_total * (ecVal / 100));
-                    } else {
-                        // Ưu tiên giá trị fixed đã phân bổ từ server để đảm bảo hiển thị đúng
-                        if (typeof ec.fixed_allocated !== 'undefined') {
-                            v = Math.round(parseFloat(ec.fixed_allocated) || 0);
-                        }
-
-                        // Phân bổ phí cố định:
-                        // 1) 1 dòng sản phẩm => nhận toàn bộ
-                        // 2) ưu tiên theo tỷ lệ giá vốn
-                        // 3) fallback theo tỷ lệ doanh thu
-                        // 4) fallback cuối: chia đều
-                        if (v <= 0 && ecVal > 0 && itemCount === 1) {
-                            v = Math.round(ecVal);
-                        } else if (v <= 0 && totalBase > 0 && this.cost_total > 0 && ecVal > 0) {
-                            const share = this.cost_total / totalBase;
-                            v = Math.round(ecVal * share);
-                        } else if (v <= 0 && revenueBase > 0 && this.revenue_total > 0 && ecVal > 0) {
-                            const share = this.revenue_total / revenueBase;
-                            v = Math.round(ecVal * share);
-                        } else if (v <= 0 && ecVal > 0 && itemCount > 0) {
-                            v = Math.round(ecVal / itemCount);
-                        } else if (v <= 0 && ecVal > 0 && this.row_index === 0) {
-                            // Fallback an toàn: nếu mọi base đều không usable, dồn vào dòng đầu
-                            v = Math.round(ecVal);
-                        }
-                    }
-                    this.extra_vals.push(v);
-                    extraSum += v;
-                });
-                
-                // Tính tổng đơn giản - chỉ cộng các giá trị thực sự hiển thị
-                this.total_costs = 0;
-                
-                // Chi phí Tài chính
-                if (!this.finance_na && this.finance_v > 0) {
-                    this.total_costs += this.finance_v;
-                }
-                
-                // Lãi vay phát sinh
-                if (!this.overdue_na && this.overdue_v > 0) {
-                    this.total_costs += this.overdue_v;
-                }
-
-                // Chi phí Quản lý
-                if (!this.mgmt_na && this.mgmt_v > 0) {
-                    this.total_costs += this.mgmt_v;
-                }
-
-                // 24x7 Support
-                if (!this.support_na && this.support_v > 0) {
-                    this.total_costs += this.support_v;
-                }
-
-                // Other Support
-                if (!this.other_na && this.other_v > 0) {
-                    this.total_costs += this.other_v;
-                }
-                
-                if (this.tax_v > 0) {
-                    this.total_costs += this.tax_v;
-                }
-
-                this.total_costs += this.poc_v;
-                this.total_costs += this.imp_v;
-
-                // Chi phí "extra" từ Chi phí đơn hàng (ví dụ Chi phí khách hàng)
-                this.total_costs += extraSum;
-                
-                // Làm tròn
-                this.total_costs = Math.round(this.total_costs);
-                                  
-                this.net_profit = this.gross_profit - this.total_costs;
-                this.margin_p = this.revenue_total > 0 ? ((this.net_profit / this.revenue_total) * 100).toFixed(1) : 0;
-            },
-
-            formatNumber(n, decimals = 0) {
-                return new Intl.NumberFormat('vi-VN', {
-                    minimumFractionDigits: decimals,
-                    maximumFractionDigits: decimals
-                }).format(n);
-            }
-        }
-    }
-
-    function confirmAction(url, message) {
-        if (confirm(message)) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = url;
-            
-            const csrf = document.createElement('input');
-            csrf.type = 'hidden';
-            csrf.name = '_token';
-            csrf.value = '{{ csrf_token() }}';
-            form.appendChild(csrf);
-            
-            document.body.appendChild(form);
-            form.submit();
-        }
-    }
-
-    function formatExpenseMoneyValue(rawValue) {
-        const numeric = parseFloat((rawValue || '').toString().replace(/,/g, ''));
-        if (isNaN(numeric)) {
-            return '';
-        }
-        return new Intl.NumberFormat('en-US', {
-            maximumFractionDigits: 0
-        }).format(numeric);
-    }
-
-    function initExtraExpenseMoneyInputs() {
-        const inputs = document.querySelectorAll('.extra-expense-money');
-        if (!inputs.length) return;
-
-        inputs.forEach((input) => {
-            if (input.dataset.moneyBound === '1') {
-                return;
-            }
-
-            // Initial render with grouping separators
-            input.value = formatExpenseMoneyValue(input.value);
-
-            input.addEventListener('focus', function() {
-                this.value = (this.value || '').toString().replace(/,/g, '');
-            });
-
-            input.addEventListener('blur', function() {
-                this.value = formatExpenseMoneyValue(this.value);
-            });
-
-            input.dataset.moneyBound = '1';
-        });
-
-        // Ensure submitted values are numeric strings (no separators)
-        const pnlForm = document.getElementById('pnlForm');
-        if (pnlForm && pnlForm.dataset.moneySubmitBound !== '1') {
-            pnlForm.addEventListener('submit', function() {
-                document.querySelectorAll('.extra-expense-money').forEach((input) => {
-                    input.value = (input.value || '').toString().replace(/,/g, '');
-                });
-            });
-            pnlForm.dataset.moneySubmitBound = '1';
-        }
-    }
-
-    function initExtraExpenseModeSwitch() {
-        const modeSelectors = document.querySelectorAll('.extra-expense-mode');
-        if (!modeSelectors.length) return;
-
-        const totalCostBase = {{ $totalCostBase }};
-
-        modeSelectors.forEach((modeEl) => {
-            if (modeEl.dataset.modeBound === '1') {
-                return;
-            }
-
-            modeEl.addEventListener('change', function() {
-                const expenseId = this.dataset.expenseId;
-                const mode = this.value;
-                const percentInput = document.querySelector(`.extra-expense-input[data-expense-id="${expenseId}"][data-mode="percent"]`);
-                const fixedInput = document.querySelector(`.extra-expense-input[data-expense-id="${expenseId}"][data-mode="fixed"]`);
-
-                if (!percentInput || !fixedInput) return;
-
-                const currentPercent = parseFloat((percentInput.value || '').toString().replace(/,/g, '')) || 0;
-                const currentFixed = parseFloat((fixedInput.value || '').toString().replace(/,/g, '')) || 0;
-
-                if (mode === 'percent') {
-                    if (currentPercent <= 0 && currentFixed > 0 && totalCostBase > 0) {
-                        percentInput.value = ((currentFixed / totalCostBase) * 100).toFixed(2).replace(/\.00$/, '');
-                    }
-                } else {
-                    if (currentFixed <= 0 && currentPercent > 0) {
-                        fixedInput.value = formatExpenseMoneyValue((currentPercent / 100) * totalCostBase);
-                    } else {
-                        fixedInput.value = formatExpenseMoneyValue(currentFixed);
-                    }
-                }
-
-                window.dispatchEvent(new CustomEvent('pnl-recalc'));
-            });
-
-            modeEl.dataset.modeBound = '1';
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        initExtraExpenseMoneyInputs();
-        initExtraExpenseModeSwitch();
-    });
-
-</script>
-
 <style>
     .table-pnl-editor th {
-        font-size: 10px;
-        padding: 4px 2px;
+        font-size: 11px;
+        padding: 4px 6px;
         white-space: normal;
         line-height: 1.1;
         background-color: #facc15; /* Vibrant yellow-400 */
@@ -1164,7 +1198,7 @@
     }
     .table-pnl-editor td {
         font-size: 11px;
-        padding: 4px 6px;
+        padding: 2px 8px;
         border-color: #4b5563 !important; /* Darker borders like Excel */
     }
     .table-pnl-editor input {

@@ -744,6 +744,54 @@ document.addEventListener('DOMContentLoaded', function() {
     calculateTotal();
 });
 
+function calculateMargin() {
+    const total = unformatMoney(document.getElementById('total').value);
+    const costVnd = unformatMoney(document.getElementById('totalCost').textContent);
+    const select = document.getElementById('currencySelect');
+    const option = select.options[select.selectedIndex];
+    const isBase = option.dataset.isBase === '1';
+    
+    // In edit mode, assuming similar logic as create
+    const costInCurrency = costVnd;
+    
+    const margin = total - costInCurrency;
+    const marginPercent = total > 0 ? (margin / total * 100).toFixed(2) : 0;
+    
+    const marginEl = document.getElementById('margin');
+    const marginPercentEl = document.getElementById('marginPercent');
+    if (!marginEl || !marginPercentEl) return;
+
+    marginEl.value = formatMoney(margin);
+    marginPercentEl.value = marginPercent + '%';
+    
+    // Update colors based on margin
+    marginEl.classList.remove('bg-green-50', 'text-green-700', 'bg-red-50', 'text-red-700', 'bg-yellow-50', 'text-yellow-700');
+    marginPercentEl.classList.remove('bg-green-50', 'text-green-700', 'bg-red-50', 'text-red-700', 'bg-yellow-50', 'text-yellow-700');
+    
+    if (margin < 0) {
+        marginEl.classList.add('bg-red-50', 'text-red-700');
+        marginPercentEl.classList.add('bg-red-50', 'text-red-700');
+    } else if (marginPercent < 10) {
+        marginEl.classList.add('bg-yellow-50', 'text-yellow-700');
+        marginPercentEl.classList.add('bg-yellow-50', 'text-yellow-700');
+    } else {
+        marginEl.classList.add('bg-green-50', 'text-green-700');
+        marginPercentEl.classList.add('bg-green-50', 'text-green-700');
+    }
+}
+
+function calculateDebt() {
+    const total = unformatMoney(document.getElementById('total').value);
+    const paidInput = document.getElementById('paid_amount');
+    const paid = paidInput ? unformatMoney(paidInput.value) : 0;
+    const debt = total - paid;
+    
+    const debtEl = document.getElementById('debt');
+    if (debtEl) {
+        debtEl.value = formatMoney(debt);
+    }
+}
+
 // Validation function
 function validateAndSubmit() {
     const errors = [];
