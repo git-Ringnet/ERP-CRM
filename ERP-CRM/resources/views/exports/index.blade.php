@@ -35,7 +35,8 @@
                                 <i class="fas fa-search text-xs"></i>
                             </span>
                             <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
-                                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                                style="padding-left: 2.5rem !important;"
+                                class="w-full pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
                         </div>
                     </div>
 
