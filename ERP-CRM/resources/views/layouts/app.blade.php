@@ -11,7 +11,8 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
 
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -26,7 +27,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
-    
+
     <!-- Chart.js CDN - Load after Alpine.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
@@ -253,42 +254,42 @@
                 @endcanany
 
                 {{-- @can('view_reports')
-                    <div class="mt-4">
-                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
-                            onclick="toggleDropdown('reports')">
-                            <div class="flex items-center">
-                                <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Báo cáo</span>
-                            </div>
-                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-reports"></i>
+                <div class="mt-4">
+                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                        onclick="toggleDropdown('reports')">
+                        <div class="flex items-center">
+                            <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Báo cáo</span>
                         </div>
-
-                        <div class="dropdown-section" id="dropdown-reports">
-                            <a href="{{ route('reports.inventory-summary') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Tổng hợp tồn kho</span>
-                            </a>
-
-                            <a href="{{ route('reports.transaction-report') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-chart-line w-6 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo xuất nhập</span>
-                            </a>
-
-                            <a href="{{ route('reports.damaged-goods-report') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-chart-pie w-6 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo hư hỏng</span>
-                            </a>
-
-                            <a href="{{ route('warranties.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-shield-alt w-6 text-green-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi bảo hành</span>
-                            </a>
-                        </div>
+                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-reports"></i>
                     </div>
+
+                    <div class="dropdown-section" id="dropdown-reports">
+                        <a href="{{ route('reports.inventory-summary') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.inventory-summary') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-bar w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Tổng hợp tồn kho</span>
+                        </a>
+
+                        <a href="{{ route('reports.transaction-report') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.transaction-report') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-line w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo xuất nhập</span>
+                        </a>
+
+                        <a href="{{ route('reports.damaged-goods-report') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('reports.damaged-goods-report') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-chart-pie w-6 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo hư hỏng</span>
+                        </a>
+
+                        <a href="{{ route('warranties.index') }}"
+                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('warranties.*') ? 'bg-primary text-white' : '' }}">
+                            <i class="fas fa-shield-alt w-6 text-green-400 flex-shrink-0"></i>
+                            <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi bảo hành</span>
+                        </a>
+                    </div>
+                </div>
                 @endcan --}}
 
                 {{-- <div class="mt-4">
@@ -303,102 +304,102 @@
                 </div> --}}
 
                 @if(false)
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
-                        onclick="toggleDropdown('assets')">
-                        <div class="flex items-center">
-                            <i class="fas fa-laptop w-6 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Tài sản nội bộ</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('assets')">
+                            <div class="flex items-center">
+                                <i class="fas fa-laptop w-6 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Tài sản nội bộ</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-assets"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-assets"></i>
-                    </div>
 
-                    <div class="dropdown-section" id="dropdown-assets">
-                        <a href="{{ route('employee-assets.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-assets.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-box w-6 text-indigo-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục tài sản</span>
-                        </a>
-                        <a href="{{ route('employee-asset-assignments.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-asset-assignments.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-exchange-alt w-6 text-teal-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Cấp phát & Thu hồi</span>
-                        </a>
-                        <a href="{{ route('employee-asset-reports.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-asset-reports.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-pie w-6 text-pink-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tổng hợp</span>
-                        </a>
-                        <a href="{{ route('skills.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('skills.*') || request()->routeIs('employee-skills.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-graduation-cap w-6 text-yellow-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Kỹ năng</span>
-                        </a>
+                        <div class="dropdown-section" id="dropdown-assets">
+                            <a href="{{ route('employee-assets.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-assets.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-box w-6 text-indigo-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục tài sản</span>
+                            </a>
+                            <a href="{{ route('employee-asset-assignments.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-asset-assignments.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-exchange-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Cấp phát & Thu hồi</span>
+                            </a>
+                            <a href="{{ route('employee-asset-reports.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-asset-reports.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-chart-pie w-6 text-pink-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tổng hợp</span>
+                            </a>
+                            <a href="{{ route('skills.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('skills.*') || request()->routeIs('employee-skills.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-graduation-cap w-6 text-yellow-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Kỹ năng</span>
+                            </a>
+                        </div>
                     </div>
-                </div>
                 @endif
 
                 @if(false)
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
-                        onclick="toggleDropdown('kpis')">
-                        <div class="flex items-center">
-                            <i class="fas fa-star w-6 text-yellow-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Đánh giá & KPI</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('kpis')">
+                            <div class="flex items-center">
+                                <i class="fas fa-star w-6 text-yellow-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Đánh giá & KPI</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-kpis"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-kpis"></i>
-                    </div>
 
-                    <div class="dropdown-section" id="dropdown-kpis">
-                        <a href="{{ route('department-kpis.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpis.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Kỳ đánh giá KPI</span>
-                        </a>
-                        <a href="{{ route('department-kpi-criteria.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpi-criteria.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-list-check w-6 text-green-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Tiêu chí chuẩn</span>
-                        </a>
+                        <div class="dropdown-section" id="dropdown-kpis">
+                            <a href="{{ route('department-kpis.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpis.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-chart-line w-6 text-pink-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Kỳ đánh giá KPI</span>
+                            </a>
+                            <a href="{{ route('department-kpi-criteria.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('department-kpi-criteria.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-list-check w-6 text-green-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Tiêu chí chuẩn</span>
+                            </a>
 
-                        <a href="{{ route('employee-sales-revenues.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-sales-revenues.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-money-bill-trend-up w-6 text-cyan-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Ghi nhận doanh số</span>
-                        </a>
+                            <a href="{{ route('employee-sales-revenues.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('employee-sales-revenues.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-money-bill-trend-up w-6 text-cyan-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Ghi nhận doanh số</span>
+                            </a>
+                        </div>
                     </div>
-                </div>
                 @endif
 
                 @if(false)
-                <div class="mt-4">
-                    <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
-                        onclick="toggleDropdown('hr_payroll')">
-                        <div class="flex items-center">
-                            <i class="fas fa-users-cog w-6 text-indigo-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Nhân sự & Tiền lương</span>
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('hr_payroll')">
+                            <div class="flex items-center">
+                                <i class="fas fa-users-cog w-6 text-indigo-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Nhân sự & Tiền lương</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-hr_payroll"></i>
                         </div>
-                        <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-hr_payroll"></i>
-                    </div>
 
-                    <div class="dropdown-section" id="dropdown-hr_payroll">
-                        <a href="{{ route('salary-components.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('salary-components.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-list-ul w-6 text-orange-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục Phụ cấp</span>
-                        </a>
-                        <a href="{{ route('attendance.manage') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.manage') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-clipboard-check w-6 text-green-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Lịch sử Chấm công</span>
-                        </a>
-                        <a href="{{ route('payrolls.index') }}"
-                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('payrolls.*') ? 'bg-primary text-white' : '' }}">
-                            <i class="fas fa-money-check-alt w-6 text-yellow-400 flex-shrink-0"></i>
-                            <span class="ml-3 sidebar-text whitespace-nowrap">Bảng lương</span>
-                        </a>
+                        <div class="dropdown-section" id="dropdown-hr_payroll">
+                            <a href="{{ route('salary-components.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('salary-components.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-list-ul w-6 text-orange-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Danh mục Phụ cấp</span>
+                            </a>
+                            <a href="{{ route('attendance.manage') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('attendance.manage') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-clipboard-check w-6 text-green-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Lịch sử Chấm công</span>
+                            </a>
+                            <a href="{{ route('payrolls.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('payrolls.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-money-check-alt w-6 text-yellow-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Bảng lương</span>
+                            </a>
+                        </div>
                     </div>
-                </div>
                 @endif
 
                 @canany(['view_leads', 'view_opportunities', 'view_activities', 'view_customer_care_stages', 'view_quotations', 'view_sales', 'view_projects', 'view_customer_debts', 'view_cost_formulas', 'view_sale_reports', 'view_marketing_events'])
@@ -430,19 +431,19 @@
                             @endcan
 
                             {{-- @can('view_activities')
-                                <a href="{{ route('activities.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
-                                </a>
+                            <a href="{{ route('activities.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
+                            </a>
                             @endcan
 
                             @can('view_customer_care_stages')
-                                <a href="{{ route('customer-care-stages.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
-                                </a>
+                            <a href="{{ route('customer-care-stages.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
+                            </a>
                             @endcan --}}
 
                             @can('view_marketing_events')
@@ -548,13 +549,13 @@
                                 </a>
                             @endcan
 
-                            @can('view_shipping_allocations')
-                                <a href="{{ route('shipping-allocations.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                </a>
-                            @endcan
+                            <!-- @can('view_shipping_allocations')
+                                    <a href="{{ route('shipping-allocations.index') }}"
+                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                    </a>
+                                @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -731,12 +732,12 @@
                 <div class="flex items-center space-x-2 sm:space-x-4">
                     <!-- Quick Attendance Link -->
                     @if(false)
-                    <a href="{{ route('attendance.index') }}" 
-                        class="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                        title="Chấm công GPS">
-                        <i class="fas fa-map-marker-alt mr-1.5 sm:mr-2"></i>
-                        <span class="whitespace-nowrap">Chấm công</span>
-                    </a>
+                        <a href="{{ route('attendance.index') }}"
+                            class="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                            title="Chấm công GPS">
+                            <i class="fas fa-map-marker-alt mr-1.5 sm:mr-2"></i>
+                            <span class="whitespace-nowrap">Chấm công</span>
+                        </a>
                     @endif
 
                     <!-- Notification Bell -->

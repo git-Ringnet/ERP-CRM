@@ -158,10 +158,7 @@ class SupplierController extends Controller
             }
         }
 
-        DB::table('suppliers')->insert(array_merge($validated, [
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]));
+        \App\Models\Supplier::create($validated);
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Nhà cung cấp đã được tạo thành công.');
@@ -304,9 +301,7 @@ class SupplierController extends Controller
             }
         }
 
-        DB::table('suppliers')->where('id', $id)->update(array_merge($validated, [
-            'updated_at' => now(),
-        ]));
+        $supplierModel->update($validated);
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Nhà cung cấp đã được cập nhật thành công.');
@@ -347,7 +342,7 @@ class SupplierController extends Controller
                 ->with('error', 'Không thể xóa nhà cung cấp này vì đang có Đơn nhập hàng liên quan.');
         }
 
-        DB::table('suppliers')->where('id', $id)->delete();
+        $supplierModel->delete();
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Nhà cung cấp đã được xóa thành công.');

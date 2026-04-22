@@ -38,11 +38,50 @@
                 <!-- Module filter -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Module</label>
+                    @php
+                        $moduleNames = [
+                            'Customer' => 'Khách hàng',
+                            'Supplier' => 'Nhà cung cấp',
+                            'User' => 'Nhân viên',
+                            'Product' => 'Sản phẩm',
+                            'Warehouse' => 'Quản lý kho',
+                            'Inventory' => 'Tồn kho',
+                            'Import' => 'Nhập kho',
+                            'Export' => 'Xuất kho',
+                            'Transfer' => 'Chuyển kho',
+                            'DamagedGood' => 'Hàng hư hỏng',
+                            'Lead' => 'Đầu mối',
+                            'Opportunity' => 'Cơ hội',
+                            'MarketingEvent' => 'Marketing Event',
+                            'Quotation' => 'Báo giá',
+                            'Sale' => 'Đơn hàng bán',
+                            'Project' => 'Quản lý dự án',
+                            'FinancialTransaction' => 'Giao dịch tài chính',
+                            'PaymentHistory' => 'Thanh toán KH',
+                            'CostFormula' => 'Công thức chi phí',
+                            'PriceList' => 'Bảng giá KH',
+                            'SupplierPriceList' => 'Bảng giá NCC',
+                            'PurchaseRequest' => 'Yêu cầu mua hàng',
+                            'SupplierQuotation' => 'Báo giá NCC',
+                            'PurchaseOrder' => 'Đơn đặt hàng (PO)',
+                            'ShippingAllocation' => 'Phân bổ vận chuyển',
+                            'SupplierPaymentHistory' => 'Thanh toán NCC',
+                            'ApprovalWorkflow' => 'Quy trình duyệt',
+                            'ApprovalLevel' => 'Cấp duyệt',
+                            'Setting' => 'Cài đặt',
+                            'Currency' => 'Tiền tệ',
+                            'ExchangeRate' => 'Tỷ giá',
+                            'Role' => 'Vai trò',
+                            'Permission' => 'Quyền hạn',
+                            'CustomerCareStage' => 'Giai đoạn CSKH',
+                            'WorkSchedule' => 'Lịch làm việc',
+                        ];
+                    @endphp
                     <select name="subject_type" class="w-full rounded-lg border-gray-300 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
                         <option value="">Tất cả</option>
                         @foreach($subjectTypes as $type)
                             <option value="App\Models\{{ $type }}" {{ request('subject_type') == "App\\Models\\{$type}" ? 'selected' : '' }}>
-                                {{ $type }}
+                                {{ $moduleNames[$type] ?? $type }}
                             </option>
                         @endforeach
                     </select>
@@ -112,7 +151,10 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">
-                                {{ $log->subject_type ? class_basename($log->subject_type) : '-' }}
+                                @php
+                                    $modelType = $log->subject_type ? class_basename($log->subject_type) : '-';
+                                @endphp
+                                {{ $moduleNames[$modelType] ?? $modelType }}
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-900">
                                 {{ $log->description }}
