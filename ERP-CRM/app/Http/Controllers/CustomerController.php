@@ -63,6 +63,43 @@ class CustomerController extends Controller
     }
 
     /**
+     * AJAX customer search for marketing events (lightweight).
+     * Returns latest 10 matched customers excluding existing invited ones.
+     */
+    public function ajaxSearch(Request $request)
+    {
+        $this->authorize('viewAny', Customer::class);
+
+        $q = trim((string) $request->get('q', ''));
+        $marketingEventId = $request->integer('marketing_event_id');
+
+        $excludeIds = [];
+        if ($marketingEventId) {
+            $excludeIds = DB::table('marketing_event_customers')
+                ->where('marketing_event_id', $marketingEventId)
+                ->pluck('customer_id')
+                ->all();
+        }
+
+        $query = Customer::query()
+            ->select(['id', 'name'])
+            ->when(!empty($excludeIds), fn ($qb) => $qb->whereNotIn('id', $excludeIds));
+
+        if ($q !== '') {
+            $query->where(function ($qb) use ($q) {
+                $qb->where('name', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            });
+        }
+
+        $customers = $query->orderByDesc('created_at')->limit(10)->get();
+
+        return response()->json($customers);
+    }
+
+    /**
      * Show the form for creating a new customer.
      * Requirements: 1.2
      */

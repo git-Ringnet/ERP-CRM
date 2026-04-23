@@ -193,34 +193,48 @@
             @endif">
         </div>
 
-        <div class="p-5 flex flex-wrap items-start justify-between gap-4">
+        <div class="p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3 flex-wrap">
                     <h1 class="text-2xl font-bold text-gray-800">{{ $marketingEvent->title }}</h1>
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold {{ $marketingEvent->status_color }}">
-                        @if($marketingEvent->status === 'approved') <i class="fas fa-check-circle"></i>
-                        @elseif($marketingEvent->status === 'pending') <i class="fas fa-clock"></i>
-                        @elseif($marketingEvent->status === 'rejected') <i class="fas fa-times-circle"></i>
-                        @else <i class="fas fa-file-alt"></i>
+                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold {{ $marketingEvent->status_color }}">
+                        @if($marketingEvent->status === 'approved') <i class="fas fa-check-circle shrink-0"></i>
+                        @elseif($marketingEvent->status === 'pending') <i class="fas fa-clock shrink-0"></i>
+                        @elseif($marketingEvent->status === 'rejected') <i class="fas fa-times-circle shrink-0"></i>
+                        @else <i class="fas fa-file-alt shrink-0"></i>
                         @endif
-                        {{ $marketingEvent->status_label }}
+                        <span>{{ $marketingEvent->status_label }}</span>
                     </span>
                 </div>
-                <p class="text-sm text-gray-400 mt-1.5 flex items-center flex-wrap gap-x-3 gap-y-1">
-                    <span><i class="fas fa-user-circle mr-1"></i>{{ $marketingEvent->creator->name }}</span>
-                    <span><i class="fas fa-calendar mr-1"></i>{{ $marketingEvent->event_date->format('d/m/Y') }}</span>
+                <ul class="text-sm text-gray-400 mt-1.5 flex flex-wrap items-center">
+                    <li class="inline-flex items-center gap-1.5 mr-4 mb-1">
+                        <i class="fas fa-user-circle shrink-0 mr-1"></i>
+                        <span>{{ $marketingEvent->creator->name }}</span>
+                    </li>
+                    <li class="inline-flex items-center gap-1.5 mr-4 mb-1">
+                        <i class="fas fa-calendar shrink-0 mr-1"></i>
+                        <span>{{ $marketingEvent->event_date->format('d/m/Y') }}</span>
+                    </li>
                     @if($marketingEvent->location)
-                    <span><i class="fas fa-map-marker-alt mr-1"></i>{{ $marketingEvent->location }}</span>
+                    <li class="inline-flex items-center gap-1.5 mb-1">
+                        <i class="fas fa-map-marker-alt shrink-0 mr-1"></i>
+                        <span>{{ $marketingEvent->location }}</span>
+                    </li>
                     @endif
-                </p>
+                </ul>
             </div>
 
             {{-- Action buttons --}}
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="w-full sm:w-auto sm:ml-auto flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
+                <a href="{{ route('marketing-events.index') }}"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-arrow-left text-xs"></i> Quay lại
+                </a>
+
                 @if($marketingEvent->isEditable() || $marketingEvent->status === 'cancelled')
                     <a href="{{ route('marketing-events.edit', $marketingEvent) }}"
-                       class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
-                        <i class="fas fa-pen text-xs"></i> Chỉnh sửa
+                       class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
+                        <i class="fas fa-pen text-xs"></i><span>Chỉnh sửa</span>
                     </a>
 
                     <form action="{{ route('marketing-events.destroy', $marketingEvent) }}" method="POST" class="inline">
@@ -228,23 +242,23 @@
                         @method('DELETE')
                         <button type="submit"
                             onclick="return confirm('Bạn có chắc chắn muốn xóa sự kiện này? Hành động này không thể hoàn tác.')"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors">
-                            <i class="fas fa-trash text-xs"></i> Xóa
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors">
+                            <i class="fas fa-trash text-xs"></i><span>Xóa</span>
                         </button>
                     </form>
 
-                    <form action="{{ route('marketing-events.submit-approval', $marketingEvent) }}" method="POST">
+                    <form action="{{ route('marketing-events.submit-approval', $marketingEvent) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 shadow-sm transition-colors">
-                            <i class="fas fa-paper-plane text-xs"></i> 
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors">
+                            <i class="fas fa-paper-plane text-xs"></i>
                             {{ $marketingEvent->status === 'rejected' ? 'Gửi duyệt lại' : 'Gửi duyệt ngân sách' }}
                         </button>
                     </form>
                 @endif
 
                 @if($marketingEvent->status === 'pending' && $canApprove)
-                    <form action="{{ route('marketing-events.approve', $marketingEvent) }}" method="POST">
+                    <form action="{{ route('marketing-events.approve', $marketingEvent) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
                             onclick="return confirm('Duyệt ngân sách sự kiện này?')"
@@ -262,11 +276,6 @@
                         Chờ duyệt bởi: <strong class="ml-1">{{ $mktNextLevel?->approver_label ?? '—' }}</strong>
                     </span>
                 @endif
-
-                <a href="{{ route('marketing-events.index') }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-arrow-left text-xs"></i> Quay lại
-                </a>
             </div>
         </div>
 
@@ -384,34 +393,97 @@
                 </h3>
 
                 {{-- Add customer --}}
-                <form action="{{ route('marketing-events.customers.add', $marketingEvent) }}" method="POST" class="mb-4">
+                <form action="{{ route('marketing-events.customers.add', $marketingEvent) }}" method="POST" class="mb-4" id="addCustomersForm-{{ $marketingEvent->id }}">
                     @csrf
-                    <select name="customer_ids[]" multiple
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm h-28 focus:outline-none focus:ring-2 focus:ring-purple-400 mb-2 bg-gray-50">
-                        @foreach($allCustomers as $customer)
-                            @unless($marketingEvent->customers->contains($customer->id))
-                            <option value="{{ $customer->id }}">{{ $customer->name }}</option>
-                            @endunless
-                        @endforeach
-                    </select>
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                <input type="text"
+                                    id="customerSearch-{{ $marketingEvent->id }}"
+                                    placeholder="Tìm khách hàng..."
+                                    autocomplete="off"
+                                    class="w-full border border-gray-200 bg-white rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                            </div>
+                        </div>
+
+                        <div class="mt-3 flex items-center justify-between gap-3">
+                            <label class="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 select-none">
+                                <input type="checkbox"
+                                    id="customerSelectAll-{{ $marketingEvent->id }}"
+                                    class="rounded border-gray-300 text-purple-600 focus:ring-purple-400">
+                                Chọn tất cả
+                            </label>
+                            <span class="text-[10px] text-gray-400" id="customerCount-{{ $marketingEvent->id }}"></span>
+                        </div>
+
+                        <div class="mt-2 hidden" id="selectedCustomersWrap-{{ $marketingEvent->id }}">
+                            <div class="text-[10px] uppercase tracking-wide text-gray-400 mb-1">Đã chọn</div>
+                            <div class="flex flex-wrap gap-1.5" id="selectedCustomersList-{{ $marketingEvent->id }}"></div>
+                        </div>
+
+                        <div class="mt-2 max-h-56 overflow-y-auto pr-1 space-y-1" id="customerList-{{ $marketingEvent->id }}"
+                            data-initial='@json($suggestCustomers)'>
+                            @foreach($suggestCustomers as $customer)
+                                <label class="customer-item flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer">
+                                    <input type="checkbox" name="customer_ids[]" value="{{ $customer->id }}"
+                                        class="customer-checkbox rounded border-gray-300 text-purple-600 focus:ring-purple-400">
+                                    <span class="text-sm text-gray-700 truncate">{{ $customer->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div id="selectedCustomerInputs-{{ $marketingEvent->id }}"></div>
+                    </div>
                     <button type="submit"
                         class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-sm font-medium transition-colors">
                         <i class="fas fa-plus text-xs"></i> Thêm vào danh sách
                     </button>
                 </form>
 
+                {{-- Bulk status update --}}
+                @if($marketingEvent->customers->isNotEmpty())
+                <form action="{{ route('marketing-events.customers.status.bulk', $marketingEvent) }}" method="POST" id="bulkCustomerStatusForm-{{ $marketingEvent->id }}" class="mb-3">
+                    @csrf
+                    @method('PATCH')
+                    <div id="bulkCustomerStatusInputs-{{ $marketingEvent->id }}"></div>
+                    <div class="flex items-center gap-2">
+                        <label class="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 whitespace-nowrap select-none">
+                            <input type="checkbox" id="bulkSelectAllCustomers-{{ $marketingEvent->id }}"
+                                class="rounded border-gray-300 text-purple-600 focus:ring-purple-400">
+                            Chọn tất cả
+                        </label>
+                        <select id="bulkStatusSelect-{{ $marketingEvent->id }}"
+                            class="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-purple-400">
+                            <option value="invited">Mời</option>
+                            <option value="attended">Tham dự</option>
+                            <option value="cancelled">Hủy</option>
+                        </select>
+                        <button type="submit" id="bulkStatusSubmitBtn-{{ $marketingEvent->id }}"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                            disabled>
+                            <i class="fas fa-check-double text-[10px]"></i> Cập nhật
+                        </button>
+                    </div>
+                </form>
+                @endif
+
                 {{-- Customer list --}}
-                <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                <div class="space-y-2 h-96 overflow-y-auto pr-1" style="max-height: 420px; overflow-y: auto;">
                     @forelse($marketingEvent->customers as $customer)
                     <div class="p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-all border border-transparent hover:border-purple-100" x-data="{ showNotes: {{ $customer->pivot->notes ? 'true' : 'false' }} }">
                         <div class="flex items-center justify-between">
-                            <div class="min-w-0 flex-1">
-                                <div class="text-sm font-medium text-gray-800 truncate">{{ $customer->name }}</div>
-                                @php $st = $customer->pivot->status; @endphp
-                                <span class="inline-block text-[10px] px-2 py-0.5 rounded-full mt-0.5 font-bold uppercase tracking-wider
-                                    {{ $st === 'attended' ? 'bg-emerald-100 text-emerald-700' : ($st === 'cancelled' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-700') }}">
-                                    {{ $st === 'attended' ? 'Đã tham dự' : ($st === 'cancelled' ? 'Đã hủy' : 'Đã mời') }}
-                                </span>
+                            <div class="min-w-0 flex-1 flex items-start gap-2">
+                                <input type="checkbox"
+                                    class="bulk-customer-checkbox mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-400"
+                                    data-customer-id="{{ $customer->id }}">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-medium text-gray-800 truncate">{{ $customer->name }}</div>
+                                    @php $st = $customer->pivot->status; @endphp
+                                    <span class="inline-block text-[10px] px-2 py-0.5 rounded-full mt-0.5 font-bold uppercase tracking-wider
+                                        {{ $st === 'attended' ? 'bg-emerald-100 text-emerald-700' : ($st === 'cancelled' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-700') }}">
+                                        {{ $st === 'attended' ? 'Đã tham dự' : ($st === 'cancelled' ? 'Đã hủy' : 'Đã mời') }}
+                                    </span>
+                                </div>
                             </div>
                             <div class="flex items-center gap-1 ml-2 flex-shrink-0">
                                 <form action="{{ route('marketing-events.customers.status', [$marketingEvent, $customer]) }}" method="POST" class="flex items-center gap-1">
@@ -478,3 +550,238 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const eventId = @json($marketingEvent->id);
+  const searchEl = document.getElementById(`customerSearch-${eventId}`);
+  const listEl = document.getElementById(`customerList-${eventId}`);
+  const selectAllEl = document.getElementById(`customerSelectAll-${eventId}`);
+  const countEl = document.getElementById(`customerCount-${eventId}`);
+  const selectedWrapEl = document.getElementById(`selectedCustomersWrap-${eventId}`);
+  const selectedListEl = document.getElementById(`selectedCustomersList-${eventId}`);
+  const selectedInputsEl = document.getElementById(`selectedCustomerInputs-${eventId}`);
+
+  if (!searchEl || !listEl || !selectAllEl || !selectedWrapEl || !selectedListEl || !selectedInputsEl) return;
+
+  const initialCustomers = (() => {
+    try { return JSON.parse(listEl.getAttribute('data-initial') || '[]'); } catch { return []; }
+  })();
+  const selectedCustomers = new Map(); // id -> name
+
+  function renderCustomers(customers) {
+    listEl.innerHTML = (customers || []).map(c => `
+      <label class="customer-item flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer">
+        <input type="checkbox" name="customer_ids[]" value="${c.id}"
+          class="customer-checkbox rounded border-gray-300 text-purple-600 focus:ring-purple-400">
+        <span class="text-sm text-gray-700 truncate">${escapeHtml(c.name || '')}</span>
+      </label>
+    `).join('') || `<div class="px-2 py-3 text-xs text-gray-400 italic">Không có kết quả.</div>`;
+    syncRenderedChecks();
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function getVisibleItems() {
+    return Array.from(listEl.querySelectorAll('.customer-item'))
+      .filter(el => el.style.display !== 'none');
+  }
+
+  function updateCount() {
+    const visible = getVisibleItems().length;
+    const total = listEl.querySelectorAll('.customer-item').length;
+    if (countEl) countEl.textContent = `${visible}/${total} khách | Đã chọn: ${selectedCustomers.size}`;
+  }
+
+  function updateSelectAllState() {
+    const visibleItems = getVisibleItems();
+    const visibleChecks = visibleItems
+      .map(el => el.querySelector('.customer-checkbox'))
+      .filter(Boolean);
+
+    if (visibleChecks.length === 0) {
+      selectAllEl.checked = false;
+      selectAllEl.indeterminate = false;
+      return;
+    }
+
+    const checkedCount = visibleChecks.filter(cb => cb.checked).length;
+    selectAllEl.checked = checkedCount === visibleChecks.length;
+    selectAllEl.indeterminate = checkedCount > 0 && checkedCount < visibleChecks.length;
+  }
+
+  function syncRenderedChecks() {
+    listEl.querySelectorAll('.customer-checkbox').forEach(cb => {
+      cb.checked = selectedCustomers.has(String(cb.value));
+    });
+    updateSelectAllState();
+  }
+
+  function renderSelectedSummary() {
+    if (selectedCustomers.size === 0) {
+      selectedWrapEl.classList.add('hidden');
+      selectedListEl.innerHTML = '';
+      selectedInputsEl.innerHTML = '';
+      updateCount();
+      return;
+    }
+
+    selectedWrapEl.classList.remove('hidden');
+    selectedListEl.innerHTML = Array.from(selectedCustomers.entries()).map(([id, name]) => `
+      <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full">
+        <span class="max-w-[180px] truncate">${escapeHtml(name)}</span>
+        <button type="button" class="remove-selected text-purple-500 hover:text-purple-700" data-id="${id}" title="Bỏ chọn">
+          <i class="fas fa-times text-[10px]"></i>
+        </button>
+      </span>
+    `).join('');
+
+    selectedInputsEl.innerHTML = Array.from(selectedCustomers.keys()).map(id =>
+      `<input type="hidden" name="customer_ids[]" value="${id}">`
+    ).join('');
+
+    updateCount();
+    syncRenderedChecks();
+  }
+
+  let debounceTimer = null;
+  searchEl.addEventListener('input', function () {
+    const q = (searchEl.value || '').trim();
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      if (!q) {
+        renderCustomers(initialCustomers);
+        updateCount();
+        updateSelectAllState();
+        return;
+      }
+
+      // show lightweight loading state
+      listEl.innerHTML = `<div class="px-2 py-3 text-xs text-gray-400 italic">Đang tìm...</div>`;
+      selectAllEl.checked = false;
+      selectAllEl.indeterminate = false;
+      if (countEl) countEl.textContent = '';
+
+      try {
+        const res = await fetch(@json(route('customers.ajax-search')) + `?q=${encodeURIComponent(q)}&marketing_event_id=${encodeURIComponent(eventId)}`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        renderCustomers(data);
+      } catch (e) {
+        listEl.innerHTML = `<div class="px-2 py-3 text-xs text-red-500 italic">Lỗi tìm kiếm.</div>`;
+      }
+
+      updateCount();
+      updateSelectAllState();
+    }, 250);
+  });
+
+  selectAllEl.addEventListener('change', function () {
+    const targetChecked = !!selectAllEl.checked;
+    getVisibleItems().forEach(el => {
+      const cb = el.querySelector('.customer-checkbox');
+      if (!cb) return;
+      cb.checked = targetChecked;
+      const label = cb.closest('.customer-item');
+      const name = label ? (label.querySelector('span')?.textContent || '') : '';
+      if (targetChecked) {
+        selectedCustomers.set(String(cb.value), name.trim());
+      } else {
+        selectedCustomers.delete(String(cb.value));
+      }
+    });
+    renderSelectedSummary();
+    updateSelectAllState();
+  });
+
+  listEl.addEventListener('change', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('customer-checkbox')) {
+      const cb = e.target;
+      const label = cb.closest('.customer-item');
+      const name = label ? (label.querySelector('span')?.textContent || '') : '';
+      if (cb.checked) {
+        selectedCustomers.set(String(cb.value), name.trim());
+      } else {
+        selectedCustomers.delete(String(cb.value));
+      }
+      renderSelectedSummary();
+      updateSelectAllState();
+    }
+  });
+
+  selectedListEl.addEventListener('click', function (e) {
+    const btn = e.target.closest('.remove-selected');
+    if (!btn) return;
+    selectedCustomers.delete(String(btn.dataset.id));
+    renderSelectedSummary();
+  });
+
+  // initial
+  renderSelectedSummary();
+  updateCount();
+  updateSelectAllState();
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  const eventId = @json($marketingEvent->id);
+  const bulkSelectAll = document.getElementById(`bulkSelectAllCustomers-${eventId}`);
+  const bulkInputs = document.getElementById(`bulkCustomerStatusInputs-${eventId}`);
+  const bulkSubmit = document.getElementById(`bulkStatusSubmitBtn-${eventId}`);
+  const bulkStatusSelect = document.getElementById(`bulkStatusSelect-${eventId}`);
+  const bulkForm = document.getElementById(`bulkCustomerStatusForm-${eventId}`);
+  const checkboxes = Array.from(document.querySelectorAll('.bulk-customer-checkbox'));
+
+  if (!bulkSelectAll || !bulkInputs || !bulkSubmit || !bulkStatusSelect || !bulkForm || checkboxes.length === 0) {
+    return;
+  }
+
+  function refreshBulkInputs() {
+    const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.customerId);
+    bulkInputs.innerHTML = selected.map(id => `<input type="hidden" name="customer_ids[]" value="${id}">`).join('');
+    bulkInputs.insertAdjacentHTML('beforeend', `<input type="hidden" name="status" value="${bulkStatusSelect.value}">`);
+    bulkSubmit.disabled = selected.length === 0;
+  }
+
+  function refreshSelectAllState() {
+    const selectedCount = checkboxes.filter(cb => cb.checked).length;
+    bulkSelectAll.checked = selectedCount > 0 && selectedCount === checkboxes.length;
+    bulkSelectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+  }
+
+  bulkSelectAll.addEventListener('change', function () {
+    checkboxes.forEach(cb => {
+      cb.checked = bulkSelectAll.checked;
+    });
+    refreshSelectAllState();
+    refreshBulkInputs();
+  });
+
+  checkboxes.forEach(cb => cb.addEventListener('change', function () {
+    refreshSelectAllState();
+    refreshBulkInputs();
+  }));
+
+  bulkStatusSelect.addEventListener('change', refreshBulkInputs);
+
+  bulkForm.addEventListener('submit', function (e) {
+    const selectedCount = checkboxes.filter(cb => cb.checked).length;
+    if (selectedCount === 0) {
+      e.preventDefault();
+      return;
+    }
+  });
+
+  refreshSelectAllState();
+  refreshBulkInputs();
+});
+</script>
+@endpush

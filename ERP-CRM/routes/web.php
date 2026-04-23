@@ -64,6 +64,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);
+    Route::get('/ajax/customers/search', [CustomerController::class, 'ajaxSearch'])->name('customers.ajax-search');
     Route::resource('suppliers', SupplierController::class);
     Route::resource('employees', EmployeeController::class);
     Route::resource('products', ProductController::class);
@@ -484,6 +485,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/marketing-events/{marketingEvent}/customers', [\App\Http\Controllers\MarketingEventController::class, 'addCustomers'])->name('marketing-events.customers.add');
     Route::delete('/marketing-events/{marketingEvent}/customers/{customer}', [\App\Http\Controllers\MarketingEventController::class, 'removeCustomer'])->name('marketing-events.customers.remove');
     Route::patch('/marketing-events/{marketingEvent}/customers/{customer}/status', [\App\Http\Controllers\MarketingEventController::class, 'updateCustomerStatus'])->name('marketing-events.customers.status');
+    Route::patch('/marketing-events/{marketingEvent}/customers/status/bulk', [\App\Http\Controllers\MarketingEventController::class, 'bulkUpdateCustomerStatus'])->name('marketing-events.customers.status.bulk');
 });
 
 // Auth routes (login, logout, etc.)

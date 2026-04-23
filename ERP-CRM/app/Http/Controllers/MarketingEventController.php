@@ -18,6 +18,36 @@ class MarketingEventController extends Controller
         $this->approvalService = $approvalService;
     }
 
+    private function normalizeMoneyFields(Request $request, array $fields): void
+    {
+        $normalized = [];
+        foreach ($fields as $field) {
+            if (!$request->has($field)) {
+                continue;
+            }
+
+            $raw = $request->input($field);
+            if ($raw === null) {
+                $normalized[$field] = null;
+                continue;
+            }
+
+            $raw = trim((string) $raw);
+            if ($raw === '') {
+                $normalized[$field] = null;
+                continue;
+            }
+
+            // Accept "100,000,000" format: strip thousands separators and spaces
+            $clean = preg_replace('/[,\s]/', '', $raw);
+            $normalized[$field] = $clean;
+        }
+
+        if (!empty($normalized)) {
+            $request->merge($normalized);
+        }
+    }
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', MarketingEvent::class);
@@ -50,6 +80,8 @@ class MarketingEventController extends Controller
     {
         $this->authorize('create', MarketingEvent::class);
 
+        $this->normalizeMoneyFields($request, ['budget', 'actual_cost']);
+
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -73,7 +105,12 @@ class MarketingEventController extends Controller
         $this->authorize('view', $marketingEvent);
 
         $marketingEvent->load(['creator', 'customers', 'approvalHistories']);
-        $allCustomers = Customer::orderBy('name')->get();
+        $existingCustomerIds = $marketingEvent->customers()->pluck('customers.id')->all();
+        $suggestCustomers = Customer::query()
+            ->when(!empty($existingCustomerIds), fn ($q) => $q->whereNotIn('id', $existingCustomerIds))
+            ->latest()
+            ->limit(10)
+            ->get(['id', 'name']);
 
         $approvalHistory = ApprovalHistory::where('document_type', 'marketing_budget')
             ->where('document_id', $marketingEvent->id)
@@ -81,7 +118,7 @@ class MarketingEventController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        return view('marketing-events.show', compact('marketingEvent', 'allCustomers', 'approvalHistory'));
+        return view('marketing-events.show', compact('marketingEvent', 'suggestCustomers', 'approvalHistory'));
     }
 
     public function edit(MarketingEvent $marketingEvent)
@@ -103,6 +140,8 @@ class MarketingEventController extends Controller
         if (!$marketingEvent->isEditable()) {
             return back()->with('error', 'Không thể chỉnh sửa sự kiện này.');
         }
+
+        $this->normalizeMoneyFields($request, ['budget', 'actual_cost']);
 
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
@@ -273,5 +312,40 @@ class MarketingEventController extends Controller
         ]);
 
         return back()->with('success', 'Đã cập nhật trạng thái khách hàng.');
+    }
+
+    /**
+     * Cập nhật trạng thái hàng loạt cho khách mời
+     */
+    public function bulkUpdateCustomerStatus(Request $request, MarketingEvent $marketingEvent)
+    {
+        $this->authorize('update', $marketingEvent);
+
+        $validated = $request->validate([
+            'customer_ids'   => 'required|array|min:1',
+            'customer_ids.*' => 'integer|exists:customers,id',
+            'status'         => 'required|in:invited,attended,cancelled',
+        ]);
+
+        $customerIds = collect($validated['customer_ids'])->unique()->values();
+
+        // Chỉ cập nhật các khách đang thuộc event này
+        $existingIds = $marketingEvent->customers()
+            ->whereIn('customers.id', $customerIds)
+            ->pluck('customers.id');
+
+        if ($existingIds->isEmpty()) {
+            return back()->with('warning', 'Không tìm thấy khách hàng hợp lệ để cập nhật.');
+        }
+
+        DB::table('marketing_event_customers')
+            ->where('marketing_event_id', $marketingEvent->id)
+            ->whereIn('customer_id', $existingIds)
+            ->update([
+                'status'     => $validated['status'],
+                'updated_at' => now(),
+            ]);
+
+        return back()->with('success', 'Đã cập nhật trạng thái cho ' . $existingIds->count() . ' khách hàng.');
     }
 }
