@@ -12,7 +12,7 @@
                 <!-- Search -->
                 <div class="relative lg:col-span-2">
                     <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Tìm kiếm theo mã, tên, email, SĐT..." autocomplete="off"
+                           placeholder="Tìm kiếm theo MST, tên, email, SĐT..." autocomplete="off"
                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                     <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                 </div>
@@ -91,38 +91,42 @@
     </div>
 
     <!-- Table - Desktop View -->
-    <div class="hidden md:block overflow-x-auto">
+    <div class="hidden md:block overflow-x-auto" x-data="{ expanded: null }">
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã KH</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên khách hàng</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điện thoại</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">STT</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã số thuế</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên công ty</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email/SĐT công ty</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn mức nợ</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($customers as $customer)
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 cursor-pointer" @click="expanded === {{ $customer->id }} ? expanded = null : expanded = {{ $customer->id }}">
+                    <td class="px-4 py-3 text-center">
+                        <i class="fas fa-chevron-right transition-transform duration-200" :class="expanded === {{ $customer->id }} ? 'rotate-90 text-primary' : 'text-gray-400'"></i>
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                         {{ ($customers->currentPage() - 1) * $customers->perPage() + $loop->iteration }}
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">
-                        <span class="font-medium text-gray-900">{{ $customer->code }}</span>
+                        <span class="font-medium text-gray-900">{{ $customer->tax_code }}</span>
                     </td>
                     <td class="px-4 py-3">
-                        <div class="text-sm font-medium text-gray-900">{{ $customer->name }}</div>
-                        @if($customer->contact_person)
-                            <div class="text-sm text-gray-500">LH: {{ $customer->contact_person }}</div>
-                        @endif
+                        <div class="text-sm font-bold text-gray-900 uppercase">{{ $customer->name }}</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            <i class="fas fa-users mr-1"></i> {{ $customer->contacts->count() }} người liên hệ
+                        </div>
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $customer->email }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $customer->phone }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <div><i class="far fa-envelope mr-1 text-xs"></i>{{ $customer->email }}</div>
+                        <div class="mt-1"><i class="fas fa-phone-alt mr-1 text-xs text-green-500"></i>{{ $customer->phone }}</div>
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         @if($customer->type == 'vip')
                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -134,13 +138,10 @@
                             </span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 font-medium">
                         {{ number_format($customer->debt_limit) }} đ
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {{ $customer->created_at->format('d/m/Y') }}
-                    </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                    <td class="px-4 py-3 whitespace-nowrap text-center" @click.stop>
                         <div class="flex items-center justify-center gap-2">
                             <a href="{{ route('customers.show', $customer->id) }}" 
                                class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors" 
@@ -165,9 +166,49 @@
                         </div>
                     </td>
                 </tr>
+                <!-- Expandable row for Contacts -->
+                <tr x-show="expanded === {{ $customer->id }}" x-cloak class="bg-gray-50">
+                    <td colspan="8" class="px-8 py-4">
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Người liên hệ</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Chức vụ</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Số điện thoại</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Email</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @forelse($customer->contacts as $contact)
+                                    <tr class="hover:bg-blue-50 transition-colors">
+                                        <td class="px-4 py-2 font-medium text-gray-900">
+                                            {{ $contact->name }}
+                                            @if($contact->is_primary)
+                                            <span class="ml-1 text-[10px] bg-blue-100 text-blue-600 px-1 rounded">Chính</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-600">{{ $contact->position ?? '-' }}</td>
+                                        <td class="px-4 py-2 text-blue-600 font-medium">{{ $contact->phone ?? '-' }}</td>
+                                        <td class="px-4 py-2 text-gray-600">{{ $contact->email ?? '-' }}</td>
+                                        <td class="px-4 py-2 text-gray-500 text-xs italic">{{ $contact->note ?? '-' }}</td>
+                                    </tr>
+                                    @empty
+                                    <tr>
+                                        <td colspan="5" class="px-4 py-4 text-center text-gray-400 italic">
+                                            Chưa có thông tin người liên hệ
+                                        </td>
+                                    </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu khách hàng</p>
                     </td>
@@ -177,34 +218,44 @@
         </table>
     </div>
 
-    <!-- Card View - Mobile -->
-    <div class="md:hidden divide-y divide-gray-200">
+    <div class="md:hidden divide-y divide-gray-200" x-data="{ expanded: null }">
         @forelse($customers as $customer)
         <div class="p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-start mb-2">
+            <div class="flex justify-between items-start mb-2" @click="expanded === {{ $customer->id }} ? expanded = null : expanded = {{ $customer->id }}">
                 <div class="flex-1">
-                    <div class="font-medium text-gray-900">{{ $customer->name }}</div>
-                    <div class="text-sm text-gray-500">{{ $customer->code }}</div>
+                    <div class="font-bold text-gray-900 uppercase">{{ $customer->name }}</div>
+                    <div class="text-sm text-gray-500">MST: {{ $customer->tax_code }}</div>
                 </div>
-                @if($customer->type == 'vip')
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                        <i class="fas fa-crown mr-1"></i>VIP
-                    </span>
-                @else
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                        Thường
-                    </span>
-                @endif
+                <div class="flex items-center gap-2">
+                    @if($customer->type == 'vip')
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            <i class="fas fa-crown mr-1"></i>VIP
+                        </span>
+                    @endif
+                    <i class="fas fa-chevron-down transition-transform duration-200" :class="expanded === {{ $customer->id }} ? 'rotate-180 text-primary' : 'text-gray-400'"></i>
+                </div>
             </div>
-            <div class="space-y-1 text-sm text-gray-600 mb-3">
+            
+            <div class="space-y-1 text-sm text-gray-600 mb-3" x-show="expanded !== {{ $customer->id }}">
                 <div><i class="fas fa-envelope w-4"></i> {{ $customer->email }}</div>
                 <div><i class="fas fa-phone w-4"></i> {{ $customer->phone }}</div>
-                @if($customer->contact_person)
-                    <div><i class="fas fa-user w-4"></i> {{ $customer->contact_person }}</div>
-                @endif
-                <div><i class="fas fa-money-bill w-4"></i> {{ number_format($customer->debt_limit) }} đ</div>
-                <div><i class="fas fa-calendar w-4"></i> {{ $customer->created_at->format('d/m/Y') }}</div>
             </div>
+
+            <!-- Mobile Contacts Expansion -->
+            <div x-show="expanded === {{ $customer->id }}" x-cloak class="mb-4 space-y-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div class="text-xs font-bold text-gray-500 uppercase mb-2 border-b border-gray-200 pb-1">Danh sách người liên hệ</div>
+                @forelse($customer->contacts as $contact)
+                <div class="text-sm border-b border-gray-100 last:border-0 pb-2 last:pb-0">
+                    <div class="font-medium text-gray-900">{{ $contact->name }} @if($contact->is_primary)<span class="text-[10px] bg-blue-100 text-blue-600 px-1 rounded">Chính</span>@endif</div>
+                    <div class="text-xs text-gray-500">{{ $contact->position }}</div>
+                    <div class="text-blue-600">{{ $contact->phone }}</div>
+                    @if($contact->email)<div class="text-xs text-gray-500">{{ $contact->email }}</div>@endif
+                </div>
+                @empty
+                <div class="text-xs text-gray-400 italic">Chưa có thông tin người liên hệ</div>
+                @endforelse
+            </div>
+
             <div class="flex gap-2">
                 <a href="{{ route('customers.show', $customer->id) }}" 
                    class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">

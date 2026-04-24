@@ -12,7 +12,20 @@
         </a>
     </div>
 
-    <form action="{{ route('customers.store') }}" method="POST">
+    <form action="{{ route('customers.store') }}" method="POST" x-data="{ 
+        contacts: [{ name: '', position: '', phone: '', email: '', note: '', is_primary: true }],
+        addContact() {
+            this.contacts.push({ name: '', position: '', phone: '', email: '', note: '', is_primary: false });
+        },
+        removeContact(index) {
+            if (this.contacts.length > 1) {
+                this.contacts.splice(index, 1);
+            }
+        },
+        setPrimary(index) {
+            this.contacts.forEach((c, i) => c.is_primary = (i === index));
+        }
+    }">
         @csrf
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- Main Content -->
@@ -21,51 +34,41 @@
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
                         <h2 class="text-base font-semibold text-gray-800">
-                            <i class="fas fa-user mr-2 text-primary"></i>Thông tin cơ bản
+                            <i class="fas fa-building mr-2 text-primary"></i>Thông tin doanh nghiệp
                         </h2>
                     </div>
                     <div class="p-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="code" class="block text-sm font-medium text-gray-700 mb-1">Mã khách hàng <span class="text-red-500">*</span></label>
-                                <input type="text" name="code" id="code" value="{{ old('code', $nextCode) }}" required placeholder="VD: KH0001"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('code') border-red-500 @enderror">
-                                @error('code')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng <span class="text-red-500">*</span></label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" required placeholder="Nhập tên khách hàng"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name') border-red-500 @enderror">
-                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
-                                <input type="email" name="email" id="email" value="{{ old('email') }}" required placeholder="email@example.com"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('email') border-red-500 @enderror">
-                                @error('email')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại <span class="text-red-500">*</span></label>
-                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" required placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
-                                @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label for="contact_person" class="block text-sm font-medium text-gray-700 mb-1">Người liên hệ</label>
-                                <input type="text" name="contact_person" id="contact_person" value="{{ old('contact_person') }}" placeholder="Tên người liên hệ"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
-                            <div>
-                                <label for="tax_code" class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
+                            <div class="md:col-span-1">
+                                <label for="tax_code" class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế <span class="text-red-500">*</span></label>
                                 <div class="relative">
-                                    <input type="text" name="tax_code" id="tax_code" value="{{ old('tax_code') }}" placeholder="Nhập MST để tìm"
-                                           class="w-full px-3 py-1.5 pr-10 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    <input type="text" name="tax_code" id="tax_code" value="{{ old('tax_code') }}" required placeholder="Nhập MST để tìm"
+                                           class="w-full px-3 py-1.5 pr-10 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('tax_code') border-red-500 @enderror">
                                     <button type="button" id="btn-search-tax" 
                                             class="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-primary transition-colors focus:outline-none"
                                             title="Tìm kiếm thông tin từ mã số thuế">
                                         <i class="fas fa-search"></i>
                                     </button>
                                 </div>
+                                @error('tax_code')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <div class="md:col-span-1">
+                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng (Công ty) <span class="text-red-500">*</span></label>
+                                <input type="text" name="name" id="name" value="{{ old('name') }}" required placeholder="Nhập tên khách hàng"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name') border-red-500 @enderror">
+                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email công ty <span class="text-red-500">*</span></label>
+                                <input type="email" name="email" id="email" value="{{ old('email') }}" required placeholder="email@example.com"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('email') border-red-500 @enderror">
+                                @error('email')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại công ty <span class="text-red-500">*</span></label>
+                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" required placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
+                                @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div class="md:col-span-2">
                                 <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
@@ -81,13 +84,71 @@
                     </div>
                 </div>
 
-                <!-- Ghi chú -->
+                <!-- Người liên hệ (Folder style) -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <h2 class="text-base font-semibold text-gray-800">
+                            <i class="fas fa-users mr-2 text-primary"></i>Danh sách người liên hệ
+                        </h2>
+                        <button type="button" @click="addContact()" class="px-3 py-1 bg-primary text-white rounded-md hover:bg-primary-dark text-xs transition-colors">
+                            <i class="fas fa-plus mr-1"></i>Thêm người liên hệ
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <template x-for="(contact, index) in contacts" :key="index">
+                            <div class="p-4 border border-gray-200 rounded-lg relative bg-gray-50/50">
+                                <div class="flex justify-between items-center mb-3">
+                                    <span class="text-sm font-bold text-gray-500 uppercase" x-text="`Người liên hệ #${index + 1}`"></span>
+                                    <div class="flex items-center gap-3">
+                                        <label class="flex items-center cursor-pointer">
+                                            <input type="radio" :name="`primary_contact_indicator`" :checked="contact.is_primary" @change="setPrimary(index)" class="form-radio text-primary h-4 w-4">
+                                            <span class="ml-2 text-xs text-gray-600">Liên hệ chính</span>
+                                            <input type="hidden" :name="`contacts[${index}][is_primary]`" :value="contact.is_primary ? 1 : 0">
+                                        </label>
+                                        <button type="button" @click="removeContact(index)" x-show="contacts.length > 1" class="text-red-500 hover:text-red-700 transition-colors">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Họ tên <span class="text-red-500">*</span></label>
+                                        <input type="text" :name="`contacts[${index}][name]`" x-model="contact.name" required placeholder="Nhập họ tên"
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Chức vụ</label>
+                                        <input type="text" :name="`contacts[${index}][position]`" x-model="contact.position" placeholder="VD: Giám đốc, Kế toán..."
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                                        <input type="tel" :name="`contacts[${index}][phone]`" x-model="contact.phone" required placeholder="Nhập SĐT"
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                                        <input type="email" :name="`contacts[${index}][email]`" x-model="contact.email" placeholder="example@gmail.com"
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
+                                        <input type="text" :name="`contacts[${index}][note]`" x-model="contact.note" placeholder="Thông tin thêm..."
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Ghi chú chung -->
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
-                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-sticky-note mr-2 text-primary"></i>Ghi chú</h2>
+                        <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-sticky-note mr-2 text-primary"></i>Ghi chú chung</h2>
                     </div>
                     <div class="p-4">
-                        <textarea name="note" id="note" rows="3" placeholder="Nhập ghi chú nếu có..."
+                        <textarea name="note" id="note" rows="3" placeholder="Nhập ghi chú về doanh nghiệp nếu có..."
                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('note') }}</textarea>
                     </div>
                 </div>

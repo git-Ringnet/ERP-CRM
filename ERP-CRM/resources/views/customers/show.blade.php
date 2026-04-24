@@ -34,7 +34,7 @@
             <div class="bg-white rounded-lg shadow-sm">
                 <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                     <h2 class="text-lg font-semibold text-gray-800">
-                        <i class="fas fa-user mr-2 text-primary"></i>Thông tin cơ bản
+                        <i class="fas fa-building mr-2 text-primary"></i>Thông tin doanh nghiệp
                     </h2>
                     @if($customer->type == 'vip')
                         <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -49,15 +49,15 @@
                 <div class="p-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Mã khách hàng</label>
-                            <p class="text-base font-semibold text-gray-900">{{ $customer->code }}</p>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Mã số thuế</label>
+                            <p class="text-base font-semibold text-gray-900">{{ $customer->tax_code ?: 'Chưa cập nhật' }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Tên khách hàng</label>
-                            <p class="text-base font-semibold text-gray-900">{{ $customer->name }}</p>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Tên khách hàng (Công ty)</label>
+                            <p class="text-base font-semibold text-gray-900 uppercase">{{ $customer->name }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Email</label>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Email công ty</label>
                             <p class="text-base text-gray-900">
                                 <a href="mailto:{{ $customer->email }}" class="text-primary hover:underline">
                                     <i class="fas fa-envelope mr-1 text-gray-400"></i>{{ $customer->email }}
@@ -65,23 +65,12 @@
                             </p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Điện thoại</label>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Điện thoại công ty</label>
                             <p class="text-base text-gray-900">
                                 <a href="tel:{{ $customer->phone }}" class="text-primary hover:underline">
                                     <i class="fas fa-phone mr-1 text-gray-400"></i>{{ $customer->phone }}
                                 </a>
                             </p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Người liên hệ</label>
-                            <p class="text-base text-gray-900">
-                                <i class="fas fa-user-circle mr-1 text-gray-400"></i>
-                                {{ $customer->contact_person ?: 'Chưa cập nhật' }}
-                            </p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Mã số thuế</label>
-                            <p class="text-base text-gray-900">{{ $customer->tax_code ?: 'Chưa cập nhật' }}</p>
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-500 mb-1">Địa chỉ</label>
@@ -101,6 +90,53 @@
                             </p>
                         </div>
                         @endif
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danh sách người liên hệ -->
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-users mr-2 text-primary"></i>Danh sách người liên hệ
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @forelse($customer->contacts as $contact)
+                        <div class="border border-gray-200 rounded-lg p-4 relative {{ $contact->is_primary ? 'bg-blue-50/50 border-blue-200' : '' }}">
+                            @if($contact->is_primary)
+                            <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] bg-blue-100 text-blue-600 rounded-full font-bold uppercase">Chính</span>
+                            @endif
+                            <h4 class="font-bold text-gray-900 text-base mb-2">{{ $contact->name }}</h4>
+                            <div class="space-y-1 text-sm text-gray-600">
+                                @if($contact->position)
+                                <div><i class="fas fa-briefcase w-5 text-gray-400"></i>{{ $contact->position }}</div>
+                                @endif
+                                <div>
+                                    <a href="tel:{{ $contact->phone }}" class="hover:text-primary transition-colors">
+                                        <i class="fas fa-phone w-5 text-gray-400"></i>{{ $contact->phone }}
+                                    </a>
+                                </div>
+                                @if($contact->email)
+                                <div>
+                                    <a href="mailto:{{ $contact->email }}" class="hover:text-primary transition-colors">
+                                        <i class="fas fa-envelope w-5 text-gray-400"></i>{{ $contact->email }}
+                                    </a>
+                                </div>
+                                @endif
+                                @if($contact->note)
+                                <div class="mt-2 pt-2 border-t border-gray-100 text-xs italic text-gray-500">
+                                    {{ $contact->note }}
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+                        @empty
+                        <div class="col-span-2 text-center py-4 text-gray-400 italic">
+                            Chưa có thông tin người liên hệ
+                        </div>
+                        @endforelse
                     </div>
                 </div>
             </div>

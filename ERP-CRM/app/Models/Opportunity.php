@@ -13,7 +13,6 @@ class Opportunity extends Model
     protected $fillable = [
         'name',
         'customer_id',
-        'lead_id',
         'amount',
         'currency',
         'stage',
@@ -40,10 +39,6 @@ class Opportunity extends Model
         return $this->belongsTo(Customer::class);
     }
 
-    public function lead()
-    {
-        return $this->belongsTo(Lead::class);
-    }
 
     public function activities()
     {

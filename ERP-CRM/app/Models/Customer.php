@@ -12,7 +12,6 @@ class Customer extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'code',
         'name',
         'email',
         'phone',
@@ -20,7 +19,6 @@ class Customer extends Model
         'type',
         'tax_code',
         'website',
-        'contact_person',
         'debt_limit',
         'debt_days',
         'note',
@@ -43,7 +41,7 @@ class Customer extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
-                ->orWhere('code', 'like', "%{$search}%")
+                ->orWhere('tax_code', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%");
         });
@@ -60,6 +58,14 @@ class Customer extends Model
         }
 
         return $query->where('type', $type);
+    }
+
+    /**
+     * Relationship with Contacts
+     */
+    public function contacts()
+    {
+        return $this->hasMany(Contact::class);
     }
 
     /**

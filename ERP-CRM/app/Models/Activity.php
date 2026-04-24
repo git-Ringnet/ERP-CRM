@@ -21,7 +21,6 @@ class Activity extends Model
         'created_by',
         'opportunity_id',
         'customer_id',
-        'lead_id',
         'customer_care_stage_id',
     ];
 
@@ -52,10 +51,6 @@ class Activity extends Model
         return $this->belongsTo(Customer::class);
     }
 
-    public function lead()
-    {
-        return $this->belongsTo(Lead::class);
-    }
 
     public function customerCareStage()
     {

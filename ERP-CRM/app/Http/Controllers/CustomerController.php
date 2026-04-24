@@ -26,7 +26,7 @@ class CustomerController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
+                $q->where('tax_code', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
@@ -57,7 +57,7 @@ class CustomerController extends Controller
             }
         }
 
-        $customers = $query->orderBy('created_at', 'desc')->paginate(10);
+        $customers = $query->with('contacts')->orderBy('created_at', 'desc')->paginate(10);
 
         return view('customers.index', compact('customers'));
     }
@@ -88,7 +88,7 @@ class CustomerController extends Controller
         if ($q !== '') {
             $query->where(function ($qb) use ($q) {
                 $qb->where('name', 'like', "%{$q}%")
-                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhere('tax_code', 'like', "%{$q}%")
                     ->orWhere('phone', 'like', "%{$q}%")
                     ->orWhere('email', 'like', "%{$q}%");
             });
@@ -107,82 +107,28 @@ class CustomerController extends Controller
     {
         $this->authorize('create', Customer::class);
         
-        // Auto-generate next customer code
-        $lastCustomer = Customer::where('code', 'regexp', '^KH[0-9]{4}$')
-            ->orderByRaw('CAST(SUBSTRING(code, 3) AS UNSIGNED) DESC')
-            ->first();
-            
-        if ($lastCustomer) {
-            $lastNumber = intval(substr($lastCustomer->code, 2));
-            $nextCode = 'KH' . str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            // Check if any KH% exists regardless of format to be safer
-            $anyKH = Customer::where('code', 'like', 'KH%')->count();
-            if ($anyKH > 0) {
-                // If there are other KH codes, just use total count + 1 to keep it sequential
-                $nextCode = 'KH' . str_pad($anyKH + 1, 4, '0', STR_PAD_LEFT);
-            } else {
-                 $nextCode = 'KH0001';
-            }
-        }
-        
-        return view('customers.create', compact('nextCode'));
+        return view('customers.create');
     }
 
     /**
      * Store a newly created customer in storage.
      * Requirements: 1.3, 1.4
      */
-    public function store(Request $request)
+    public function store(\App\Http\Requests\CustomerRequest $request)
     {
         $this->authorize('create', Customer::class);
         
-        // Validation (Requirement 1.4)
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', 'unique:customers,code'],
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
-            'address' => ['nullable', 'string'],
-            'type' => ['required', 'in:normal,vip'],
-            'tax_code' => ['nullable', 'string', 'max:50'],
-            'website' => ['nullable', 'url', 'max:255'],
-            'contact_person' => ['nullable', 'string', 'max:255'],
-            'debt_limit' => ['nullable', 'numeric', 'min:0'],
-            'debt_days' => ['nullable', 'integer', 'min:0'],
-            'note' => ['nullable', 'string'],
-        ], [
-            'code.required' => 'Mã khách hàng là bắt buộc.',
-            'code.string' => 'Mã khách hàng phải là chuỗi ký tự.',
-            'code.max' => 'Mã khách hàng không được vượt quá 50 ký tự.',
-            'code.unique' => 'Mã khách hàng này đã tồn tại trong hệ thống.',
-            'name.required' => 'Tên khách hàng là bắt buộc.',
-            'name.string' => 'Tên khách hàng phải là chuỗi ký tự.',
-            'name.max' => 'Tên khách hàng không được vượt quá 255 ký tự.',
-            'email.required' => 'Email là bắt buộc.',
-            'email.email' => 'Địa chỉ email không hợp lệ.',
-            'email.max' => 'Email không được vượt quá 255 ký tự.',
-            'phone.required' => 'Số điện thoại là bắt buộc.',
-            'phone.string' => 'Số điện thoại phải là chuỗi ký tự.',
-            'phone.max' => 'Số điện thoại không được vượt quá 20 ký tự.',
-            'phone.regex' => 'Số điện thoại chỉ được chứa số, dấu +, -, khoảng trắng và dấu ngoặc đơn.',
-            'address.string' => 'Địa chỉ phải là chuỗi ký tự.',
-            'type.required' => 'Loại khách hàng là bắt buộc.',
-            'type.in' => 'Loại khách hàng không hợp lệ.',
-            'tax_code.string' => 'Mã số thuế phải là chuỗi ký tự.',
-            'tax_code.max' => 'Mã số thuế không được vượt quá 50 ký tự.',
-            'website.url' => 'Website không hợp lệ.',
-            'website.max' => 'Website không được vượt quá 255 ký tự.',
-            'contact_person.string' => 'Người liên hệ phải là chuỗi ký tự.',
-            'contact_person.max' => 'Người liên hệ không được vượt quá 255 ký tự.',
-            'debt_limit.numeric' => 'Hạn mức nợ phải là một số.',
-            'debt_limit.min' => 'Hạn mức nợ không được nhỏ hơn 0.',
-            'debt_days.integer' => 'Số ngày nợ phải là số nguyên.',
-            'debt_days.min' => 'Số ngày nợ không được nhỏ hơn 0.',
-            'note.string' => 'Ghi chú phải là chuỗi ký tự.',
-        ]);
-
-        Customer::create($validated);
+        $validated = $request->validated();
+        
+        DB::transaction(function() use ($validated) {
+            $customer = Customer::create($validated);
+            
+            if (!empty($validated['contacts'])) {
+                foreach ($validated['contacts'] as $contactData) {
+                    $customer->contacts()->create($contactData);
+                }
+            }
+        });
 
         return redirect()->route('customers.index')
             ->with('success', 'Khách hàng đã được tạo thành công.');
@@ -197,6 +143,7 @@ class CustomerController extends Controller
         $this->authorize('view', $customer);
         
         $customer->load([
+            'contacts',
             'projects' => function($query) {
                 $query->with('exports')->latest();
             },
@@ -226,56 +173,23 @@ class CustomerController extends Controller
      * Update the specified customer in storage.
      * Requirements: 1.6
      */
-    public function update(Request $request, Customer $customer)
+    public function update(\App\Http\Requests\CustomerRequest $request, Customer $customer)
     {
         $this->authorize('update', $customer);
         
-        // Validation with unique rule ignoring current record
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', Rule::unique('customers')->ignore($customer->id)],
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
-            'address' => ['nullable', 'string'],
-            'type' => ['required', 'in:normal,vip'],
-            'tax_code' => ['nullable', 'string', 'max:50'],
-            'website' => ['nullable', 'url', 'max:255'],
-            'contact_person' => ['nullable', 'string', 'max:255'],
-            'debt_limit' => ['nullable', 'numeric', 'min:0'],
-            'debt_days' => ['nullable', 'integer', 'min:0'],
-            'note' => ['nullable', 'string'],
-        ], [
-            'code.required' => 'Mã khách hàng là bắt buộc.',
-            'code.string' => 'Mã khách hàng phải là chuỗi ký tự.',
-            'code.max' => 'Mã khách hàng không được vượt quá 50 ký tự.',
-            'code.unique' => 'Mã khách hàng này đã tồn tại trong hệ thống.',
-            'name.required' => 'Tên khách hàng là bắt buộc.',
-            'name.string' => 'Tên khách hàng phải là chuỗi ký tự.',
-            'name.max' => 'Tên khách hàng không được vượt quá 255 ký tự.',
-            'email.required' => 'Email là bắt buộc.',
-            'email.email' => 'Địa chỉ email không hợp lệ.',
-            'email.max' => 'Email không được vượt quá 255 ký tự.',
-            'phone.required' => 'Số điện thoại là bắt buộc.',
-            'phone.string' => 'Số điện thoại phải là chuỗi ký tự.',
-            'phone.max' => 'Số điện thoại không được vượt quá 20 ký tự.',
-            'phone.regex' => 'Số điện thoại chỉ được chứa số, dấu +, -, khoảng trắng và dấu ngoặc đơn.',
-            'address.string' => 'Địa chỉ phải là chuỗi ký tự.',
-            'type.required' => 'Loại khách hàng là bắt buộc.',
-            'type.in' => 'Loại khách hàng không hợp lệ.',
-            'tax_code.string' => 'Mã số thuế phải là chuỗi ký tự.',
-            'tax_code.max' => 'Mã số thuế không được vượt quá 50 ký tự.',
-            'website.url' => 'Website không hợp lệ.',
-            'website.max' => 'Website không được vượt quá 255 ký tự.',
-            'contact_person.string' => 'Người liên hệ phải là chuỗi ký tự.',
-            'contact_person.max' => 'Người liên hệ không được vượt quá 255 ký tự.',
-            'debt_limit.numeric' => 'Hạn mức nợ phải là một số.',
-            'debt_limit.min' => 'Hạn mức nợ không được nhỏ hơn 0.',
-            'debt_days.integer' => 'Số ngày nợ phải là số nguyên.',
-            'debt_days.min' => 'Số ngày nợ không được nhỏ hơn 0.',
-            'note.string' => 'Ghi chú phải là chuỗi ký tự.',
-        ]);
-
-        $customer->update($validated);
+        $validated = $request->validated();
+        
+        DB::transaction(function() use ($validated, $customer) {
+            $customer->update($validated);
+            
+            if (isset($validated['contacts'])) {
+                // Simplest way: delete all and recreate or sync
+                $customer->contacts()->delete();
+                foreach ($validated['contacts'] as $contactData) {
+                    $customer->contacts()->create($contactData);
+                }
+            }
+        });
 
         return redirect()->route('customers.index')
             ->with('success', 'Khách hàng đã được cập nhật thành công.');
@@ -325,7 +239,7 @@ class CustomerController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('code', 'like', "%{$search}%")
+                $q->where('tax_code', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");

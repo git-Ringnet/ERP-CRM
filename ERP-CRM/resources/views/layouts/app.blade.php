@@ -414,19 +414,11 @@
                         </div>
 
                         <div class="dropdown-section" id="dropdown-sales">
-                            @can('view_leads')
-                                <a href="{{ route('leads.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('leads.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-bullseye w-6 text-cyan-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đấu mối</span>
-                                </a>
-                            @endcan
-
                             @can('view_opportunities')
                                 <a href="{{ route('opportunities.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
+                                     <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
+                                     <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
                                 </a>
                             @endcan
 

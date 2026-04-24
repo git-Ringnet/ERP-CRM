@@ -33,7 +33,7 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\DamagedGood::class => \App\Policies\DamagedGoodPolicy::class,
         
         // Sales
-        \App\Models\Lead::class => \App\Policies\LeadPolicy::class,
+
         \App\Models\Opportunity::class => \App\Policies\OpportunityPolicy::class,
         \App\Models\Activity::class => \App\Policies\ActivityPolicy::class,
         \App\Models\CustomerCareStage::class => \App\Policies\CustomerCareStagePolicy::class,
