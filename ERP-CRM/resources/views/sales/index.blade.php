@@ -13,12 +13,20 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <!-- Search -->
                 <div class="relative flex-1">
-                    <form action="{{ route('sales.index') }}" method="GET" class="flex w-full">
-                        <div class="relative w-full">
-                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm đơn hàng theo mã, khách hàng..."
+                    <form action="{{ route('sales.index') }}" method="GET" class="flex w-full gap-2">
+                        <div class="relative flex-1">
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã đơn, khách hàng..."
                                 class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         </div>
+                        <div class="relative flex-1 max-w-[250px]">
+                            <input type="text" name="note_search" value="{{ request('note_search') }}" placeholder="Tìm theo ghi chú/note..."
+                                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent">
+                            <i class="fas fa-sticky-note absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-400"></i>
+                        </div>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                            <i class="fas fa-search"></i>
+                        </button>
                     </form>
                 </div>
 

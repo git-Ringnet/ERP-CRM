@@ -163,13 +163,18 @@ class ApprovalService
 
             // Nếu đã duyệt xong hoàn tất, thông báo cho người tạo
             if ($document->status === 'approved' || (isset($document->pl_status) && $document->pl_status === 'approved')) {
-                // TỰ ĐỘNG TẠO PHIẾU XUẤT KHO nếu là đơn hàng bán
+                // TỰ ĐỘNG TẠO PHIẾU XUẤT KHO & PHIẾU MUA HÀNG nếu là đơn hàng bán
                 if ($documentType === 'sale_pnl' && $document instanceof \App\Models\Sale) {
                     try {
+                        // 1. Tạo phiếu xuất kho
                         $exportSyncService = app(\App\Services\SaleExportSyncService::class);
                         $exportSyncService->createExportFromSale($document);
+
+                        // 2. Tạo đơn mua hàng (PO)
+                        $purchaseSyncService = app(\App\Services\SalePurchaseSyncService::class);
+                        $purchaseSyncService->createPurchaseOrderFromSale($document);
                     } catch (\Exception $e) {
-                        \Illuminate\Support\Facades\Log::warning("Could not auto-create export for Sale #{$document->id} after approval: " . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::warning("Could not auto-process Sale #{$document->id} after approval: " . $e->getMessage());
                     }
                 }
 

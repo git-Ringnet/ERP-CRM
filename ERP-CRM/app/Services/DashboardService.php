@@ -58,12 +58,16 @@ class DashboardService
         // Get inventory analysis
         $inventoryAnalysis = $this->getInventoryAnalysis($startDate, $endDate);
 
+        // Get order overview (Sale + PO combined status)
+        $orderOverview = $this->metricsService->getOrderOverviewData($startDate, $endDate);
+
         return [
             'metrics' => $metrics,
             'charts' => $chartData,
             'sales_analysis' => $salesAnalysis,
             'purchase_analysis' => $purchaseAnalysis,
             'inventory_analysis' => $inventoryAnalysis,
+            'order_overview' => $orderOverview,
             'top_performers' => $topPerformers,
             'filters' => [
                 'period_type' => $periodType,

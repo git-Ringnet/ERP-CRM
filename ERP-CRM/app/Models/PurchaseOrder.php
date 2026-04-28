@@ -13,11 +13,12 @@ class PurchaseOrder extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'code', 'supplier_id', 'supplier_quotation_id', 'order_date', 'expected_delivery',
-        'actual_delivery', 'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
+        'code', 'supplier_id', 'supplier_quotation_id', 'sale_id', 'order_date', 'expected_delivery',
+        'actual_delivery', 'expected_arrival_date', 'manufacturer_release_date',
+        'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
         'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
         'debt_amount', 'payment_status', 'payment_terms',
-        'status', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at',
+        'status', 'is_hold', 'hold_reason', 'note', 'created_by', 'approved_by', 'approved_at', 'sent_at', 'confirmed_at',
         'currency_id', 'exchange_rate', 'total_foreign',
         'paid_amount_foreign', 'debt_amount_foreign',
     ];
@@ -26,6 +27,9 @@ class PurchaseOrder extends Model
         'order_date' => 'date',
         'expected_delivery' => 'date',
         'actual_delivery' => 'date',
+        'expected_arrival_date' => 'date',
+        'manufacturer_release_date' => 'date',
+        'is_hold' => 'boolean',
         'subtotal' => 'decimal:2',
         'discount_percent' => 'decimal:2',
         'discount_amount' => 'decimal:2',
@@ -60,6 +64,11 @@ class PurchaseOrder extends Model
         return $this->belongsTo(SupplierQuotation::class);
     }
 
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
@@ -83,14 +92,12 @@ class PurchaseOrder extends Model
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {
-            'draft' => 'Nháp',
+            'draft' => 'Chờ đặt',
             'pending_approval' => 'Chờ duyệt',
-            'approved' => 'Đã duyệt',
-            'sent' => 'Đã gửi NCC',
-            'confirmed' => 'NCC xác nhận',
-            'shipping' => 'Đang giao',
-            'partial_received' => 'Nhận một phần',
-            'received' => 'Đã nhận hàng',
+            'approved' => 'Đã đặt',
+            'shipping' => 'Đang về',
+            'partial_received' => 'Đang về (một phần)',
+            'received' => 'Đã về – đủ hàng',
             'cancelled' => 'Đã hủy',
             default => $this->status
         };
@@ -177,6 +184,27 @@ class PurchaseOrder extends Model
             'unpaid' => 'bg-red-100 text-red-800',
             'partial' => 'bg-yellow-100 text-yellow-800',
             'paid' => 'bg-green-100 text-green-800',
+            default => 'bg-gray-100 text-gray-800',
+        };
+    }
+
+    /**
+     * Get status color class for dashboard display
+     */
+    public function getStatusColorAttribute(): string
+    {
+        if ($this->is_hold) {
+            return 'bg-orange-100 text-orange-800';
+        }
+
+        return match($this->status) {
+            'draft' => 'bg-yellow-100 text-yellow-800',
+            'pending_approval' => 'bg-yellow-100 text-yellow-800',
+            'approved' => 'bg-blue-100 text-blue-800',
+            'shipping' => 'bg-purple-100 text-purple-800',
+            'partial_received' => 'bg-purple-100 text-purple-800',
+            'received' => 'bg-green-100 text-green-800',
+            'cancelled' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
         };
     }

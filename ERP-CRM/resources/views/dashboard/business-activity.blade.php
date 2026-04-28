@@ -91,14 +91,21 @@
             </form>
             
             <!-- Export Button (conditional on permission) -->
-            {{-- @if(isset($can_export) && $can_export)
-            <button @click="showExportModal = true" 
-                class="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-                aria-label="Xuất báo cáo">
-                <i class="fas fa-download mr-1.5 text-xs"></i>
-                <span>Xuất báo cáo</span>
-            </button>
-            @endif --}}
+            @if(isset($can_export) && $can_export)
+            <form method="POST" action="{{ route('dashboard.business-activity.export') }}" class="inline">
+                @csrf
+                <input type="hidden" name="format" value="excel">
+                <input type="hidden" name="period_type" value="{{ $filters['period_type'] ?? 'month' }}">
+                <input type="hidden" name="start_date" value="{{ $filters['start_date'] ?? '' }}">
+                <input type="hidden" name="end_date" value="{{ $filters['end_date'] ?? '' }}">
+                <button type="submit" 
+                    class="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    aria-label="Xuất báo cáo">
+                    <i class="fas fa-download mr-1.5 text-xs"></i>
+                    <span>Xuất báo cáo</span>
+                </button>
+            </form>
+            @endif
         </div>
     </div>
 
@@ -337,6 +344,187 @@
             @endif
         </div>
     </div>
+
+    <!-- Order Overview Section -->
+    @if(isset($order_overview))
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100" x-data="{ activeFilter: 'all' }">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-tasks text-indigo-500 mr-2"></i>Tổng quan đơn hàng
+            </h2>
+            <span class="text-sm text-gray-500">Tổng: {{ $order_overview['total'] }} đơn</span>
+        </div>
+        
+        <!-- Status Cards Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
+            <!-- Chờ đặt -->
+            <button @click="activeFilter = activeFilter === 'waiting_order' ? 'all' : 'waiting_order'" 
+                :class="activeFilter === 'waiting_order' ? 'ring-2 ring-yellow-400 shadow-md' : ''"
+                class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-yellow-700">{{ $order_overview['status_counts']['waiting_order'] ?? 0 }}</div>
+                <div class="text-xs text-yellow-600 mt-1 font-medium">Chờ đặt</div>
+                <div class="w-full h-1 bg-yellow-300 rounded-full mt-2"></div>
+            </button>
+            
+            <!-- Đã đặt -->
+            <button @click="activeFilter = activeFilter === 'ordered' ? 'all' : 'ordered'"
+                :class="activeFilter === 'ordered' ? 'ring-2 ring-blue-400 shadow-md' : ''"
+                class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-blue-700">{{ $order_overview['status_counts']['ordered'] ?? 0 }}</div>
+                <div class="text-xs text-blue-600 mt-1 font-medium">Đã đặt</div>
+                <div class="w-full h-1 bg-blue-300 rounded-full mt-2"></div>
+            </button>
+            
+            <!-- Đang về -->
+            <button @click="activeFilter = activeFilter === 'in_transit' ? 'all' : 'in_transit'"
+                :class="activeFilter === 'in_transit' ? 'ring-2 ring-purple-400 shadow-md' : ''"
+                class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-purple-700">{{ $order_overview['status_counts']['in_transit'] ?? 0 }}</div>
+                <div class="text-xs text-purple-600 mt-1 font-medium">Đang về</div>
+                <div class="w-full h-1 bg-purple-300 rounded-full mt-2"></div>
+            </button>
+
+            <!-- Hold -->
+            <button @click="activeFilter = activeFilter === 'hold' ? 'all' : 'hold'"
+                :class="activeFilter === 'hold' ? 'ring-2 ring-orange-400 shadow-md' : ''"
+                class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-orange-700">{{ $order_overview['status_counts']['hold'] ?? 0 }}</div>
+                <div class="text-xs text-orange-600 mt-1 font-medium">Hold</div>
+                <div class="w-full h-1 bg-orange-300 rounded-full mt-2"></div>
+            </button>
+            
+            <!-- Đã về - đủ hàng -->
+            <button @click="activeFilter = activeFilter === 'received' ? 'all' : 'received'"
+                :class="activeFilter === 'received' ? 'ring-2 ring-emerald-400 shadow-md' : ''"
+                class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-emerald-700">{{ $order_overview['status_counts']['received'] ?? 0 }}</div>
+                <div class="text-xs text-emerald-600 mt-1 font-medium">Đã về</div>
+                <div class="w-full h-1 bg-emerald-300 rounded-full mt-2"></div>
+            </button>
+            
+            <!-- Xuất hóa đơn -->
+            <button @click="activeFilter = activeFilter === 'invoiced' ? 'all' : 'invoiced'"
+                :class="activeFilter === 'invoiced' ? 'ring-2 ring-amber-400 shadow-md' : ''"
+                class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-amber-700">{{ $order_overview['status_counts']['invoiced'] ?? 0 }}</div>
+                <div class="text-xs text-amber-600 mt-1 font-medium">Xuất HĐ</div>
+                <div class="w-full h-1 bg-amber-300 rounded-full mt-2"></div>
+            </button>
+            
+            <!-- Hoàn thành -->
+            <button @click="activeFilter = activeFilter === 'completed' ? 'all' : 'completed'"
+                :class="activeFilter === 'completed' ? 'ring-2 ring-green-400 shadow-md' : ''"
+                class="bg-green-50 border border-green-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
+                <div class="text-2xl font-bold text-green-700">{{ $order_overview['status_counts']['completed'] ?? 0 }}</div>
+                <div class="text-xs text-green-600 mt-1 font-medium">Hoàn thành</div>
+                <div class="w-full h-1 bg-green-300 rounded-full mt-2"></div>
+            </button>
+        </div>
+        
+        <!-- Orders Detail Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mã đơn</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
+                        <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO liên kết</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dự kiến về</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sales</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    @forelse($order_overview['orders'] as $order)
+                    <tr x-show="activeFilter === 'all' || activeFilter === '{{ $order['dashboard_status'] }}'"
+                        x-transition:enter="transition ease-out duration-200"
+                        class="hover:bg-gray-50">
+                        <td class="px-3 py-2 text-sm">
+                            <a href="{{ route('sales.show', $order['id']) }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                                {{ $order['code'] }}
+                            </a>
+                        </td>
+                        <td class="px-3 py-2 text-sm text-gray-900">{{ Str::limit($order['customer_name'], 25) }}</td>
+                        <td class="px-3 py-2 text-sm text-gray-600">{{ $order['date'] }}</td>
+                        <td class="px-3 py-2 text-sm text-right font-medium text-gray-900">{{ number_format($order['total'], 0, ',', '.') }} ₫</td>
+                        <td class="px-3 py-2">
+                            <div class="flex flex-col items-center">
+                                @php
+                                    $stages = [
+                                        'waiting_order' => ['label' => 'Chờ đặt', 'color' => 'bg-yellow-400'],
+                                        'ordered'       => ['label' => 'Đã đặt', 'color' => 'bg-blue-400'],
+                                        'in_transit'    => ['label' => 'Đang về', 'color' => 'bg-purple-400'],
+                                        'received'      => ['label' => 'Đã về', 'color' => 'bg-emerald-400'],
+                                        'invoiced'      => ['label' => 'Xuất HĐ', 'color' => 'bg-amber-400'],
+                                        'completed'     => ['label' => 'Xong', 'color' => 'bg-green-600'],
+                                    ];
+                                    
+                                    $stageKeys = array_keys($stages);
+                                    $currentIndex = array_search($order['dashboard_status'], $stageKeys);
+                                    if ($currentIndex === false) $currentIndex = -1;
+                                    
+                                    // Handle Hold special case
+                                    $isHold = $order['is_hold'] ?? false;
+                                @endphp
+                                
+                                <div class="flex items-center w-full max-w-[180px] h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5 relative">
+                                    @foreach($stageKeys as $index => $key)
+                                        <div class="h-full border-r border-white last:border-0 flex-1 
+                                            {{ $index <= $currentIndex ? ($isHold && $index == $currentIndex ? 'bg-orange-500 animate-pulse' : $stages[$key]['color']) : 'bg-gray-200' }}"
+                                            title="{{ $stages[$key]['label'] }}">
+                                        </div>
+                                    @endforeach
+                                </div>
+                                
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider {{ $isHold ? 'text-orange-600' : 'text-gray-500' }}">
+                                        {{ $order['dashboard_status_label'] }}
+                                    </span>
+                                    @if($isHold)
+                                        <span class="flex h-2 w-2 rounded-full bg-orange-500"></span>
+                                    @endif
+                                </div>
+
+                                @if($isHold && $order['hold_reason'])
+                                    <div class="text-[9px] text-orange-600 font-medium mt-0.5 max-w-[150px] truncate" title="{{ $order['hold_reason'] }}">
+                                        Lý do: {{ $order['hold_reason'] }}
+                                    </div>
+                                @endif
+                            </div>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                            @if($order['po_code'])
+                                <a href="{{ route('purchase-orders.show', $order['po_id']) }}" class="text-indigo-600 hover:text-indigo-800">
+                                    {{ $order['po_code'] }}
+                                </a>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2 text-sm text-gray-600">
+                            @if($order['expected_arrival'])
+                                <i class="fas fa-calendar-check text-green-500 mr-1"></i>{{ $order['expected_arrival'] }}
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2 text-sm text-gray-600">{{ $order['salesperson'] }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="8" class="px-3 py-8 text-center text-gray-500">
+                            <i class="fas fa-inbox text-3xl mb-2"></i>
+                            <p>Không có đơn hàng trong khoảng thời gian này.</p>
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
 
     <!-- Revenue and Profit Trend Chart -->
     @if(isset($charts['revenue_profit_trend']))

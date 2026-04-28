@@ -34,6 +34,23 @@
         @endif
     </div>
     
+    {{-- System Alert for Auto-created POs --}}
+    @if($sale->purchaseOrders && $sale->purchaseOrders->count() > 0)
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center">
+        <div class="flex-shrink-0">
+            <i class="fas fa-info-circle text-blue-500 text-lg"></i>
+        </div>
+        <div class="ml-3">
+            <p class="text-sm text-blue-800">
+                Hệ thống đã tự động tạo Đơn mua hàng (PO) liên kết: 
+                @foreach($sale->purchaseOrders as $po)
+                    <a href="{{ route('purchase-orders.show', $po->id) }}" class="font-bold underline hover:text-blue-600">{{ $po->code }}</a>{{ $loop->last ? '' : ', ' }}
+                @endforeach
+            </p>
+        </div>
+    </div>
+    @endif
+
     {{-- Workflow Progress Tracker --}}
     @php
         $pnlWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('sale_pnl');
@@ -609,8 +626,92 @@
             </div>
         </div>
         </div>
-    </div>
     <!-- End Tabs Wrapper -->
+
+
+
+    <!-- File Attachments Section -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-paperclip text-blue-500 mr-2"></i>File đính kèm
+                <span class="text-sm font-normal text-gray-500">({{ $sale->attachments->count() ?? 0 }})</span>
+            </h3>
+        </div>
+        
+        <!-- Upload Form -->
+        @can('update', $sale)
+        <div class="p-4 bg-gray-50 border-b border-gray-200">
+            <form action="{{ route('sales.attachments.upload', $sale->id) }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+                @csrf
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Chọn file</label>
+                    <input type="file" name="file" required
+                        class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                    <input type="text" name="note" placeholder="VD: HDMB, XNĐH, PNL..." 
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                </div>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                    <i class="fas fa-upload mr-1"></i> Tải lên
+                </button>
+            </form>
+        </div>
+        @endcan
+
+        <!-- Attachments List -->
+        @if($sale->attachments && $sale->attachments->count() > 0)
+        <div class="divide-y divide-gray-100">
+            @foreach($sale->attachments as $attachment)
+            <div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                <div class="flex items-center gap-3">
+                    <i class="{{ $attachment->file_icon }} text-lg"></i>
+                    <div>
+                        <a href="{{ route('sales.attachments.download', [$sale->id, $attachment->id]) }}" 
+                           class="text-sm font-medium text-gray-900 hover:text-blue-600">
+                            {{ $attachment->file_name }}
+                        </a>
+                        <div class="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                            <span>{{ $attachment->file_size_formatted }}</span>
+                            <span>•</span>
+                            <span>{{ $attachment->uploader?->name ?? 'N/A' }}</span>
+                            <span>•</span>
+                            <span>{{ $attachment->created_at->format('d/m/Y H:i') }}</span>
+                            @if($attachment->note)
+                                <span>•</span>
+                                <span class="text-blue-600">{{ $attachment->note }}</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('sales.attachments.download', [$sale->id, $attachment->id]) }}" 
+                       class="text-gray-400 hover:text-blue-600" title="Tải xuống">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    @can('update', $sale)
+                    <form action="{{ route('sales.attachments.delete', [$sale->id, $attachment->id]) }}" method="POST" class="inline"
+                          onsubmit="return confirm('Bạn có chắc muốn xóa file này?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="text-gray-400 hover:text-red-600" title="Xóa file">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </form>
+                    @endcan
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @else
+        <div class="p-8 text-center text-gray-500">
+            <i class="fas fa-file-upload text-3xl mb-2 text-gray-300"></i>
+            <p class="text-sm">Chưa có file đính kèm nào.</p>
+        </div>
+        @endif
+    </div>
 
     <!-- Payment Modal -->
     <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">

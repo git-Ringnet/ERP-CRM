@@ -51,7 +51,7 @@
                         @csrf
                         <button type="submit"
                             class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-paper-plane mr-2"></i> Gửi duyệt
+                            <i class="fas fa-paper-plane mr-2"></i> Gửi yêu cầu duyệt
                         </button>
                     </form>
                 @endif
@@ -61,7 +61,7 @@
                         @csrf
                         <button type="submit"
                             class="approve-btn px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 hover:shadow-lg">
-                            <i class="fas fa-check mr-2"></i> Duyệt
+                            <i class="fas fa-check mr-2"></i> Xác nhận Đã đặt
                         </button>
                     </form>
                     <form action="{{ route('purchase-orders.reject', $purchaseOrder) }}" method="POST" class="inline">
@@ -74,24 +74,31 @@
                     </form>
                 @endif
                 @if($purchaseOrder->status == 'approved')
-                    <form action="{{ route('purchase-orders.send', $purchaseOrder) }}" method="POST" class="inline">
-                        @csrf
-                        <button type="submit"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-envelope mr-2"></i> Gửi cho NCC
-                        </button>
-                    </form>
-                @endif
-                @if($purchaseOrder->status == 'sent')
-                    <form action="{{ route('purchase-orders.confirm', $purchaseOrder) }}" method="POST" class="inline">
+                    <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
                             class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-handshake mr-2"></i> NCC đã xác nhận
+                            <i class="fas fa-truck-moving mr-2"></i> Chuyển sang Đang về
                         </button>
                     </form>
                 @endif
-                @if(in_array($purchaseOrder->status, ['confirmed', 'shipping']))
+                @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
+                    <form action="{{ route('purchase-orders.toggle-hold', $purchaseOrder) }}" method="POST" class="inline" id="hold-form">
+                        @csrf
+                        <input type="hidden" name="hold_reason" id="hold_reason_input">
+                        @if($purchaseOrder->is_hold)
+                            <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 transform hover:scale-105">
+                                <i class="fas fa-play mr-2"></i> Gỡ Hold
+                            </button>
+                        @else
+                            <button type="button" onclick="const reason = prompt('Nhập lý do Hold đơn hàng:'); if(reason !== null) { document.getElementById('hold_reason_input').value = reason; document.getElementById('hold-form').submit(); }"
+                                class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
+                                <i class="fas fa-pause mr-2"></i> Hold
+                            </button>
+                        @endif
+                    </form>
+                @endif
+                @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
                     <form action="{{ route('purchase-orders.receive', $purchaseOrder) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
@@ -210,14 +217,27 @@
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between">
                 @php
-                    $statuses = ['draft' => 'Nháp', 'pending_approval' => 'Chờ duyệt', 'approved' => 'Đã duyệt', 'sent' => 'Đã gửi NCC', 'confirmed' => 'NCC xác nhận', 'received' => 'Đã nhận hàng'];
-                    $currentIndex = array_search($purchaseOrder->status, array_keys($statuses));
+                    $statuses = [
+                        'pending' => 'Chờ đặt', 
+                        'approved' => 'Đã đặt', 
+                        'shipping' => 'Đang về', 
+                        'received' => 'Đã về – đủ hàng'
+                    ];
+                    $currentKey = 'pending';
+                    if (in_array($purchaseOrder->status, ['draft', 'pending_approval'])) $currentKey = 'pending';
+                    elseif ($purchaseOrder->status == 'approved') $currentKey = 'approved';
+                    elseif (in_array($purchaseOrder->status, ['shipping', 'partial_received'])) $currentKey = 'shipping';
+                    elseif ($purchaseOrder->status == 'received') $currentKey = 'received';
+                    elseif ($purchaseOrder->status == 'cancelled') $currentKey = 'cancelled';
+                    
+                    $currentIndex = array_search($currentKey, array_keys($statuses));
+                    if ($currentIndex === false) $currentIndex = -1;
                 @endphp
                 @foreach($statuses as $key => $label)
                     @php $index = array_search($key, array_keys($statuses)); @endphp
                     <div class="flex flex-col items-center {{ $index <= $currentIndex ? 'text-primary' : 'text-gray-400' }}">
                         <div
-                            class="w-8 h-8 rounded-full flex items-center justify-center {{ $index <= $currentIndex ? 'bg-primary text-white' : 'bg-gray-200' }}">
+                            class="w-8 h-8 rounded-full flex items-center justify-center {{ $index <= $currentIndex ? ($purchaseOrder->is_hold && $index == $currentIndex ? 'bg-orange-500 text-white animate-pulse' : 'bg-primary text-white') : 'bg-gray-200' }}">
                             @if($index < $currentIndex)
                                 <i class="fas fa-check text-sm"></i>
                             @else
@@ -231,6 +251,17 @@
                     @endif
                 @endforeach
             </div>
+            @if($purchaseOrder->is_hold)
+                <div class="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center">
+                    <i class="fas fa-pause-circle text-orange-500 text-lg mr-2"></i>
+                    <div>
+                        <span class="text-sm font-medium text-orange-800">HOLD</span>
+                        @if($purchaseOrder->hold_reason)
+                            <span class="text-sm text-orange-600 ml-2">Lý do: {{ $purchaseOrder->hold_reason }}</span>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
 
         <!-- Info Card -->
@@ -274,12 +305,6 @@
                     <p class="text-sm text-gray-500">Địa chỉ giao hàng</p>
                     <p class="font-medium">{{ $purchaseOrder->delivery_address ?: '-' }}</p>
                 </div>
-                @if($purchaseOrder->sent_at)
-                    <div>
-                        <p class="text-sm text-gray-500">Ngày gửi NCC</p>
-                        <p class="font-medium">{{ $purchaseOrder->sent_at->format('d/m/Y H:i') }}</p>
-                    </div>
-                @endif
                 @if($purchaseOrder->actual_delivery)
                     <div>
                         <p class="text-sm text-gray-500">Ngày nhận hàng</p>
@@ -288,6 +313,53 @@
                 @endif
             </div>
         </div>
+
+        <!-- Tracking Update Form (only show when PO is not received/cancelled) -->
+        @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                <h3 class="font-semibold flex items-center">
+                    <i class="fas fa-calendar-check mr-2 text-blue-600"></i>
+                    Cập nhật theo dõi đơn hàng
+                </h3>
+                <p class="text-sm text-gray-500 mt-1">Cập nhật ngày dự kiến sẽ tự động thông báo cho Sales</p>
+            </div>
+            <form action="{{ route('purchase-orders.update-tracking', $purchaseOrder) }}" method="POST" class="p-6">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-truck text-blue-500 mr-1"></i>Ngày dự kiến hàng về
+                        </label>
+                        <input type="date" name="expected_arrival_date" 
+                            value="{{ $purchaseOrder->expected_arrival_date?->format('Y-m-d') }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-industry text-purple-500 mr-1"></i>Ngày hãng xuất sản phẩm
+                        </label>
+                        <input type="date" name="manufacturer_release_date" 
+                            value="{{ $purchaseOrder->manufacturer_release_date?->format('Y-m-d') }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-calendar-alt text-green-500 mr-1"></i>Ngày giao hàng dự kiến
+                        </label>
+                        <input type="date" name="expected_delivery" 
+                            value="{{ $purchaseOrder->expected_delivery?->format('Y-m-d') }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                        <i class="fas fa-save mr-1"></i> Lưu & Thông báo
+                    </button>
+                </div>
+            </form>
+        </div>
+        @endif
 
         <!-- Items -->
         @php

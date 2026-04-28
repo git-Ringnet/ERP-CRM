@@ -117,6 +117,22 @@ class Sale extends Model
     }
 
     /**
+     * Relationship with PurchaseOrder (linked POs)
+     */
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
+
+    /**
+     * Relationship with SaleAttachment
+     */
+    public function attachments()
+    {
+        return $this->hasMany(SaleAttachment::class);
+    }
+
+    /**
      * Scope for searching sales
      */
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -127,7 +143,8 @@ class Sale extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('code', 'like', "%{$search}%")
-              ->orWhere('customer_name', 'like', "%{$search}%");
+              ->orWhere('customer_name', 'like', "%{$search}%")
+              ->orWhere('note', 'like', "%{$search}%");
         });
     }
 
@@ -231,6 +248,92 @@ class Sale extends Model
             'pending' => 'bg-yellow-100 text-yellow-800',
             'approved' => 'bg-blue-100 text-blue-800',
             'shipping' => 'bg-purple-100 text-purple-800',
+            'completed' => 'bg-green-100 text-green-800',
+            'cancelled' => 'bg-red-100 text-red-800',
+            default => 'bg-gray-100 text-gray-800',
+        };
+    }
+
+    /**
+     * Get dashboard status based on Sale + linked PO status
+     * Chờ đặt → Đã đặt → Đang về/Hold → Đã về → Xuất hóa đơn → Hoàn thành
+     */
+    public function getDashboardStatusAttribute(): string
+    {
+        // Cancelled / Pending
+        if ($this->status === 'cancelled') return 'cancelled';
+        if ($this->status === 'pending') return 'pending';
+
+        // Completed
+        if ($this->status === 'completed') return 'completed';
+
+        // Xuất hóa đơn (shipping to customer)
+        if ($this->status === 'shipping') return 'invoiced';
+
+        // Check linked PO status
+        $latestPo = $this->relationLoaded('purchaseOrders')
+            ? $this->purchaseOrders->sortByDesc('id')->first()
+            : $this->purchaseOrders()->latest()->first();
+
+        if (!$latestPo) {
+            return 'waiting_order'; // Chờ đặt
+        }
+
+        // Hold
+        if ($latestPo->is_hold) {
+            return 'hold';
+        }
+
+        // Đã về - đủ hàng
+        if (in_array($latestPo->status, ['received'])) {
+            return 'received';
+        }
+
+        // Đang về
+        if (in_array($latestPo->status, ['shipping', 'partial_received'])) {
+            return 'in_transit';
+        }
+
+        // Đã đặt
+        if (in_array($latestPo->status, ['draft', 'pending_approval', 'approved'])) {
+            return 'ordered';
+        }
+
+        return 'waiting_order';
+    }
+
+    /**
+     * Get dashboard status label (Vietnamese)
+     */
+    public function getDashboardStatusLabelAttribute(): string
+    {
+        return match($this->dashboard_status) {
+            'pending' => 'Chờ duyệt',
+            'waiting_order' => 'Chờ đặt',
+            'ordered' => 'Đã đặt',
+            'in_transit' => 'Đang về',
+            'hold' => 'Hold',
+            'received' => 'Đã về - đủ hàng',
+            'invoiced' => 'Xuất hóa đơn',
+            'completed' => 'Hoàn thành',
+            'cancelled' => 'Đã hủy',
+            default => 'Không xác định',
+        };
+    }
+
+    /**
+     * Get dashboard status color class
+     */
+    public function getDashboardStatusColorAttribute(): string
+    {
+        return match($this->dashboard_status) {
+            'pending' => 'bg-gray-100 text-gray-800',
+            'waiting_order' => 'bg-yellow-100 text-yellow-800',
+            'ordered' => 'bg-blue-100 text-blue-800',
+            'in_transit' => 'bg-purple-100 text-purple-800',
+            'hold' => 'bg-orange-100 text-orange-800',
+            'received' => 'bg-emerald-100 text-emerald-800',
+            'invoiced' => 'bg-amber-100 text-amber-800',
             'completed' => 'bg-green-100 text-green-800',
             'cancelled' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',

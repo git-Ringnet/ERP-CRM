@@ -5,21 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleExpense;
+use App\Models\SaleAttachment;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\Warehouse;
 use App\Models\Currency;
+use App\Models\Notification;
+use App\Models\User;
 use App\Exports\SalesExport;
 use App\Exports\SaleInvoiceExport;
 use App\Services\SaleExportSyncService;
 use App\Services\CurrencyService;
 use App\Services\ApprovalService;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
+use App\Services\SalePurchaseSyncService;
 use App\Models\ApprovalHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -84,6 +92,12 @@ class SaleController extends Controller
         // Filter by customer
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
+        }
+
+        // Search by note
+        if ($request->filled('note_search')) {
+            $noteSearch = $request->note_search;
+            $query->where('note', 'like', "%{$noteSearch}%");
         }
 
         // Filter by specific date range
@@ -324,6 +338,22 @@ class SaleController extends Controller
             $sale->calculateMargin();
             $sale->updateDebt();
             $sale->save();
+
+            // Xử lý upload file đính kèm nếu có
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $path = $file->store('sale-attachments/' . $sale->id, 'public');
+                    \App\Models\SaleAttachment::create([
+                        'sale_id' => $sale->id,
+                        'uploaded_by' => auth()->id(),
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'file_size' => $file->getSize(),
+                        'note' => '',
+                    ]);
+                }
+            }
 
             DB::commit();
 
@@ -896,6 +926,9 @@ class SaleController extends Controller
                 $sale->load('items');
                 $warehouseId = $validated['warehouse_id'] ?? null;
 
+                // Notify purchasing department
+                $this->notifyPurchasingDepartment($sale);
+
                 try {
                     $export = $this->saleExportSyncService->createExportFromSale($sale, $warehouseId, false);
                     if ($export) {
@@ -936,6 +969,97 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Notify purchasing department when a sale is approved
+     */
+    private function notifyPurchasingDepartment(Sale $sale): void
+    {
+        try {
+            // Find users with purchase order creation permission
+            $purchaseUsers = User::whereHas('roles.permissions', function ($q) {
+                $q->where('name', 'create_purchase_orders');
+            })->orWhereHas('permissions', function ($q) {
+                $q->where('name', 'create_purchase_orders');
+            })->get();
+
+            foreach ($purchaseUsers as $user) {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'sale_approved',
+                    'title' => 'Đơn bán hàng cần đặt mua',
+                    'message' => "Đơn hàng {$sale->code} ({$sale->customer_name}) đã được duyệt. Vui lòng tiến hành đặt hàng với NCC.",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-shopping-cart',
+                    'color' => 'blue',
+                    'data' => ['sale_id' => $sale->id, 'sale_code' => $sale->code],
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to notify purchasing: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Upload file attachment for a sale
+     */
+    public function uploadAttachment(Request $request, Sale $sale)
+    {
+        $this->authorize('update', $sale);
+
+        $request->validate([
+            'file' => ['required', 'file', 'max:20480'], // 20MB max
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('sale-attachments/' . $sale->id, 'public');
+
+        SaleAttachment::create([
+            'sale_id' => $sale->id,
+            'uploaded_by' => auth()->id(),
+            'file_name' => $file->getClientOriginalName(),
+            'file_path' => $path,
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+            'note' => $request->note,
+        ]);
+
+        return back()->with('success', 'Đã tải lên file: ' . $file->getClientOriginalName());
+    }
+
+    /**
+     * Delete file attachment
+     */
+    public function deleteAttachment(Sale $sale, SaleAttachment $attachment)
+    {
+        $this->authorize('update', $sale);
+
+        if ($attachment->sale_id !== $sale->id) {
+            abort(404);
+        }
+
+        Storage::disk('public')->delete($attachment->file_path);
+        $attachment->delete();
+
+        return back()->with('success', 'Đã xóa file đính kèm.');
+    }
+
+    /**
+     * Download file attachment
+     */
+    public function downloadAttachment(Sale $sale, SaleAttachment $attachment)
+    {
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
+        if ($attachment->sale_id !== $sale->id) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
     }
 
     /**
@@ -1497,6 +1621,9 @@ class SaleController extends Controller
                     'pl_approved_by' => auth()->id(),
                     'status'         => 'approved', // Đồng bộ trạng thái đơn hàng chính
                 ]);
+
+                // Tự động tạo PO nháp cho bộ phận mua hàng qua Service
+                app(SalePurchaseSyncService::class)->createPurchaseOrderFromSale($sale);
             }
         }
 

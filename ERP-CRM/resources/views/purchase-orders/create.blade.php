@@ -97,6 +97,37 @@
             </div>
         </div>
 
+        <!-- Liên kết đơn bán & Thông tin tracking -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-link text-blue-400 mr-1"></i>Đơn bán hàng liên kết
+                </label>
+                <select name="sale_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    <option value="">-- Không liên kết --</option>
+                    @foreach($availableSales ?? [] as $sale)
+                        <option value="{{ $sale->id }}" {{ old('sale_id', $selectedSaleId ?? '') == $sale->id ? 'selected' : '' }}>
+                            {{ $sale->code }} - {{ $sale->customer_name }} ({{ number_format($sale->total, 0, ',', '.') }}₫)
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-calendar-alt text-green-400 mr-1"></i>Ngày dự kiến hàng về
+                </label>
+                <input type="date" name="expected_arrival_date" value="{{ old('expected_arrival_date') }}"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-industry text-purple-400 mr-1"></i>Ngày hãng xuất sản phẩm
+                </label>
+                <input type="date" name="manufacturer_release_date" value="{{ old('manufacturer_release_date') }}"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+        </div>
+
         <!-- Danh sách sản phẩm -->
         <div class="border-t border-gray-200 pt-4 mb-6">
             <div class="flex justify-between items-center mb-3">

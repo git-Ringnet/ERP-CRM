@@ -158,6 +158,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
     Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');
     Route::patch('/sales/{sale}/status', [SaleController::class, 'updateStatus'])->name('sales.updateStatus');
+    Route::post('/sales/{sale}/attachments', [SaleController::class, 'uploadAttachment'])->name('sales.attachments.upload');
+    Route::delete('/sales/{sale}/attachments/{attachment}', [SaleController::class, 'deleteAttachment'])->name('sales.attachments.delete');
+    Route::get('/sales/{sale}/attachments/{attachment}/download', [SaleController::class, 'downloadAttachment'])->name('sales.attachments.download');
     Route::post('/sales/{sale}/update-pnl', [SaleController::class, 'updatePnL'])->name('sales.updatePnL');
     Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
@@ -221,10 +224,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('projects', ProjectController::class);
 
 
-    // Purchase Request routes (Yêu cầu báo giá NCC)
-    Route::resource('purchase-requests', PurchaseRequestController::class);
-    Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
-    Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
+    // Purchase Request routes (Yêu cầu báo giá NCC) — HIDDEN/DISABLED
+    // Route::resource('purchase-requests', PurchaseRequestController::class);
+    // Route::post('/purchase-requests/{purchaseRequest}/send', [PurchaseRequestController::class, 'send'])->name('purchase-requests.send');
+    // Route::post('/purchase-requests/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('purchase-requests.cancel');
 
     // Supplier Quotation routes (Báo giá từ NCC)
     Route::get('/supplier-quotations/import', [SupplierQuotationController::class, 'showImportForm'])->name('supplier-quotations.import');
@@ -246,9 +249,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
     Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirmBySupplier'])->name('purchase-orders.confirm');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+    Route::post('/purchase-orders/{purchaseOrder}/ship', [PurchaseOrderController::class, 'ship'])->name('purchase-orders.ship');
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
+    Route::post('/purchase-orders/{purchaseOrder}/toggle-hold', [PurchaseOrderController::class, 'toggleHold'])->name('purchase-orders.toggle-hold');
+    Route::post('/purchase-orders/{purchaseOrder}/update-tracking', [PurchaseOrderController::class, 'updateTracking'])->name('purchase-orders.update-tracking');
 
     // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
     Route::resource('shipping-allocations', ShippingAllocationController::class);

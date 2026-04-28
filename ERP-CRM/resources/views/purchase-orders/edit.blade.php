@@ -82,6 +82,37 @@
             </div>
         </div>
 
+        <!-- Tracking dates -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-calendar-alt text-green-400 mr-1"></i>Ngày dự kiến hàng về
+                </label>
+                <input type="date" name="expected_arrival_date" 
+                    value="{{ old('expected_arrival_date', $purchaseOrder->expected_arrival_date?->format('Y-m-d')) }}"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-industry text-purple-400 mr-1"></i>Ngày hãng xuất sản phẩm
+                </label>
+                <input type="date" name="manufacturer_release_date" 
+                    value="{{ old('manufacturer_release_date', $purchaseOrder->manufacturer_release_date?->format('Y-m-d')) }}"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
+            @if($purchaseOrder->sale)
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-link text-blue-400 mr-1"></i>Đơn bán hàng liên kết
+                </label>
+                <a href="{{ route('sales.show', $purchaseOrder->sale_id) }}" 
+                   class="block w-full px-3 py-1.5 text-sm border border-blue-200 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100 transition-colors">
+                    {{ $purchaseOrder->sale->code }} - {{ $purchaseOrder->sale->customer_name }}
+                </a>
+            </div>
+            @endif
+        </div>
+
         <!-- Danh sách sản phẩm -->
         @php
             $isForeign = $purchaseOrder->currency && !$purchaseOrder->currency->is_base;

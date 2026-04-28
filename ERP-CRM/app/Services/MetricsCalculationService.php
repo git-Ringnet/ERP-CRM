@@ -108,7 +108,7 @@ class MetricsCalculationService
 
         return [
             'total_count' => $query->count(),
-            'pending_count' => (clone $query)->whereIn('status', ['draft', 'pending_approval', 'approved', 'sent', 'confirmed'])->count(),
+            'pending_count' => (clone $query)->whereIn('status', ['draft', 'pending_approval', 'approved'])->count(),
             'completed_count' => (clone $query)->whereIn('status', ['received', 'partial_received'])->count(),
         ];
     }
@@ -581,7 +581,7 @@ class MetricsCalculationService
             ->get();
 
         // Ensure all possible statuses are included and return as indexed array
-        $allStatuses = ['draft', 'pending_approval', 'approved', 'sent', 'confirmed', 'shipping', 'partial_received', 'received'];
+        $allStatuses = ['draft', 'pending_approval', 'approved', 'shipping', 'partial_received', 'received'];
         $distribution = [];
 
         foreach ($allStatuses as $status) {
@@ -593,6 +593,103 @@ class MetricsCalculationService
                 $distribution[] = [
                     'status' => $status,
                     'count' => $count
+                ];
+            }
+        }
+
+        return $distribution;
+    }
+
+    /**
+     * Get order overview data for dashboard
+     * Combines Sale status with linked PO status
+     *
+     * @param Carbon $start Start date
+     * @param Carbon $end End date
+     * @return array Order overview with status counts and detail list
+     */
+    public function getOrderOverviewData(Carbon $start, Carbon $end): array
+    {
+        $sales = Sale::whereBetween('date', [$start, $end])
+            ->where('status', '!=', 'cancelled')
+            ->with(['purchaseOrders', 'customer', 'user'])
+            ->orderBy('date', 'desc')
+            ->get();
+
+        // Count by dashboard status
+        $statusCounts = [
+            'waiting_order' => 0,
+            'ordered' => 0,
+            'in_transit' => 0,
+            'hold' => 0,
+            'received' => 0,
+            'invoiced' => 0,
+            'completed' => 0,
+        ];
+
+        $orders = [];
+        foreach ($sales as $sale) {
+            $dashboardStatus = $sale->dashboard_status;
+
+            if (isset($statusCounts[$dashboardStatus])) {
+                $statusCounts[$dashboardStatus]++;
+            }
+
+            // Get latest PO info
+            $latestPo = $sale->purchaseOrders->sortByDesc('id')->first();
+
+            $orders[] = [
+                'id' => $sale->id,
+                'code' => $sale->code,
+                'customer_name' => $sale->customer_name,
+                'date' => $sale->date?->format('d/m/Y'),
+                'total' => $sale->total,
+                'status' => $sale->status,
+                'dashboard_status' => $dashboardStatus,
+                'dashboard_status_label' => $sale->dashboard_status_label,
+                'dashboard_status_color' => $sale->dashboard_status_color,
+                'po_code' => $latestPo?->code,
+                'po_id' => $latestPo?->id,
+                'expected_arrival' => $latestPo?->expected_arrival_date?->format('d/m/Y'),
+                'manufacturer_release' => $latestPo?->manufacturer_release_date?->format('d/m/Y'),
+                'is_hold' => $latestPo?->is_hold ?? false,
+                'hold_reason' => $latestPo?->hold_reason,
+                'salesperson' => $sale->user?->name ?? 'N/A',
+            ];
+        }
+
+        return [
+            'status_counts' => $statusCounts,
+            'orders' => $orders,
+            'total' => count($orders),
+        ];
+    }
+
+    /**
+     * Get sales status distribution by order status
+     *
+     * @param Carbon $start Start date
+     * @param Carbon $end End date
+     * @return array Distribution data
+     */
+    public function getSalesStatusDistribution(Carbon $start, Carbon $end): array
+    {
+        $data = Sale::whereBetween('date', [$start, $end])
+            ->select('status', DB::raw('COUNT(*) as count'))
+            ->groupBy('status')
+            ->get();
+
+        $allStatuses = ['pending', 'approved', 'shipping', 'completed', 'cancelled'];
+        $distribution = [];
+
+        foreach ($allStatuses as $status) {
+            $item = $data->firstWhere('status', $status);
+            $count = $item ? (int) $item->count : 0;
+
+            if ($count > 0) {
+                $distribution[] = [
+                    'status' => $status,
+                    'count' => $count,
                 ];
             }
         }

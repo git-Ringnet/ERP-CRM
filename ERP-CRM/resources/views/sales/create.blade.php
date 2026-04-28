@@ -22,7 +22,7 @@
     </div>
     @endif
 
-    <form action="{{ route('sales.store') }}" method="POST" id="saleForm">
+    <form action="{{ route('sales.store') }}" method="POST" id="saleForm" enctype="multipart/form-data">
         @csrf
         
         <div class="p-4 sm:p-6 space-y-6">
@@ -303,6 +303,20 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                 <textarea name="note" rows="2"
                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note') }}</textarea>
+            </div>
+
+            <!-- File đính kèm -->
+            <div class="border-t pt-4">
+                <h4 class="text-lg font-medium text-gray-900 mb-2">
+                    <i class="fas fa-paperclip text-blue-500 mr-2"></i>File đính kèm
+                </h4>
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Chọn file (Có thể chọn nhiều file)</label>
+                        <input type="file" name="attachments[]" multiple
+                            class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg px-2 py-1.5">
+                    </div>
+                </div>
             </div>
         </div>
 

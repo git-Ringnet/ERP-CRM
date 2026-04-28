@@ -8,15 +8,15 @@
     <!-- Stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-white rounded-lg shadow p-4">
-            <p class="text-sm text-gray-500">Chờ duyệt</p>
+            <p class="text-sm text-gray-500">Chờ đặt</p>
             <p class="text-2xl font-bold text-yellow-600">{{ $stats['pending'] }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
-            <p class="text-sm text-gray-500">Đang xử lý</p>
+            <p class="text-sm text-gray-500">Đã đặt</p>
             <p class="text-2xl font-bold text-blue-600">{{ $stats['sent'] }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
-            <p class="text-sm text-gray-500">Đã nhận hàng</p>
+            <p class="text-sm text-gray-500">Đã về – đủ hàng</p>
             <p class="text-2xl font-bold text-green-600">{{ $stats['received'] }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
@@ -53,12 +53,11 @@
                 class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
             <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả trạng thái --</option>
-                <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Nháp</option>
+                <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Chờ đặt</option>
                 <option value="pending_approval" {{ request('status') == 'pending_approval' ? 'selected' : '' }}>Chờ duyệt</option>
-                <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
-                <option value="sent" {{ request('status') == 'sent' ? 'selected' : '' }}>Đã gửi NCC</option>
-                <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>NCC xác nhận</option>
-                <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Đã nhận hàng</option>
+                <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã đặt</option>
+                <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang về</option>
+                <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Đã về – đủ hàng</option>
             </select>
             <select name="supplier_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả NCC --</option>
@@ -170,30 +169,65 @@
                                 <div class="text-gray-900 font-semibold">{{ number_format($order->total) }} đ</div>
                             @endif
                         </td>
-                        <td class="px-4 py-3">
-                            @switch($order->status)
-                                @case('draft')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Nháp</span>
-                                    @break
-                                @case('pending_approval')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Chờ duyệt</span>
-                                    @break
-                                @case('approved')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Đã duyệt</span>
-                                    @break
-                                @case('sent')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">Đã gửi NCC</span>
-                                    @break
-                                @case('confirmed')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">NCC xác nhận</span>
-                                    @break
-                                @case('received')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Đã nhận hàng</span>
-                                    @break
-                                @case('cancelled')
-                                    <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Đã hủy</span>
-                                    @break
-                            @endswitch
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            @php
+                                $steps = [
+                                    'pending' => 0,
+                                    'approved' => 1,
+                                    'shipping' => 2,
+                                    'received' => 3,
+                                    'cancelled' => -1,
+                                ];
+                                $currentKey = 'pending';
+                                if (in_array($order->status, ['draft', 'pending_approval'])) $currentKey = 'pending';
+                                elseif ($order->status == 'approved') $currentKey = 'approved';
+                                elseif (in_array($order->status, ['shipping', 'partial_received'])) $currentKey = 'shipping';
+                                elseif ($order->status == 'received') $currentKey = 'received';
+                                elseif ($order->status == 'cancelled') $currentKey = 'cancelled';
+                                
+                                $step = $steps[$currentKey] ?? 0;
+                                $isCancelled = $order->status === 'cancelled';
+                            @endphp
+
+                            @if($isCancelled)
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                    <i class="fas fa-times-circle mr-1"></i>Đã hủy
+                                </span>
+                            @else
+                                <div class="flex items-center justify-center gap-0.5">
+                                    {{-- Step 1: Chờ đặt --}}
+                                    <div class="flex flex-col items-center" title="Chờ đặt">
+                                        <div class="w-3 h-3 rounded-full {{ $step >= 0 ? 'bg-yellow-400' : 'bg-gray-300' }} {{ $step === 0 ? 'animate-pulse ring-2 ring-yellow-200' : '' }}"></div>
+                                    </div>
+                                    <div class="w-3 h-0.5 {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-200' }}"></div>
+                                    
+                                    {{-- Step 2: Đã đặt --}}
+                                    <div class="flex flex-col items-center" title="Đã đặt">
+                                        <div class="w-3 h-3 rounded-full {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-300' }} {{ $step === 1 ? 'animate-pulse ring-2 ring-blue-200' : '' }}"></div>
+                                    </div>
+                                    <div class="w-3 h-0.5 {{ $step >= 2 ? ($order->is_hold ? 'bg-orange-400' : 'bg-purple-500') : 'bg-gray-200' }}"></div>
+                                    
+                                    {{-- Step 3: Đang về / Hold --}}
+                                    <div class="flex flex-col items-center" title="Đang về / Hold">
+                                        <div class="w-3 h-3 rounded-full {{ $step >= 2 ? ($order->is_hold ? 'bg-orange-400' : 'bg-purple-500') : 'bg-gray-300' }} {{ $step === 2 || $order->is_hold ? 'animate-pulse ring-2 '.($order->is_hold ? 'ring-orange-200' : 'ring-purple-200') : '' }}"></div>
+                                    </div>
+                                    <div class="w-3 h-0.5 {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-200' }}"></div>
+                                    
+                                    {{-- Step 4: Đã về --}}
+                                    <div class="flex flex-col items-center" title="Đã về – đủ hàng">
+                                        <div class="w-3 h-3 rounded-full {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-300' }}"></div>
+                                    </div>
+                                </div>
+                                <div class="text-[10px] mt-1 font-medium {{ $step === 0 ? 'text-yellow-600' : ($step === 1 ? 'text-blue-600' : ($step === 2 ? ($order->is_hold ? 'text-orange-600' : 'text-purple-600') : 'text-green-600')) }}">
+                                    @if($order->is_hold)
+                                        <span class="inline-flex items-center"><i class="fas fa-pause-circle mr-1"></i>HOLD</span>
+                                    @elseif($order->status == 'pending_approval')
+                                        <span class="inline-flex items-center"><i class="fas fa-hourglass-half mr-1"></i>Chờ duyệt</span>
+                                    @else
+                                        {{ $order->status_label }}
+                                    @endif
+                                </div>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-center">
                             <div class="flex items-center justify-center space-x-1">
@@ -208,7 +242,7 @@
                                 @if($order->status == 'draft')
                                     <form action="{{ route('purchase-orders.submit-approval', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-all" title="Gửi duyệt">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-all" title="Gửi yêu cầu duyệt">
                                             <i class="fas fa-paper-plane"></i>
                                         </button>
                                     </form>
@@ -216,19 +250,12 @@
                                 @if($order->status == 'pending_approval')
                                     <form action="{{ route('purchase-orders.approve', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-all transform hover:scale-110" title="Duyệt">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-all transform hover:scale-110" title="Xác nhận Đã đặt">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
                                 @endif
-                                @if($order->status == 'approved')
-                                    <form action="{{ route('purchase-orders.send', $order) }}" method="POST" class="inline">
-                                        @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-all" title="Gửi NCC">
-                                            <i class="fas fa-envelope"></i>
-                                        </button>
-                                    </form>
-                                @endif
+
                                 <a href="{{ route('purchase-orders.print', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" title="In" target="_blank">
                                     <i class="fas fa-print"></i>
                                 </a>

@@ -481,8 +481,11 @@ class QuotationController extends Controller
                 'note' => 'Chuyển từ báo giá: ' . $quotation->code,
             ]);
 
-            // Create sale items
+            // Create sale items with cost auto-setup
             foreach ($quotation->items as $item) {
+                $product = $item->product_id ? Product::find($item->product_id) : null;
+                $costPrice = $product ? ($product->calculated_cost ?? 0) : 0;
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item->product_id,
@@ -490,6 +493,8 @@ class QuotationController extends Controller
                     'quantity' => $item->quantity,
                     'price' => $item->price,
                     'total' => $item->total,
+                    'cost_price' => $costPrice,
+                    'cost_total' => $item->quantity * $costPrice,
                 ]);
             }
 

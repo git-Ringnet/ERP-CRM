@@ -7,9 +7,11 @@ use App\Models\PurchaseOrderItem;
 use App\Models\SupplierQuotation;
 use App\Models\Supplier;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\PurchaseRequest;
 use App\Models\Currency;
 use App\Models\Warehouse;
+use App\Models\Notification;
 use App\Mail\PurchaseOrderMail;
 use App\Exports\PurchaseOrdersExport;
 use App\Services\PurchaseImportSyncService;
@@ -76,10 +78,10 @@ class PurchaseOrderController extends Controller
         }
 
         $stats = [
-            'pending' => (clone $statsQuery)->where('status', 'pending_approval')->count(),
-            'sent' => (clone $statsQuery)->whereIn('status', ['sent', 'confirmed', 'shipping'])->count(),
+            'pending' => (clone $statsQuery)->whereIn('status', ['draft', 'pending_approval'])->count(),
+            'sent' => (clone $statsQuery)->whereIn('status', ['approved', 'shipping'])->count(),
             'received' => (clone $statsQuery)->where('status', 'received')->count(),
-            'total_value' => (clone $statsQuery)->whereIn('status', ['sent', 'confirmed', 'shipping', 'received'])->sum('total'),
+            'total_value' => (clone $statsQuery)->whereIn('status', ['approved', 'shipping', 'received'])->sum('total'),
         ];
 
         return view('purchase-orders.index', compact('orders', 'suppliers', 'stats'));
@@ -101,7 +103,15 @@ class PurchaseOrderController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('purchase-orders.create', compact('suppliers', 'products', 'code', 'quotation', 'currencies', 'baseCurrencyId'));
+        // Get approved sales that can be linked to PO
+        $availableSales = Sale::where('status', 'approved')
+            ->orderBy('date', 'desc')
+            ->get(['id', 'code', 'customer_name', 'total']);
+
+        // Pre-select sale if passed from sale detail page
+        $selectedSaleId = $request->get('sale_id');
+
+        return view('purchase-orders.create', compact('suppliers', 'products', 'code', 'quotation', 'currencies', 'baseCurrencyId', 'availableSales', 'selectedSaleId'));
     }
 
     public function store(Request $request)
@@ -125,8 +135,11 @@ class PurchaseOrderController extends Controller
                 'code' => $validated['code'],
                 'supplier_id' => $validated['supplier_id'],
                 'supplier_quotation_id' => $request->supplier_quotation_id,
+                'sale_id' => $request->sale_id,
                 'order_date' => $validated['order_date'],
                 'expected_delivery' => $request->expected_delivery,
+                'expected_arrival_date' => $request->expected_arrival_date,
+                'manufacturer_release_date' => $request->manufacturer_release_date,
                 'delivery_address' => $request->delivery_address,
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
@@ -188,6 +201,12 @@ class PurchaseOrderController extends Controller
             }
 
             DB::commit();
+
+            // Notify sales when PO is created for their sale
+            if ($order->sale_id) {
+                $this->notifySalesUser($order, 'Đơn mua hàng đã được tạo', "Đơn mua hàng {$order->code} đã được tạo cho đơn bán hàng của bạn.");
+            }
+
             return redirect()->route('purchase-orders.index')
                 ->with('success', 'Đã tạo đơn mua hàng thành công!');
         } catch (\Exception $e) {
@@ -246,6 +265,8 @@ class PurchaseOrderController extends Controller
         try {
             $purchaseOrder->update([
                 'expected_delivery' => $request->expected_delivery,
+                'expected_arrival_date' => $request->expected_arrival_date,
+                'manufacturer_release_date' => $request->manufacturer_release_date,
                 'delivery_address' => $request->delivery_address,
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
@@ -348,6 +369,11 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->updateDebt();
         $purchaseOrder->save();
 
+        // Thông báo cho sales khi PO được duyệt (đã đặt)
+        if ($purchaseOrder->sale_id) {
+            $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đã được duyệt', "Đơn mua hàng {$purchaseOrder->code} đã được duyệt và chuyển sang trạng thái 'Đã đặt'.");
+        }
+
         return back()->with('success', 'Đã duyệt đơn mua hàng!');
     }
 
@@ -415,11 +441,31 @@ class PurchaseOrderController extends Controller
         return back()->with('success', 'Đã xác nhận NCC đã nhận đơn hàng!');
     }
 
+    public function ship(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if ($purchaseOrder->status !== 'approved') {
+            return back()->with('error', 'Đơn hàng chưa ở trạng thái Đã đặt!');
+        }
+
+        $purchaseOrder->update([
+            'status' => 'shipping',
+        ]);
+
+        // Thông báo cho sales
+        if ($purchaseOrder->sale_id) {
+            $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đang về', "Đơn mua hàng {$purchaseOrder->code} đã được xuất đi và đang trên đường về.");
+        }
+
+        return back()->with('success', 'Đã cập nhật trạng thái: Đang về!');
+    }
+
     public function receive(Request $request, PurchaseOrder $purchaseOrder)
     {
         $this->authorize('update', $purchaseOrder);
 
-        if (!in_array($purchaseOrder->status, ['confirmed', 'shipping', 'partial_received'])) {
+        if (!in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received'])) {
             return back()->with('error', 'Đơn hàng chưa sẵn sàng để nhận!');
         }
 
@@ -454,6 +500,12 @@ class PurchaseOrderController extends Controller
             }
 
             DB::commit();
+
+            // Notify sales when goods received
+            if ($purchaseOrder->sale_id) {
+                $this->notifySalesUser($purchaseOrder, 'Hàng đã về - đủ hàng', "Đơn mua hàng {$purchaseOrder->code} đã nhận đủ hàng. Hàng sẵn sàng để xuất kho.");
+            }
+
             return back()->with('success', 'Đã xác nhận nhận hàng thành công!');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -514,5 +566,89 @@ class PurchaseOrderController extends Controller
         }
 
         return redirect()->route('imports.show', $import);
+    }
+
+    /**
+     * Toggle hold status for a PO
+     */
+    public function toggleHold(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return back()->with('error', 'Không thể hold/unhold đơn hàng này!');
+        }
+
+        $isHold = !$purchaseOrder->is_hold;
+
+        $purchaseOrder->update([
+            'is_hold' => $isHold,
+            'hold_reason' => $isHold ? $request->input('hold_reason', '') : null,
+        ]);
+
+        // Notify sales about hold status change
+        if ($purchaseOrder->sale_id) {
+            $title = $isHold ? 'Đơn mua hàng đang HOLD' : 'Đơn mua hàng đã gỡ HOLD';
+            $msg = $isHold
+                ? "Đơn mua hàng {$purchaseOrder->code} đang bị hold. Lý do: {$purchaseOrder->hold_reason}"
+                : "Đơn mua hàng {$purchaseOrder->code} đã được gỡ hold, tiếp tục xử lý.";
+            $this->notifySalesUser($purchaseOrder, $title, $msg);
+        }
+
+        $statusMsg = $isHold ? 'Đã đặt trạng thái Hold cho đơn mua hàng.' : 'Đã gỡ trạng thái Hold.';
+        return back()->with('success', $statusMsg);
+    }
+
+    /**
+     * Notify the sales user who created the linked sale
+     */
+    private function notifySalesUser(PurchaseOrder $po, string $title, string $message): void
+    {
+        try {
+            $sale = $po->sale;
+            if (!$sale || !$sale->user_id) return;
+
+            Notification::create([
+                'user_id' => $sale->user_id,
+                'type' => 'po_update',
+                'title' => $title,
+                'message' => $message,
+                'link' => route('purchase-orders.show', $po->id),
+                'icon' => 'fas fa-truck',
+                'color' => 'purple',
+                'data' => ['po_id' => $po->id, 'po_code' => $po->code, 'sale_id' => $sale->id],
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to notify sales user: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cập nhật thông tin theo dõi (ngày dự kiến hàng về, ngày hãng xuất...)
+     */
+    public function updateTracking(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        $validated = $request->validate([
+            'expected_arrival_date' => 'nullable|date',
+            'manufacturer_release_date' => 'nullable|date',
+            'expected_delivery' => 'nullable|date',
+        ]);
+
+        $oldArrival = $purchaseOrder->expected_arrival_date;
+        $purchaseOrder->update($validated);
+
+        // Gửi thông báo cho sales khi cập nhật ngày dự kiến hàng về
+        if ($purchaseOrder->sale_id && $request->filled('expected_arrival_date') && $oldArrival != $request->expected_arrival_date) {
+            $newDate = \Carbon\Carbon::parse($request->expected_arrival_date)->format('d/m/Y');
+            $this->notifySalesUser(
+                $purchaseOrder,
+                'Cập nhật ngày dự kiến hàng về',
+                "Đơn mua hàng {$purchaseOrder->code} đã cập nhật ngày dự kiến hàng về: {$newDate}."
+            );
+        }
+
+        return back()->with('success', 'Đã cập nhật thông tin theo dõi!');
     }
 }

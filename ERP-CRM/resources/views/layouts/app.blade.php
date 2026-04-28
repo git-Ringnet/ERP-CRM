@@ -111,13 +111,13 @@
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
                 </a>
 
-                {{-- @can('view_business_dashboard')
-                <a href="{{ route('dashboard.business-activity') }}"
-                    class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
-                    <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
-                    <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
-                </a>
-                @endcan --}}
+                @can('view_business_dashboard')
+                    <a href="{{ route('dashboard.business-activity') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
+                    </a>
+                @endcan
 
                 {{-- <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
@@ -517,21 +517,23 @@
                                 </a>
                             @endcan
 
+                            {{-- Ẩn RFQ - theo yêu cầu bỏ chức năng báo giá NCC
                             @can('view_purchase_requests')
-                                <a href="{{ route('purchase-requests.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-clipboard-list w-6"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá từ NCC</span>
-                                </a>
+                            <a href="{{ route('purchase-requests.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-clipboard-list w-6"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu báo giá từ NCC</span>
+                            </a>
                             @endcan
 
                             @can('view_supplier_quotations')
-                                <a href="{{ route('supplier-quotations.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-file-invoice w-6"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá NCC</span>
-                                </a>
+                            <a href="{{ route('supplier-quotations.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-quotations.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-file-invoice w-6"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Báo giá NCC</span>
+                            </a>
                             @endcan
+                            --}}
 
                             @can('view_purchase_orders')
                                 <a href="{{ route('purchase-orders.index') }}"
@@ -542,12 +544,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                    <a href="{{ route('shipping-allocations.index') }}"
-                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                    </a>
-                                @endcan -->
+                                        <a href="{{ route('shipping-allocations.index') }}"
+                                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                        </a>
+                                    @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
