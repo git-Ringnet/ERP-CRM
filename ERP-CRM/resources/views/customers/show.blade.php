@@ -12,6 +12,10 @@
             <i class="fas fa-arrow-left mr-2"></i>Quay lại
         </a>
         <div class="flex gap-2">
+            <a href="{{ route('opportunities.create', ['customer_id' => $customer->id]) }}" 
+               class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                <i class="fas fa-funnel-dollar mr-2"></i>Chuyển thành Cơ hội
+            </a>
             <a href="{{ route('customers.edit', $customer->id) }}" 
                class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                 <i class="fas fa-edit mr-2"></i>Chỉnh sửa
@@ -54,7 +58,12 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Tên khách hàng (Công ty)</label>
-                            <p class="text-base font-semibold text-gray-900 uppercase">{{ $customer->name }}</p>
+                            <p class="text-base font-semibold text-gray-900 uppercase">
+                                {{ $customer->name }}
+                                @if($customer->abv_name)
+                                    <span class="text-sm font-normal text-gray-500 normal-case">({{ $customer->abv_name }})</span>
+                                @endif
+                            </p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Email công ty</label>
@@ -108,7 +117,12 @@
                             @if($contact->is_primary)
                             <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] bg-blue-100 text-blue-600 rounded-full font-bold uppercase">Chính</span>
                             @endif
-                            <h4 class="font-bold text-gray-900 text-base mb-2">{{ $contact->name }}</h4>
+                            <h4 class="font-bold text-gray-900 text-base mb-2">
+                                @if($contact->title)
+                                    <span class="text-gray-500 font-normal mr-1">{{ $contact->title }}</span>
+                                @endif
+                                {{ $contact->name }}
+                            </h4>
                             <div class="space-y-1 text-sm text-gray-600">
                                 @if($contact->position)
                                 <div><i class="fas fa-briefcase w-5 text-gray-400"></i>{{ $contact->position }}</div>
@@ -489,6 +503,12 @@
                         <label class="block text-sm font-medium text-green-700 mb-1">Số ngày nợ</label>
                         <p class="text-2xl font-bold text-green-900">{{ $customer->debt_days }} ngày</p>
                     </div>
+                    @if($customer->am)
+                    <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                        <label class="block text-sm font-medium text-purple-700 mb-1">Account Manager (AM)</label>
+                        <p class="text-xl font-bold text-purple-900">{{ $customer->am }}</p>
+                    </div>
+                    @endif
                 </div>
             </div>
 
@@ -518,6 +538,10 @@
                     <a href="{{ route('customers.edit', $customer->id) }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                         <i class="fas fa-edit mr-2"></i>Chỉnh sửa
+                    </a>
+                    <a href="{{ route('opportunities.create', ['customer_id' => $customer->id]) }}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                        <i class="fas fa-funnel-dollar mr-2"></i>Chuyển thành Cơ hội
                     </a>
                     <a href="{{ route('customers.index') }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">

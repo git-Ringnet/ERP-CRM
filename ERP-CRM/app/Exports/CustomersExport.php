@@ -30,44 +30,61 @@ class CustomersExport implements FromCollection, WithHeadings, WithMapping
 
     /**
      * Define column headings
-     * Requirements: 7.2 - customer code, name, email, phone, address, type, tax code, debt limit, and debt days
      */
     public function headings(): array
     {
         return [
-            'Mã khách hàng',
-            'Tên khách hàng',
-            'Email',
-            'Số điện thoại',
-            'Địa chỉ',
-            'Loại khách hàng',
-            'Mã số thuế',
-            'Website',
-            'Người liên hệ',
-            'Hạn mức công nợ',
-            'Số ngày công nợ',
-            'Ghi chú',
+            'Partner Name (*)',
+            'Tax code (*)',
+            'Abv Name (*)',
+            'First Name (*)',
+            'Last Name',
+            'Mr/Ms/Mrs',
+            'PIC Job Title (*)',
+            'PIC Phone (*)',
+            'PIC Email (*)',
+            'AM',
         ];
     }
 
     /**
      * Map each row to the desired format
      */
-    public function map($customer): array
+    public function map($customer_or_contact): array
     {
+        // This will be called for each item in the collection.
+        // We will adjust the collection in the controller or here if possible.
+        // Actually, Maatwebsite Excel calls map for each item in the collection.
+        // If we want multiple rows per customer (one per contact), we should 
+        // change how the collection is provided.
+        
+        // For now, let's assume the collection passed in is already flat-mapped if it's contacts,
+        // or we handle it if it's a Customer.
+        
+        if ($customer_or_contact instanceof \App\Models\Contact) {
+            $contact = $customer_or_contact;
+            $customer = $contact->customer;
+            return [
+                $customer->name ?? '',
+                $customer->tax_code ?? '',
+                $customer->abv_name ?? '',
+                $contact->first_name ?? $contact->name,
+                $contact->last_name ?? '',
+                $contact->title ?? '',
+                $contact->position ?? '',
+                $contact->phone ?? '',
+                $contact->email ?? '',
+                $customer->am ?? '',
+            ];
+        }
+
+        // Fallback for Customer without contacts (if any)
         return [
-            $customer->code ?? '',
-            $customer->name ?? '',
-            $customer->email ?? '',
-            $customer->phone ?? '',
-            $customer->address ?? '',
-            $customer->type ?? '',
-            $customer->tax_code ?? '',
-            $customer->website ?? '',
-            $customer->contact_person ?? '',
-            $customer->debt_limit ?? 0,
-            $customer->debt_days ?? 0,
-            $customer->note ?? '',
+            $customer_or_contact->name ?? '',
+            $customer_or_contact->tax_code ?? '',
+            $customer_or_contact->abv_name ?? '',
+            '', '', '', '', '', '',
+            $customer_or_contact->am ?? '',
         ];
     }
 }

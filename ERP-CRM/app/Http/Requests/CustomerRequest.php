@@ -24,8 +24,9 @@ class CustomerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
+            'abv_name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
             'address' => ['nullable', 'string', 'max:500'],
             'type' => ['required', 'in:normal,vip'],
             'tax_code' => ['required', 'string', 'max:50', Rule::unique('customers')->ignore($this->customer)],
@@ -33,11 +34,15 @@ class CustomerRequest extends FormRequest
             'debt_limit' => ['nullable', 'numeric', 'min:0'],
             'debt_days' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string'],
+            'am' => ['nullable', 'string', 'max:255'],
             'contacts' => ['nullable', 'array'],
-            'contacts.*.name' => ['required', 'string', 'max:255'],
-            'contacts.*.position' => ['nullable', 'string', 'max:255'],
-            'contacts.*.phone' => ['nullable', 'string', 'max:20'],
-            'contacts.*.email' => ['nullable', 'email', 'max:255'],
+            'contacts.*.first_name' => ['required', 'string', 'max:255'],
+            'contacts.*.last_name' => ['nullable', 'string', 'max:255'],
+            'contacts.*.title' => ['nullable', 'string', 'max:50'],
+            'contacts.*.name' => ['nullable', 'string', 'max:500'], // Full name
+            'contacts.*.position' => ['required', 'string', 'max:255'],
+            'contacts.*.phone' => ['required', 'string', 'max:20'],
+            'contacts.*.email' => ['required', 'email', 'max:255'],
             'contacts.*.is_primary' => ['nullable', 'boolean'],
         ];
     }

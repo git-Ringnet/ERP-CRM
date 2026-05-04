@@ -250,10 +250,23 @@ class CustomerController extends Controller
             $query->where('type', $request->type);
         }
 
-        $customers = $query->get();
+        $customers = $query->with('contacts')->get();
+        
+        // Flatten to contacts for export
+        $contactsToExport = collect();
+        foreach ($customers as $customer) {
+            if ($customer->contacts->isEmpty()) {
+                // If no contacts, still export the customer info with empty PIC fields
+                $contactsToExport->push($customer);
+            } else {
+                foreach ($customer->contacts as $contact) {
+                    $contactsToExport->push($contact);
+                }
+            }
+        }
 
         // Generate Excel file (Requirement 7.7)
-        $filepath = $exportService->exportCustomers($customers);
+        $filepath = $exportService->exportCustomers($contactsToExport);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
     }

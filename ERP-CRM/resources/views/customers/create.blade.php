@@ -13,9 +13,9 @@
     </div>
 
     <form action="{{ route('customers.store') }}" method="POST" x-data="{ 
-        contacts: [{ name: '', position: '', phone: '', email: '', note: '', is_primary: true }],
+        contacts: [{ name: '', first_name: '', last_name: '', title: '', position: '', phone: '', email: '', note: '', is_primary: true }],
         addContact() {
-            this.contacts.push({ name: '', position: '', phone: '', email: '', note: '', is_primary: false });
+            this.contacts.push({ name: '', first_name: '', last_name: '', title: '', position: '', phone: '', email: '', note: '', is_primary: false });
         },
         removeContact(index) {
             if (this.contacts.length > 1) {
@@ -24,6 +24,9 @@
         },
         setPrimary(index) {
             this.contacts.forEach((c, i) => c.is_primary = (i === index));
+        },
+        updateFullName(index) {
+            this.contacts[index].name = (this.contacts[index].first_name + ' ' + this.contacts[index].last_name).trim();
         }
     }">
         @csrf
@@ -58,15 +61,21 @@
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name') border-red-500 @enderror">
                                 @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
+                            <div class="md:col-span-1">
+                                <label for="abv_name" class="block text-sm font-medium text-gray-700 mb-1">Tên viết tắt (Abv Name) <span class="text-red-500">*</span></label>
+                                <input type="text" name="abv_name" id="abv_name" value="{{ old('abv_name') }}" required placeholder="VD: ADG, IIJ..."
+                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('abv_name') border-red-500 @enderror">
+                                @error('abv_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            </div>
                             <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email công ty <span class="text-red-500">*</span></label>
-                                <input type="email" name="email" id="email" value="{{ old('email') }}" required placeholder="email@example.com"
+                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email công ty</label>
+                                <input type="email" name="email" id="email" value="{{ old('email') }}" placeholder="email@example.com"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('email') border-red-500 @enderror">
                                 @error('email')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại công ty <span class="text-red-500">*</span></label>
-                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" required placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
+                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Điện thoại công ty</label>
+                                <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" placeholder="0123456789" pattern="[0-9]+" title="Chỉ được nhập số"
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
                                 @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
@@ -112,9 +121,22 @@
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Họ tên <span class="text-red-500">*</span></label>
-                                        <input type="text" :name="`contacts[${index}][name]`" x-model="contact.name" required placeholder="Nhập họ tên"
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Xưng hô (Mr/Ms/Mrs)</label>
+                                        <input type="text" :name="`contacts[${index}][title]`" x-model="contact.title" placeholder="Mr, Ms..."
                                                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tên <span class="text-red-500">*</span></label>
+                                            <input type="text" :name="`contacts[${index}][first_name]`" x-model="contact.first_name" @input="updateFullName(index)" required placeholder="Tên"
+                                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Họ</label>
+                                            <input type="text" :name="`contacts[${index}][last_name]`" x-model="contact.last_name" @input="updateFullName(index)" placeholder="Họ và tên đệm"
+                                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        </div>
+                                        <input type="hidden" :name="`contacts[${index}][name]`" x-model="contact.name">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 mb-1">Chức vụ</label>
@@ -184,6 +206,11 @@
                         <div>
                             <label for="debt_days" class="block text-sm font-medium text-gray-700 mb-1">Số ngày nợ cho phép</label>
                             <input type="number" name="debt_days" id="debt_days" value="{{ old('debt_days', 0) }}" min="0"
+                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                        </div>
+                        <div>
+                            <label for="am" class="block text-sm font-medium text-gray-700 mb-1">Account Manager (AM)</label>
+                            <input type="text" name="am" id="am" value="{{ old('am') }}" placeholder="Tên AM"
                                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                         </div>
                     </div>

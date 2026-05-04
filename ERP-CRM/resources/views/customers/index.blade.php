@@ -118,7 +118,12 @@
                         <span class="font-medium text-gray-900">{{ $customer->tax_code }}</span>
                     </td>
                     <td class="px-4 py-3">
-                        <div class="text-sm font-bold text-gray-900 uppercase">{{ $customer->name }}</div>
+                        <div class="text-sm font-bold text-gray-900 uppercase">
+                            {{ $customer->name }}
+                            @if($customer->abv_name)
+                                <span class="text-xs font-normal text-gray-500 normal-case">({{ $customer->abv_name }})</span>
+                            @endif
+                        </div>
                         <div class="text-xs text-gray-500 mt-1">
                             <i class="fas fa-users mr-1"></i> {{ $customer->contacts->count() }} người liên hệ
                         </div>
@@ -147,6 +152,11 @@
                                class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors" 
                                title="Xem chi tiết">
                                 <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ route('opportunities.create', ['customer_id' => $customer->id]) }}" 
+                               class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors" 
+                               title="Chuyển thành Cơ hội">
+                                <i class="fas fa-funnel-dollar"></i>
                             </a>
                             <a href="{{ route('customers.edit', $customer->id) }}" 
                                class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors" 
@@ -223,7 +233,12 @@
         <div class="p-4 hover:bg-gray-50">
             <div class="flex justify-between items-start mb-2" @click="expanded === {{ $customer->id }} ? expanded = null : expanded = {{ $customer->id }}">
                 <div class="flex-1">
-                    <div class="font-bold text-gray-900 uppercase">{{ $customer->name }}</div>
+                    <div class="font-bold text-gray-900 uppercase">
+                        {{ $customer->name }}
+                        @if($customer->abv_name)
+                            <span class="text-xs font-normal text-gray-500 normal-case">({{ $customer->abv_name }})</span>
+                        @endif
+                    </div>
                     <div class="text-sm text-gray-500">MST: {{ $customer->tax_code }}</div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -260,6 +275,10 @@
                 <a href="{{ route('customers.show', $customer->id) }}" 
                    class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
                     <i class="fas fa-eye mr-1"></i>Xem
+                </a>
+                <a href="{{ route('opportunities.create', ['customer_id' => $customer->id]) }}" 
+                   class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
+                    <i class="fas fa-funnel-dollar mr-1"></i>Cơ hội
                 </a>
                 <a href="{{ route('customers.edit', $customer->id) }}" 
                    class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">

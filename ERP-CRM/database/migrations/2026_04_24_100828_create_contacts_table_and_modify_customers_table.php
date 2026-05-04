@@ -13,7 +13,8 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Create contacts table
-        Schema::create('contacts', function (Blueprint $table) {
+        if (!Schema::hasTable('contacts')) {
+            Schema::create('contacts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->string('name');
@@ -24,9 +25,11 @@ return new class extends Migration
             $table->text('note')->nullable();
             $table->timestamps();
         });
+        }
 
         // 2. Data Migration: Move contact_person from customers to contacts
-        $customers = DB::table('customers')->get();
+        if (DB::table('contacts')->count() == 0) {
+            $customers = DB::table('customers')->get();
         foreach ($customers as $customer) {
             if ($customer->contact_person) {
                 DB::table('contacts')->insert([
@@ -39,6 +42,7 @@ return new class extends Migration
                     'updated_at' => now(),
                 ]);
             }
+        }
         }
 
         // 3. Modify customers table
@@ -53,8 +57,11 @@ return new class extends Migration
             }
 
             // Make tax_code mandatory and unique
-            // Note: We might need to handle NULL or duplicate tax_codes if they exist
-            // but for now we follow the requirement.
+            // Handle NULL tax_codes before changing constraint
+            DB::table('customers')->whereNull('tax_code')->update([
+                'tax_code' => DB::raw("CONCAT('TEMP-', id)")
+            ]);
+
             $table->string('tax_code', 50)->nullable(false)->change();
             $table->unique('tax_code');
         });

@@ -5,6 +5,21 @@
 
 @section('content')
 <div class="space-y-6">
+    {{-- Quick Access Section --}}
+    <div class="bg-white rounded-lg shadow-sm p-4 flex flex-wrap gap-4 items-center justify-between border-l-4 border-primary">
+        <div>
+            <h4 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Công cụ Quản trị</h4>
+            <p class="text-xs text-gray-500">Quản lý hệ thống nâng cao</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{{ route('settings.database.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors text-sm font-medium">
+                <i class="fas fa-database mr-2 text-primary"></i>
+                Quản lý & Sao lưu Dữ liệu
+            </a>
+            {{-- Any other admin links can go here --}}
+        </div>
+    </div>
+
     <!-- Company Settings -->
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">

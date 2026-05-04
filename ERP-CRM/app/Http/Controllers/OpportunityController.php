@@ -42,13 +42,19 @@ class OpportunityController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
         $this->authorize('create', \App\Models\Opportunity::class);
 
         $customers = \App\Models\Customer::all();
         $users = \App\Models\User::all();
-        return view('opportunities.create', compact('customers', 'users'));
+        
+        $prefill = [];
+        if ($request->has('customer_id')) {
+            $prefill['customer_id'] = $request->get('customer_id');
+        }
+
+        return view('opportunities.create', compact('customers', 'users', 'prefill'));
     }
 
     /**

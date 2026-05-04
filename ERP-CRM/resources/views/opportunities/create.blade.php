@@ -46,7 +46,7 @@
                         <option value="">-- Chọn khách hàng --</option>
                         @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" {{ old('customer_id', $prefill['customer_id'] ?? '') == $customer->id ? 'selected' : '' }}>
-                                {{ $customer->name }} ({{ $customer->code }})
+                                {{ $customer->name }} {{ $customer->abv_name ? "($customer->abv_name)" : "($customer->tax_code)" }}
                             </option>
                         @endforeach
                     </select>

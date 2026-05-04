@@ -176,6 +176,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
     Route::post('/settings/company', [SettingController::class, 'updateCompany'])->name('settings.company.update');
 
+    // Database Backup & Restore routes
+    Route::get('/settings/database', [\App\Http\Controllers\DatabaseBackupController::class, 'index'])->name('settings.database.index');
+    Route::post('/settings/database/export', [\App\Http\Controllers\DatabaseBackupController::class, 'export'])->name('settings.database.export');
+    Route::post('/settings/database/import', [\App\Http\Controllers\DatabaseBackupController::class, 'import'])->name('settings.database.import');
+    Route::post('/settings/database/show-password/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'showPassword'])->name('settings.database.show-password');
+    Route::delete('/settings/database/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'destroy'])->name('settings.database.destroy');
+
     // Customer Debt Management routes
     Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');
     Route::get('/customer-debts/export', [CustomerDebtController::class, 'export'])->name('customer-debts.export');

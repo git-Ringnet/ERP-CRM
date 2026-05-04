@@ -22,63 +22,91 @@ class CustomersImport implements ToCollection, WithHeadingRow
     {
         DB::beginTransaction();
         try {
-            foreach ($rows as $index => $row) {
-                $rowNumber = $index + 2;
+            // Group rows by tax_code
+            $groupedRows = $rows->groupBy(function ($row) {
+                return trim($row['ma_so_thue'] ?? $row['tax_code'] ?? '');
+            });
 
-                // Skip empty rows
-                if (empty(array_filter($row->toArray()))) {
+            foreach ($groupedRows as $taxCode => $partnerRows) {
+                if (empty($taxCode)) continue;
+
+                $firstRow = $partnerRows->first();
+                $partnerName = trim($firstRow['ten_doi_tac'] ?? $firstRow['partner_name'] ?? '');
+                $abvName = trim($firstRow['ten_viet_tat'] ?? $firstRow['abv_name'] ?? '');
+                
+                // Collect all unique non-empty AMs from all rows of this partner
+                $ams = $partnerRows->map(function($row) {
+                    return trim($row['am'] ?? '');
+                })->filter()->unique()->join(', ');
+
+                if (empty($partnerName)) {
+                    $this->errors[] = "Thiếu tên đối tác cho MST: {$taxCode}";
                     continue;
                 }
 
-                $code = trim($row['ma_kh'] ?? $row['code'] ?? '');
-                $name = trim($row['ten_khach_hang'] ?? $row['name'] ?? '');
-
-                // Skip if no code or name
-                if (empty($code) || empty($name)) {
-                    $this->errors[] = "Dòng {$rowNumber}: Thiếu mã KH hoặc tên khách hàng";
-                    continue;
-                }
-
-                // Validate email format
-                $email = trim($row['email'] ?? '');
-                if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $this->errors[] = "Dòng {$rowNumber}: Email không hợp lệ '{$email}'";
-                    continue;
-                }
-
-                // Parse type
-                $typeRaw = trim($row['loai'] ?? $row['type'] ?? 'normal');
-                $type = $this->parseType($typeRaw);
-
-                // Parse debt_limit
-                $debtLimit = $this->parseNumber($row['han_muc_no'] ?? $row['debt_limit'] ?? 0);
-
-                // Parse debt_days
-                $debtDays = (int) ($row['so_ngay_no'] ?? $row['debt_days'] ?? 0);
-
-                $data = [
-                    'code' => $code,
-                    'name' => $name,
-                    'email' => $email ?: null,
-                    'phone' => trim($row['dien_thoai'] ?? $row['phone'] ?? '') ?: null,
-                    'address' => trim($row['dia_chi'] ?? $row['address'] ?? '') ?: null,
-                    'type' => $type,
-                    'tax_code' => trim($row['ma_so_thue'] ?? $row['tax_code'] ?? '') ?: null,
-                    'website' => trim($row['website'] ?? '') ?: null,
-                    'contact_person' => trim($row['nguoi_lien_he'] ?? $row['contact_person'] ?? '') ?: null,
-                    'debt_limit' => $debtLimit,
-                    'debt_days' => $debtDays,
-                    'note' => trim($row['ghi_chu'] ?? $row['note'] ?? '') ?: null,
+                // 1. Find or create Customer (Partner)
+                $customerData = [
+                    'name' => $partnerName,
+                    'tax_code' => $taxCode,
+                    'abv_name' => $abvName,
+                    'am' => $ams ?: null,
                 ];
 
-                // Check if customer exists
-                $existing = Customer::where('code', $code)->first();
-                if ($existing) {
-                    $existing->update($data);
-                    $this->updated++;
-                } else {
-                    Customer::create($data);
+                // For new customers, we can use the first row's PIC info as fallback for company email/phone
+                // This will be overridden if user enters specific company info later
+                $firstPicEmail = trim($firstRow['email_pic'] ?? $firstRow['pic_email'] ?? '');
+                $firstPicPhone = trim($firstRow['so_dien_thoai_pic'] ?? $firstRow['pic_phone'] ?? '');
+                
+                $customer = Customer::where('tax_code', $taxCode)->first();
+                if (!$customer) {
+                    $customerData['email'] = $firstPicEmail;
+                    $customerData['phone'] = $firstPicPhone;
+                    $customer = Customer::create($customerData);
                     $this->imported++;
+                } else {
+                    $customer->update($customerData);
+                    $this->updated++;
+                }
+
+                // 2. Create or update Contacts (PICs) for this partner
+                foreach ($partnerRows as $index => $row) {
+                    $rowNumber = $rows->search($row) + 2;
+
+                    $firstName = trim($row['ten'] ?? $row['first_name'] ?? '');
+                    $lastName = trim($row['ho'] ?? $row['last_name'] ?? '');
+                    $title = trim($row['danh_xung'] ?? $row['mr_ms_mrs'] ?? $row['mrmsmrs'] ?? '');
+                    $position = trim($row['chuc_vu_pic'] ?? $row['pic_job_title'] ?? '');
+                    $phone = trim($row['so_dien_thoai_pic'] ?? $row['pic_phone'] ?? '');
+                    $email = trim($row['email_pic'] ?? $row['pic_email'] ?? '');
+
+                    if (empty($firstName) || empty($position) || empty($phone) || empty($email)) {
+                        $this->errors[] = "Dòng {$rowNumber}: Thiếu thông tin PIC bắt buộc (Tên, Chức vụ, SĐT, Email)";
+                        continue;
+                    }
+
+                    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        $this->errors[] = "Dòng {$rowNumber}: Email PIC không hợp lệ '{$email}'";
+                        continue;
+                    }
+
+                    $contactData = [
+                        'customer_id' => $customer->id,
+                        'name' => trim($firstName . ' ' . $lastName),
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'title' => $title,
+                        'position' => $position,
+                        'phone' => $phone,
+                        'email' => $email,
+                    ];
+
+                    // Update contact by email within the same customer
+                    $contact = $customer->contacts()->where('email', $email)->first();
+                    if ($contact) {
+                        $contact->update($contactData);
+                    } else {
+                        $customer->contacts()->create($contactData);
+                    }
                 }
             }
 
@@ -92,25 +120,6 @@ class CustomersImport implements ToCollection, WithHeadingRow
             DB::rollBack();
             $this->errors[] = 'Lỗi: ' . $e->getMessage();
         }
-    }
-
-    protected function parseType(string $type): string
-    {
-        $type = strtolower(trim($type));
-        if (in_array($type, ['vip', 'v', '1'])) {
-            return 'vip';
-        }
-        return 'normal';
-    }
-
-    protected function parseNumber($value): float
-    {
-        if (empty($value)) {
-            return 0;
-        }
-        // Remove thousand separators and convert
-        $value = str_replace(['.', ',', ' ', 'đ', 'd'], ['', '.', '', '', ''], $value);
-        return (float) $value;
     }
 
     public function getErrors(): array
@@ -138,21 +147,29 @@ class CustomersImport implements ToCollection, WithHeadingRow
         $sheet->setTitle('Khách Hàng');
 
         $headers = [
-            'Mã KH', 'Tên khách hàng', 'Email', 'Điện thoại', 'Địa chỉ',
-            'Loại', 'Mã số thuế', 'Website', 'Người liên hệ',
-            'Hạn mức nợ', 'Số ngày nợ', 'Ghi chú'
+            'Partner Name (*)', 'Tax code (*)', 'Abv Name (*)', 'First Name (*)', 'Last Name', 
+            'Mr/Ms/Mrs', 'PIC Job Title (*)', 'PIC Phone (*)', 'PIC Email (*)', 'AM'
         ];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:L1')->getFill()
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:J1')->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setRGB('4472C4');
-        $sheet->getStyle('A1:L1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:J1')->getFont()->getColor()->setRGB('FFFFFF');
 
         $examples = [
-            ['KH001', 'Công ty TNHH ABC', 'contact@abc.com.vn', '0901234567', '123 Nguyễn Văn Linh, Q7, TP.HCM', 'VIP', '0123456789', 'https://abc.com.vn', 'Nguyễn Văn A', 500000000, 30, 'Khách hàng lớn'],
-            ['KH002', 'Công ty CP XYZ', 'info@xyz.vn', '0912345678', '456 Phạm Văn Đồng, Cầu Giấy, Hà Nội', 'VIP', '9876543210', 'https://xyz.vn', 'Trần Thị B', 300000000, 45, ''],
-            ['KH003', 'Cửa hàng Minh Phát', 'minhphat@gmail.com', '0923456789', '789 Lê Lợi, Q1, TP.HCM', 'Thường', '', '', 'Lê Văn C', 50000000, 15, ''],
+            [
+                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', '0102023052', 'ADG', 'Lâm', 'Võ Tùng', 
+                'Mr', 'Director Danang Branch', '(+84) 973 777 733', 'lam.vo@adg.vn', 'Vịnh'
+            ],
+            [
+                'CÔNG TY CỔ PHẦN ĐẦU TƯ VÀ PHÁT TRIỂN CÔNG NGHỆ QUỐC GIA ADG', '0102023052', 'ADG', 'Phương', 'Trần Thị Trúc', 
+                'Ms', 'Purchare & Receptionist Danang Branch', '(+84) 988 049 950', 'trucphuong.tran@adg.vn', 'Vịnh'
+            ],
+            [
+                'CÔNG TY TNHH GIẢI PHÁP TOÀN CẦU IIJ VIỆT NAM', '0107620905', 'IIJ', 'Thiên', 'Nguyễn', 
+                'Mr', 'Presales', '(+84) 919 35 39 35', 'thien.nguyen@ap.iij.com', 'Tài/ Tuệ'
+            ],
         ];
 
         $row = 2;
@@ -161,12 +178,12 @@ class CustomersImport implements ToCollection, WithHeadingRow
             $row++;
         }
 
-        foreach (range('A', 'L') as $col) {
+        foreach (range('A', 'J') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $sheet->getStyle("A1:L{$lastRow}")->getBorders()->getAllBorders()
+        $sheet->getStyle("A1:J{$lastRow}")->getBorders()->getAllBorders()
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'customer_template_') . '.xlsx';

@@ -11,10 +11,16 @@
         <h4 class="text-lg font-medium text-gray-900">
             <i class="fas fa-file-invoice-dollar text-purple-500 mr-2"></i>Chi phí đơn hàng
         </h4>
-        <button type="button" @click="addExpense()"
-                class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
-            <i class="fas fa-plus mr-1.5"></i> Thêm chi phí
-        </button>
+        <div class="flex gap-2">
+            <button type="button" @click="addDefaultExpenses()"
+                    class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
+                <i class="fas fa-magic mr-1.5"></i> Thêm chi phí mặc định
+            </button>
+            <button type="button" @click="addExpense()"
+                    class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
+                <i class="fas fa-plus mr-1.5"></i> Thêm chi phí
+            </button>
+        </div>
     </div>
 
     {{-- Header --}}
@@ -123,6 +129,26 @@ function expenseManager() {
             e.input_value = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(e.input_value);
             return e;
         }),
+
+        defaultExpensesTemplates: @json(\App\Models\SaleExpense::defaultExpenses()),
+
+        addDefaultExpenses() {
+            const defaults = this.defaultExpensesTemplates.map(e => ({
+                type: e.type || '',
+                input_mode: e.input_mode || 'fixed',
+                _modeBeforeFocus: e.input_mode || 'fixed',
+                input_value: e.input_mode === 'percent' ? (parseFloat(e.percent_value) || 0) : (parseFloat(e.amount) || 0),
+                calculated_amount: parseFloat(e.amount) || 0,
+                description: e.description || '',
+            })).map(e => {
+                e.input_value = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(e.input_value);
+                return e;
+            });
+
+            // Append default expenses
+            this.expenses.push(...defaults);
+            this.recalcAll();
+        },
 
         get totalPercent() {
             let p = this.expenses.reduce((sum, e) => sum + (e.input_mode === 'percent' ? (parseFloat(e.input_value) || 0) : 0), 0);

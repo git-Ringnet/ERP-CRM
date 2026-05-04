@@ -13,6 +13,7 @@ class Customer extends Model
 
     protected $fillable = [
         'name',
+        'abv_name',
         'email',
         'phone',
         'address',
@@ -22,6 +23,7 @@ class Customer extends Model
         'debt_limit',
         'debt_days',
         'note',
+        'am',
     ];
 
     protected $casts = [
