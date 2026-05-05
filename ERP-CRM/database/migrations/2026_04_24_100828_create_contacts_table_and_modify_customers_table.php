@@ -71,16 +71,22 @@ return new class extends Migration
                 ->get();
 
             foreach ($duplicates as $duplicate) {
-                $records = DB::table('customers')
+                $first = DB::table('customers')
                     ->where('tax_code', $duplicate->tax_code)
                     ->orderBy('id')
-                    ->skip(1)
-                    ->get();
-                
-                foreach ($records as $record) {
-                    DB::table('customers')->where('id', $record->id)->update([
-                        'tax_code' => $record->tax_code . '-' . $record->id
-                    ]);
+                    ->first();
+
+                if ($first) {
+                    $records = DB::table('customers')
+                        ->where('tax_code', $duplicate->tax_code)
+                        ->where('id', '!=', $first->id)
+                        ->get();
+                    
+                    foreach ($records as $record) {
+                        DB::table('customers')->where('id', $record->id)->update([
+                            'tax_code' => $record->tax_code . '-' . $record->id
+                        ]);
+                    }
                 }
             }
 
