@@ -515,6 +515,90 @@
             </div>
         @endif
 
+        {{-- Yêu cầu đặt hàng từ Sales --}}
+        @if($purchaseOrder->sale && $purchaseOrder->sale->orderRequests->count() > 0)
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
+                <h3 class="font-semibold flex items-center">
+                    <i class="fas fa-clipboard-list mr-2 text-teal-600"></i>
+                    Yêu cầu đặt hàng từ Sales
+                    <a href="{{ route('sales.show', $purchaseOrder->sale_id) }}" class="ml-2 text-sm font-normal text-teal-600 hover:underline">
+                        ({{ $purchaseOrder->sale->code }})
+                    </a>
+                </h3>
+            </div>
+            @foreach($purchaseOrder->sale->orderRequests as $req)
+            <div class="p-4 {{ !$loop->last ? 'border-b' : '' }}">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="px-2 py-1 text-xs font-bold rounded bg-teal-100 text-teal-800">{{ $req->code }}</span>
+                    <span class="text-sm text-gray-600">
+                        <i class="fas fa-user text-gray-400 mr-1"></i>{{ $req->creator->name ?? 'N/A' }}
+                    </span>
+                    <span class="text-xs text-gray-400">
+                        <i class="fas fa-clock mr-1"></i>{{ $req->created_at->format('d/m/Y H:i') }}
+                    </span>
+                </div>
+
+                {{-- Items --}}
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table class="w-full text-xs">
+                        <thead class="bg-yellow-200">
+                            <tr class="border-b border-gray-300">
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Vendor</th>
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Type</th>
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Part Number</th>
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SN</th>
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Exp date</th>
+                                <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SI Name</th>
+                                <th colspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-gray-300">Thông tin CQ (Điền tay)</th>
+                            </tr>
+                            <tr class="border-b border-gray-300">
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300">EU Name - MST</th>
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800">Address</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($req->items as $item)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-2 py-1.5 font-medium">{{ $item->vendor }}</td>
+                                <td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">{{ $item->type }}</span></td>
+                                <td class="px-2 py-1.5 font-medium text-teal-700">{{ $item->part_number }}</td>
+                                <td class="px-2 py-1.5 text-gray-600">{{ $item->serial_number ?: '-' }}</td>
+                                <td class="px-2 py-1.5 text-gray-600">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
+                                <td class="px-2 py-1.5">{{ $item->si_name }}</td>
+                                <td class="px-2 py-1.5">{{ $item->eu_name_mst }}</td>
+                                <td class="px-2 py-1.5 text-gray-600">{{ $item->address ?: '-' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                {{-- Note --}}
+                @if($req->note)
+                <div class="mt-2 bg-yellow-50 rounded-lg p-3 text-sm text-gray-700">
+                    <i class="fas fa-sticky-note text-yellow-500 mr-1"></i>Note: {{ $req->note }}
+                </div>
+                @endif
+
+                {{-- Attachments --}}
+                @if($req->attachments->count() > 0)
+                <div class="mt-2 flex flex-wrap gap-2">
+                    @foreach($req->attachments as $att)
+                    <a href="{{ route('sales.order-request.attachment.download', [$purchaseOrder->sale_id, $att->id]) }}" 
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-blue-50 rounded-lg text-xs text-gray-700 hover:text-blue-600 transition-colors">
+                        <i class="{{ $att->file_icon }}"></i>
+                        <span>{{ $att->file_name }}</span>
+                        <span class="text-gray-400">({{ $att->file_size_formatted }})</span>
+                    </a>
+                    @endforeach
+                </div>
+                @endif
+            </div>
+            @endforeach
+        </div>
+        @endif
+
         <!-- Cost Breakdown / P&L Section -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gradient-to-r from-green-50 to-blue-50">

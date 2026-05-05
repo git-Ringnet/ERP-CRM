@@ -223,7 +223,7 @@ class PurchaseOrderController extends Controller
             abort(404);
         }
 
-        $purchaseOrder->load(['supplier', 'items.product', 'supplierQuotation', 'creator', 'approver']);
+        $purchaseOrder->load(['supplier', 'items.product', 'supplierQuotation', 'creator', 'approver', 'sale.orderRequests.items', 'sale.orderRequests.attachments', 'sale.orderRequests.creator']);
         return view('purchase-orders.show', compact('purchaseOrder'));
     }
 

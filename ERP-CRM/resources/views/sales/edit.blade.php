@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="bg-white rounded-lg shadow-sm">
-    <form action="{{ route('sales.update', $sale->id) }}" method="POST" id="saleForm">
+    <form action="{{ route('sales.update', $sale->id) }}" method="POST" id="saleForm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
         
@@ -263,6 +263,9 @@
                 <textarea name="note" rows="2"
                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note', $sale->note) }}</textarea>
             </div>
+
+            <!-- Yêu cầu đặt hàng -->
+            @include('sales.partials.order-request-form', ['orderRequest' => $sale->orderRequests->first()])
         </div>
 
         <!-- Validation Error Message -->
@@ -316,6 +319,10 @@
 <script>
 let productIndex = {{ count($sale->items) }};
 let isSubmitting = false;
+
+// Order Request config
+window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
+window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
 
 // Prevent "Leave site?" warning when submitting form
 window.addEventListener('beforeunload', function(e) {
@@ -1110,4 +1117,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 </script>
+<script src="{{ asset('js/order-request.js') }}"></script>
 @endpush

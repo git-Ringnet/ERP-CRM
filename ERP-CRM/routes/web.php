@@ -165,6 +165,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
+    Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
+    Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
 
     // Cost Formula routes
     Route::resource('cost-formulas', CostFormulaController::class);

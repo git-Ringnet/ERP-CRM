@@ -24,9 +24,12 @@
                                 class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent">
                             <i class="fas fa-sticky-note absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-400"></i>
                         </div>
-                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors" title="Tìm kiếm">
                             <i class="fas fa-search"></i>
                         </button>
+                        <a href="{{ route('sales.index') }}" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center" title="Làm mới">
+                            <i class="fas fa-sync-alt"></i>
+                        </a>
                     </form>
                 </div>
 

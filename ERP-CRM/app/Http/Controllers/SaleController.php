@@ -70,7 +70,11 @@ class SaleController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                    ->orWhere('customer_name', 'like', "%{$search}%");
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhereHas('orderRequests', function ($q2) use ($search) {
+                        $q2->where('code', 'like', "%{$search}%")
+                           ->orWhere('note', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -97,7 +101,12 @@ class SaleController extends Controller
         // Search by note
         if ($request->filled('note_search')) {
             $noteSearch = $request->note_search;
-            $query->where('note', 'like', "%{$noteSearch}%");
+            $query->where(function($q) use ($noteSearch) {
+                $q->where('note', 'like', "%{$noteSearch}%")
+                  ->orWhereHas('orderRequests', function ($q2) use ($noteSearch) {
+                      $q2->where('note', 'like', "%{$noteSearch}%");
+                  });
+            });
         }
 
         // Filter by specific date range
@@ -339,19 +348,53 @@ class SaleController extends Controller
             $sale->updateDebt();
             $sale->save();
 
-            // Xử lý upload file đính kèm nếu có
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('sale-attachments/' . $sale->id, 'public');
-                    \App\Models\SaleAttachment::create([
+            // Xử lý Yêu cầu đặt hàng nếu có
+            if ($request->has('order_request_items')) {
+                $hasValidItems = collect($request->input('order_request_items'))
+                    ->filter(fn($item) => !empty($item['vendor']) && !empty($item['part_number']))
+                    ->isNotEmpty();
+
+                if ($hasValidItems) {
+                    $orderRequest = \App\Models\SaleOrderRequest::create([
+                        'code' => \App\Models\SaleOrderRequest::generateCode(),
                         'sale_id' => $sale->id,
-                        'uploaded_by' => auth()->id(),
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_path' => $path,
-                        'mime_type' => $file->getMimeType(),
-                        'file_size' => $file->getSize(),
-                        'note' => '',
+                        'created_by' => auth()->id(),
+                        'note' => $request->input('order_request_note'),
+                        'sent_at' => now(),
                     ]);
+
+                    foreach ($request->input('order_request_items') as $item) {
+                        if (empty($item['vendor']) || empty($item['part_number'])) continue;
+                        \App\Models\SaleOrderRequestItem::create([
+                            'sale_order_request_id' => $orderRequest->id,
+                            'vendor' => $item['vendor'],
+                            'type' => $item['type'],
+                            'part_number' => $item['part_number'],
+                            'serial_number' => $item['serial_number'] ?? null,
+                            'exp_date' => $item['exp_date'] ?? null,
+                            'si_name' => $item['si_name'] ?? '',
+                            'eu_name_mst' => $item['eu_name_mst'] ?? '',
+                            'address' => $item['address'] ?? null,
+                        ]);
+                    }
+
+                    // Upload files for order request
+                    if ($request->hasFile('order_request_files')) {
+                        foreach ($request->file('order_request_files') as $file) {
+                            $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
+                            \App\Models\SaleOrderRequestAttachment::create([
+                                'sale_order_request_id' => $orderRequest->id,
+                                'file_name' => $file->getClientOriginalName(),
+                                'file_path' => $path,
+                                'mime_type' => $file->getMimeType(),
+                                'file_size' => $file->getSize(),
+                                'uploaded_by' => auth()->id(),
+                            ]);
+                        }
+                    }
+
+                    // Notify PO team
+                    $this->notifyPoTeam($sale, $orderRequest);
                 }
             }
 
@@ -375,7 +418,7 @@ class SaleController extends Controller
             abort(404);
         }
 
-        $sale->load(['items.product', 'customer', 'expenses', 'project']);
+        $sale->load(['items.product', 'customer', 'expenses', 'project', 'orderRequests']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
@@ -389,7 +432,7 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        $sale->load(['items.product', 'expenses']);
+        $sale->load(['items.product', 'expenses', 'orderRequests.items', 'orderRequests.attachments']);
         $customers = Customer::orderBy('name')->get();
         
         // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
@@ -640,6 +683,65 @@ class SaleController extends Controller
             $sale->calculateMargin();
             $sale->updateDebt();
             $sale->save();
+
+            // Xử lý Yêu cầu đặt hàng nếu có
+            if ($request->has('order_request_items')) {
+                $hasValidItems = collect($request->input('order_request_items'))
+                    ->filter(fn($item) => !empty($item['vendor']) && !empty($item['part_number']))
+                    ->isNotEmpty();
+
+                if ($hasValidItems) {
+                    // Delete old order request if updating
+                    $existingRequest = $sale->orderRequests()->first();
+                    if ($existingRequest) {
+                        $existingRequest->items()->delete();
+                        // Keep old attachments, only add new ones
+                    }
+
+                    $orderRequest = $existingRequest ?? \App\Models\SaleOrderRequest::create([
+                        'code' => \App\Models\SaleOrderRequest::generateCode(),
+                        'sale_id' => $sale->id,
+                        'created_by' => auth()->id(),
+                        'sent_at' => now(),
+                    ]);
+
+                    $orderRequest->update([
+                        'note' => $request->input('order_request_note'),
+                    ]);
+
+                    // Recreate items
+                    $orderRequest->items()->delete();
+                    foreach ($request->input('order_request_items') as $item) {
+                        if (empty($item['vendor']) || empty($item['part_number'])) continue;
+                        \App\Models\SaleOrderRequestItem::create([
+                            'sale_order_request_id' => $orderRequest->id,
+                            'vendor' => $item['vendor'],
+                            'type' => $item['type'],
+                            'part_number' => $item['part_number'],
+                            'serial_number' => $item['serial_number'] ?? null,
+                            'exp_date' => $item['exp_date'] ?? null,
+                            'si_name' => $item['si_name'] ?? '',
+                            'eu_name_mst' => $item['eu_name_mst'] ?? '',
+                            'address' => $item['address'] ?? null,
+                        ]);
+                    }
+
+                    // Upload new files
+                    if ($request->hasFile('order_request_files')) {
+                        foreach ($request->file('order_request_files') as $file) {
+                            $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
+                            \App\Models\SaleOrderRequestAttachment::create([
+                                'sale_order_request_id' => $orderRequest->id,
+                                'file_name' => $file->getClientOriginalName(),
+                                'file_path' => $path,
+                                'mime_type' => $file->getMimeType(),
+                                'file_size' => $file->getSize(),
+                                'uploaded_by' => auth()->id(),
+                            ]);
+                        }
+                    }
+                }
+            }
 
             DB::commit();
 
@@ -1652,6 +1754,151 @@ class SaleController extends Controller
         return redirect()->route('sales.show', $sale->id)
             ->with('success', 'P&L đã bị từ chối.')
             ->withFragment('pnl');
+    }
+
+    /**
+     * Notify PO team about a new order request
+     */
+    private function notifyPoTeam(Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        $poUsers = User::whereHas('roles', function ($q) {
+            $q->where('slug', 'admin')
+              ->orWhere('slug', 'purchase_manager');
+        })->get();
+
+        if ($poUsers->isEmpty()) {
+            $poUsers = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'admin');
+            })->get();
+        }
+
+        $senderName = auth()->user()->name ?? 'Sales';
+        foreach ($poUsers as $user) {
+            if ($user->id === auth()->id()) continue;
+
+            Notification::create([
+                'user_id' => $user->id,
+                'type' => 'order_request',
+                'title' => 'Yêu cầu đặt hàng mới',
+                'message' => "{$senderName} đã gửi yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-cart-plus',
+                'color' => 'blue',
+            ]);
+        }
+    }
+
+    /**
+     * Store a new order request (Yêu cầu đặt hàng) from Sales to PO team
+     */
+    public function storeOrderRequest(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.vendor' => 'required|string|max:255',
+            'items.*.type' => 'required|string|max:100',
+            'items.*.part_number' => 'required|string|max:255',
+            'items.*.serial_number' => 'nullable|string|max:255',
+            'items.*.exp_date' => 'nullable|date',
+            'items.*.si_name' => 'required|string|max:255',
+            'items.*.eu_name_mst' => 'required|string|max:255',
+            'items.*.address' => 'nullable|string|max:500',
+            'order_request_note' => 'nullable|string|max:2000',
+            'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $orderRequest = \App\Models\SaleOrderRequest::create([
+                'code' => \App\Models\SaleOrderRequest::generateCode(),
+                'sale_id' => $sale->id,
+                'created_by' => auth()->id(),
+                'note' => $request->input('order_request_note'),
+                'sent_at' => now(),
+            ]);
+
+            // Create items
+            foreach ($request->input('items') as $item) {
+                \App\Models\SaleOrderRequestItem::create([
+                    'sale_order_request_id' => $orderRequest->id,
+                    'vendor' => $item['vendor'],
+                    'type' => $item['type'],
+                    'part_number' => $item['part_number'],
+                    'serial_number' => $item['serial_number'] ?? null,
+                    'exp_date' => $item['exp_date'] ?? null,
+                    'si_name' => $item['si_name'],
+                    'eu_name_mst' => $item['eu_name_mst'],
+                    'address' => $item['address'] ?? null,
+                ]);
+            }
+
+            // Handle file uploads
+            if ($request->hasFile('order_request_files')) {
+                foreach ($request->file('order_request_files') as $file) {
+                    $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
+                    \App\Models\SaleOrderRequestAttachment::create([
+                        'sale_order_request_id' => $orderRequest->id,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'file_size' => $file->getSize(),
+                        'uploaded_by' => auth()->id(),
+                    ]);
+                }
+            }
+
+            // Send notification to all users with purchase order management permissions
+            $poUsers = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'admin')
+                  ->orWhere('slug', 'purchase_manager');
+            })->get();
+
+            // Fallback: if no role-based users found, notify admins
+            if ($poUsers->isEmpty()) {
+                $poUsers = User::whereHas('roles', function ($q) {
+                    $q->where('slug', 'admin');
+                })->get();
+            }
+
+            $senderName = auth()->user()->name ?? 'Sales';
+            foreach ($poUsers as $user) {
+                if ($user->id === auth()->id()) continue; // Don't notify self
+
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'order_request',
+                    'title' => 'Yêu cầu đặt hàng mới',
+                    'message' => "{$senderName} đã gửi yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-cart-plus',
+                    'color' => 'blue',
+                ]);
+            }
+
+            DB::commit();
+
+            return back()->with('success', "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Store order request failed: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download order request attachment
+     */
+    public function downloadOrderRequestAttachment(Sale $sale, \App\Models\SaleOrderRequestAttachment $attachment)
+    {
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
+        if (!Storage::disk('public')->exists($attachment->file_path)) {
+            return back()->with('error', 'File không tồn tại.');
+        }
+
+        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
     }
 }
 

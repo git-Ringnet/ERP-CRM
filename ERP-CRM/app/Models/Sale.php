@@ -133,6 +133,14 @@ class Sale extends Model
     }
 
     /**
+     * Relationship with SaleOrderRequest (yêu cầu đặt hàng)
+     */
+    public function orderRequests()
+    {
+        return $this->hasMany(SaleOrderRequest::class);
+    }
+
+    /**
      * Scope for searching sales
      */
     public function scopeSearch(Builder $query, ?string $search): Builder
