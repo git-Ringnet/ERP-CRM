@@ -153,7 +153,7 @@
                             hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo / HĐ
                         </th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng
                             tiền</th>
@@ -213,8 +213,13 @@
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $sale->user->name ?? 'N/A' }}</div>
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                {{ $sale->date->format('d/m/Y') }}
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ $sale->date->format('d/m/Y') }}</div>
+                                @if($sale->invoice_date)
+                                    <div class="text-xs text-blue-600 mt-1" title="Ngày xuất hóa đơn / Nhận công nợ">
+                                        HĐ: {{ \Carbon\Carbon::parse($sale->invoice_date)->format('d/m/Y') }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
                                 @if($sale->currency && !$sale->currency->is_base)

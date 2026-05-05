@@ -17,8 +17,12 @@
                 </div>
             </div>
             <div class="flex gap-2">
+                <a href="{{ route('customer-debts.statement', $customer) }}"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-file-invoice mr-1"></i> Sao kê
+                </a>
                 <a href="{{ route('customers.show', $customer) }}"
-                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">
+                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
                     <i class="fas fa-user mr-1"></i> Xem KH
                 </a>
             </div>

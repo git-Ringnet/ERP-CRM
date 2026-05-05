@@ -1021,6 +1021,12 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             $sale->status = $newStatus;
+            
+            // Tự động ghi nhận "Ngày xuất hóa đơn" (làm ngày nhận công nợ) khi chuyển sang giao hàng hoặc hoàn thành
+            if (in_array($newStatus, ['shipping', 'completed']) && is_null($sale->invoice_date)) {
+                $sale->invoice_date = now()->format('Y-m-d');
+            }
+            
             $sale->save();
 
             // Auto-create export when sale is approved

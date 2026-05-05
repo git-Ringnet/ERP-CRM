@@ -32,7 +32,7 @@ class CustomerDebtController extends Controller
         // Get customers with debt summary using subquery approach
         $customers = Customer::select([
             'customers.id',
-            'customers.code',
+            'customers.tax_code',
             'customers.name',
             'customers.phone',
             'customers.debt_limit',
@@ -45,7 +45,7 @@ class CustomerDebtController extends Controller
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('customers.name', 'like', "%{$search}%")
-                        ->orWhere('customers.code', 'like', "%{$search}%")
+                        ->orWhere('customers.tax_code', 'like', "%{$search}%")
                         ->orWhere('customers.phone', 'like', "%{$search}%");
                 });
             })
@@ -66,7 +66,7 @@ class CustomerDebtController extends Controller
                         ->whereColumn('sales.customer_id', 'customers.id')
                         ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
                         ->where('sales.debt_amount', '>', 0)
-                        ->whereRaw('DATEDIFF(CURDATE(), sales.date) > COALESCE(customers.debt_days, 30)');
+                        ->whereRaw('DATEDIFF(CURDATE(), COALESCE(sales.invoice_date, sales.date)) > COALESCE(customers.debt_days, 30)');
                 });
             })
             ->when($debtStatus === 'due_soon', function ($query) {
@@ -77,7 +77,7 @@ class CustomerDebtController extends Controller
                         ->whereColumn('sales.customer_id', 'customers.id')
                         ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
                         ->where('sales.debt_amount', '>', 0)
-                        ->whereRaw('DATEDIFF(CURDATE(), sales.date) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
+                        ->whereRaw('DATEDIFF(CURDATE(), COALESCE(sales.invoice_date, sales.date)) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
                 });
             })
             ->when($sortBy === 'debt_amount', function ($query) use ($sortOrder) {
@@ -88,15 +88,14 @@ class CustomerDebtController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Summary statistics
-        $summary = [
-            'total_customers_with_debt' => Customer::whereHas('sales', function ($q) {
-                $q->where('debt_amount', '>', 0)
-                    ->whereIn('status', ['approved', 'shipping', 'completed']);
-            })->count(),
-            'total_debt' => Sale::whereIn('status', ['approved', 'shipping', 'completed'])->sum('debt_amount'),
-            'total_overdue' => $this->getOverdueDebt(),
-        ];
+        // Summary statistics (using Aging Report Service to get detailed dashboard stats)
+        $summary = $this->agingReportService->getSummaryStats();
+        // Add total customers with debt count separately if not included in stats
+        $summary['total_customers_with_debt'] = Customer::whereHas('sales', function ($q) {
+            $q->where('debt_amount', '>', 0)
+                ->whereIn('status', ['approved', 'shipping', 'completed']);
+        })->count();
+        $summary['total_overdue'] = $summary['overdue_amount'] ?? 0;
 
         return view('customer-debts.index', compact('customers', 'summary', 'search', 'debtStatus', 'sortBy', 'sortOrder'));
     }
@@ -214,7 +213,7 @@ class CustomerDebtController extends Controller
 
         $customers = Customer::select([
             'customers.id',
-            'customers.code',
+            'customers.tax_code',
             'customers.name',
             'customers.phone',
             'customers.debt_limit',
@@ -245,7 +244,8 @@ class CustomerDebtController extends Controller
             })
             ->get()
             ->filter(function ($sale) {
-                $dueDate = $sale->date->addDays($sale->customer->debt_days ?? 30);
+                $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
+                $dueDate = $debtDate->addDays($sale->customer->debt_days ?? 30);
                 return now()->gt($dueDate);
             })
             ->sum('debt_amount');
@@ -354,13 +354,13 @@ class CustomerDebtController extends Controller
 
         $openingBalance = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->where('date', '<', $dateFrom)
+            ->whereRaw('COALESCE(invoice_date, date) < ?', [$dateFrom])
             ->sum('debt_amount');
 
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereBetween('date', [$dateFrom, $dateTo])
-            ->orderBy('date')
+            ->whereRaw('COALESCE(invoice_date, date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
+            ->orderByRaw('COALESCE(invoice_date, date)')
             ->get();
 
         $payments = PaymentHistory::where('customer_id', $customer->id)
@@ -371,8 +371,9 @@ class CustomerDebtController extends Controller
         $transactions = collect();
 
         foreach ($sales as $sale) {
+            $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
             $transactions->push([
-                'date' => $sale->date->format('Y-m-d'),
+                'date' => $debtDate->format('Y-m-d'),
                 'type' => 'debit',
                 'code' => $sale->code,
                 'description' => 'Đơn hàng bán',
@@ -424,13 +425,13 @@ class CustomerDebtController extends Controller
 
         $openingBalance = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->where('date', '<', $dateFrom)
+            ->whereRaw('COALESCE(invoice_date, date) < ?', [$dateFrom])
             ->sum('debt_amount');
 
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereBetween('date', [$dateFrom, $dateTo])
-            ->orderBy('date')
+            ->whereRaw('COALESCE(invoice_date, date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
+            ->orderByRaw('COALESCE(invoice_date, date)')
             ->get();
 
         $payments = PaymentHistory::where('customer_id', $customer->id)
@@ -438,7 +439,7 @@ class CustomerDebtController extends Controller
             ->orderBy('payment_date')
             ->get();
 
-        $filename = "sao-ke-kh-{$customer->code}-{$dateFrom}-{$dateTo}.csv";
+        $filename = "sao-ke-kh-{$customer->tax_code}-{$dateFrom}-{$dateTo}.csv";
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -450,7 +451,7 @@ class CustomerDebtController extends Controller
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
             fputcsv($file, ["SAO KÊ CÔNG NỢ KHÁCH HÀNG"]);
-            fputcsv($file, ["KH: {$customer->name} ({$customer->code})"]);
+            fputcsv($file, ["KH: {$customer->name} ({$customer->tax_code})"]);
             fputcsv($file, ["Kỳ: {$dateFrom} đến {$dateTo}"]);
             fputcsv($file, []);
             fputcsv($file, ['Ngày', 'Loại', 'Mã chứng từ', 'Nội dung', 'Phát sinh Nợ', 'Phát sinh Có', 'Lũy kế']);
@@ -460,7 +461,8 @@ class CustomerDebtController extends Controller
 
             $transactions = collect();
             foreach ($sales as $sale) {
-                $transactions->push(['date' => $sale->date->format('Y-m-d'), 'type' => 'Bán hàng', 'code' => $sale->code, 'desc' => 'Đơn hàng bán', 'debit' => (float)$sale->total, 'credit' => 0]);
+                $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
+                $transactions->push(['date' => $debtDate->format('Y-m-d'), 'type' => 'Bán hàng', 'code' => $sale->code, 'desc' => 'Đơn hàng bán', 'debit' => (float)$sale->total, 'credit' => 0]);
             }
             foreach ($payments as $payment) {
                 $transactions->push(['date' => $payment->payment_date->format('Y-m-d'), 'type' => 'Thanh toán', 'code' => $payment->sale?->code ?? 'TT', 'desc' => 'Thanh toán', 'debit' => 0, 'credit' => (float)$payment->amount]);

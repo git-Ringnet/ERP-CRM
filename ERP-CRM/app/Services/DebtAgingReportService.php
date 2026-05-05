@@ -72,7 +72,7 @@ class DebtAgingReportService
 
         $aging = [
             'customer_id' => $customer->id,
-            'customer_code' => $customer->code,
+            'customer_code' => $customer->tax_code,
             'customer_name' => $customer->name,
             'phone' => $customer->phone,
             'debt_limit' => $customer->debt_limit ?? 0,
@@ -90,9 +90,12 @@ class DebtAgingReportService
         $today = Carbon::now();
 
         foreach ($sales as $sale) {
-            $saleDate = Carbon::parse($sale->date);
-            $daysPastDue = $today->diffInDays($saleDate);
-            $dueDate = $saleDate->copy()->addDays($customer->debt_days ?? 30);
+            // Lấy ngày xuất hóa đơn (invoice_date) làm ngày ghi nhận công nợ. 
+            // Nếu chưa xuất hóa đơn (chưa có invoice_date), thì tạm lấy ngày lập đơn hàng (date).
+            $debtRecognitionDate = $sale->invoice_date ? Carbon::parse($sale->invoice_date) : Carbon::parse($sale->date);
+            
+            $daysPastDue = $today->diffInDays($debtRecognitionDate);
+            $dueDate = $debtRecognitionDate->copy()->addDays($customer->debt_days ?? 30);
             $isOverdue = $today->gt($dueDate);
             $debtAmount = $sale->debt_amount;
 
@@ -163,10 +166,10 @@ class DebtAgingReportService
         $overdueCustomerIds = [];
 
         foreach ($sales as $sale) {
-            $saleDate = Carbon::parse($sale->date);
-            $daysPastDue = $today->diffInDays($saleDate);
+            $debtRecognitionDate = $sale->invoice_date ? Carbon::parse($sale->invoice_date) : Carbon::parse($sale->date);
+            $daysPastDue = $today->diffInDays($debtRecognitionDate);
             $debtDays = $sale->customer?->debt_days ?? 30;
-            $dueDate = $saleDate->copy()->addDays($debtDays);
+            $dueDate = $debtRecognitionDate->copy()->addDays($debtDays);
             $isOverdue = $today->gt($dueDate);
 
             if ($daysPastDue <= 30) {
@@ -233,7 +236,7 @@ class DebtAgingReportService
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%");
+                    ->orWhere('tax_code', 'like', "%{$search}%");
             });
         }
 

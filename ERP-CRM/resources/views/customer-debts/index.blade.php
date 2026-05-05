@@ -5,47 +5,71 @@
 
 @section('content')
     <div class="space-y-6">
-        <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                        <i class="fas fa-users text-xl"></i>
+        <!-- Dashboard Charts & Summary Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Summary Cards -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                            <i class="fas fa-users text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">KH có công nợ</p>
+                            <p class="text-2xl font-bold text-gray-800">
+                                {{ number_format($summary['total_customers_with_debt']) }}
+                            </p>
+                        </div>
                     </div>
-                    <div class="ml-4">
-                        <p class="text-sm text-gray-500">KH có công nợ</p>
-                        <p class="text-2xl font-bold text-gray-800">
-                            {{ number_format($summary['total_customers_with_debt']) }}
-                        </p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-red-100 text-red-600">
+                            <i class="fas fa-money-bill-wave text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Tổng công nợ</p>
+                            <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt'] ?? 0, 0, ',', '.') }}đ</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                            <i class="fas fa-exclamation-circle text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Nợ quá hạn</p>
+                            <p class="text-2xl font-bold text-orange-600">
+                                {{ number_format($summary['total_overdue'] ?? 0, 0, ',', '.') }}đ
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-calendar-check text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Trong hạn (0-30 ngày)</p>
+                            <p class="text-2xl font-bold text-green-600">
+                                {{ number_format($summary['current'] ?? 0, 0, ',', '.') }}đ
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-red-100 text-red-600">
-                        <i class="fas fa-money-bill-wave text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-sm text-gray-500">Tổng công nợ</p>
-                        <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt'], 0, ',', '.') }}đ
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-orange-100 text-orange-600">
-                        <i class="fas fa-exclamation-circle text-xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-sm text-gray-500">Nợ quá hạn</p>
-                        <p class="text-2xl font-bold text-orange-600">
-                            {{ number_format($summary['total_overdue'], 0, ',', '.') }}đ
-                        </p>
-                    </div>
+
+            <!-- Aging Chart -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-5 flex flex-col justify-center items-center">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 w-full text-left">Phân bổ tuổi nợ</h3>
+                <div class="w-full max-w-md">
+                    <canvas id="agingChart"></canvas>
                 </div>
             </div>
         </div>
+
 
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow p-4">
@@ -110,7 +134,7 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($customers as $customer)
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $customer->code }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $customer->tax_code }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->phone }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
@@ -162,3 +186,63 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('agingChart').getContext('2d');
+        
+        const data = {
+            labels: [
+                'Trong hạn (0-30 ngày)',
+                'Quá hạn (31-60 ngày)',
+                'Quá hạn (61-90 ngày)',
+                'Quá hạn (>90 ngày)'
+            ],
+            datasets: [{
+                data: [
+                    {{ $summary['current'] ?? 0 }},
+                    {{ $summary['days_31_60'] ?? 0 }},
+                    {{ $summary['days_61_90'] ?? 0 }},
+                    {{ $summary['over_90'] ?? 0 }}
+                ],
+                backgroundColor: [
+                    '#10B981', // green-500
+                    '#F59E0B', // amber-500
+                    '#F97316', // orange-500
+                    '#EF4444'  // red-500
+                ],
+                hoverOffset: 4
+            }]
+        };
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: data,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(context.parsed);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+@endpush

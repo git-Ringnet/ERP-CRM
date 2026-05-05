@@ -40,10 +40,12 @@ class Sale extends Model
         'pl_status',
         'pl_approved_at',
         'pl_approved_by',
+        'invoice_date',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'invoice_date' => 'date',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'vat' => 'decimal:2',
