@@ -38,6 +38,7 @@ class DatabaseBackupController extends Controller
         $dbUser = config('database.connections.mysql.username');
         $dbPassword = config('database.connections.mysql.password');
         $dbHost = config('database.connections.mysql.host');
+        $dbPort = config('database.connections.mysql.port', '3306');
 
         // Path to mysqldump
         $mysqldumpPath = 'mysqldump'; 
@@ -53,22 +54,36 @@ class DatabaseBackupController extends Controller
         $tempPath = storage_path('app/' . $filename);
 
         try {
-            // Build the command
+            // Build the command with escaped arguments
+            $args = [
+                '--user=' . escapeshellarg($dbUser),
+                '--host=' . escapeshellarg($dbHost),
+                '--port=' . escapeshellarg($dbPort),
+            ];
+
+            if ($dbPassword) {
+                // Warning: putting password on CLI is not the best but safest for now if we capture output
+                $args[] = '--password=' . escapeshellarg($dbPassword);
+            }
+
             $command = sprintf(
-                '%s --user=%s --password=%s --host=%s %s > %s',
+                '%s %s %s > %s 2>&1',
                 $mysqldumpPath,
-                $dbUser,
-                $dbPassword ? '"' . $dbPassword . '"' : '""',
-                $dbHost,
-                $dbName,
-                '"' . $tempPath . '"'
+                implode(' ', $args),
+                escapeshellarg($dbName),
+                escapeshellarg($tempPath)
             );
 
             // Execute the command
             exec($command, $output, $returnVar);
 
             if ($returnVar !== 0) {
-                throw new \Exception('Mysqldump failed with error code: ' . $returnVar);
+                $errorMessage = implode("\n", $output);
+                throw new \Exception('Mysqldump failed: ' . ($errorMessage ?: 'Mã lỗi ' . $returnVar));
+            }
+
+            if (!file_exists($tempPath) || filesize($tempPath) === 0) {
+                throw new \Exception('File backup tạo ra bị trống hoặc không tồn tại.');
             }
 
             $sqlContent = file_get_contents($tempPath);
@@ -93,6 +108,9 @@ class DatabaseBackupController extends Controller
                 ->header('Content-Disposition', 'attachment; filename="' . $encryptedFilename . '"');
 
         } catch (\Exception $e) {
+            if (isset($tempPath) && file_exists($tempPath)) {
+                unlink($tempPath);
+            }
             Log::error('Database Export Error: ' . $e->getMessage());
             return back()->with('error', 'Lỗi khi xuất dữ liệu: ' . $e->getMessage());
         }
@@ -111,13 +129,23 @@ class DatabaseBackupController extends Controller
 
         $this->authorize('update', \App\Models\Setting::class);
 
+        $dbName = config('database.connections.mysql.database');
+        $dbUser = config('database.connections.mysql.username');
+        $dbPassword = config('database.connections.mysql.password');
+        $dbHost = config('database.connections.mysql.host');
+        $dbPort = config('database.connections.mysql.port', '3306');
+
+        $tempPath = null;
+        $mysqlPath = 'mysql';
+
         try {
-            $encryptedData = file_get_contents($request->file('backup_file')->getRealPath());
+            $file = $request->file('backup_file');
+            $encryptedData = file_get_contents($file->getRealPath());
             
             $decryptedContent = $this->decrypt($encryptedData, $request->password);
 
             if ($decryptedContent === false) {
-                return back()->with('error', 'Mật khẩu không chính xác hoặc file đã bị hỏng.');
+                return back()->with('error', 'Mật khẩu không chính xác hoặc file đã bị hỏng. Không thể giải mã dữ liệu.');
             }
 
             // Path to mysql CLI
@@ -134,36 +162,56 @@ class DatabaseBackupController extends Controller
             $tempPath = storage_path('app/' . $tempFilename);
             file_put_contents($tempPath, $decryptedContent);
 
-            $dbName = config('database.connections.mysql.database');
-            $dbUser = config('database.connections.mysql.username');
-            $dbPassword = config('database.connections.mysql.password');
-            $dbHost = config('database.connections.mysql.host');
+            // Build the command with escaped arguments
+            $args = [
+                '--user=' . escapeshellarg($dbUser),
+                '--host=' . escapeshellarg($dbHost),
+                '--port=' . escapeshellarg($dbPort),
+            ];
 
-            // Build the command
+            if ($dbPassword) {
+                $args[] = '--password=' . escapeshellarg($dbPassword);
+            }
+
             $command = sprintf(
-                '%s --user=%s --password=%s --host=%s %s < %s',
+                '%s %s %s < %s 2>&1',
                 $mysqlPath,
-                $dbUser,
-                $dbPassword ? '"' . $dbPassword . '"' : '""',
-                $dbHost,
-                $dbName,
-                '"' . $tempPath . '"'
+                implode(' ', $args),
+                escapeshellarg($dbName),
+                escapeshellarg($tempPath)
             );
 
             // Execute the command
             exec($command, $output, $returnVar);
             
-            unlink($tempPath); // Always delete temp SQL file
+            if (file_exists($tempPath)) {
+                unlink($tempPath); // Always delete temp SQL file
+            }
 
             if ($returnVar !== 0) {
-                throw new \Exception('Restore failed with error code: ' . $returnVar);
+                $errorMessage = implode("\n", $output);
+                throw new \Exception('Mysql restore failed: ' . ($errorMessage ?: 'Mã lỗi ' . $returnVar));
             }
 
             return back()->with('success', 'Khôi phục dữ liệu thành công.');
 
         } catch (\Exception $e) {
+            if (isset($tempPath) && file_exists($tempPath)) {
+                unlink($tempPath);
+            }
             Log::error('Database Import Error: ' . $e->getMessage());
-            return back()->with('error', 'Lỗi khi khôi phục dữ liệu: ' . $e->getMessage());
+            
+            // If it's a specific CLI error, try to make it readable
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'Access denied')) {
+                $msg = "Lỗi kết nối cơ sở dữ liệu: Quyền truy cập bị từ chối. Vui lòng kiểm tra lại DB_USERNAME và DB_PASSWORD trong file .env của server này.";
+            } elseif (str_contains($msg, 'Unknown database')) {
+                $msg = "Lỗi: Cơ sở dữ liệu '" . $dbName . "' không tồn tại trên server này. Vui lòng tạo DB trống trước khi khôi phục.";
+            } elseif (str_contains($msg, 'not found') || str_contains($msg, 'not recognized')) {
+                $msg = "Lỗi: Không tìm thấy công cụ 'mysql' CLI trên server. Vui lòng cài đặt MySQL Client hoặc XAMPP.";
+            }
+
+            return back()->with('error', 'Lỗi khi khôi phục dữ liệu: ' . $msg);
         }
     }
 
