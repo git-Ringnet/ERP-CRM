@@ -155,6 +155,11 @@
                         data-tab="margin">
                         <i class="fas fa-file-invoice-dollar mr-1"></i>Báo cáo Margin
                     </button>
+                    <button type="button"
+                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+                        data-tab="conversion">
+                        <i class="fas fa-funnel-dollar mr-1"></i>Hiệu quả chuyển đổi
+                    </button>
                 </nav>
             </div>
 
@@ -430,6 +435,106 @@
                     Các cột <strong>Hãng</strong>, <strong>License</strong>, <strong>Loại hàng</strong> hiện chưa có dữ liệu — vui lòng điền sau khi xuất Excel.
                 </div>
             </div>
+
+            <!-- Conversion Efficiency Report -->
+            <div class="tab-content p-4 hidden" id="tab-conversion">
+                <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                    <h3 class="text-base font-semibold text-gray-800">
+                        <i class="fas fa-funnel-dollar mr-2 text-primary"></i>Phân tích tỷ lệ chuyển đổi theo nhân viên
+                    </h3>
+                    
+                    <div class="flex items-center gap-2">
+                        <form method="GET" class="flex items-center gap-2">
+                            <input type="hidden" name="date_from" value="{{ $dateFrom }}">
+                            <input type="hidden" name="date_to" value="{{ $dateTo }}">
+                            <input type="hidden" name="customer_id" value="{{ $customerId }}">
+                            <input type="hidden" name="product_id" value="{{ $productId }}">
+                            <input type="hidden" name="user_id" value="{{ $userId }}">
+                            <input type="hidden" name="tab" value="conversion">
+
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400">
+                                    <i class="fas fa-search text-xs"></i>
+                                </span>
+                                <input type="text" name="search_user" value="{{ request('search_user') }}" placeholder="Tìm tên nhân viên..."
+                                    class="pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary w-48">
+                            </div>
+
+                            <button type="submit" class="px-3 py-1.5 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors text-xs font-medium">
+                                Tìm kiếm
+                            </button>
+                            
+                            @if(request('search_user'))
+                                <a href="{{ route('sale-reports.index', ['tab' => 'conversion', 'date_from' => $dateFrom, 'date_to' => $dateTo, 'customer_id' => $customerId, 'product_id' => $productId, 'user_id' => $userId]) }}" 
+                                   class="p-1.5 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300 transition-colors" title="Xóa tìm kiếm">
+                                    <i class="fas fa-times text-xs"></i>
+                                </a>
+                            @endif
+                        </form>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Nhân viên</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Khách hàng / Đầu mối (1)</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Cơ hội (2)</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Đơn hàng đã chốt (3)</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ (2)/(1)</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ (3)/(2)</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-700">Hiệu suất chung (3)/(1)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            @forelse($conversionReport as $row)
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-3 py-2 font-medium">{{ $row['name'] }}</td>
+                                    <td class="px-3 py-2 text-center">{{ number_format($row['customers_count']) }}</td>
+                                    <td class="px-3 py-2 text-center text-blue-600 font-medium">{{ number_format($row['opportunities_count']) }}</td>
+                                    <td class="px-3 py-2 text-center text-green-600 font-bold">{{ number_format($row['sales_count']) }}</td>
+                                    <td class="px-3 py-2 text-center">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-16 bg-gray-200 rounded-full h-1.5 hidden md:block">
+                                                <div class="bg-blue-400 h-1.5 rounded-full" style="width: {{ min(100, $row['lead_to_opp_rate']) }}%"></div>
+                                            </div>
+                                            <span class="text-xs font-semibold">{{ $row['lead_to_opp_rate'] }}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-16 bg-gray-200 rounded-full h-1.5 hidden md:block">
+                                                <div class="bg-green-400 h-1.5 rounded-full" style="width: {{ min(100, $row['opp_to_sale_rate']) }}%"></div>
+                                            </div>
+                                            <span class="text-xs font-semibold">{{ $row['opp_to_sale_rate'] }}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        @php
+                                            $totalRate = $row['customers_count'] > 0 ? round(($row['sales_count'] / $row['customers_count']) * 100, 1) : 0;
+                                        @endphp
+                                        <span class="inline-block px-2 py-0.5 text-xs font-bold {{ $totalRate >= 50 ? 'bg-green-100 text-green-800' : ($totalRate >= 20 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') }} rounded-full">
+                                            {{ $totalRate }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-3 py-8 text-center text-gray-500">Không có dữ liệu nhân viên</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 p-3 bg-blue-50 rounded text-xs text-blue-700">
+                    <p><strong><i class="fas fa-info-circle mr-1"></i>Ghi chú:</strong></p>
+                    <ul class="list-disc ml-4 mt-1 space-y-1">
+                        <li><strong>Khách hàng / Đầu mối:</strong> Số lượng khách hàng được tạo và giao cho nhân viên quản lý trong kỳ.</li>
+                        <li><strong>Cơ hội:</strong> Số lượng cơ hội kinh doanh mới được nhân viên tạo ra hoặc được giao trong kỳ.</li>
+                        <li><strong>Đơn hàng đã chốt:</strong> Số lượng đơn hàng đã được duyệt hoặc hoàn thành trong kỳ.</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -438,23 +543,40 @@
             const tabBtns = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
 
-            tabBtns.forEach(btn => {
-                btn.addEventListener('click', function () {
-                    const tabId = this.dataset.tab;
-
-                    // Update buttons
-                    tabBtns.forEach(b => {
+            function switchTab(tabId) {
+                // Update buttons
+                tabBtns.forEach(b => {
+                    if (b.dataset.tab === tabId) {
+                        b.classList.add('active', 'border-primary', 'text-primary');
+                        b.classList.remove('border-transparent', 'text-gray-500');
+                    } else {
                         b.classList.remove('active', 'border-primary', 'text-primary');
                         b.classList.add('border-transparent', 'text-gray-500');
-                    });
-                    this.classList.add('active', 'border-primary', 'text-primary');
-                    this.classList.remove('border-transparent', 'text-gray-500');
+                    }
+                });
 
-                    // Update content
-                    tabContents.forEach(c => c.classList.add('hidden'));
-                    document.getElementById('tab-' + tabId).classList.remove('hidden');
+                // Update content
+                tabContents.forEach(c => {
+                    if (c.id === 'tab-' + tabId) {
+                        c.classList.remove('hidden');
+                    } else {
+                        c.classList.add('hidden');
+                    }
+                });
+            }
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    switchTab(this.dataset.tab);
                 });
             });
+
+            // Handle initial tab from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const activeTab = urlParams.get('tab');
+            if (activeTab && document.getElementById('tab-' + activeTab)) {
+                switchTab(activeTab);
+            }
         });
     </script>
 @endsection

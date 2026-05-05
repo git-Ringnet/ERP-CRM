@@ -44,13 +44,16 @@ class SaleReportController extends Controller
         // Margin report (new)
         $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId);
 
+        // Conversion Efficiency report (new)
+        $conversionReport = $this->getConversionReport($dateFrom, $dateTo, $customerId, $productId, $userId, $request->input('search_user'));
+
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $users = User::orderBy('name')->get();
 
         return view('sale-reports.index', compact(
             'stats', 'customerReport', 'productReport', 'monthlyReport',
-            'profitAnalysis', 'marginReport', 'customers', 'products', 'users',
+            'profitAnalysis', 'marginReport', 'conversionReport', 'customers', 'products', 'users',
             'dateFrom', 'dateTo', 'customerId', 'productId', 'userId'
         ));
     }
@@ -477,5 +480,81 @@ class SaleReportController extends Controller
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+    /**
+     * Get conversion efficiency report.
+     * Counts: Customers mapped to User, Opportunities assigned to User, Sales created by User.
+     */
+    private function getConversionReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $search = null): array
+    {
+        $usersQuery = User::select('id', 'name');
+
+        if ($userId) {
+            $usersQuery->where('id', $userId);
+        }
+
+        if ($search) {
+            $usersQuery->where('name', 'like', '%' . $search . '%');
+        }
+
+        $users = $usersQuery->withCount([
+                'customers as customers_count' => function ($q) use ($dateFrom, $dateTo, $customerId) {
+                    $q->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+                    if ($customerId) {
+                        $q->where('id', $customerId);
+                    }
+                },
+                'opportunities as opportunities_count' => function ($q) use ($dateFrom, $dateTo, $customerId) {
+                    $q->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+                    if ($customerId) {
+                        $q->where('customer_id', $customerId);
+                    }
+                },
+                'sales as sales_count' => function ($q) use ($dateFrom, $dateTo, $customerId, $productId) {
+                    $q->whereBetween('date', [$dateFrom, $dateTo])
+                      ->whereIn('status', ['approved', 'shipping', 'completed']);
+                    if ($customerId) {
+                        $q->where('customer_id', $customerId);
+                    }
+                    if ($productId) {
+                        $q->whereHas('items', function ($sq) use ($productId) {
+                            $sq->where('product_id', $productId);
+                        });
+                    }
+                }
+            ])
+            ->get();
+
+        $report = [];
+        foreach ($users as $user) {
+            if ($user->customers_count == 0 && $user->opportunities_count == 0 && $user->sales_count == 0 && !$userId && !$search) {
+                continue;
+            }
+
+            // Lead to Opp rate
+            $leadToOpp = $user->customers_count > 0 
+                ? ($user->opportunities_count / $user->customers_count) * 100 
+                : 0;
+            
+            // Opp to Sale rate
+            $oppToSale = $user->opportunities_count > 0 
+                ? ($user->sales_count / $user->opportunities_count) * 100 
+                : 0;
+
+            $report[] = [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'customers_count' => $user->customers_count,
+                'opportunities_count' => $user->opportunities_count,
+                'sales_count' => $user->sales_count,
+                'lead_to_opp_rate' => round($leadToOpp, 1),
+                'opp_to_sale_rate' => round($oppToSale, 1),
+            ];
+        }
+
+        // Sort by sales count desc
+        usort($report, fn($a, $b) => $b['sales_count'] <=> $a['sales_count']);
+
+        return $report;
     }
 }

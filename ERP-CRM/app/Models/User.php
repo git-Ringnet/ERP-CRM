@@ -163,4 +163,28 @@ class User extends Authenticatable
     {
         return $this->belongsTo(WorkLocation::class, 'work_location_id');
     }
+
+    /**
+     * Khách hàng được giao cho nhân viên này quản lý (AM).
+     */
+    public function customers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Customer::class, 'am');
+    }
+
+    /**
+     * Cơ hội được giao cho nhân viên này phụ trách.
+     */
+    public function opportunities(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Opportunity::class, 'assigned_to');
+    }
+
+    /**
+     * Đơn hàng bán do nhân viên này chốt.
+     */
+    public function sales(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Sale::class, 'user_id');
+    }
 }

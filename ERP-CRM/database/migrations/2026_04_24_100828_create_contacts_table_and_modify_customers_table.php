@@ -62,8 +62,36 @@ return new class extends Migration
                 'tax_code' => DB::raw("CONCAT('TEMP-', id)")
             ]);
 
+            // Handle duplicate tax_codes before adding unique constraint
+            $duplicates = DB::table('customers')
+                ->select('tax_code', DB::raw('count(*) as count'))
+                ->whereNotNull('tax_code')
+                ->groupBy('tax_code')
+                ->having('count', '>', 1)
+                ->get();
+
+            foreach ($duplicates as $duplicate) {
+                $records = DB::table('customers')
+                    ->where('tax_code', $duplicate->tax_code)
+                    ->orderBy('id')
+                    ->skip(1)
+                    ->get();
+                
+                foreach ($records as $record) {
+                    DB::table('customers')->where('id', $record->id)->update([
+                        'tax_code' => $record->tax_code . '-' . $record->id
+                    ]);
+                }
+            }
+
             $table->string('tax_code', 50)->nullable(false)->change();
-            $table->unique('tax_code');
+            
+            // Safer index creation
+            $sm = Schema::getConnection()->getDoctrineSchemaManager();
+            $indexes = $sm->listTableIndexes('customers');
+            if (!array_key_exists('customers_tax_code_unique', $indexes)) {
+                $table->unique('tax_code');
+            }
         });
     }
 
