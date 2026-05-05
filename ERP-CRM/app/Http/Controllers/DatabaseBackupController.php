@@ -66,21 +66,26 @@ class DatabaseBackupController extends Controller
                 $args[] = '--password=' . escapeshellarg($dbPassword);
             }
 
+            $errPath = $tempPath . '.err';
             $command = sprintf(
-                '%s %s %s > %s 2>&1',
+                '%s %s %s > %s 2> %s',
                 $mysqldumpPath,
                 implode(' ', $args),
                 escapeshellarg($dbName),
-                escapeshellarg($tempPath)
+                escapeshellarg($tempPath),
+                escapeshellarg($errPath)
             );
 
             // Execute the command
-            exec($command, $output, $returnVar);
+            exec($command, $unusedOutput, $returnVar);
 
             if ($returnVar !== 0) {
-                $errorMessage = implode("\n", $output);
-                throw new \Exception('Mysqldump failed: ' . ($errorMessage ?: 'Mã lỗi ' . $returnVar));
+                $errorMessage = file_exists($errPath) ? file_get_contents($errPath) : 'Mã lỗi ' . $returnVar;
+                if (file_exists($errPath)) unlink($errPath);
+                throw new \Exception('Mysqldump failed: ' . $errorMessage);
             }
+
+            if (file_exists($errPath)) unlink($errPath);
 
             if (!file_exists($tempPath) || filesize($tempPath) === 0) {
                 throw new \Exception('File backup tạo ra bị trống hoặc không tồn tại.');
@@ -146,6 +151,15 @@ class DatabaseBackupController extends Controller
 
             if ($decryptedContent === false) {
                 return back()->with('error', 'Mật khẩu không chính xác hoặc file đã bị hỏng. Không thể giải mã dữ liệu.');
+            }
+
+            // Clean up any warnings that might have been captured in the SQL content (for backward compatibility)
+            if (str_contains($decryptedContent, 'mysqldump: [Warning]')) {
+                $lines = explode("\n", $decryptedContent);
+                $filteredLines = array_filter($lines, function($line) {
+                    return !str_contains($line, 'mysqldump: [Warning]');
+                });
+                $decryptedContent = implode("\n", $filteredLines);
             }
 
             // Path to mysql CLI
