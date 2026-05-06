@@ -29,11 +29,40 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Loại đơn hàng <span class="text-red-500">*</span>
                     </label>
-                    <select name="type" required
+                    <select name="type" id="saleType" required onchange="toggleProjectSelect()"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="retail" {{ old('type', $sale->type) == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
                         <option value="project" {{ old('type', $sale->type) == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                     </select>
+                </div>
+            </div>
+
+            <!-- Project Selection (shown when type = project) -->
+            <div id="projectSelectWrapper" class="{{ old('type', $sale->type) == 'project' ? '' : 'hidden' }}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-project-diagram text-purple-500 mr-1"></i>
+                            Dự án
+                        </label>
+                        <select name="project_id" id="projectSelect" onchange="handleProjectSelection()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">-- Chọn dự án --</option>
+                            @foreach($projects as $project)
+                                <option value="{{ $project->id }}" 
+                                    data-customer-id="{{ $project->customer_id }}"
+                                    data-customer-name="{{ $project->customer ? $project->customer->name . ' (' . $project->customer->code . ')' : '' }}"
+                                    {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
+                                    {{ $project->code }} - {{ $project->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <a href="{{ route('projects.create') }}" class="text-purple-600 hover:underline">
+                                <i class="fas fa-plus mr-1"></i>Tạo dự án mới
+                            </a>
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -517,6 +546,38 @@ function initSearchableSelect(container, onSelect) {
 }
 
 // Format money input (supports decimals for foreign currencies)
+function toggleProjectSelect() {
+    const saleType = document.getElementById('saleType').value;
+    const projectWrapper = document.getElementById('projectSelectWrapper');
+    const projectSelect = document.getElementById('projectSelect');
+    
+    if (saleType === 'project') {
+        projectWrapper.classList.remove('hidden');
+    } else {
+        projectWrapper.classList.add('hidden');
+        projectSelect.value = ''; // Clear project selection when switching to retail
+    }
+}
+
+function handleProjectSelection() {
+    const projectSelect = document.getElementById('projectSelect');
+    const option = projectSelect.options[projectSelect.selectedIndex];
+    
+    if (!option || !option.value) return;
+    
+    const customerId = option.dataset.customerId;
+    const customerName = option.dataset.customerName;
+    
+    if (customerId && customerName) {
+        const customerSelect = document.getElementById('customerSelect');
+        const input = customerSelect.querySelector('.searchable-input');
+        const hiddenInput = customerSelect.querySelector('input[type="hidden"]');
+        
+        input.value = customerName;
+        hiddenInput.value = customerId;
+    }
+}
+
 function formatMoney(value) {
     if (value === undefined || value === null || value === '') return '';
     
@@ -624,6 +685,16 @@ function initAllSearchableSelects() {
 document.addEventListener('DOMContentLoaded', function() {
     initAllSearchableSelects();
     initMoneyInputs();
+    if (document.getElementById('saleType')) {
+        toggleProjectSelect();
+    }
+
+    // Auto-fill customer if project is pre-selected and customer is empty
+    const projectSelect = document.getElementById('projectSelect');
+    const customerHiddenInput = document.querySelector('input[name="customer_id"]');
+    if (projectSelect && projectSelect.value && (!customerHiddenInput || !customerHiddenInput.value)) {
+        handleProjectSelection();
+    }
 });
 
 function addProductRow() {

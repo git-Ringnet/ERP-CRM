@@ -62,11 +62,13 @@
                             <i class="fas fa-project-diagram text-purple-500 mr-1"></i>
                             Dự án
                         </label>
-                        <select name="project_id" id="projectSelect"
+                        <select name="project_id" id="projectSelect" onchange="handleProjectSelection()"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                             <option value="">-- Chọn dự án --</option>
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" 
+                                    data-customer-id="{{ $project->customer_id }}"
+                                    data-customer-name="{{ $project->customer ? $project->customer->name . ' (' . $project->customer->code . ')' : '' }}"
                                     {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                     {{ $project->code }} - {{ $project->name }}
                                 </option>
@@ -621,6 +623,13 @@ document.addEventListener('DOMContentLoaded', function() {
     initAllSearchableSelects();
     initMoneyInputs();
     toggleProjectSelect(); // Initialize project select visibility
+
+    // Auto-fill customer if project is pre-selected and customer is empty
+    const projectSelect = document.getElementById('projectSelect');
+    const customerHiddenInput = document.querySelector('input[name="customer_id"]');
+    if (projectSelect && projectSelect.value && (!customerHiddenInput || !customerHiddenInput.value)) {
+        handleProjectSelection();
+    }
 });
 
 // Toggle project select visibility based on sale type
@@ -634,6 +643,25 @@ function toggleProjectSelect() {
     } else {
         projectWrapper.classList.add('hidden');
         projectSelect.value = ''; // Clear project selection when switching to retail
+    }
+}
+
+function handleProjectSelection() {
+    const projectSelect = document.getElementById('projectSelect');
+    const option = projectSelect.options[projectSelect.selectedIndex];
+    
+    if (!option || !option.value) return;
+    
+    const customerId = option.dataset.customerId;
+    const customerName = option.dataset.customerName;
+    
+    if (customerId && customerName) {
+        const customerSelect = document.getElementById('customerSelect');
+        const input = customerSelect.querySelector('.searchable-input');
+        const hiddenInput = customerSelect.querySelector('input[type="hidden"]');
+        
+        input.value = customerName;
+        hiddenInput.value = customerId;
     }
 }
 

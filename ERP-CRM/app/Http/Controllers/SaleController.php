@@ -147,7 +147,7 @@ class SaleController extends Controller
         // Không load sản phẩm nữa - sẽ dùng AJAX search
         $products = collect();
         
-        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Generate sale code
         $code = $this->generateSaleCode();
@@ -438,7 +438,7 @@ class SaleController extends Controller
         // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
         $products = collect();
         
-        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Multi-currency
         $currencies = $this->currencyService->getActiveCurrencies();
