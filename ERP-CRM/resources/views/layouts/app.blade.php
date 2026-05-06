@@ -105,17 +105,17 @@
 
             <!-- Navigation -->
             <nav class="mt-4 px-2">
-                <a href="{{ route('dashboard') }}"
+                <!-- <a href="{{ route('dashboard') }}"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-primary text-white' : '' }}">
                     <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
-                </a>
+                </a> -->
 
                 @can('view_business_dashboard')
                     <a href="{{ route('dashboard.business-activity') }}"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
                         <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard Kinh Doanh</span>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
                     </a>
                 @endcan
 
@@ -416,9 +416,9 @@
                         <div class="dropdown-section" id="dropdown-sales">
                             @can('view_opportunities')
                                 <a href="{{ route('opportunities.index') }}"
-                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
-                                     <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
-                                     <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
                                 </a>
                             @endcan
 
@@ -544,12 +544,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                        <a href="{{ route('shipping-allocations.index') }}"
-                                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                        </a>
-                                    @endcan -->
+                                                <a href="{{ route('shipping-allocations.index') }}"
+                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                </a>
+                                            @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
