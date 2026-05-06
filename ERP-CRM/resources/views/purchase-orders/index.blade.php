@@ -31,12 +31,6 @@
             <p class="text-gray-600">Quản lý đơn đặt hàng gửi cho nhà cung cấp</p>
         </div>
         <div class="flex space-x-2">
-            <a href="{{ route('purchase-requests.index') }}" class="inline-flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50">
-                <i class="fas fa-file-invoice mr-2"></i> Yêu cầu báo giá
-            </a>
-            <a href="{{ route('supplier-quotations.index') }}" class="inline-flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50">
-                <i class="fas fa-tags mr-2"></i> Báo giá NCC
-            </a>
             <a href="{{ route('purchase-orders.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>
@@ -259,6 +253,29 @@
                                 <a href="{{ route('purchase-orders.print', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" title="In" target="_blank">
                                     <i class="fas fa-print"></i>
                                 </a>
+
+                                @if(!in_array($order->status, ['received', 'cancelled']))
+                                    <form action="{{ route('purchase-orders.cancel', $order) }}" method="POST" class="inline delete-form">
+                                        @csrf
+                                        <button type="button" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" 
+                                            title="Hủy đơn" 
+                                            onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                @if(in_array($order->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $order))
+                                    <form action="{{ route('purchase-orders.destroy', $order) }}" method="POST" class="inline delete-form">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="button" class="inline-flex items-center justify-center w-8 h-8 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all" 
+                                            title="Xóa"
+                                            onclick="confirmDelete(this.parentElement, 'đơn hàng')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>

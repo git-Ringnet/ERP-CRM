@@ -164,4 +164,74 @@ class PurchaseImportSyncService
             ->where('reference_id', $purchaseOrder->id)
             ->first();
     }
+
+    public function createPartialImportFromPO(PurchaseOrder $purchaseOrder, array $receivedQtys, ?int $warehouseId = null, bool $autoComplete = false): ?Import
+    {
+        if (!$warehouseId) {
+            $warehouseId = $this->getDefaultWarehouseId();
+        }
+
+        if (!$warehouseId) {
+            Log::warning("No warehouse available for PO #{$purchaseOrder->id}");
+            return null;
+        }
+
+        DB::beginTransaction();
+        try {
+            $import = Import::create([
+                'code' => Import::generateCode(),
+                'warehouse_id' => $warehouseId,
+                'supplier_id' => $purchaseOrder->supplier_id,
+                'date' => now(),
+                'employee_id' => auth()->id(),
+                'total_qty' => 0,
+                'reference_type' => 'purchase_order',
+                'reference_id' => $purchaseOrder->id,
+                'note' => "Nhập hàng một phần từ đơn mua hàng {$purchaseOrder->code}",
+                'status' => 'pending',
+            ]);
+
+            $totalQty = 0;
+            foreach ($purchaseOrder->items as $poItem) {
+                $qty = (float) ($receivedQtys[$poItem->id] ?? 0);
+                if ($qty <= 0) continue;
+
+                $productId = $poItem->product_id;
+                if (!$productId && $poItem->product_name) {
+                    $product = \App\Models\Product::where('name', $poItem->product_name)->first();
+                    $productId = $product?->id;
+                }
+
+                if (!$productId) continue;
+
+                ImportItem::create([
+                    'import_id' => $import->id,
+                    'product_id' => $productId,
+                    'quantity' => $qty,
+                    'unit' => $poItem->unit,
+                    'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
+                    'comments' => "Từ PO {$purchaseOrder->code} (Nhập một phần)",
+                ]);
+                $totalQty += $qty;
+            }
+
+            if ($totalQty <= 0) {
+                DB::rollBack();
+                return null;
+            }
+
+            $import->update(['total_qty' => $totalQty]);
+
+            if ($autoComplete) {
+                $this->transactionService->processImport(['warehouse_id' => $warehouseId], $import);
+            }
+
+            DB::commit();
+            return $import;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Failed to create partial import from PO #{$purchaseOrder->id}: " . $e->getMessage());
+            throw $e;
+        }
+    }
 }

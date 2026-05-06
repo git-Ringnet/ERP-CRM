@@ -12,6 +12,7 @@ class PurchaseOrderItem extends Model
 
     protected $fillable = [
         'purchase_order_id', 'product_id', 'product_name',
+        'sale_order_request_item_id', 'ordered_quantity',
         'quantity', 'received_quantity', 'unit', 'unit_price', 'total', 'note'
     ];
 
@@ -28,6 +29,11 @@ class PurchaseOrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function saleOrderRequestItem(): BelongsTo
+    {
+        return $this->belongsTo(SaleOrderRequestItem::class, 'sale_order_request_item_id');
     }
 
     public function getRemainingQuantityAttribute(): int

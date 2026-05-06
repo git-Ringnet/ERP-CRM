@@ -42,7 +42,9 @@
                         <tr class="bg-yellow-200 text-xs border-b border-gray-300">
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] align-middle">Vendor <span class="text-red-500">*</span></th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">Type <span class="text-red-500">*</span></th>
-                            <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[160px] align-middle">Part Number <span class="text-red-500">*</span></th>
+                            <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[150px] align-middle">P/N <span class="text-red-500">*</span></th>
+                            <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[80px] align-middle">SL <span class="text-red-500">*</span></th>
+                            <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle">Đơn vị</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">SN</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">Exp date</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">SI Name <span class="text-red-500">*</span></th>
@@ -59,11 +61,11 @@
                             @foreach($existingItems as $idx => $item)
                                 <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">
                                     <td class="px-1 py-1.5">
-                                        <select name="order_request_items[{{ $idx }}][vendor]" required
+                                        <select name="order_request_items[{{ $idx }}][vendor_id]" required
                                             class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                             <option value="">-- Chọn --</option>
-                                            @foreach(\App\Models\SaleOrderRequest::VENDORS as $v)
-                                                <option value="{{ $v }}" {{ $item->vendor == $v ? 'selected' : '' }}>{{ $v }}</option>
+                                            @foreach($suppliers ?? [] as $s)
+                                                <option value="{{ $s->id }}" {{ $item->vendor_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -78,7 +80,17 @@
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
-                                            value="{{ $item->part_number }}"
+                                            value="{{ $item->part_number }}" placeholder="P/N"
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
+                                            value="{{ $item->quantity }}"
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="text" name="order_request_items[{{ $idx }}][unit]"
+                                            value="{{ $item->unit }}" placeholder="Đơn vị"
                                             class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5">
@@ -117,11 +129,11 @@
                         @else
                             <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="0">
                                 <td class="px-1 py-1.5">
-                                    <select name="order_request_items[0][vendor]" required
+                                    <select name="order_request_items[0][vendor_id]" required
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                         <option value="">-- Chọn --</option>
-                                        @foreach(\App\Models\SaleOrderRequest::VENDORS as $v)
-                                            <option value="{{ $v }}">{{ $v }}</option>
+                                        @foreach($suppliers ?? [] as $s)
+                                            <option value="{{ $s->id }}">{{ $s->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
@@ -136,6 +148,14 @@
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][part_number]" required placeholder="P/N"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                </td>
+                                <td class="px-1 py-1.5">
+                                    <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+                                </td>
+                                <td class="px-1 py-1.5">
+                                    <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                 </td>
                                 <td class="px-1 py-1.5">

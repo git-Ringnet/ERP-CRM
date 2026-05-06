@@ -21,7 +21,7 @@ class SaleOrderRequestAttachment extends Model
         'file_size' => 'integer',
     ];
 
-    public function orderRequest(): BelongsTo
+    public function saleOrderRequest(): BelongsTo
     {
         return $this->belongsTo(SaleOrderRequest::class, 'sale_order_request_id');
     }

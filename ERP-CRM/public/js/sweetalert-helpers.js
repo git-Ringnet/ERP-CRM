@@ -131,6 +131,57 @@ async function confirmDelete(form, documentName = 'bản ghi') {
     });
 
     if (result.isConfirmed) {
-        form.submit();
+        if (form instanceof HTMLFormElement) {
+            HTMLFormElement.prototype.submit.call(form);
+        } else if (typeof form === 'string') {
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = form;
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = '_token';
+            csrf.value = document.querySelector('meta[name="csrf-token"]').content;
+            f.appendChild(csrf);
+            document.body.appendChild(f);
+            f.submit();
+        } else {
+            console.error('confirmDelete: Invalid form/URL provided', form);
+        }
+    }
+}
+
+/**
+ * Confirm và thực hiện một hành động (submit form)
+ */
+async function confirmAction(form, title = 'Xác nhận', text = 'Bạn có chắc chắn muốn thực hiện hành động này?', icon = 'question', confirmButtonText = 'Đồng ý', confirmButtonColor = '#3085d6') {
+    const result = await Swal.fire({
+        title: title,
+        text: text,
+        icon: icon,
+        showCancelButton: true,
+        confirmButtonColor: confirmButtonColor,
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: confirmButtonText,
+        cancelButtonText: 'Hủy',
+        reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+        if (form instanceof HTMLFormElement) {
+            HTMLFormElement.prototype.submit.call(form);
+        } else if (typeof form === 'string') {
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = form;
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = '_token';
+            csrf.value = document.querySelector('meta[name="csrf-token"]').content;
+            f.appendChild(csrf);
+            document.body.appendChild(f);
+            f.submit();
+        } else {
+            console.error('confirmAction: Invalid form/URL provided', form);
+        }
     }
 }

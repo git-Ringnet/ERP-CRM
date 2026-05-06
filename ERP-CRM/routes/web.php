@@ -150,8 +150,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/warranties/{saleItem}', [WarrantyController::class, 'show'])->name('warranties.show');
 
     // Sales routes
-    Route::resource('sales', SaleController::class);
     Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
+    Route::get('/sales/order-tracking', [SaleController::class, 'orderTracking'])->name('sales.order-tracking');
+    Route::resource('sales', SaleController::class);
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
     Route::get('/sales/{sale}/invoice-excel', [SaleController::class, 'exportInvoiceExcel'])->name('sales.invoice.excel');
     Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
@@ -166,7 +167,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
     Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
+    Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
+
+    // Invoice Request routes
+    Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');
+    Route::post('/invoice-requests/{invoiceRequest}/issue-draft', [\App\Http\Controllers\InvoiceRequestController::class, 'issueDraft'])->name('invoice-requests.issue-draft');
+    Route::post('/invoice-requests/{invoiceRequest}/issue-official', [\App\Http\Controllers\InvoiceRequestController::class, 'issueOfficial'])->name('invoice-requests.issue-official');
+    Route::post('/invoice-requests/{invoiceRequest}/reject', [\App\Http\Controllers\InvoiceRequestController::class, 'reject'])->name('invoice-requests.reject');
+    Route::delete('/invoice-requests/{invoiceRequest}', [\App\Http\Controllers\InvoiceRequestController::class, 'cancel'])->name('invoice-requests.cancel');
 
     // Cost Formula routes
     Route::resource('cost-formulas', CostFormulaController::class);
@@ -251,6 +260,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Purchase Order routes (Đơn mua hàng)
     Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
+    Route::get('/purchase-orders/pr-items', [PurchaseOrderController::class, 'getPrItems'])->name('purchase-orders.pr-items');
     Route::resource('purchase-orders', PurchaseOrderController::class);
     Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
     Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
@@ -264,6 +274,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
     Route::post('/purchase-orders/{purchaseOrder}/toggle-hold', [PurchaseOrderController::class, 'toggleHold'])->name('purchase-orders.toggle-hold');
     Route::post('/purchase-orders/{purchaseOrder}/update-tracking', [PurchaseOrderController::class, 'updateTracking'])->name('purchase-orders.update-tracking');
+
+    // Purchasing Management (Flow sau khi gửi PR)
+    Route::get('/purchase-requests', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'index'])->name('purchase-requests.index');
+    Route::post('/purchase-requests/{id}/verify', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'verify'])->name('purchase-requests.verify');
+    Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
+    Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
 
     // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
     Route::resource('shipping-allocations', ShippingAllocationController::class);

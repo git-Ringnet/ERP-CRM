@@ -132,9 +132,14 @@
         <div class="border-t border-gray-200 pt-4 mb-6">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-lg font-semibold text-gray-900">Chi tiết sản phẩm</h3>
-                <button type="button" id="addItem" class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                    <i class="fas fa-plus mr-1"></i>Thêm sản phẩm
-                </button>
+                <div class="flex gap-2">
+                    <button type="button" id="importPrBtn" class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed" title="Vui lòng chọn nhà cung cấp trước">
+                        <i class="fas fa-file-import mr-1"></i>Import từ PR
+                    </button>
+                    <button type="button" id="addItem" class="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        <i class="fas fa-plus mr-1"></i>Thêm sản phẩm
+                    </button>
+                </div>
             </div>
             <div id="itemsContainer" class="space-y-3">
                 @if($quotation && $quotation->items->count() > 0)
@@ -271,6 +276,57 @@
     </form>
 </div>
 
+<!-- Modal Import PR -->
+<div id="prModal" class="fixed inset-0 z-[100] hidden overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" id="closePrModalBg"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <div class="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full font-sans">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">
+                        <i class="fas fa-file-invoice text-purple-500 mr-2"></i>Chọn sản phẩm từ Yêu cầu đặt hàng (PR)
+                    </h3>
+                    <button type="button" id="closePrModalBtn" class="text-gray-400 hover:text-gray-500">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-4 sm:p-6 max-h-[60vh] overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
+                                <input type="checkbox" id="selectAllPrItems" class="rounded">
+                            </th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã PR/Sale</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part Number</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">SL Còn lại</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ĐVT</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SI Name</th>
+                        </tr>
+                    </thead>
+                    <tbody id="prItemsList" class="bg-white divide-y divide-gray-200">
+                        <!-- Ajax loading -->
+                    </tbody>
+                </table>
+                <div id="prItemsEmpty" class="py-10 text-center text-gray-500 hidden">
+                    <i class="fas fa-folder-open text-4xl mb-3"></i>
+                    <p>Không có yêu cầu đặt hàng nào treo cho nhà cung cấp này.</p>
+                </div>
+            </div>
+            <div class="bg-white px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t">
+                <button type="button" id="confirmImportPr" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                    Xác nhận thêm
+                </button>
+                <button type="button" id="cancelImportPr" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
 <style>
@@ -320,7 +376,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     calculateTotal();
+    updateImportPrBtn();
 });
+
+function updateImportPrBtn() {
+    const btn = document.getElementById('importPrBtn');
+    if (!btn) return;
+    const supplierId = document.getElementById('supplierSelect').value;
+    if (supplierId) {
+        btn.disabled = false;
+        btn.title = 'Nhấn để import các yêu cầu đặt hàng của nhà cung cấp này';
+    } else {
+        btn.disabled = true;
+        btn.title = 'Vui lòng chọn nhà cung cấp trước';
+    }
+}
+
+// Lắng nghe sự kiện thay đổi supplier
+document.getElementById('supplierSelect').addEventListener('change', updateImportPrBtn);
 
 @php
     $productData = $products->map(function ($p) {
@@ -593,6 +666,142 @@ function updateRemoveButtons() {
         row.querySelector('.remove-item').style.display = rows.length > 1 ? 'flex' : 'none';
     });
 }
+
+// Logic Import PR
+const prModal = document.getElementById('prModal');
+const importPrBtn = document.getElementById('importPrBtn');
+const supplierSelect = document.getElementById('supplierSelect');
+
+// State management for PR items
+let currentPrItems = [];
+
+function togglePrModal(show) {
+    if (show) prModal.classList.remove('hidden');
+    else prModal.classList.add('hidden');
+}
+
+importPrBtn.addEventListener('click', async function() {
+    const supplierId = supplierSelect.value;
+    if (!supplierId) {
+        alert('Vui lòng chọn nhà cung cấp trước!');
+        return;
+    }
+
+    // Show loading state
+    const tbody = document.getElementById('prItemsList');
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Đang tải dữ liệu...</td></tr>';
+    document.getElementById('prItemsEmpty').classList.add('hidden');
+    togglePrModal(true);
+
+    try {
+        const response = await fetch(`{{ route('purchase-orders.pr-items') }}?supplier_id=${supplierId}`);
+        const items = await response.json();
+        currentPrItems = items;
+        renderPrItems(items);
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Lỗi khi tải dữ liệu!</td></tr>';
+    }
+});
+
+function renderPrItems(items) {
+    const tbody = document.getElementById('prItemsList');
+    const emptyState = document.getElementById('prItemsEmpty');
+    tbody.innerHTML = '';
+    
+    if (items.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+    }
+
+    emptyState.classList.add('hidden');
+    items.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        tr.innerHTML = `
+            <td class="px-3 py-2 text-sm">
+                <input type="checkbox" class="pr-item-checkbox rounded" data-id="${item.id}">
+            </td>
+            <td class="px-3 py-2 text-sm text-gray-900 font-medium">
+                ${item.pr_code}<br/>
+                <span class="text-xs text-gray-500">${item.sale_code}</span>
+            </td>
+            <td class="px-3 py-2 text-sm text-gray-600">${item.part_number}</td>
+            <td class="px-3 py-2 text-sm text-right font-medium text-blue-600">${item.remaining}</td>
+            <td class="px-3 py-2 text-sm text-gray-500">${item.unit || '---'}</td>
+            <td class="px-3 py-2 text-sm text-gray-500 max-w-[200px] truncate" title="${item.si_name || ''}">${item.si_name || '---'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('selectAllPrItems').addEventListener('change', function() {
+    document.querySelectorAll('.pr-item-checkbox').forEach(cb => cb.checked = this.checked);
+});
+
+document.getElementById('closePrModalBtn').addEventListener('click', () => togglePrModal(false));
+document.getElementById('closePrModalBg').addEventListener('click', () => togglePrModal(false));
+document.getElementById('cancelImportPr').addEventListener('click', () => togglePrModal(false));
+
+document.getElementById('confirmImportPr').addEventListener('click', function() {
+    const selectedIds = Array.from(document.querySelectorAll('.pr-item-checkbox:checked')).map(cb => parseInt(cb.dataset.id));
+    if (selectedIds.length === 0) {
+        alert('Vui lòng chọn ít nhất một sản phẩm!');
+        return;
+    }
+
+    const itemsToAdd = currentPrItems.filter(item => selectedIds.includes(item.id));
+    addItemsToOrder(itemsToAdd);
+    togglePrModal(false);
+});
+
+function addItemsToOrder(items) {
+    const container = document.getElementById('itemsContainer');
+    const firstRowInput = container.querySelector('.item-row:first-child .product-name-input');
+    
+    // Nếu row đầu tiên rỗng, xóa nó đi
+    if (container.querySelectorAll('.item-row').length === 1 && !firstRowInput.value) {
+        container.innerHTML = '';
+    }
+
+    items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
+        row.innerHTML = `
+            <div class="col-span-4 relative product-autocomplete">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span class="bg-purple-100 text-purple-700 text-[10px] px-1 rounded ml-1">${item.pr_code}</span></label>
+                <input type="text" name="items[${itemIndex}][product_name]" value="${item.part_number}"
+                    class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+                <input type="hidden" name="items[${itemIndex}][product_id]" value="" class="product-id">
+                <input type="hidden" name="items[${itemIndex}][sale_order_request_item_id]" value="${item.id}">
+                <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+                <input type="number" name="items[${itemIndex}][quantity]" value="${item.remaining}" min="0.01" step="0.01" required 
+                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
+                <input type="number" name="items[${itemIndex}][unit_price]" value="0" min="0" step="0.01" required 
+                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
+            </div>
+            <div class="col-span-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
+            </div>
+            <div class="col-span-1 flex justify-center">
+                <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200"><i class="fas fa-trash"></i></button>
+            </div>
+        `;
+        container.appendChild(row);
+        setupProductAutocomplete(row);
+        itemIndex++;
+    });
+
+    updateRemoveButtons();
+    calculateTotal();
+}
 </script>
 @endpush
+@endsection
 @endsection

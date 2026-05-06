@@ -456,7 +456,7 @@
 
                             @can('view_sales')
                                 <a href="{{ route('sales.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') ? 'bg-primary text-white' : '' }}">
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') && !request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
                                 </a>
@@ -493,6 +493,12 @@
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo bán hàng</span>
                                 </a>
                             @endcan
+
+                            <a href="{{ route('sales.order-tracking') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-map-marked-alt w-6 text-emerald-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi hàng về</span>
+                            </a>
                         </div>
                     </div>
                 @endcanany
@@ -536,6 +542,16 @@
                             --}}
 
                             @can('view_purchase_orders')
+                                <a href="{{ route('purchase-requests.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-clipboard-check w-6 text-yellow-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Duyệt yêu cầu (PR)</span>
+                                </a>
+                                <a href="{{ route('purchase-requests.needs-ordering') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.needs-ordering') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-layer-group w-6 text-teal-400"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Gom đơn cần đặt</span>
+                                </a>
                                 <a href="{{ route('purchase-orders.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-file-contract w-6 text-blue-400"></i>
@@ -559,11 +575,11 @@
                                 </a>
                             @endcan
 
-                            <a href="{{ route('supplier-debts.index') }}"
+                            {{-- <a href="{{ route('supplier-debts.index') }}"
                                 class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('supplier-debts.*') ? 'bg-primary text-white' : '' }}">
                                 <i class="fas fa-file-invoice-dollar w-6 text-emerald-400"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap">Công nợ NCC</span>
-                            </a>
+                            </a> --}}
                         </div>
                     </div>
                 @endcanany

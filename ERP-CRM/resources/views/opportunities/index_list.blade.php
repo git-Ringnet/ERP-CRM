@@ -11,7 +11,7 @@
                     <i class="fas fa-funnel-dollar text-yellow-500 mr-2"></i>Danh sách Cơ hội
                 </h2>
                 <div class="flex gap-2">
-                    <a href="{{ route('opportunities.index', ['view' => 'kanban']) }}"
+                    <a href="{{ route('opportunities.index', ['view' => 'kanban'] + request()->except('view')) }}"
                         class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                         <i class="fas fa-columns mr-2"></i>Dạng thẻ
                     </a>
@@ -23,12 +23,52 @@
             </div>
         </div>
 
+        <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+            <form action="{{ route('opportunities.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-end">
+                <input type="hidden" name="view" value="list">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Từ ngày</label>
+                    <input type="date" name="start_date" value="{{ request('start_date') }}" 
+                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Đến ngày</label>
+                    <input type="date" name="end_date" value="{{ request('end_date') }}" 
+                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Khách hàng</label>
+                    <input type="text" name="customer_name" value="{{ request('customer_name') }}" placeholder="Tên khách hàng..."
+                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                </div>
+                <div class="md:col-span-2 lg:col-span-1 xl:col-span-1">
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Tìm theo tên/ghi chú</label>
+                    <div class="flex gap-2">
+                        <input type="text" name="name" value="{{ request('name') }}" placeholder="Tên..."
+                            class="flex-1 min-w-0 border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                        <input type="text" name="notes" value="{{ request('notes') }}" placeholder="Ghi chú..."
+                            class="flex-1 min-w-0 border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm flex-1 sm:flex-none">
+                        <i class="fas fa-filter mr-1"></i> Lọc
+                    </button>
+                    <a href="{{ route('opportunities.index', ['view' => 'list']) }}" 
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm flex-1 sm:flex-none text-center">
+                        <i class="fas fa-times mr-1"></i> Xóa
+                    </a>
+                </div>
+            </form>
+        </div>
+
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên cơ hội</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá trị</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Giai đoạn</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hành động tiếp theo</th>
@@ -48,6 +88,11 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm text-gray-900">{{ $opportunity->customer->name ?? 'N/A' }}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="text-sm text-gray-500 line-clamp-2" title="{{ $opportunity->description }}">
+                                    {{ $opportunity->description ?: '-' }}
+                                </div>
                             </td>
                             <td class="px-4 py-3 text-sm font-semibold text-gray-900">
                                 {{ number_format($opportunity->amount) }} {{ $opportunity->currency }}

@@ -4,6 +4,7 @@
 @php
     $expenses = $expenses ?? \App\Models\SaleExpense::defaultExpenses();
     $currencySymbol = $currencySymbol ?? '₫';
+    $isLocked = $isLocked ?? false;
 @endphp
 
 <div class="border-t pt-4" x-data="expenseManager()">
@@ -12,6 +13,7 @@
             <i class="fas fa-file-invoice-dollar text-purple-500 mr-2"></i>Chi phí đơn hàng
         </h4>
         <div class="flex gap-2">
+            @if(!$isLocked)
             <button type="button" @click="addDefaultExpenses()"
                     class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
                 <i class="fas fa-magic mr-1.5"></i> Thêm chi phí mặc định
@@ -20,6 +22,7 @@
                     class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
                 <i class="fas fa-plus mr-1.5"></i> Thêm chi phí
             </button>
+            @endif
         </div>
     </div>
 
@@ -42,7 +45,8 @@
                     <div class="col-span-4">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Tên chi phí</label>
                         <input type="text" :name="'expenses['+idx+'][type]'" x-model="exp.type"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                               {{ $isLocked ? 'readonly' : '' }}
+                               :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400'"
                                placeholder="Nhập tên chi phí...">
                     </div>
 
@@ -51,14 +55,18 @@
                         <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode"
                                 @focus="exp._modeBeforeFocus = exp.input_mode"
                                 @change="onExpenseInputModeChange(idx)"
-                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer">
+                                {{ $isLocked ? 'disabled' : '' }}
+                                :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer'">
                             <option value="percent">% (Phần trăm)</option>
                             <option value="fixed">VND (Số tiền)</option>
                         </select>
+                        <template x-if="{{ $isLocked ? 'true' : 'false' }}">
+                            <input type="hidden" :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode">
+                        </template>
                     </div>
 
                     {{-- Giá trị input --}}
-                    <div class="col-span-2">
+                     <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Giá trị</label>
                         <div class="relative">
                             <input type="text"
@@ -67,7 +75,8 @@
                                    @blur="exp.input_value = formatRawInput(exp.input_value)"
                                    @focus="exp.input_value = (exp.input_value || '').toString().replace(/,/g, '')"
                                    :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
-                                   class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400">
+                                   {{ $isLocked ? 'readonly' : '' }}
+                                   :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400'">
                             <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400"
                                   x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
                         </div>
@@ -90,10 +99,12 @@
 
                     {{-- Xóa --}}
                     <div class="col-span-1 flex justify-center">
+                        @if(!$isLocked)
                         <button type="button" @click="removeExpense(idx)"
                                 class="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors" title="Xóa chi phí">
                             <i class="fas fa-trash-alt text-xs"></i>
                         </button>
+                        @endif
                     </div>
                 </div>
             </div>

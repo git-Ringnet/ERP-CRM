@@ -27,9 +27,19 @@ trait LogsActivity
             }
 
             // Kiểm tra xem model có vừa được tạo (trong 2 giây)
-            if ($model->wasRecentlyCreated || 
-                ($model->created_at && $model->created_at->diffInSeconds(now()) < 2)) {
+            if ($model->wasRecentlyCreated) {
                 return;
+            }
+
+            if ($model->created_at) {
+                $createdAt = $model->created_at;
+                if (is_string($createdAt)) {
+                    $createdAt = \Illuminate\Support\Carbon::parse($createdAt);
+                }
+                
+                if ($createdAt instanceof \DateTimeInterface && $createdAt->diffInSeconds(now()) < 2) {
+                    return;
+                }
             }
 
             // Chỉ log nếu có thay đổi thực sự

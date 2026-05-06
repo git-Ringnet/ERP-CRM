@@ -15,10 +15,12 @@
            class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
             <i class="fas fa-edit mr-2"></i> Sửa
         </a>
+        @if($sale->dashboard_step >= 4)
         <a href="{{ route('sales.pdf', $sale->id) }}" target="_blank"
            class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
             <i class="fas fa-file-pdf mr-2"></i> Hóa đơn (In)
         </a>
+        @endif
         <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline">
             @csrf
             <button type="submit" 
@@ -32,13 +34,15 @@
             <i class="fas fa-money-bill mr-2"></i> Ghi nhận thanh toán
         </button>
         @endif
-        <!-- <button onclick="openOrderRequestModal()" 
+        @if($sale->pl_status === 'approved')
+        <a href="{{ route('sales.order-request.create', $sale->id) }}" 
                 class="inline-flex items-center px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors">
             <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
             @if($sale->orderRequests && $sale->orderRequests->count() > 0)
                 <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
             @endif
-        </button> -->
+        </a>
+        @endif
     </div>
     
     {{-- System Alert for Auto-created POs --}}
@@ -112,14 +116,28 @@
         <div class="px-5 py-3 bg-white border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Trạng thái đơn:</span>
-                <div class="flex items-center text-[11px]">
-                    <span class="px-2 py-1 rounded {{ $sale->status === 'pending' ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Chờ duyệt</span>
-                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
-                    <span class="px-2 py-1 rounded {{ $sale->status === 'approved' ? 'bg-blue-100 text-blue-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Đã duyệt</span>
-                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
-                    <span class="px-2 py-1 rounded {{ $sale->status === 'shipping' ? 'bg-purple-100 text-purple-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Giao hàng</span>
-                    <i class="fas fa-chevron-right mx-2 text-gray-200"></i>
-                    <span class="px-2 py-1 rounded {{ $sale->status === 'completed' ? 'bg-green-100 text-green-800 font-bold' : 'bg-gray-100 text-gray-500' }}">Hoàn thành</span>
+                <div class="flex items-center text-[10px] sm:text-[11px] overflow-x-auto pb-1 no-scrollbar">
+                    @php
+                        $currentStep = $sale->dashboard_step;
+                        $steps = [
+                            ['label' => 'Chờ duyệt', 'color' => 'yellow'],
+                            ['label' => 'Đã duyệt', 'color' => 'blue'],
+                            ['label' => 'Đã đặt hàng', 'color' => 'indigo'],
+                            ['label' => 'Chờ hàng về', 'color' => 'purple'],
+                            ['label' => 'Hàng về', 'color' => 'emerald'],
+                            ['label' => 'Giao hàng', 'color' => 'amber'],
+                            ['label' => 'Hoàn thành', 'color' => 'green'],
+                        ];
+                    @endphp
+
+                    @foreach($steps as $index => $step)
+                        <span class="px-2 py-1 rounded whitespace-nowrap {{ $currentStep === $index ? "bg-{$step['color']}-100 text-{$step['color']}-800 font-bold ring-1 ring-{$step['color']}-300" : ($currentStep > $index ? "text-{$step['color']}-600" : 'bg-gray-50 text-gray-400') }}">
+                            {{ $step['label'] }}
+                        </span>
+                        @if(!$loop->last)
+                            <i class="fas fa-chevron-right mx-1.5 {{ $currentStep > $index ? "text-{$step['color']}-300" : 'text-gray-200' }}"></i>
+                        @endif
+                    @endforeach
                 </div>
             </div>
 
@@ -146,13 +164,23 @@
                 @endif
 
                 @if($sale->status === 'approved')
-                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                        @csrf @method('PATCH')
-                        <input type="hidden" name="status" value="shipping">
-                        <button type="submit" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded shadow-sm hover:bg-purple-700 transition-all">
+                    @php 
+                        $hasOfficialInvoice = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
+                    @endphp
+                    @if($hasOfficialInvoice)
+                        <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="status" value="shipping">
+                            <button type="submit" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded shadow-sm hover:bg-purple-700 transition-all">
+                                <i class="fas fa-truck mr-1"></i> GIAO HÀNG
+                            </button>
+                        </form>
+                    @else
+                        <button type="button" disabled class="px-3 py-1 bg-gray-200 text-gray-400 text-xs font-bold rounded cursor-not-allowed opacity-60" title="Cần có hóa đơn chính thức để giao hàng">
                             <i class="fas fa-truck mr-1"></i> GIAO HÀNG
                         </button>
-                    </form>
+                        <span class="text-[10px] text-amber-600 ml-1 italic"><i class="fas fa-info-circle"></i> Chờ HĐ chính thức</span>
+                    @endif
                 @endif
 
                 @if($sale->status === 'shipping')
@@ -295,7 +323,7 @@
                         <dd class="font-medium text-gray-900">{{ $sale->customer_name }}</dd>
                     </div>
                     <div class="flex">
-                        <dt class="w-32 text-gray-500">Nhân viên kinh doanh:</dt>
+                        <dt class="w-32 text-gray-500">Salesperson:</dt>
                         <dd class="font-medium text-primary">{{ $sale->user->name ?? 'N/A' }}</dd>
                     </div>
                     @if($sale->customer)
@@ -317,6 +345,50 @@
                 </dl>
             </div>
         </div>
+
+        {{-- Shipment Tracking Info --}}
+        @php
+            $associatedPos = $sale->all_purchase_orders->filter(function($po) {
+                return $po->expected_arrival_date || $po->manufacturer_release_date || $po->expected_delivery;
+            });
+        @endphp
+
+        @if($associatedPos->count() > 0)
+        <div class="mt-8 pt-6 border-t border-gray-100">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <i class="fas fa-shipping-fast mr-2 text-indigo-500"></i>
+                Theo dõi lô hàng (Procurement Tracking)
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                @foreach($associatedPos as $po)
+                <div class="bg-indigo-50/50 border border-indigo-100 rounded-lg p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <a href="{{ route('purchase-orders.show', $po->id) }}" class="text-sm font-bold text-indigo-700 hover:underline">
+                            {{ $po->code }}
+                        </a>
+                        <span class="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                            {{ $po->supplier->name ?? 'N/A' }}
+                        </span>
+                    </div>
+                    <dl class="space-y-2 text-xs">
+                        <div class="flex justify-between">
+                            <dt class="text-gray-500 italic">Dự kiến hàng về:</dt>
+                            <dd class="font-bold text-gray-900">{{ $po->expected_arrival_date ? \Carbon\Carbon::parse($po->expected_arrival_date)->format('d/m/Y') : '-' }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-gray-500 italic">Hãng xuất sp:</dt>
+                            <dd class="font-bold text-gray-900">{{ $po->manufacturer_release_date ? \Carbon\Carbon::parse($po->manufacturer_release_date)->format('d/m/Y') : '-' }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-gray-500 italic">Giao hàng dự kiến:</dt>
+                            <dd class="font-bold text-gray-900">{{ $po->expected_delivery ? \Carbon\Carbon::parse($po->expected_delivery)->format('d/m/Y') : '-' }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
     </div>
 
     <!-- Tabs Header -->
@@ -337,6 +409,17 @@
                     :class="activeTab === 'margin' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
                     <i class="fas fa-chart-pie mr-2"></i> Tổng quan Margin
+                </button>
+                <button @click="activeTab = 'invoice'"
+                    :class="activeTab === 'invoice' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
+                    <i class="fas fa-file-invoice-dollar mr-2"></i> Quản lý Hóa đơn
+                    @php $pendingCount = $sale->invoiceRequests->filter(fn($r) => $r->status === 'pending')->count(); @endphp
+                    @if($pendingCount > 0)
+                        <span class="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{{ $pendingCount }}</span>
+                    @elseif($sale->invoiceRequests->count() > 0)
+                        <span class="ml-1.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ $sale->invoiceRequests->count() }}</span>
+                    @endif
                 </button>
             </nav>
         </div>
@@ -632,7 +715,12 @@
                 </div>
             </div>
         </div>
+
+        <!-- Tab: Invoice -->
+        <div x-show="activeTab === 'invoice'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95" class="mt-4">
+            @include('sales.partials.invoice-tab')
         </div>
+    </div>
     <!-- End Tabs Wrapper -->
 
 
@@ -754,10 +842,27 @@ document.getElementById('paymentModal')?.addEventListener('click', function(e) {
         closePaymentModal();
     }
 });
+</script>
 
-// Order Request: inject config and load external JS
+@php
+    $orderRequestSuppliers = $suppliers->map(function($s) { 
+        return ['id' => $s->id, 'name' => $s->name]; 
+    })->values();
+    $orderRequestItems = $sale->items->map(function($item) {
+        return [
+            'product_id' => $item->product_id,
+            'part_number' => $item->product_name,
+            'quantity' => $item->quantity,
+            'unit' => $item->unit,
+            'vendor_id' => $item->product ? $item->product->supplier_id : null,
+        ];
+    })->values();
+@endphp
+<script>
 window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
 window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
+window.OR_SUPPLIERS = @json($orderRequestSuppliers);
+window.OR_SALE_ITEMS = @json($orderRequestItems);
 </script>
 <script src="{{ asset('js/order-request.js') }}"></script>
 @endpush

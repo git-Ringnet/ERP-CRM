@@ -9,6 +9,17 @@
         @csrf
         @method('PUT')
         
+        @php $isLocked = $sale->pl_status === 'approved'; @endphp
+        
+        @if($isLocked)
+        <div class="p-4 mx-6 mt-6 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
+            <i class="fas fa-lock text-yellow-600 mt-1 mr-3"></i>
+            <div class="text-sm text-yellow-800">
+                <span class="font-bold">Đơn hàng đã được duyệt P&L:</span> Thông tin sản phẩm, chi phí và khách hàng đã bị khóa để đảm bảo tính nhất quán.
+            </div>
+        </div>
+        @endif
+
         <div class="p-4 sm:p-6 space-y-6">
             <!-- Basic Info -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -34,6 +45,7 @@
                         <option value="retail" {{ old('type', $sale->type) == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
                         <option value="project" {{ old('type', $sale->type) == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                     </select>
+                    @if($isLocked) <input type="hidden" name="type" value="{{ $sale->type }}"> @endif
                 </div>
             </div>
 
@@ -71,11 +83,12 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Khách hàng <span class="text-red-500">*</span>
                     </label>
-                    <div class="searchable-select" id="customerSelect">
-                        <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror" 
+                    <div class="searchable-select {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}" id="customerSelect">
+                        <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}" 
                                placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                               value="{{ $sale->customer->name }} ({{ $sale->customer->code }})">
+                               value="{{ $sale->customer->name }} ({{ $sale->customer->code }})" {{ $isLocked ? 'readonly' : '' }}>
                         <input type="hidden" name="customer_id" required value="{{ $sale->customer_id }}">
+                        @if(!$isLocked)
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
@@ -85,6 +98,7 @@
                                 </div>
                             @endforeach
                         </div>
+                        @endif
                     </div>
                     @error('customer_id')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
@@ -107,17 +121,7 @@
                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('delivery_address', $sale->delivery_address) }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Trạng thái <span class="text-red-500">*</span>
-                    </label>
-                    <select name="status" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="pending" {{ old('status', $sale->status) == 'pending' ? 'selected' : '' }}>Chờ duyệt</option>
-                        <option value="approved" {{ old('status', $sale->status) == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
-                        <option value="shipping" {{ old('status', $sale->status) == 'shipping' ? 'selected' : '' }}>Đang giao</option>
-                        <option value="completed" {{ old('status', $sale->status) == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="cancelled" {{ old('status', $sale->status) == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
-                    </select>
+                    {{-- Status removed from edit per request --}}
                 </div>
             </div>
 
@@ -129,8 +133,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Loại tiền tệ</label>
-                        <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()" {{ $isLocked ? 'disabled' : '' }}
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}">
                             @foreach($currencies as $currency)
                                 <option value="{{ $currency->id }}"
                                     data-is-base="{{ $currency->is_base ? '1' : '0' }}"
@@ -141,6 +145,7 @@
                                 </option>
                             @endforeach
                         </select>
+                        @if($isLocked) <input type="hidden" name="currency_id" value="{{ $sale->currency_id }}"> @endif
                     </div>
                     <div id="exchangeRateGroup" class="{{ ($sale->currency_id && $sale->currency_id != $baseCurrencyId) ? '' : 'hidden' }}">
                         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -149,8 +154,8 @@
                         </label>
                         <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0"
                             value="{{ old('exchange_rate', $sale->exchange_rate ? floatval($sale->exchange_rate) : 1) }}"
-                            onchange="calculateTotal()"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                            onchange="calculateTotal()" {{ $isLocked ? 'readonly' : '' }}
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}">
                         <p class="text-xs text-gray-500 mt-1" id="rateHint">Tỷ giá từ lúc tạo đơn</p>
                     </div>
                     <div id="dualPricePlaceholder" class="hidden">
@@ -183,32 +188,34 @@
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                             <div class="md:col-span-4">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
-                                <div class="searchable-select product-searchable" data-index="{{ $index }}" data-ajax-url="{{ route('api.products.search') }}">
-                                    <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
+                                <div class="searchable-select product-searchable {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}" data-index="{{ $index }}" data-ajax-url="{{ route('api.products.search') }}">
+                                    <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}" 
                                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off"
-                                           value="[{{ $item->product?->code }}] {{ $item->product?->name }}">
+                                           value="[{{ $item->product?->code }}] {{ $item->product?->name }}" {{ $isLocked ? 'readonly' : '' }}>
                                     <input type="hidden" name="products[{{ $index }}][product_id]" required class="product-id-input" value="{{ $item->product_id }}">
+                                    @if(!$isLocked)
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
+                                    @endif
                                 </div>
                             </div>
                             <div class="md:col-span-1">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
                                 <input type="number" name="products[{{ $index }}][quantity]" min="1" value="{{ $item->quantity }}" required
-                                       onchange="calculateRowTotal({{ $index }})"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                       onchange="calculateRowTotal({{ $index }})" {{ $isLocked ? 'readonly' : '' }}
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input {{ $isLocked ? 'bg-gray-100' : '' }}">
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá <span class="text-red-500">*</span></label>
                                 <input type="text" name="products[{{ $index }}][price]" min="0" value="{{ number_format($item->price, $decimals, '.', ',') }}" required
-                                       onchange="calculateRowTotal({{ $index }})"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                       onchange="calculateRowTotal({{ $index }})" {{ $isLocked ? 'readonly' : '' }}
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input {{ $isLocked ? 'bg-gray-100' : '' }}">
                                 <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành</label>
                                 <input type="number" name="products[{{ $index }}][warranty_months]" min="0" max="120" value="{{ $item->warranty_months }}"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
-                                       placeholder="0">
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input {{ $isLocked ? 'bg-gray-100' : '' }}"
+                                       placeholder="0" {{ $isLocked ? 'readonly' : '' }}>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
@@ -216,20 +223,24 @@
                                        class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
                             </div>
                             <div class="md:col-span-1 flex items-end md:items-center">
+                                @if(!$isLocked)
                                 <button type="button" onclick="removeProductRow(this)" 
                                         class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
                                     <i class="fas fa-trash"></i>
                                 </button>
+                                @endif
                             </div>
                         </div>
                     </div>
                     @endforeach
                 </div>
 
+                @if(!$isLocked)
                 <button type="button" onclick="addProductRow()" 
                         class="mt-3 inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
                     <i class="fas fa-plus mr-2"></i> Thêm sản phẩm
                 </button>
+                @endif
             </div>
 
             {{-- Expenses Section — Flexible P/L Cost Entry --}}
@@ -246,6 +257,7 @@
             @include('sales.partials.expense-section', [
                 'expenses' => $expenseData,
                 'currencySymbol' => $sale->currency ? ($sale->currency->symbol ?? $sale->currency->code) : '₫',
+                'isLocked' => $isLocked,
             ])
             <div class="border-t pt-4">
                 <div class="space-y-3 max-w-md ml-auto">
@@ -259,8 +271,8 @@
                         <div class="flex gap-2 items-center">
                             <input type="number" name="discount" id="discount" value="{{ old('discount', $sale->discount ? (int)$sale->discount : '') }}" min="0" max="100" step="1"
                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
-                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                                   placeholder="0">
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}"
+                                   placeholder="0" {{ $isLocked ? 'readonly' : '' }}>
                             <input type="text" id="discountAmount" readonly
                                    class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-red-600">
                         </div>
@@ -270,8 +282,8 @@
                         <div class="flex gap-2 items-center">
                             <input type="number" name="vat" id="vat" value="{{ old('vat', $sale->vat ? (int)$sale->vat : '') }}" min="0" max="100" step="1"
                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
-                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                                   placeholder="0">
+                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}"
+                                   placeholder="0" {{ $isLocked ? 'readonly' : '' }}>
                             <input type="text" id="vatAmount" readonly
                                    class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
                         </div>
@@ -293,8 +305,6 @@
                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note', $sale->note) }}</textarea>
             </div>
 
-            <!-- Yêu cầu đặt hàng -->
-            @include('sales.partials.order-request-form', ['orderRequest' => $sale->orderRequests->first()])
         </div>
 
         <!-- Validation Error Message -->
@@ -306,6 +316,8 @@
                     <ul id="errorList" class="mt-1 text-sm text-red-700 list-disc list-inside"></ul>
                 </div>
             </div>
+        </div>
+
         </div>
 
         <!-- Actions -->
@@ -365,6 +377,8 @@ function initSearchableSelect(container, onSelect) {
     const input = container.querySelector('.searchable-input');
     const hiddenInput = container.querySelector('input[type="hidden"]');
     const dropdown = container.querySelector('.searchable-dropdown');
+    if (!dropdown) return; // Fix: return early if dropdown is not rendered (locked)
+    
     const ajaxUrl = container.dataset.ajaxUrl;
     let debounceTimer;
     

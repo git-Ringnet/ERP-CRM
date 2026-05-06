@@ -109,14 +109,33 @@
         .sig-box .sig-sub { font-style: italic; font-size: 9.5pt; }
         .sig-space { height: 60px; }
 
+        /* ---- WATERMARK ---- */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100pt;
+            color: rgba(200, 0, 0, 0.15);
+            font-weight: bold;
+            z-index: -1;
+            pointer-events: none;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }
+
         /* ---- PRINT ---- */
         @media print {
             body { padding: 0.8cm 1cm; }
             .no-print { display: none !important; }
+            .watermark { color: rgba(200, 0, 0, 0.1) !important; }
         }
     </style>
 </head>
 <body>
+    @if($isDraft ?? false)
+        <div class="watermark">BẢN NHÁP (DRAFT)</div>
+    @endif
 @php
     use App\Models\Setting;
     use App\Helpers\NumberHelper;

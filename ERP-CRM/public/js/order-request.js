@@ -56,18 +56,24 @@ function toggleOrderRequestSection() {
 // ==========================================
 // Dynamic row add/remove
 // ==========================================
-function buildSelectOptions(list) {
+function buildSelectOptions(list, isObject = false) {
     let html = `<option value="">-- Chọn --</option>`;
-    list.forEach(v => { html += `<option value="${v}">${v}</option>`; });
+    list.forEach(item => { 
+        if (isObject) {
+            html += `<option value="${item.id}">${item.name}</option>`; 
+        } else {
+            html += `<option value="${item}">${item}</option>`; 
+        }
+    });
     return html;
 }
 
-function addOrderRequestRow() {
+function addOrderRequestRow(data = null) {
     const i = orderRequestRowIndex++;
     const tbody = document.getElementById('orderRequestRows');
     if (!tbody) return;
 
-    const vendors = window.OR_VENDORS || [];
+    const suppliers = window.OR_SUPPLIERS || [];
     const types = window.OR_TYPES || [];
 
     const tr = document.createElement('tr');
@@ -75,17 +81,26 @@ function addOrderRequestRow() {
     tr.dataset.index = i;
     tr.innerHTML = `
         <td class="px-1 py-1.5">
-            <select name="order_request_items[${i}][vendor]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
-                ${buildSelectOptions(vendors)}
+            <select name="order_request_items[${i}][vendor_id]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                <option value="">-- Chọn --</option>
+                ${suppliers.map(s => `<option value="${s.id}" ${data && data.vendor_id == s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5">
             <select name="order_request_items[${i}][type]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
-                ${buildSelectOptions(types)}
+                <option value="">-- Chọn --</option>
+                ${types.map(t => `<option value="${t}" ${data && data.type == t ? 'selected' : (t === 'Hardware' ? 'selected' : '')}>${t}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5">
-            <input type="text" name="order_request_items[${i}][part_number]" required placeholder="P/N" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <input type="text" name="order_request_items[${i}][part_number]" value="${data ? data.part_number : ''}" required placeholder="P/N" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <input type="hidden" name="order_request_items[${i}][product_id]" value="${data ? data.product_id : ''}">
+        </td>
+        <td class="px-1 py-1.5">
+            <input type="number" name="order_request_items[${i}][quantity]" value="${data ? data.quantity : 1}" required step="0.01" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+        </td>
+        <td class="px-1 py-1.5">
+            <input type="text" name="order_request_items[${i}][unit]" value="${data ? (data.unit || '') : ''}" placeholder="Đơn vị" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][serial_number]" placeholder="SN" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
@@ -115,5 +130,35 @@ function removeOrderRequestRow(btn) {
     const rows = document.querySelectorAll('.order-request-row');
     if (rows.length > 1) {
         btn.closest('tr').remove();
+    } else {
+        // Clear inputs instead of removing last row
+        const row = btn.closest('tr');
+        row.querySelectorAll('input').forEach(i => i.value = '');
+        row.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+    }
+}
+
+function importFromItems() {
+    const items = window.OR_SALE_ITEMS || [];
+    if (items.length === 0) {
+        alert('Không tìm thấy sản phẩm trong đơn hàng này.');
+        return;
+    }
+
+    if (confirm(`Bạn muốn tự động điền ${items.length} sản phẩm từ đơn hàng vào yêu cầu đặt hàng?`)) {
+        const tbody = document.getElementById('orderRequestRows');
+        tbody.innerHTML = ''; // Clear all
+        orderRequestRowIndex = 0;
+        
+        items.forEach(item => {
+            addOrderRequestRow({
+                product_id: item.product_id,
+                part_number: item.part_number,
+                quantity: item.quantity,
+                unit: item.unit,
+                vendor_id: item.vendor_id,
+                type: 'Hardware'
+            });
+        });
     }
 }

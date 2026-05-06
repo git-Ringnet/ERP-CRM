@@ -169,10 +169,6 @@ class ApprovalService
                         // 1. Tạo phiếu xuất kho
                         $exportSyncService = app(\App\Services\SaleExportSyncService::class);
                         $exportSyncService->createExportFromSale($document);
-
-                        // 2. Tạo đơn mua hàng (PO)
-                        $purchaseSyncService = app(\App\Services\SalePurchaseSyncService::class);
-                        $purchaseSyncService->createPurchaseOrderFromSale($document);
                     } catch (\Exception $e) {
                         \Illuminate\Support\Facades\Log::warning("Could not auto-process Sale #{$document->id} after approval: " . $e->getMessage());
                     }

@@ -161,7 +161,9 @@ class PurchaseOrderController extends Controller
                 $order->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
+                    'sale_order_request_item_id' => $item['sale_order_request_item_id'] ?? null,
                     'quantity' => $item['quantity'],
+                    'ordered_quantity' => $item['quantity'], // Set ordered_quantity initially
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
                     'total' => $total,
@@ -470,43 +472,83 @@ class PurchaseOrderController extends Controller
         }
 
         $request->validate([
-            'warehouse_id' => ['nullable', 'exists:warehouses,id'],
+            'items' => 'required|array',
+            'items.*' => 'numeric|min:0',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
         ]);
 
         DB::beginTransaction();
         try {
-            $purchaseOrder->update([
-                'status' => 'received',
-                'actual_delivery' => now(),
-            ]);
+            $receivedItemData = $request->input('items', []);
+            $anyReceived = false;
 
-            // Cập nhật số lượng đã nhận
             foreach ($purchaseOrder->items as $item) {
-                $item->update(['received_quantity' => $item->quantity]);
+                $receivingQty = (float) ($receivedItemData[$item->id] ?? 0);
+                if ($receivingQty <= 0) continue;
+
+                $remainingToReceive = $item->quantity - $item->received_quantity;
+                if ($receivingQty > ($remainingToReceive + 0.001)) { // Allow small float delta
+                    throw new \Exception("Số lượng nhận cho sản phẩm {$item->product_name} vượt quá số lượng còn lại.");
+                }
+
+                $item->received_quantity += $receivingQty;
+                $item->save();
+                
+                // Không cập nhật trực tiếp received_quantity trên PR Item nữa
+                // → Dùng accessor received_quantity_total (SUM từ PO items) để tránh data lệch
+                
+                $anyReceived = true;
             }
 
-            // Auto-create import when PO is received
-            $purchaseOrder->load(['items', 'supplier']);
-            $warehouseId = $request->warehouse_id ?? null;
+            if (!$anyReceived) {
+                return back()->with('warning', 'Vui lòng nhập số lượng nhận cho ít nhất một sản phẩm!');
+            }
 
+            // Kiểm tra trạng thái tổng thể của PO
+            $allReceived = true;
+            foreach ($purchaseOrder->items as $item) {
+                if ($item->received_quantity < $item->quantity) {
+                    $allReceived = false;
+                    break;
+                }
+            }
+
+            $newStatus = $allReceived ? 'received' : 'partial_received';
+            $purchaseOrder->update([
+                'status' => $newStatus,
+                'actual_delivery' => $allReceived ? now() : $purchaseOrder->actual_delivery,
+            ]);
+
+            $msg = $allReceived ? 'Đã nhận đủ hàng thành công!' : 'Đã xác nhận nhận một phần hàng!';
+
+            // Sync với Module Nhập kho (Tạo phiếu nhập kho cho số lượng vừa nhận)
             try {
-                $import = $this->purchaseImportSyncService->createImportFromPO($purchaseOrder, $warehouseId, false);
+                $import = $this->purchaseImportSyncService->createPartialImportFromPO(
+                    $purchaseOrder, 
+                    $receivedItemData, 
+                    $request->warehouse_id, 
+                    false // Cần duyệt thủ công để tăng tồn kho
+                );
+                
                 if ($import) {
-                    DB::commit();
-                    return back()->with('success', 'Đã nhận hàng và tạo phiếu nhập kho ' . $import->code . '. Vui lòng duyệt phiếu nhập kho để cập nhật tồn kho.');
+                    $msg .= " Đã tạo phiếu nhập kho: {$import->code}.";
                 }
             } catch (\Exception $e) {
-                Log::warning("Could not create import for PO #{$purchaseOrder->id}: " . $e->getMessage());
+                Log::warning("Could not create partial import for PO #{$purchaseOrder->id}: " . $e->getMessage());
             }
 
             DB::commit();
-
-            // Notify sales when goods received
+            
+            // Notify sales
             if ($purchaseOrder->sale_id) {
-                $this->notifySalesUser($purchaseOrder, 'Hàng đã về - đủ hàng', "Đơn mua hàng {$purchaseOrder->code} đã nhận đủ hàng. Hàng sẵn sàng để xuất kho.");
+                $statusText = $allReceived ? 'Hàng đã về - đủ hàng' : 'Hàng đã về - một phần';
+                $this->notifySalesUser($purchaseOrder, $statusText, "Đơn mua hàng {$purchaseOrder->code} đã được cập nhật số lượng hàng về thực tế.");
             }
 
-            return back()->with('success', 'Đã xác nhận nhận hàng thành công!');
+            // 🔥 Kiểm tra xem toàn bộ SO đã đủ hàng chưa → gửi notification tổng hợp
+            $this->checkAndNotifyOrderComplete($purchaseOrder);
+
+            return back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
@@ -605,21 +647,110 @@ class PurchaseOrderController extends Controller
     private function notifySalesUser(PurchaseOrder $po, string $title, string $message): void
     {
         try {
-            $sale = $po->sale;
-            if (!$sale || !$sale->user_id) return;
+            // 1. Direct Sale
+            $saleIds = [];
+            if ($po->sale_id) {
+                $saleIds[] = $po->sale_id;
+            }
 
-            Notification::create([
-                'user_id' => $sale->user_id,
-                'type' => 'po_update',
-                'title' => $title,
-                'message' => $message,
-                'link' => route('purchase-orders.show', $po->id),
-                'icon' => 'fas fa-truck',
-                'color' => 'purple',
-                'data' => ['po_id' => $po->id, 'po_code' => $po->code, 'sale_id' => $sale->id],
-            ]);
+            // 2. Sales from Aggregated items
+            $aggregatedSaleIds = \App\Models\SaleOrderRequestItem::whereHas('purchaseOrderItems', function($q) use ($po) {
+                    $q->where('purchase_order_id', $po->id);
+                })
+                ->whereHas('saleOrderRequest', function($q) {
+                    $q->whereNotNull('sale_id');
+                })
+                ->get()
+                ->pluck('saleOrderRequest.sale_id')
+                ->unique()
+                ->toArray();
+            
+            $allSaleIds = array_unique(array_merge($saleIds, $aggregatedSaleIds));
+
+            foreach ($allSaleIds as $saleId) {
+                $sale = Sale::find($saleId);
+                if (!$sale || !$sale->user_id) continue;
+
+                Notification::create([
+                    'user_id' => $sale->user_id,
+                    'type' => 'po_update',
+                    'title' => $title,
+                    'message' => $message,
+                    'link' => route('purchase-orders.show', $po->id),
+                    'icon' => 'fas fa-truck',
+                    'color' => 'purple',
+                    'data' => ['po_id' => $po->id, 'po_code' => $po->code, 'sale_id' => $sale->id],
+                ]);
+            }
         } catch (\Exception $e) {
             Log::warning('Failed to notify sales user: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 🔥 Kiểm tra xem toàn bộ SO đã đủ hàng chưa → gửi notification
+     * Khi received >= requested cho TẤT CẢ các PR items trong SO
+     */
+    private function checkAndNotifyOrderComplete(PurchaseOrder $po): void
+    {
+        try {
+            // Lấy tất cả PR items liên quan qua PO items
+            $prItemIds = $po->items()
+                ->whereNotNull('sale_order_request_item_id')
+                ->pluck('sale_order_request_item_id')
+                ->unique();
+
+            if ($prItemIds->isEmpty()) return;
+
+            // Lấy sale_id từ PR items
+            $prItems = \App\Models\SaleOrderRequestItem::with('saleOrderRequest')
+                ->whereIn('id', $prItemIds)
+                ->get();
+
+            // Group theo sale_id
+            $saleIds = $prItems->pluck('saleOrderRequest.sale_id')->unique()->filter();
+
+            foreach ($saleIds as $saleId) {
+                $sale = Sale::find($saleId);
+                if (!$sale || !$sale->user_id) continue;
+
+                // Lấy TẤT CẢ PR items của SO này
+                $allPrItems = \App\Models\SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) use ($saleId) {
+                    $q->where('sale_id', $saleId);
+                })->get();
+
+                $allComplete = true;
+                foreach ($allPrItems as $prItem) {
+                    $received = $prItem->received_quantity_total; // Accessor: SUM từ PO items
+                    if ($received < $prItem->quantity) {
+                        $allComplete = false;
+                        break;
+                    }
+                }
+
+                if ($allComplete) {
+                    // Kiểm tra đã gửi notification chưa (tránh gửi trùng)
+                    $alreadyNotified = Notification::where('user_id', $sale->user_id)
+                        ->where('type', 'order_complete')
+                        ->where('data->sale_id', $saleId)
+                        ->exists();
+
+                    if (!$alreadyNotified) {
+                        Notification::create([
+                            'user_id' => $sale->user_id,
+                            'type' => 'order_complete',
+                            'title' => '🎉 Đơn hàng đã đủ hàng!',
+                            'message' => "Tất cả sản phẩm trong đơn {$sale->code} đã nhận đủ hàng.",
+                            'link' => route('sales.order-tracking') . '?sale_code=' . $sale->code,
+                            'icon' => 'fas fa-check-double',
+                            'color' => 'green',
+                            'data' => ['sale_id' => $saleId, 'sale_code' => $sale->code],
+                        ]);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to check order complete: ' . $e->getMessage());
         }
     }
 
@@ -639,16 +770,47 @@ class PurchaseOrderController extends Controller
         $oldArrival = $purchaseOrder->expected_arrival_date;
         $purchaseOrder->update($validated);
 
-        // Gửi thông báo cho sales khi cập nhật ngày dự kiến hàng về
-        if ($purchaseOrder->sale_id && $request->filled('expected_arrival_date') && $oldArrival != $request->expected_arrival_date) {
-            $newDate = \Carbon\Carbon::parse($request->expected_arrival_date)->format('d/m/Y');
+        // Gửi thông báo cho sales khi cập nhật thông tin theo dõi
+        if ($request->filled('expected_arrival_date') || $request->filled('manufacturer_release_date') || $request->filled('expected_delivery')) {
             $this->notifySalesUser(
                 $purchaseOrder,
-                'Cập nhật ngày dự kiến hàng về',
-                "Đơn mua hàng {$purchaseOrder->code} đã cập nhật ngày dự kiến hàng về: {$newDate}."
+                'Cập nhật thông tin theo dõi PO',
+                "Đơn mua hàng {$purchaseOrder->code} đã cập nhật thông tin theo dõi (Ngày về dự kiến, ngày xuất hãng...)."
             );
         }
 
-        return back()->with('success', 'Đã cập nhật thông tin theo dõi!');
+        return back()->with('success', 'Đã cập nhật thông tin theo dõi đơn hàng.');
+    }
+    /**
+     * Get PR items for a specific vendor that haven't been fully ordered
+     */
+    public function getPrItems(Request $request)
+    {
+        $supplierId = $request->query('supplier_id');
+        if (!$supplierId) return response()->json([]);
+
+        // Get PR items for this supplier where ordered_quantity < quantity
+        $items = \App\Models\SaleOrderRequestItem::with(['orderRequest.sale', 'orderRequest.creator'])
+            ->where('vendor_id', $supplierId)
+            ->get()
+            ->filter(function ($item) {
+                return $item->remaining_to_order > 0;
+            })
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'pr_code' => $item->orderRequest->code,
+                    'sale_code' => $item->orderRequest->sale->code ?? 'N/A',
+                    'part_number' => $item->part_number,
+                    'quantity' => $item->quantity,
+                    'remaining' => $item->remaining_to_order,
+                    'unit' => $item->unit,
+                    'type' => $item->type,
+                    'si_name' => $item->si_name,
+                ];
+            })
+            ->values();
+
+        return response()->json($items);
     }
 }

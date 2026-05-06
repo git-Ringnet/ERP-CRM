@@ -29,21 +29,31 @@
                         <span class="text-sm font-bold text-gray-700">
                             <i class="fas fa-list mr-1"></i> Chi tiết sản phẩm cần đặt
                         </span>
-                        <button type="button" onclick="addOrderRequestRow()"
-                            class="text-xs px-3 py-1.5 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors">
-                            <i class="fas fa-plus mr-1"></i> Thêm dòng
-                        </button>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="importFromItems()"
+                                class="text-xs px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-sync mr-1"></i> Lấy từ sản phẩm đơn hàng
+                            </button>
+                            <button type="button" onclick="addOrderRequestRow()"
+                                class="text-xs px-3 py-1.5 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors">
+                                <i class="fas fa-plus mr-1"></i> Thêm dòng
+                            </button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm" id="orderRequestTable">
                             <thead class="bg-yellow-200">
                                 <tr class="text-xs border-b border-gray-300">
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] align-middle">
-                                        Vendor <span class="text-red-500">*</span></th>
+                                    Vendor <span class="text-red-500">*</span></th>
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">Type
                                         <span class="text-red-500">*</span></th>
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[160px] align-middle">Part
                                         Number <span class="text-red-500">*</span></th>
+                                    <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle">Qty
+                                        <span class="text-red-500">*</span></th>
+                                    <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle">Unit
+                                    </th>
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">SN
                                     </th>
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">Exp
@@ -54,27 +64,23 @@
                                         Thông tin CQ (Điền tay)</th>
                                     <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                                 </tr>
-                                <tr class="text-xs border-b border-gray-300">
-                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">
-                                        EU Name - MST <span class="text-red-500">*</span></th>
-                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">
-                                        Address</th>
+                                <tr class="bg-yellow-200 text-xs border-b border-gray-300">
+                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">EU Name - MST <span class="text-red-500">*</span></th>
+                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">Address</th>
                                 </tr>
                             </thead>
                             <tbody id="orderRequestRows">
                                 <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="0">
                                     <td class="px-1 py-1.5">
-                                        <select name="items[0][vendor]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <select name="order_request_items[0][vendor_id]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                             <option value="">-- Chọn --</option>
-                                            @foreach(\App\Models\SaleOrderRequest::VENDORS as $v)
-                                                <option value="{{ $v }}">{{ $v }}</option>
+                                            @foreach($suppliers as $s)
+                                                <option value="{{ $s->id }}">{{ $s->name }}</option>
                                             @endforeach
                                         </select>
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <select name="items[0][type]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <select name="order_request_items[0][type]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                             <option value="">-- Chọn --</option>
                                             @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
                                                 <option value="{{ $t }}">{{ $t }}</option>
@@ -82,33 +88,31 @@
                                         </select>
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="items[0][part_number]" required placeholder="P/N"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="text" name="order_request_items[0][part_number]" required placeholder="P/N" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="items[0][serial_number]" placeholder="SN"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="date" name="items[0][exp_date]"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="items[0][si_name]" required placeholder="SI Name"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="text" name="order_request_items[0][serial_number]" placeholder="SN" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="items[0][eu_name_mst]" required
-                                            placeholder="EU Name - MST"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="date" name="order_request_items[0][exp_date]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="items[0][address]" placeholder="Address"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="text" name="order_request_items[0][eu_name_mst]" required placeholder="EU Name - MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="text" name="order_request_items[0][address]" placeholder="Address" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     </td>
                                     <td class="px-1 py-1.5 text-center">
-                                        <button type="button" onclick="removeOrderRequestRow(this)"
-                                            class="text-red-400 hover:text-red-600">
+                                        <button type="button" onclick="removeOrderRequestRow(this)" class="text-red-400 hover:text-red-600">
                                             <i class="fas fa-trash-alt text-xs"></i>
                                         </button>
                                     </td>
@@ -188,6 +192,9 @@
                                     <i class="fas fa-paperclip mr-1"></i>{{ $req->attachments->count() }} file
                                 </span>
                             @endif
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-{{ $req->status_color }}-100 text-{{ $req->status_color }}-700 uppercase">
+                                {{ $req->status_label }}
+                            </span>
                         </div>
                         <i class="fas fa-chevron-down text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''"></i>
                     </div>
@@ -202,6 +209,8 @@
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Vendor</th>
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Type</th>
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Part Number</th>
+                                        <th rowspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 align-middle">Qty</th>
+                                        <th rowspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 align-middle">Unit</th>
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SN</th>
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Exp date</th>
                                         <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SI Name</th>
@@ -215,11 +224,13 @@
                                 <tbody class="divide-y divide-gray-100">
                                     @foreach($req->items as $item)
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-2 py-1.5 font-medium">{{ $item->vendor }}</td>
+                                            <td class="px-2 py-1.5 font-medium">{{ $item->vendor->name ?? $item->vendor }}</td>
                                             <td class="px-2 py-1.5"><span
                                                     class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">{{ $item->type }}</span>
                                             </td>
                                             <td class="px-2 py-1.5 font-medium text-teal-700">{{ $item->part_number }}</td>
+                                            <td class="px-2 py-1.5 text-center font-bold">{{ number_format($item->quantity, 2) }}</td>
+                                            <td class="px-2 py-1.5 text-center text-gray-500">{{ $item->unit }}</td>
                                             <td class="px-2 py-1.5 text-gray-600">{{ $item->serial_number ?: '-' }}</td>
                                             <td class="px-2 py-1.5 text-gray-600">
                                                 {{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
@@ -236,6 +247,12 @@
                         @if($req->note)
                             <div class="bg-yellow-50 rounded-lg p-3 text-sm text-gray-700">
                                 <i class="fas fa-sticky-note text-yellow-500 mr-1"></i>Note: {{ $req->note }}
+                            </div>
+                        @endif
+
+                        @if($req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO && $req->rejection_note)
+                            <div class="bg-red-50 rounded-lg p-3 text-sm text-red-700 border border-red-100">
+                                <i class="fas fa-exclamation-triangle text-red-500 mr-1"></i><strong>Lý do từ chối/Cần bổ sung:</strong> {{ $req->rejection_note }}
                             </div>
                         @endif
 

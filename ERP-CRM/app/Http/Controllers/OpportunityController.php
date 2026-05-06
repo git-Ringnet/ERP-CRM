@@ -13,15 +13,36 @@ class OpportunityController extends Controller
     {
         $this->authorize('viewAny', \App\Models\Opportunity::class);
 
+        $query = \App\Models\Opportunity::with('customer', 'assignedTo');
+
+        // Apply filters
+        if ($request->filled('start_date')) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+        if ($request->filled('customer_name')) {
+            $query->whereHas('customer', function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->customer_name . '%');
+            });
+        }
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+        if ($request->filled('notes')) {
+            $query->where('description', 'like', '%' . $request->notes . '%');
+        }
+
         $viewType = $request->get('view', 'kanban'); // 'kanban' or 'list'
 
         if ($viewType === 'list') {
-            $opportunities = \App\Models\Opportunity::with('customer', 'assignedTo')->latest()->paginate(20);
+            $opportunities = $query->latest()->paginate(20);
             return view('opportunities.index_list', compact('opportunities'));
         }
 
         // Kanban View grouping
-        $opportunities = \App\Models\Opportunity::with('customer', 'assignedTo')->get();
+        $opportunities = $query->get();
         $stages = [
             'new' => 'Mới',
             'qualification' => 'Đánh giá',

@@ -41,7 +41,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã báo
                             giá</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">Khách
                             hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiêu đề
                         </th>
@@ -71,7 +71,7 @@
                                     {{ $quotation->code }}
                                 </a>
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 min-w-[300px]">
                                 <div class="text-sm font-medium text-gray-900">{{ $quotation->customer_name }}</div>
                             </td>
                             <td class="px-4 py-3">

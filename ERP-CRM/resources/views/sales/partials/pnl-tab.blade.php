@@ -378,7 +378,7 @@
         });
     }
 
-    function confirmAction(url, message) {
+    function submitPnlFormAction(url, message) {
         if (confirm(message)) {
             const form = document.createElement('form');
             form.method = 'POST';
@@ -1116,7 +1116,7 @@
                     @endif
 
                     @if($sale->pl_status !== null)
-                        <button type="button" onclick="confirmAction('{{ route('sales.submitPnL', $sale) }}', '{{ $sale->pl_status === 'pending' ? 'Gửi duyệt lại P&L này (Dùng để sửa lỗi nếu bị kẹt)?' : 'Gửi duyệt P&L này?' }}')"
+                        <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', '{{ $sale->pl_status === 'pending' ? 'Gửi duyệt lại P&L này (Dùng để sửa lỗi nếu bị kẹt)?' : 'Gửi duyệt P&L này?' }}')"
                             class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150">
                             <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'pending']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
                         </button>
@@ -1183,7 +1183,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <style>
     .table-pnl-editor th {

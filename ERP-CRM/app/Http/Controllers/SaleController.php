@@ -6,6 +6,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleExpense;
 use App\Models\SaleAttachment;
+use App\Models\SaleOrderRequestItem;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Project;
@@ -159,8 +160,9 @@ class SaleController extends Controller
         // Multi-currency: load active currencies + today's VND base ID
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
+        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
 
-        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId'));
+        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId', 'suppliers'));
     }
 
     /**
@@ -418,11 +420,12 @@ class SaleController extends Controller
             abort(404);
         }
 
-        $sale->load(['items.product', 'customer', 'expenses', 'project', 'orderRequests']);
+        $sale->load(['items.product', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
+        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
 
-        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId'));
+        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId', 'suppliers'));
     }
 
     /**
@@ -440,11 +443,11 @@ class SaleController extends Controller
         
         $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
-        // Multi-currency
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
+        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
 
-        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId'));
+        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers'));
     }
 
     /**
@@ -478,7 +481,7 @@ class SaleController extends Controller
             'vat' => ['nullable', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
+            'status' => ['nullable', 'in:pending,approved,shipping,completed,cancelled'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'exists:products,id'],
@@ -536,7 +539,7 @@ class SaleController extends Controller
                 'total' => $total,
                 'cost' => $validated['cost'] ?? 0,
                 'paid_amount' => $validated['paid_amount'] ?? 0,
-                'status' => $validated['status'],
+                'status' => $validated['status'] ?? $sale->status,
                 'note' => $validated['note'],
                 'currency_id' => $currencyId,
                 'exchange_rate' => $exchangeRate,
@@ -790,7 +793,7 @@ class SaleController extends Controller
     /**
      * Generate PDF/print invoice
      */
-    public function generatePdf(Sale $sale)
+    public function generatePdf(Sale $sale, Request $request)
     {
         // Return 404 instead of 403 if user lacks permission
         if (!auth()->user()->can('view', $sale)) {
@@ -798,8 +801,10 @@ class SaleController extends Controller
         }
 
         $sale->load('items.product', 'customer', 'expenses', 'project', 'currency');
+        
+        $isDraft = $request->has('is_draft') || $sale->invoiceRequests()->where('status', 'draft_issued')->exists();
 
-        return view('sales.invoice', compact('sale'));
+        return view('sales.invoice', compact('sale', 'isDraft'));
     }
 
     /**
@@ -1199,7 +1204,7 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        if (!$sale->isPlEditable() && !auth()->user()->hasRole('admin')) {
+        if (!$sale->isPlEditable() && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
             return back()->with('error', 'P&L hiện không thể chỉnh sửa (đang chờ duyệt hoặc đã duyệt).');
         }
 
@@ -1730,8 +1735,8 @@ class SaleController extends Controller
                     'status'         => 'approved', // Đồng bộ trạng thái đơn hàng chính
                 ]);
 
-                // Tự động tạo PO nháp cho bộ phận mua hàng qua Service
-                app(SalePurchaseSyncService::class)->createPurchaseOrderFromSale($sale);
+                // Tự động tạo PO nháp cho bộ phận mua hàng qua Service - Đã loại bỏ theo yêu cầu
+                // app(SalePurchaseSyncService::class)->createPurchaseOrderFromSale($sale);
             }
         }
 
@@ -1795,20 +1800,38 @@ class SaleController extends Controller
     }
 
     /**
+     * Show form to create a new order request
+     */
+    public function createOrderRequest(Sale $sale)
+    {
+        if ($sale->pl_status !== 'approved') {
+            return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
+        }
+
+        $sale->load(['items.product', 'customer']);
+        $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        
+        return view('sales.order-request-create', compact('sale', 'suppliers'));
+    }
+
+    /**
      * Store a new order request (Yêu cầu đặt hàng) from Sales to PO team
      */
     public function storeOrderRequest(Request $request, Sale $sale)
     {
-        $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.vendor' => 'required|string|max:255',
-            'items.*.type' => 'required|string|max:100',
-            'items.*.part_number' => 'required|string|max:255',
-            'items.*.serial_number' => 'nullable|string|max:255',
-            'items.*.exp_date' => 'nullable|date',
-            'items.*.si_name' => 'required|string|max:255',
-            'items.*.eu_name_mst' => 'required|string|max:255',
-            'items.*.address' => 'nullable|string|max:500',
+        $validated = $request->validate([
+            'order_request_items' => 'required|array|min:1',
+            'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
+            'order_request_items.*.type' => 'required|string|max:100',
+            'order_request_items.*.part_number' => 'required|string|max:255',
+            'order_request_items.*.product_id' => 'nullable|exists:products,id',
+            'order_request_items.*.quantity' => 'required|numeric|min:0.01',
+            'order_request_items.*.unit' => 'nullable|string|max:50',
+            'order_request_items.*.serial_number' => 'nullable|string|max:255',
+            'order_request_items.*.exp_date' => 'nullable|date',
+            'order_request_items.*.si_name' => 'required|string|max:255',
+            'order_request_items.*.eu_name_mst' => 'required|string|max:255',
+            'order_request_items.*.address' => 'nullable|string|max:500',
             'order_request_note' => 'nullable|string|max:2000',
             'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
         ]);
@@ -1824,12 +1847,19 @@ class SaleController extends Controller
             ]);
 
             // Create items
-            foreach ($request->input('items') as $item) {
+            foreach ($validated['order_request_items'] as $item) {
+                // Get supplier name for legacy 'vendor' column
+                $supplier = \App\Models\Supplier::find($item['vendor_id']);
+                
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
-                    'vendor' => $item['vendor'],
+                    'vendor_id' => $item['vendor_id'],
+                    'vendor' => $supplier?->name,
                     'type' => $item['type'],
                     'part_number' => $item['part_number'],
+                    'product_id' => $item['product_id'] ?? null,
+                    'quantity' => $item['quantity'],
+                    'unit' => $item['unit'] ?? null,
                     'serial_number' => $item['serial_number'] ?? null,
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'],
@@ -1883,7 +1913,7 @@ class SaleController extends Controller
 
             DB::commit();
 
-            return back()->with('success', "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
+            return redirect()->route('sales.show', $sale->id)->with('success', "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Store order request failed: ' . $e->getMessage());
@@ -1905,6 +1935,144 @@ class SaleController extends Controller
         }
 
         return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
+    }
+
+    public function orderTracking(Request $request)
+    {
+        $query = SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder']);
+
+        // Filter by Sales Order Code
+        if ($request->filled('sale_code')) {
+            $query->whereHas('saleOrderRequest.sale', function($q) use ($request) {
+                $q->where('code', 'like', '%' . $request->sale_code . '%');
+            });
+        }
+
+        // Filter by Part Number
+        if ($request->filled('part_number')) {
+            $query->where('part_number', 'like', '%' . $request->part_number . '%');
+        }
+
+        // Filter by Vendor
+        if ($request->filled('vendor_id')) {
+            $query->where('vendor_id', $request->vendor_id);
+        }
+
+        // Filter by Status (auto-computed)
+        $statusFilter = $request->input('status_filter');
+
+        $allItems = $query->latest()->get();
+
+        // 🔥 Group theo Sale Order + Product (part_number)
+        $grouped = [];
+        foreach ($allItems as $item) {
+            $saleCode = $item->saleOrderRequest->sale->code ?? 'N/A';
+            $saleId = $item->saleOrderRequest->sale_id ?? 0;
+            $key = $saleId . '-' . ($item->part_number ?? 'no-pn');
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'sale_id' => $saleId,
+                    'sale_code' => $saleCode,
+                    'part_number' => $item->part_number,
+                    'vendor_name' => $item->vendor->name ?? $item->vendor ?? 'N/A',
+                    'requested' => 0,
+                    'ordered' => 0,
+                    'received' => 0,
+                    'pr_codes' => [],
+                    'po_links' => [], // [{id, code, status_label}]
+                    'created_at' => $item->created_at,
+                ];
+            }
+
+            $ordered = $item->ordered_quantity_total;
+            $received = $item->received_quantity_total;
+
+            $grouped[$key]['requested'] += $item->quantity;
+            $grouped[$key]['ordered'] += $ordered;
+            $grouped[$key]['received'] += $received;
+
+            // Thu thập mã PR (không trùng)
+            $prCode = $item->saleOrderRequest->code ?? '';
+            if ($prCode && !in_array($prCode, $grouped[$key]['pr_codes'])) {
+                $grouped[$key]['pr_codes'][] = $prCode;
+            }
+
+            // Thu thập link PO (không trùng)
+            foreach ($item->purchaseOrderItems as $poItem) {
+                $poId = $poItem->purchase_order_id;
+                if (!isset($grouped[$key]['po_links'][$poId])) {
+                    $grouped[$key]['po_links'][$poId] = [
+                        'id' => $poId,
+                        'code' => $poItem->purchaseOrder->code ?? '',
+                        'status_label' => $poItem->purchaseOrder->status_label ?? '',
+                    ];
+                }
+            }
+
+            // Giữ ngày sớm nhất
+            if ($item->created_at && $item->created_at->lt($grouped[$key]['created_at'])) {
+                $grouped[$key]['created_at'] = $item->created_at;
+            }
+        }
+
+        // Tính auto status cho mỗi nhóm
+        foreach ($grouped as &$row) {
+            $row['po_links'] = array_values($row['po_links']);
+            $row['remaining'] = max(0, $row['requested'] - $row['received']);
+
+            // 🔥 Auto status (không lưu DB)
+            if ($row['ordered'] <= 0) {
+                $row['status'] = 'waiting';
+                $row['status_label'] = 'Chờ đặt hàng';
+                $row['status_color'] = 'bg-gray-100 text-gray-600';
+                $row['status_icon'] = 'fas fa-clock';
+            } elseif ($row['ordered'] < $row['requested']) {
+                $row['status'] = 'ordering';
+                $row['status_label'] = 'Đang đặt hàng';
+                $row['status_color'] = 'bg-blue-100 text-blue-800';
+                $row['status_icon'] = 'fas fa-shopping-cart';
+            } elseif ($row['received'] < $row['requested']) {
+                $row['status'] = 'in_transit';
+                $row['status_label'] = 'Đang về hàng';
+                $row['status_color'] = 'bg-orange-100 text-orange-800';
+                $row['status_icon'] = 'fas fa-truck';
+            } else {
+                $row['status'] = 'completed';
+                $row['status_label'] = 'Đã đủ hàng';
+                $row['status_color'] = 'bg-green-100 text-green-800';
+                $row['status_icon'] = 'fas fa-check-circle';
+            }
+        }
+        unset($row);
+
+        // Filter by status nếu có
+        if ($statusFilter) {
+            $grouped = array_filter($grouped, fn($r) => $r['status'] === $statusFilter);
+        }
+
+        // Sort: chưa xong trước, đã xong cuối
+        $statusOrder = ['waiting' => 0, 'ordering' => 1, 'in_transit' => 2, 'completed' => 3];
+        uasort($grouped, function($a, $b) use ($statusOrder) {
+            return ($statusOrder[$a['status']] ?? 99) <=> ($statusOrder[$b['status']] ?? 99);
+        });
+
+        // Paginate thủ công
+        $page = $request->input('page', 1);
+        $perPage = 20;
+        $total = count($grouped);
+        $items = collect(array_slice($grouped, ($page - 1) * $perPage, $perPage));
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items, $total, $perPage, $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $vendors = \App\Models\Supplier::orderBy('name')->get();
+
+        return view('sales.order-tracking', [
+            'rows' => $paginator,
+            'vendors' => $vendors,
+        ]);
     }
 }
 

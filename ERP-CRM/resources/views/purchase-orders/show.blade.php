@@ -99,18 +99,36 @@
                     </form>
                 @endif
                 @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
-                    <form action="{{ route('purchase-orders.receive', $purchaseOrder) }}" method="POST" class="inline">
-                        @csrf
-                        <button type="submit"
-                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
-                        </button>
-                    </form>
+                    <button type="button" onclick="document.getElementById('receive-form').submit()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
+                        <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
+                    </button>
                 @endif
                 <a href="{{ route('purchase-orders.print', $purchaseOrder) }}"
                     class="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-all duration-200" target="_blank">
                     <i class="fas fa-print mr-2"></i> In PO
                 </a>
+
+                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="inline delete-form">
+                        @csrf
+                        <button type="button" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all duration-200 transform hover:scale-105"
+                            onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')">
+                            <i class="fas fa-ban mr-2"></i> Hủy đơn
+                        </button>
+                    </form>
+                @endif
+
+                @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
+                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="inline delete-form">
+                        @csrf
+                        @method('DELETE')
+                        <button type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105"
+                            onclick="confirmDelete(this.parentElement, 'đơn hàng')">
+                            <i class="fas fa-trash mr-2"></i> Xóa
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
 
@@ -388,7 +406,9 @@
             $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, $decimals) : $purchaseOrder->total);
             $totalVnd = $purchaseOrder->total;
         @endphp
-        <div class="bg-white rounded-lg shadow overflow-hidden">
+        <form id="receive-form" action="{{ route('purchase-orders.receive', $purchaseOrder) }}" method="POST">
+            @csrf
+            <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gray-50">
                 <h3 class="font-semibold">Chi tiết sản phẩm</h3>
             </div>
@@ -397,7 +417,11 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">SL Đặt</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đã nhận</th>
+                        @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
+                            <th class="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Nhận lần này</th>
+                        @endif
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                     </tr>
@@ -408,6 +432,19 @@
                             <td class="px-4 py-3">{{ $index + 1 }}</td>
                             <td class="px-4 py-3 font-medium">{{ $item->product_name }}</td>
                             <td class="px-4 py-3 text-right">{{ number_format($item->quantity) }} {{ $item->unit }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="{{ $item->received_quantity >= $item->quantity ? 'text-green-600 font-bold' : 'text-orange-500' }}">
+                                    {{ number_format($item->received_quantity) }}
+                                </span>
+                            </td>
+                            @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
+                                <td class="px-4 py-3 text-right">
+                                    @php $remaining = $item->quantity - $item->received_quantity; @endphp
+                                    <input type="number" name="items[{{ $item->id }}]" value="{{ $remaining }}" 
+                                        min="0" max="{{ $remaining }}" step="0.01"
+                                        class="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-blue-50">
+                                </td>
+                            @endif
                             <td class="px-4 py-3 text-right">
                                 @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
                                     <div class="font-medium text-gray-900">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($item->unit_price, $purchaseOrder->currency->decimal_places ?? 2) }}</div>
@@ -428,8 +465,11 @@
                     @endforeach
                 </tbody>
                 <tfoot class="bg-gray-50">
+                    @php 
+                        $footerColspan = in_array($purchaseOrder->status, ['shipping', 'partial_received']) ? 6 : 5; 
+                    @endphp
                     <tr>
-                        <td colspan="4" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
+                        <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
                         <td class="px-4 py-2 text-right">
                             @if($isForeign)
                                 <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
@@ -441,7 +481,7 @@
                     </tr>
                     @if($purchaseOrder->discount_percent > 0)
                         <tr>
-                            <td colspan="4" class="px-4 py-2 text-right text-gray-600">Chiết khấu
+                            <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chiết khấu
                                 ({{ $purchaseOrder->discount_percent }}%):</td>
                             <td class="px-4 py-2 text-right text-red-600">
                                 @if($isForeign)
@@ -455,7 +495,7 @@
                     @endif
                     @if($purchaseOrder->shipping_cost > 0)
                         <tr>
-                            <td colspan="4" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
+                            <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
                                     <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($shippingForeign, $decimals) }}</div>
@@ -468,7 +508,7 @@
                     @endif
                     @if($purchaseOrder->other_cost > 0)
                         <tr>
-                            <td colspan="4" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
+                            <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
                                     <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($otherForeign, $decimals) }}</div>
@@ -480,7 +520,7 @@
                         </tr>
                     @endif
                     <tr>
-                        <td colspan="4" class="px-4 py-2 text-right text-gray-600">VAT ({{ $purchaseOrder->vat_percent }}%):
+                        <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">VAT ({{ $purchaseOrder->vat_percent }}%):
                         </td>
                         <td class="px-4 py-2 text-right">
                             @if($isForeign)
@@ -492,7 +532,7 @@
                         </td>
                     </tr>
                     <tr class="border-t bg-gray-100">
-                        <td colspan="4" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
+                        <td colspan="{{ $footerColspan }}" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
                         <td class="px-4 py-3 text-right text-primary">
                             @if($isForeign)
                                 <div class="text-lg font-bold">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
@@ -507,6 +547,7 @@
                 </tfoot>
             </table>
         </div>
+        </form>
 
         @if($purchaseOrder->note)
             <div class="bg-white rounded-lg shadow p-6">
@@ -599,178 +640,6 @@
         </div>
         @endif
 
-        <!-- Cost Breakdown / P&L Section -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-6 py-4 border-b bg-gradient-to-r from-green-50 to-blue-50">
-                <h3 class="font-semibold flex items-center">
-                    <i class="fas fa-chart-pie mr-2 text-green-600"></i>
-                    Chi phí đơn hàng (P/L Reference)
-                </h3>
-                <p class="text-sm text-gray-500 mt-1">Tổng quan chi phí để tính toán lợi nhuận khi bán</p>
-            </div>
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Cost Summary -->
-                    <div class="space-y-3">
-                        <h4 class="font-medium text-gray-800 border-b pb-2">Cơ cấu chi phí</h4>
-
-                        <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-box mr-2 text-blue-500"></i>Giá vốn hàng hóa</span>
-                            <div class="text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
-                                @else
-                                    <span class="font-medium">{{ number_format($subtotalVnd) }} đ</span>
-                                @endif
-                            </div>
-                        </div>
-
-                        @if($purchaseOrder->discount_amount > 0)
-                            <div class="flex justify-between items-center py-2 border-b border-dashed">
-                                <span class="text-gray-600"><i class="fas fa-percentage mr-2 text-green-500"></i>Chiết khấu NCC</span>
-                                <div class="text-right text-green-600">
-                                    @if($isForeign)
-                                        <div class="font-medium">-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
-                                        <div class="text-xs text-green-500">-{{ number_format($discountVnd) }} đ</div>
-                                    @else
-                                        <span class="font-medium">-{{ number_format($discountVnd) }} đ</span>
-                                    @endif
-                                </div>
-                            </div>
-                        @endif
-
-                        <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-truck mr-2 text-orange-500"></i>Phí vận chuyển</span>
-                            <div class="text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($shippingForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($shippingVnd) }} đ</div>
-                                @else
-                                    <span class="font-medium">{{ number_format($shippingVnd) }} đ</span>
-                                @endif
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-receipt mr-2 text-purple-500"></i>Chi phí khác</span>
-                            <div class="text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($otherForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($otherVnd) }} đ</div>
-                                @else
-                                    <span class="font-medium">{{ number_format($otherVnd) }} đ</span>
-                                @endif
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center py-2 border-b border-dashed">
-                            <span class="text-gray-600"><i class="fas fa-file-invoice mr-2 text-red-500"></i>Thuế VAT ({{ $purchaseOrder->vat_percent }}%)</span>
-                            <div class="text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($vatVnd) }} đ</div>
-                                @else
-                                    <span class="font-medium">{{ number_format($vatVnd) }} đ</span>
-                                @endif
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center py-3 bg-blue-50 rounded-lg px-3 mt-2">
-                            <span class="font-bold text-gray-800"><i class="fas fa-calculator mr-2 text-blue-600"></i>TỔNG
-                                CHI PHÍ MUA</span>
-                            <div class="text-right">
-                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
-                                    <span class="block font-bold text-xl text-blue-600">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1)), $purchaseOrder->currency->decimal_places ?? 2) }}</span>
-                                    <span class="text-sm text-gray-500">
-                                        ≈ {{ number_format($purchaseOrder->total) }} đ
-                                    </span>
-                                @else
-                                    <span class="block font-bold text-xl text-blue-600">{{ number_format($purchaseOrder->total) }} đ</span>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Per Item Cost -->
-                    <div class="space-y-3">
-                        <h4 class="font-medium text-gray-800 border-b pb-2">Giá vốn trung bình/sản phẩm</h4>
-
-                        @php
-                            $totalQty = $purchaseOrder->items->sum('quantity');
-                            $avgCostPerItemVnd = $totalQty > 0 ? $totalVnd / $totalQty : 0;
-                            $avgCostPerItemForeign = $totalQty > 0 ? $totalForeign / $totalQty : 0;
-                            $totalCostBeforeVatVnd = $subtotalVnd - $discountVnd + $shippingVnd + $otherVnd;
-                            $totalCostBeforeVatForeign = $subtotalForeign - $discountForeign + $shippingForeign + $otherForeign;
-                        @endphp
-
-                        <div class="bg-gray-50 rounded-lg p-4">
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-gray-600">Tổng số lượng:</span>
-                                <span class="font-medium">{{ number_format($totalQty) }} sản phẩm</span>
-                            </div>
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-gray-600">Giá vốn trước VAT/sp:</span>
-                                <div class="text-right">
-                                    @if($isForeign)
-                                        <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($totalQty > 0 ? $totalCostBeforeVatForeign / $totalQty : 0, $decimals) }}</div>
-                                        <div class="text-xs text-gray-500">{{ number_format($totalQty > 0 ? $totalCostBeforeVatVnd / $totalQty : 0) }} đ</div>
-                                    @else
-                                        <span class="font-medium">{{ number_format($totalQty > 0 ? $totalCostBeforeVatVnd / $totalQty : 0) }} đ</span>
-                                    @endif
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center py-2 px-3 bg-orange-100 rounded-lg">
-                                <span class="font-semibold text-orange-800">Giá vốn sau VAT/sp:</span>
-                                <div class="text-right">
-                                    @if($isForeign)
-                                        <div class="font-bold text-orange-600">{{ $symbol }} {{ number_format($avgCostPerItemForeign, $decimals) }}</div>
-                                        <div class="text-xs text-orange-500">{{ number_format($avgCostPerItemVnd) }} đ</div>
-                                    @else
-                                        <span class="font-bold text-orange-600">{{ number_format($avgCostPerItemVnd) }} đ</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                            <h5 class="font-medium text-yellow-800 mb-2">
-                                <i class="fas fa-lightbulb mr-1"></i> Gợi ý định giá bán
-                            </h5>
-                            <div class="grid grid-cols-3 gap-2 text-sm">
-                                <div class="text-center p-2 bg-white rounded">
-                                    <p class="text-gray-500 mb-1">Margin 20%</p>
-                                    @if($isForeign)
-                                        <div class="font-bold text-green-600">{{ $symbol }} {{ number_format($avgCostPerItemForeign / 0.8, $decimals) }}</div>
-                                        <div class="text-xs text-green-500 font-normal mt-0.5">{{ number_format($avgCostPerItemVnd / 0.8) }} đ</div>
-                                    @else
-                                        <div class="font-bold text-green-600">{{ number_format($avgCostPerItemVnd / 0.8) }} đ</div>
-                                    @endif
-                                </div>
-                                <div class="text-center p-2 bg-white rounded">
-                                    <p class="text-gray-500 mb-1">Margin 30%</p>
-                                    @if($isForeign)
-                                        <div class="font-bold text-green-600">{{ $symbol }} {{ number_format($avgCostPerItemForeign / 0.7, $decimals) }}</div>
-                                        <div class="text-xs text-green-500 font-normal mt-0.5">{{ number_format($avgCostPerItemVnd / 0.7) }} đ</div>
-                                    @else
-                                        <div class="font-bold text-green-600">{{ number_format($avgCostPerItemVnd / 0.7) }} đ</div>
-                                    @endif
-                                </div>
-                                <div class="text-center p-2 bg-white rounded">
-                                    <p class="text-gray-500 mb-1">Margin 40%</p>
-                                    @if($isForeign)
-                                        <div class="font-bold text-green-600">{{ $symbol }} {{ number_format($avgCostPerItemForeign / 0.6, $decimals) }}</div>
-                                        <div class="text-xs text-green-500 font-normal mt-0.5">{{ number_format($avgCostPerItemVnd / 0.6) }} đ</div>
-                                    @else
-                                        <div class="font-bold text-green-600">{{ number_format($avgCostPerItemVnd / 0.6) }} đ</div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     @push('scripts')
@@ -799,13 +668,18 @@
                 }, 2000);
             @endif
 
-            // Add click animation to approve button
-            document.querySelectorAll('.approve-btn').forEach(btn => {
-                btn.addEventListener('click', function (e) {
-                    this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý...';
-                    this.disabled = true;
+            // Add click animation to approve form
+            const approveForm = document.getElementById('approve-form');
+            if (approveForm) {
+                approveForm.addEventListener('submit', function (e) {
+                    const btn = this.querySelector('.approve-btn');
+                    if (btn) {
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý...';
+                        // Disable after a tiny delay to ensure form submits
+                        setTimeout(() => btn.disabled = true, 50);
+                    }
                 });
-            });
+            }
 
             // Close overlay on click
             document.getElementById('approval-success')?.addEventListener('click', function () {

@@ -143,6 +143,35 @@ class Sale extends Model
     }
 
     /**
+     * Relationship with InvoiceRequest (yêu cầu xuất hóa đơn)
+     */
+    public function invoiceRequests()
+    {
+        return $this->hasMany(InvoiceRequest::class);
+    }
+
+    /**
+     * Get all Purchase Orders associated with this sale
+     * (Both direct link and aggregated via Order Requests)
+     */
+    public function getAllPurchaseOrdersAttribute()
+    {
+        // 1. Direct POs
+        $directPos = $this->purchaseOrders;
+
+        // 2. Aggregated POs (via Order Request Items)
+        $aggregatedPos = PurchaseOrder::whereHas('items', function($q) {
+            $q->whereHas('saleOrderRequestItem', function($sq) {
+                $sq->whereHas('saleOrderRequest', function($sr) {
+                    $sr->where('sale_id', $this->id);
+                });
+            });
+        })->get();
+
+        return $directPos->concat($aggregatedPos)->unique('id');
+    }
+
+    /**
      * Scope for searching sales
      */
     public function scopeSearch(Builder $query, ?string $search): Builder
@@ -270,46 +299,51 @@ class Sale extends Model
      */
     public function getDashboardStatusAttribute(): string
     {
-        // Cancelled / Pending
+        // 1. Cancelled / Pending
         if ($this->status === 'cancelled') return 'cancelled';
         if ($this->status === 'pending') return 'pending';
 
-        // Completed
+        // 2. Completed
         if ($this->status === 'completed') return 'completed';
 
-        // Xuất hóa đơn (shipping to customer)
+        // 3. Xuất hóa đơn (shipping to customer)
         if ($this->status === 'shipping') return 'invoiced';
 
-        // Check linked PO status
-        $latestPo = $this->relationLoaded('purchaseOrders')
-            ? $this->purchaseOrders->sortByDesc('id')->first()
-            : $this->purchaseOrders()->latest()->first();
+        // 4. Check linked PO status
+        $associatedPos = $this->all_purchase_orders;
+        $latestPo = $associatedPos->sortByDesc('id')->first();
 
         if (!$latestPo) {
             return 'waiting_order'; // Chờ đặt
         }
 
-        // Hold
+        // 5. Hold
         if ($latestPo->is_hold) {
             return 'hold';
         }
 
-        // Đã về - đủ hàng
-        if (in_array($latestPo->status, ['received'])) {
-            return 'received';
+        // 6. Check progress based on PO status
+        $poStatus = $latestPo->status;
+        
+        // Default based on PO
+        $status = 'waiting_order';
+        if (in_array($poStatus, ['received'])) {
+            $status = 'received';
+        } elseif (in_array($poStatus, ['shipping', 'partial_received'])) {
+            $status = 'in_transit';
+        } elseif (in_array($poStatus, ['draft', 'pending_approval', 'approved'])) {
+            $status = 'ordered';
         }
 
-        // Đang về
-        if (in_array($latestPo->status, ['shipping', 'partial_received'])) {
-            return 'in_transit';
+        // 7. Check Invoice Request (Overwrites 'received' if request exists)
+        if ($status === 'received') {
+            $latestInvoice = $this->invoiceRequests()->latest()->first();
+            if ($latestInvoice) {
+                $status = 'invoicing';
+            }
         }
 
-        // Đã đặt
-        if (in_array($latestPo->status, ['draft', 'pending_approval', 'approved'])) {
-            return 'ordered';
-        }
-
-        return 'waiting_order';
+        return $status;
     }
 
     /**
@@ -319,12 +353,13 @@ class Sale extends Model
     {
         return match($this->dashboard_status) {
             'pending' => 'Chờ duyệt',
-            'waiting_order' => 'Chờ đặt',
-            'ordered' => 'Đã đặt',
-            'in_transit' => 'Đang về',
+            'waiting_order' => 'Đã duyệt',
+            'ordered' => 'Đã đặt hàng',
+            'in_transit' => 'Chờ hàng về',
             'hold' => 'Hold',
-            'received' => 'Đã về - đủ hàng',
-            'invoiced' => 'Xuất hóa đơn',
+            'received' => 'Hàng về',
+            'invoicing' => 'Hóa đơn',
+            'invoiced' => 'Giao hàng',
             'completed' => 'Hoàn thành',
             'cancelled' => 'Đã hủy',
             default => 'Không xác định',
@@ -337,16 +372,37 @@ class Sale extends Model
     public function getDashboardStatusColorAttribute(): string
     {
         return match($this->dashboard_status) {
-            'pending' => 'bg-gray-100 text-gray-800',
-            'waiting_order' => 'bg-yellow-100 text-yellow-800',
-            'ordered' => 'bg-blue-100 text-blue-800',
+            'pending' => 'bg-yellow-100 text-yellow-800',
+            'waiting_order' => 'bg-blue-100 text-blue-800',
+            'ordered' => 'bg-indigo-100 text-indigo-800',
             'in_transit' => 'bg-purple-100 text-purple-800',
             'hold' => 'bg-orange-100 text-orange-800',
             'received' => 'bg-emerald-100 text-emerald-800',
+            'invoicing' => 'bg-cyan-100 text-cyan-800',
             'invoiced' => 'bg-amber-100 text-amber-800',
             'completed' => 'bg-green-100 text-green-800',
             'cancelled' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
+        };
+    }
+
+    /**
+     * Get dashboard step index (0 to 6)
+     */
+    public function getDashboardStepAttribute(): int
+    {
+        return match($this->dashboard_status) {
+            'pending' => 0,
+            'waiting_order' => 1,
+            'ordered' => 2,
+            'in_transit' => 3,
+            'received' => 4,
+            'invoicing' => 5,
+            'invoiced' => 6,
+            'completed' => 7,
+            'hold' => 3, // Treat hold as transit step
+            'cancelled' => -1,
+            default => 0,
         };
     }
 

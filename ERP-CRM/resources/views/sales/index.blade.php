@@ -149,7 +149,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dự án
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">Khách
                             hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên
                         </th>
@@ -207,7 +207,7 @@
                                     <span class="text-gray-400 text-sm">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 min-w-[300px]">
                                 <div class="text-sm font-medium text-gray-900">{{ $sale->customer_name }}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
@@ -304,8 +304,8 @@
                                             <div class="w-3 h-3 rounded-full {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-300' }}"></div>
                                         </div>
                                     </div>
-                                    <div class="text-[10px] mt-1 font-medium {{ $step === 0 ? 'text-yellow-600' : ($step === 1 ? 'text-blue-600' : ($step === 2 ? 'text-orange-600' : 'text-green-600')) }}">
-                                        {{ $sale->status_label }}
+                                    <div class="text-[10px] mt-1 font-bold {{ $sale->dashboard_status_color }} px-2 py-0.5 rounded-full inline-block">
+                                        {{ $sale->dashboard_status_label }}
                                     </div>
                                 @endif
                             </td>
