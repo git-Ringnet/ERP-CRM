@@ -80,6 +80,8 @@ class ProductItemService
                         'cost_usd' => $priceData['cost_usd'] ?? 0,
                         'price_tiers' => $priceData['price_tiers'] ?? null,
                         'comments' => $priceData['comments'] ?? null,
+                        'warranty_months' => $priceData['warranty_months'] ?? null,
+                        'expiry_date' => $priceData['expiry_date'] ?? null,
                         'status' => ProductItem::STATUS_IN_STOCK,
                     ]);
                 }
@@ -101,6 +103,8 @@ class ProductItemService
                     'cost_usd' => $priceData['cost_usd'] ?? 0,
                     'price_tiers' => $priceData['price_tiers'] ?? null,
                     'comments' => $priceData['comments'] ?? null,
+                    'warranty_months' => $priceData['warranty_months'] ?? null,
+                    'expiry_date' => $priceData['expiry_date'] ?? null,
                     'status' => ProductItem::STATUS_IN_STOCK,
                 ]);
             }

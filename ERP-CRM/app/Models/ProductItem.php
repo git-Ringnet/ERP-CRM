@@ -44,6 +44,8 @@ class ProductItem extends Model
         'import_id',
         'export_id',
         'status',
+        'warranty_months',
+        'expiry_date',
     ];
 
     /**
@@ -53,6 +55,8 @@ class ProductItem extends Model
         'cost_usd' => 'decimal:2',
         'price_tiers' => 'array',
         'quantity' => 'integer',
+        'expiry_date' => 'date',
+        'warranty_months' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

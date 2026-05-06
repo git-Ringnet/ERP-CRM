@@ -48,6 +48,8 @@ class ImportRequest extends FormRequest
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.cost' => 'nullable|numeric|min:0',
             'items.*.comments' => 'nullable|string|max:500',
+            'items.*.warranty_months' => 'nullable|integer|min:0',
+            'items.*.expiry_date' => 'nullable|date',
 
             // Support for serial list (textarea)
             'items.*.serial_list' => 'nullable|string',

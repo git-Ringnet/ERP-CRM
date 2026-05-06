@@ -297,8 +297,8 @@
                     </button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                    <div class="md:col-span-1">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
+                    <div class="lg:col-span-1">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
                         <div class="searchable-select product-searchable" data-index="${itemIndex}">
                             <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary" 
@@ -328,6 +328,17 @@
                         <input type="text" name="items[${itemIndex}][cost]" value="${existingData ? formatNumberValue(existingData.cost) : '0'}" 
                                class="cost-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                                placeholder="0" oninput="formatNumber(this); updateSummary()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Bảo hành (tháng)</label>
+                        <input type="number" name="items[${itemIndex}][warranty_months]" value="${existingData ? existingData.warranty_months : ''}" 
+                               class="warranty-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
+                               placeholder="12" min="0" oninput="calculateExpiryDate(${itemIndex})">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Hạn sử dụng</label>
+                        <input type="date" name="items[${itemIndex}][expiry_date]" value="${existingData ? existingData.expiry_date : ''}" 
+                               class="expiry-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
                     </div>
                 </div>
 
@@ -417,13 +428,54 @@
                 if (!itemCard) return;
 
                 const costInput = itemCard.querySelector('.cost-input');
+                const warrantyInput = itemCard.querySelector('.warranty-input');
 
-                if (selectedOption && costInput) {
-                    const cost = selectedOption.dataset.cost;
-                    if (cost && (!costInput.value || costInput.value == '0')) {
-                        costInput.value = formatNumberValue(cost);
+                if (selectedOption) {
+                    if (costInput) {
+                        const cost = selectedOption.dataset.cost;
+                        if (cost && (!costInput.value || costInput.value == '0')) {
+                            costInput.value = formatNumberValue(cost);
+                        }
+                    }
+                    
+                    if (warrantyInput) {
+                        const warranty = selectedOption.dataset.warranty;
+                        if (warranty && !warrantyInput.value) {
+                            warrantyInput.value = warranty;
+                            calculateExpiryDate(index);
+                        }
                     }
                 }
+            }
+
+            function calculateExpiryDate(index) {
+                const itemCard = document.querySelector(`[data-index="${index}"]`);
+                if (!itemCard) return;
+
+                const importDateStr = document.getElementById('date_picker').value;
+                const warrantyInput = itemCard.querySelector('.warranty-input');
+                const expiryInput = itemCard.querySelector('.expiry-input');
+
+                if (!importDateStr || !warrantyInput || !expiryInput) return;
+
+                const months = parseInt(warrantyInput.value);
+                if (isNaN(months) || months < 0) {
+                    return;
+                }
+
+                const importDate = new Date(importDateStr);
+                if (isNaN(importDate.getTime())) return;
+
+                // Add months
+                const expiryDate = new Date(importDate);
+                expiryDate.setMonth(expiryDate.getMonth() + months);
+
+                // Format to YYYY-MM-DD for <input type="date">
+                const yyyy = expiryDate.getFullYear();
+                const mm = String(expiryDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(expiryDate.getDate()).padStart(2, '0');
+                
+                expiryInput.value = `${yyyy}-${mm}-${dd}`;
             }
 
             function formatCurrency(amount) {
@@ -679,6 +731,7 @@
                                     opt.dataset.name = p.name;
                                     opt.dataset.unit = p.unit || 'Cái';
                                     opt.dataset.cost = p.cost || '0';
+                                    opt.dataset.warranty = p.warranty_months || '';
                                     const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
                                     opt.textContent = `${p.code} - ${displayName}`;
                                     opt.addEventListener('click', () => {
@@ -770,7 +823,13 @@
                     altInput: true,
                     altFormat: "d/m/Y",
                     dateFormat: "Y-m-d",
-                    locale: "vn"
+                    locale: "vn",
+                    onChange: function(selectedDates, dateStr) {
+                        // Recalculate all expiry dates when import date changes
+                        document.querySelectorAll('.item-card').forEach(card => {
+                            calculateExpiryDate(card.dataset.index);
+                        });
+                    }
                 });
 
                 addItem();

@@ -206,6 +206,8 @@ class ImportController extends Controller
                 'serials' => $serials,
                 'cost' => $item->cost,
                 'comments' => $item->comments ?? '',
+                'warranty_months' => $item->warranty_months,
+                'expiry_date' => $item->expiry_date ? $item->expiry_date->format('Y-m-d') : null,
             ];
         })->toArray();
 
@@ -276,6 +278,8 @@ class ImportController extends Controller
                     'comments' => $itemData['comments'] ?? null,
                     'cost' => $itemCost,
                     'warehouse_price' => $warehousePrice,
+                    'warranty_months' => $itemData['warranty_months'] ?? null,
+                    'expiry_date' => $itemData['expiry_date'] ?? null,
                 ]);
             }
 
@@ -355,9 +359,12 @@ class ImportController extends Controller
                 'note' => $import->note,
                 'items' => $import->items->map(fn($item) => [
                     'product_id' => $item->product_id,
+                    'warehouse_id' => $item->warehouse_id,
                     'quantity' => $item->quantity,
                     'unit' => $item->unit,
                     'cost' => $item->cost,
+                    'warranty_months' => $item->warranty_months,
+                    'expiry_date' => $item->expiry_date ? $item->expiry_date->format('Y-m-d') : null,
                 ])->toArray(),
             ], $import);
 

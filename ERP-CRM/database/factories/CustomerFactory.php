@@ -20,15 +20,13 @@ class CustomerFactory extends Factory
     public function definition(): array
     {
         return [
-            'code' => 'CUST' . fake()->unique()->numberBetween(1000, 9999),
             'name' => fake()->company(),
             'email' => fake()->companyEmail(),
             'phone' => fake()->phoneNumber(),
             'address' => fake()->optional()->address(),
             'type' => fake()->randomElement(['normal', 'vip']),
-            'tax_code' => fake()->optional()->numerify('##########'),
+            'tax_code' => 'TAX-' . fake()->unique()->numberBetween(100000, 999999),
             'website' => fake()->optional()->url(),
-            'contact_person' => fake()->optional()->name(),
             'debt_limit' => fake()->randomFloat(2, 0, 100000),
             'debt_days' => fake()->numberBetween(0, 90),
             'note' => fake()->optional()->sentence(),

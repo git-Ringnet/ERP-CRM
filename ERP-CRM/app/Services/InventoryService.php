@@ -15,10 +15,18 @@ class InventoryService
      * @param int $warehouseId
      * @param int $quantity
      * @param string $operation 'add', 'subtract', or 'set'
+     * @param int|null $warrantyMonths
+     * @param string|null $expiryDate
      * @return Inventory
      */
-    public function updateStock(int $productId, int $warehouseId, int $quantity, string $operation = 'add'): Inventory
-    {
+    public function updateStock(
+        int $productId,
+        int $warehouseId,
+        int $quantity,
+        string $operation = 'add',
+        ?int $warrantyMonths = null,
+        ?string $expiryDate = null
+    ): Inventory {
         $inventory = Inventory::firstOrCreate(
             [
                 'product_id' => $productId,
@@ -32,6 +40,19 @@ class InventoryService
         );
 
         $inventory->updateStock($quantity, $operation);
+
+        // Update metadata if provided
+        $updateData = [];
+        if ($warrantyMonths !== null) {
+            $updateData['warranty_months'] = $warrantyMonths;
+        }
+        if ($expiryDate !== null) {
+            $updateData['expiry_date'] = $expiryDate;
+        }
+
+        if (!empty($updateData)) {
+            $inventory->update($updateData);
+        }
 
         return $inventory->fresh();
     }

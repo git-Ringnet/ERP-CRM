@@ -20,12 +20,16 @@ class ImportItem extends Model
         'cost',
         'warehouse_price',
         'comments',
+        'warranty_months',
+        'expiry_date',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'cost' => 'decimal:2',
         'warehouse_price' => 'decimal:2',
+        'expiry_date' => 'date',
+        'warranty_months' => 'integer',
     ];
 
     /**

@@ -96,6 +96,18 @@ class TransactionService
                     }
                     $warehousePrice = ($item['cost'] ?? 0) + $additionalCost;
 
+                    $warrantyMonths = $item['warranty_months'] ?? null;
+                    $expiryDate = $item['expiry_date'] ?? null;
+
+                    // Auto-calculate expiry date if missing but warranty is present
+                    if (!$expiryDate && $warrantyMonths && isset($data['date'])) {
+                        try {
+                            $expiryDate = \Carbon\Carbon::parse($data['date'])->addMonths((int)$warrantyMonths)->format('Y-m-d');
+                        } catch (\Exception $e) {
+                            // Ignore parsing errors
+                        }
+                    }
+
                     ImportItem::create([
                         'import_id' => $transaction->id,
                         'product_id' => $item['product_id'],
@@ -107,6 +119,8 @@ class TransactionService
                         'cost' => $item['cost'] ?? $item['cost_usd'] ?? 0,
                         'warehouse_price' => $warehousePrice,
                         'comments' => $item['comments'] ?? null,
+                        'warranty_months' => $warrantyMonths,
+                        'expiry_date' => $expiryDate,
                     ]);
                     $totalQty += $item['quantity'];
                 }
@@ -148,6 +162,8 @@ class TransactionService
                     // Create product items with serials
                     $priceData = [
                         'comments' => $item->comments ?? null,
+                        'warranty_months' => $item->warranty_months,
+                        'expiry_date' => $item->expiry_date,
                     ];
 
                     $this->productItemService->createItemsFromImport(
@@ -164,7 +180,9 @@ class TransactionService
                         $item->product_id,
                         $warehouseId,
                         $item->quantity,
-                        'add'
+                        'add',
+                        $item->warranty_months,
+                        $item->expiry_date
                     );
 
                     // Update average cost if cost is provided (using warehouse_price to include service costs)

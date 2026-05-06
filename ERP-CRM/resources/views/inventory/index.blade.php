@@ -97,8 +97,8 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kho</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tồn kho
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn sử
-                            dụng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn sử dụng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bảo hành</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn giá TB</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng giá trị</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng
@@ -147,6 +147,13 @@
                                         class="{{ $inventory->is_expiring_soon ? 'text-orange-600 font-medium' : 'text-gray-500' }}">
                                         {{ $inventory->expiry_date->format('d/m/Y') }}
                                     </span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                @if($inventory->warranty_months)
+                                    {{ $inventory->warranty_months }} tháng
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif
@@ -241,6 +248,9 @@
                         <div><i class="fas fa-dollar-sign w-4"></i> {{ number_format($inventory->avg_cost) }} đ</div>
                         @if($inventory->expiry_date)
                             <div><i class="fas fa-calendar w-4"></i> HSD: {{ $inventory->expiry_date->format('d/m/Y') }}</div>
+                        @endif
+                        @if($inventory->warranty_months)
+                            <div><i class="fas fa-shield-alt w-4"></i> BH: {{ $inventory->warranty_months }} tháng</div>
                         @endif
                     </div>
                     <div class="flex gap-2">
