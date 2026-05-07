@@ -461,7 +461,7 @@
                             Chi phí Tài chính
                             @if($financeInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
-                                    <input type="number" step="0.1" x-model="finance_p" @input="$dispatch('pnl-recalc')" 
+                                    <input type="number" step="any" x-model="finance_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                                 </div>
@@ -475,7 +475,7 @@
                             Lãi vay phát sinh do nợ quá hạn
                             @if($overdueInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
-                                    <input type="number" step="0.1" x-model="overdue_p" @input="$dispatch('pnl-recalc')"
+                                    <input type="number" step="any" x-model="overdue_p" @input="$dispatch('pnl-recalc')"
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                                 </div>
@@ -489,7 +489,7 @@
                             Chi phí Quản lí, Back Office & kỹ thuật
                             @if($managementInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
-                                    <input type="number" step="0.1" x-model="mgmt_p" @input="$dispatch('pnl-recalc')" 
+                                    <input type="number" step="any" x-model="mgmt_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                                 </div>
@@ -503,7 +503,7 @@
                             24x7 Support cost
                             @if($supportInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
-                                    <input type="number" step="0.1" x-model="support_p" @input="$dispatch('pnl-recalc')" 
+                                    <input type="number" step="any" x-model="support_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                                 </div>
@@ -517,7 +517,7 @@
                             Other Support
                             @if($otherSupportInputMode === 'percent')
                                 <div class="text-red-600 font-normal flex items-center justify-center gap-0.5">
-                                    <input type="number" step="0.1" x-model="other_p" @input="$dispatch('pnl-recalc')" 
+                                    <input type="number" step="any" x-model="other_p" @input="$dispatch('pnl-recalc')" 
                                         class="w-10 text-center text-red-600 text-[10px] p-0 border-0 border-b border-red-400 bg-transparent focus:ring-0"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>%
                                 </div>
@@ -557,7 +557,7 @@
                                     {{-- Percent Input (Header) --}}
                                     <div x-show="getExtraMode('{{ $extra->id }}') === 'percent'" 
                                          class="text-red-600 font-bold flex items-center justify-center gap-1">
-                                        <input type="number" step="0.1"
+                                        <input type="number" step="any"
                                             data-expense-id="{{ $extra->id }}"
                                             data-mode="percent"
                                             name="expenses[{{ $extraIndex }}][percent_value]"
@@ -840,21 +840,21 @@
                             
                             <!-- PriceList USD -->
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
-                                <input type="number" step="0.01" name="items[{{ $index }}][usd_price]" 
+                                <input type="number" step="any" name="items[{{ $index }}][usd_price]" 
                                     x-model="usd_p" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
                             <!-- Tỷ lệ discount -->
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
-                                <input type="number" step="0.1" name="items[{{ $index }}][discount_rate]" 
+                                <input type="number" step="any" name="items[{{ $index }}][discount_rate]" 
                                     x-model="disc" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                             </td>
                             <!-- Tỷ lệ chi phí nhập hàng -->
                             <td class="px-1 py-1 border border-gray-400 bg-blue-50">
-                                <input type="number" step="0.1" name="items[{{ $index }}][import_cost_rate]" 
+                                <input type="number" step="any" name="items[{{ $index }}][import_cost_rate]" 
                                     x-model="imp_r" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-center {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
@@ -863,7 +863,7 @@
                             <td class="px-2 py-2 text-right border border-gray-400 bg-gray-50" x-text="formatNumber(est_usd_total, 2)"></td>
                             <!-- Tỷ giá -->
                             <td class="px-1 py-1 border border-gray-400">
-                                <input type="number" name="items[{{ $index }}][exchange_rate]" 
+                                <input type="number" step="any" name="items[{{ $index }}][exchange_rate]" 
                                     x-model="rate" @input="calculate()"
                                     class="w-full text-xs p-1 border-gray-300 rounded text-right {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
                                     {{ !$sale->isPlEditable() ? 'disabled' : '' }}>

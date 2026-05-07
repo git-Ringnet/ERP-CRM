@@ -114,33 +114,33 @@
             </div>
         </div>
 
-        <!-- Error Messages -->
-        @if(isset($error))
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6" role="alert" aria-live="polite">
-                <div class="flex">
-                    <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                    <p class="text-red-700">{{ $error }}</p>
+        <!-- Error Messages
+            @if(isset($error))
+                <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6" role="alert" aria-live="polite">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
+                        <p class="text-red-700">{{ $error }}</p>
+                    </div>
                 </div>
-            </div>
-        @endif
+            @endif
 
-        @if(session('success'))
-            <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6" role="alert" aria-live="polite">
-                <div class="flex">
-                    <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                    <p class="text-green-700">{{ session('success') }}</p>
+            @if(session('success'))
+                <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6" role="alert" aria-live="polite">
+                    <div class="flex">
+                        <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                        <p class="text-green-700">{{ session('success') }}</p>
+                    </div>
                 </div>
-            </div>
-        @endif
+            @endif
 
-        @if(session('error'))
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6" role="alert" aria-live="polite">
-                <div class="flex">
-                    <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                    <p class="text-red-700">{{ session('error') }}</p>
+            @if(session('error'))
+                <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6" role="alert" aria-live="polite">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
+                        <p class="text-red-700">{{ session('error') }}</p>
+                    </div>
                 </div>
-            </div>
-        @endif
+            @endif -->
 
         <!-- Time Period Filter -->
         <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -378,7 +378,8 @@
                             :class="activeFilter === 'waiting_order' ? 'ring-2 ring-yellow-400 shadow-md' : ''"
                             class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
                             <div class="text-2xl font-bold text-yellow-700">
-                                {{ $order_overview['status_counts']['waiting_order'] ?? 0 }}</div>
+                                {{ $order_overview['status_counts']['waiting_order'] ?? 0 }}
+                            </div>
                             <div class="text-xs text-yellow-600 mt-1 font-medium">Chờ đặt</div>
                             <div class="w-full h-1 bg-yellow-300 rounded-full mt-2"></div>
                         </button>
@@ -398,7 +399,8 @@
                             :class="activeFilter === 'in_transit' ? 'ring-2 ring-purple-400 shadow-md' : ''"
                             class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center transition-all hover:shadow-md cursor-pointer">
                             <div class="text-2xl font-bold text-purple-700">
-                                {{ $order_overview['status_counts']['in_transit'] ?? 0 }}</div>
+                                {{ $order_overview['status_counts']['in_transit'] ?? 0 }}
+                            </div>
                             <div class="text-xs text-purple-600 mt-1 font-medium">Đang về</div>
                             <div class="w-full h-1 bg-purple-300 rounded-full mt-2"></div>
                         </button>
@@ -472,7 +474,8 @@
                                         <td class="px-3 py-2 text-sm text-gray-900">{{ Str::limit($order['customer_name'], 25) }}</td>
                                         <td class="px-3 py-2 text-sm text-gray-600">{{ $order['date'] }}</td>
                                         <td class="px-3 py-2 text-sm text-right font-medium text-gray-900">
-                                            {{ number_format($order['total'], 0, ',', '.') }} ₫</td>
+                                            {{ number_format($order['total'], 0, ',', '.') }} ₫
+                                        </td>
                                         <td class="px-3 py-2">
                                             <div class="flex flex-col items-center">
                                                 @php
@@ -498,7 +501,7 @@
                                                     class="flex items-center w-full max-w-[180px] h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5 relative">
                                                     @foreach($stageKeys as $index => $key)
                                                         <div class="h-full border-r border-white last:border-0 flex-1 
-                                                                {{ $index <= $currentIndex ? ($isHold && $index == $currentIndex ? 'bg-orange-500 animate-pulse' : $stages[$key]['color']) : 'bg-gray-200' }}"
+                                                                                                        {{ $index <= $currentIndex ? ($isHold && $index == $currentIndex ? 'bg-orange-500 animate-pulse' : $stages[$key]['color']) : 'bg-gray-200' }}"
                                                             title="{{ $stages[$key]['label'] }}">
                                                         </div>
                                                     @endforeach
@@ -581,12 +584,14 @@
                         <div class="bg-blue-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Đơn hoàn thành</div>
                             <div class="text-xl font-bold text-blue-600">
-                                {{ number_format($sales_analysis['completed_count'], 0, ',', '.') }}</div>
+                                {{ number_format($sales_analysis['completed_count'], 0, ',', '.') }}
+                            </div>
                         </div>
                         <div class="bg-yellow-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Đơn chờ xử lý</div>
                             <div class="text-xl font-bold text-yellow-600">
-                                {{ number_format($sales_analysis['pending_count'], 0, ',', '.') }}</div>
+                                {{ number_format($sales_analysis['pending_count'], 0, ',', '.') }}
+                            </div>
                         </div>
                         <div class="bg-green-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Giá trị trung bình</div>
@@ -624,9 +629,11 @@
                                                 <tr>
                                                     <td class="px-3 py-2 text-sm text-gray-900">{{ $product->product_name }}</td>
                                                     <td class="px-3 py-2 text-sm text-gray-900 text-right">
-                                                        {{ number_format($product->quantity_sold, 0, ',', '.') }}</td>
+                                                        {{ number_format($product->quantity_sold, 0, ',', '.') }}
+                                                    </td>
                                                     <td class="px-3 py-2 text-sm text-gray-900 text-right">
-                                                        {{ number_format($product->revenue, 0, ',', '.') }} ₫</td>
+                                                        {{ number_format($product->revenue, 0, ',', '.') }} ₫
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -658,9 +665,11 @@
                                                 <tr>
                                                     <td class="px-3 py-2 text-sm text-gray-900">{{ $customer->customer_name }}</td>
                                                     <td class="px-3 py-2 text-sm text-gray-900 text-right">
-                                                        {{ number_format($customer->order_count, 0, ',', '.') }}</td>
+                                                        {{ number_format($customer->order_count, 0, ',', '.') }}
+                                                    </td>
                                                     <td class="px-3 py-2 text-sm text-gray-900 text-right">
-                                                        {{ number_format($customer->revenue, 0, ',', '.') }} ₫</td>
+                                                        {{ number_format($customer->revenue, 0, ',', '.') }} ₫
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -696,17 +705,20 @@
                         <div class="bg-purple-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Tổng đơn hàng</div>
                             <div class="text-xl font-bold text-purple-600">
-                                {{ number_format($purchase_analysis['total_count'], 0, ',', '.') }}</div>
+                                {{ number_format($purchase_analysis['total_count'], 0, ',', '.') }}
+                            </div>
                         </div>
                         <div class="bg-yellow-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Đơn chờ xử lý</div>
                             <div class="text-xl font-bold text-yellow-600">
-                                {{ number_format($purchase_analysis['pending_count'], 0, ',', '.') }}</div>
+                                {{ number_format($purchase_analysis['pending_count'], 0, ',', '.') }}
+                            </div>
                         </div>
                         <div class="bg-green-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Đơn hoàn thành</div>
                             <div class="text-xl font-bold text-green-600">
-                                {{ number_format($purchase_analysis['completed_count'], 0, ',', '.') }}</div>
+                                {{ number_format($purchase_analysis['completed_count'], 0, ',', '.') }}
+                            </div>
                         </div>
                         <div class="bg-blue-50 rounded-lg p-3 border border-gray-100">
                             <div class="text-xs text-gray-600 mb-1">Giá trị trung bình</div>
@@ -745,9 +757,11 @@
                                                 <tr>
                                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $supplier->supplier_name }}</td>
                                                     <td class="px-4 py-3 text-sm text-gray-900 text-right">
-                                                        {{ number_format($supplier->order_count, 0, ',', '.') }}</td>
+                                                        {{ number_format($supplier->order_count, 0, ',', '.') }}
+                                                    </td>
                                                     <td class="px-4 py-3 text-sm text-gray-900 text-right">
-                                                        {{ number_format($supplier->total_cost, 0, ',', '.') }} ₫</td>
+                                                        {{ number_format($supplier->total_cost, 0, ',', '.') }} ₫
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -863,7 +877,8 @@
                                                 <tr>
                                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $item->product_name }}</td>
                                                     <td class="px-4 py-3 text-sm text-gray-900 text-right">
-                                                        {{ number_format($item->total_stock, 0, ',', '.') }}</td>
+                                                        {{ number_format($item->total_stock, 0, ',', '.') }}
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -894,9 +909,11 @@
                                             <tr>
                                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->product_name }}</td>
                                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">
-                                                    {{ number_format($item->total_stock, 0, ',', '.') }}</td>
+                                                    {{ number_format($item->total_stock, 0, ',', '.') }}
+                                                </td>
                                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">
-                                                    {{ number_format($item->total_value, 0, ',', '.') }} ₫</td>
+                                                    {{ number_format($item->total_value, 0, ',', '.') }} ₫
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -1143,7 +1160,7 @@
                                     }
                                 });
                             @endif
-                    } catch (error) {
+                                    } catch (error) {
                             console.error('Lỗi khởi tạo biểu đồ Doanh thu & Lợi nhuận:', error);
                         }
                     },
@@ -1214,7 +1231,7 @@
                                     }
                                 });
                             @endif
-                    } catch (error) {
+                                    } catch (error) {
                             console.error('Lỗi khởi tạo biểu đồ Trạng thái Thanh toán:', error);
                         }
                     },
@@ -1286,7 +1303,7 @@
                                     }
                                 });
                             @endif
-                    } catch (error) {
+                                    } catch (error) {
                             console.error('Lỗi khởi tạo biểu đồ Trạng thái Đơn hàng:', error);
                         }
                     },
@@ -1367,7 +1384,7 @@
                                     }
                                 });
                             @endif
-                    } catch (error) {
+                                    } catch (error) {
                             console.error('Lỗi khởi tạo biểu đồ Giá trị Kho:', error);
                         }
                     },
