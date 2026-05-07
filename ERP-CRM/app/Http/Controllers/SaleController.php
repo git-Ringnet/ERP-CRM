@@ -1003,6 +1003,11 @@ class SaleController extends Controller
 
         // Logic Check: Prevent Shipping/Completed if Export is not completed
         if (in_array($newStatus, ['shipping', 'completed'])) {
+            // Check if goods are fully received for procurement-dependent items
+            if (!$sale->isFullyReceived()) {
+                return back()->with('error', "Hàng chưa về đủ theo yêu cầu đặt hàng. Không thể thực hiện giao hàng.");
+            }
+
             $export = $this->saleExportSyncService->getExport($sale);
             
             // Nếu chưa có phiếu xuất kho, thử tạo mới nếu đang chuyển sang Shipping

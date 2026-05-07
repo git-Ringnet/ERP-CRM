@@ -279,6 +279,26 @@ class Sale extends Model
     }
 
     /**
+     * Check if all items in all order requests are fully received
+     */
+    public function isFullyReceived(): bool
+    {
+        // If no order requests, we assume it's fully ready (from procurement perspective)
+        if ($this->orderRequests->count() === 0) {
+            return true;
+        }
+
+        foreach ($this->orderRequests as $request) {
+            foreach ($request->items as $item) {
+                if ($item->received_quantity_total < $item->quantity) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Get status color class
      */
     public function getStatusColorAttribute(): string
@@ -311,39 +331,41 @@ class Sale extends Model
 
         // 4. Check linked PO status
         $associatedPos = $this->all_purchase_orders;
-        $latestPo = $associatedPos->sortByDesc('id')->first();
-
-        if (!$latestPo) {
+        
+        if ($associatedPos->isEmpty()) {
             return 'waiting_order'; // Chờ đặt
         }
 
-        // 5. Hold
-        if ($latestPo->is_hold) {
+        // 5. Check if any PO is on hold
+        if ($associatedPos->contains('is_hold', true)) {
             return 'hold';
         }
 
-        // 6. Check progress based on PO status
-        $poStatus = $latestPo->status;
-        
-        // Default based on PO
-        $status = 'waiting_order';
-        if (in_array($poStatus, ['received'])) {
+        // 6. Determine overall procurement status
+        // A sale is 'received' only if ALL items in all requests are fully received
+        if ($this->isFullyReceived()) {
             $status = 'received';
-        } elseif (in_array($poStatus, ['shipping', 'partial_received'])) {
-            $status = 'in_transit';
-        } elseif (in_array($poStatus, ['draft', 'pending_approval', 'approved'])) {
-            $status = 'ordered';
-        }
-
-        // 7. Check Invoice Request (Overwrites 'received' if request exists)
-        if ($status === 'received') {
+            
+            // 7. Check Invoice Request (Overwrites 'received' if request exists)
             $latestInvoice = $this->invoiceRequests()->latest()->first();
             if ($latestInvoice) {
                 $status = 'invoicing';
             }
+            return $status;
         }
 
-        return $status;
+        // If not fully received, determine if it's 'ordered' or 'in_transit'
+        // 'in_transit' if any PO is shipping or partial_received or received (but SO is not fully received)
+        $hasInTransit = $associatedPos->contains(function($po) {
+            return in_array($po->status, ['shipping', 'partial_received', 'received']);
+        });
+
+        if ($hasInTransit) {
+            return 'in_transit';
+        }
+
+        // If all POs are just approved/draft/pending, it's 'ordered'
+        return 'ordered';
     }
 
     /**

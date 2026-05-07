@@ -167,7 +167,7 @@
                     @php 
                         $hasOfficialInvoice = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
                     @endphp
-                    @if($hasOfficialInvoice)
+                    @if($hasOfficialInvoice && $sale->isFullyReceived())
                         <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
                             @csrf @method('PATCH')
                             <input type="hidden" name="status" value="shipping">
@@ -175,6 +175,11 @@
                                 <i class="fas fa-truck mr-1"></i> GIAO HÀNG
                             </button>
                         </form>
+                    @elseif($hasOfficialInvoice && !$sale->isFullyReceived())
+                        <button type="button" disabled class="px-3 py-1 bg-gray-200 text-gray-400 text-xs font-bold rounded cursor-not-allowed opacity-60" title="Hàng chưa về đủ để giao">
+                            <i class="fas fa-truck mr-1"></i> GIAO HÀNG
+                        </button>
+                        <span class="text-[10px] text-red-600 ml-1 italic"><i class="fas fa-exclamation-triangle"></i> Hàng chưa về đủ</span>
                     @else
                         <button type="button" disabled class="px-3 py-1 bg-gray-200 text-gray-400 text-xs font-bold rounded cursor-not-allowed opacity-60" title="Cần có hóa đơn chính thức để giao hàng">
                             <i class="fas fa-truck mr-1"></i> GIAO HÀNG

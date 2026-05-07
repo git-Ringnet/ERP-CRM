@@ -9,6 +9,10 @@
             <button onclick="openInvoiceRequestModal()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-sm">
                 <i class="fas fa-plus-circle mr-2"></i> GỬI YÊU CẦU MỚI
             </button>
+        @elseif(in_array($sale->dashboard_status, ['ordered', 'in_transit', 'hold']))
+            <div class="text-[11px] bg-amber-50 text-amber-700 border border-amber-100 px-3 py-1.5 rounded-lg flex items-center">
+                <i class="fas fa-info-circle mr-2"></i> Vui lòng chờ hàng về đủ để yêu cầu hóa đơn
+            </div>
         @endif
     </div>
 
