@@ -27,7 +27,8 @@
         },
         updateFullName(index) {
             this.contacts[index].name = (this.contacts[index].first_name + ' ' + this.contacts[index].last_name).trim();
-        }
+        },
+        errors: {{ json_encode($errors->toArray()) }}
     }">
         @csrf
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -139,9 +140,12 @@
                                         <input type="hidden" :name="`contacts[${index}][name]`" x-model="contact.name">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Chức vụ</label>
-                                        <input type="text" :name="`contacts[${index}][position]`" x-model="contact.position" placeholder="VD: Giám đốc, Kế toán..."
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                        <input type="text" :name="`contacts[${index}][position]`" x-model="contact.position" required placeholder="VD: Giám đốc, Kế toán..."
                                                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        <template x-if="errors[`contacts.${index}.position`]">
+                                            <p class="mt-1 text-[10px] text-red-500" x-text="errors[`contacts.${index}.position`][0]"></p>
+                                        </template>
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
@@ -149,9 +153,12 @@
                                                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                                        <input type="email" :name="`contacts[${index}][email]`" x-model="contact.email" placeholder="example@gmail.com"
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
+                                        <input type="email" :name="`contacts[${index}][email]`" x-model="contact.email" required placeholder="example@gmail.com"
                                                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        <template x-if="errors[`contacts.${index}.email`]">
+                                            <p class="mt-1 text-[10px] text-red-500" x-text="errors[`contacts.${index}.email`][0]"></p>
+                                        </template>
                                     </div>
                                     <div class="md:col-span-2">
                                         <label class="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
