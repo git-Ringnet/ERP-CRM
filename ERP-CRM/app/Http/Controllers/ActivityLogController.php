@@ -29,7 +29,11 @@ class ActivityLogController extends Controller
 
         // Filter by subject type (module)
         if ($request->filled('subject_type')) {
-            $query->forSubjectType($request->subject_type);
+            if ($request->subject_type === 'system') {
+                $query->whereNull('subject_type');
+            } else {
+                $query->forSubjectType($request->subject_type);
+            }
         }
 
         // Filter by date range
@@ -58,9 +62,17 @@ class ActivityLogController extends Controller
                 return class_basename($type);
             })
             ->sort()
-            ->values();
+            ->values()
+            ->toArray();
 
-        return view('activity-logs.index', compact('logs', 'users', 'actions', 'subjectTypes'));
+        // Check if there are any system logs (subject_type is null)
+        $hasSystemLogs = ActivityLog::whereNull('subject_type')->exists();
+        if ($hasSystemLogs) {
+            // We use 'system' as a special value in the view
+            // The view will handle the mapping to "Hệ thống"
+        }
+
+        return view('activity-logs.index', compact('logs', 'users', 'actions', 'subjectTypes', 'hasSystemLogs'));
     }
 
     /**

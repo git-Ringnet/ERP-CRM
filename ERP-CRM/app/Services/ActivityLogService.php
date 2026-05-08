@@ -140,6 +140,26 @@ class ActivityLogService
     }
 
     /**
+     * Log khi user đăng ký
+     */
+    public function logRegistered(User $user): ActivityLog
+    {
+        return ActivityLog::create([
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'action' => 'registered',
+            'description' => "Đăng ký tài khoản mới",
+            'subject_type' => get_class($user),
+            'subject_id' => $user->id,
+            'properties' => [
+                'attributes' => $user->getAttributes(),
+            ],
+            'ip_address' => Request::ip(),
+            'user_agent' => Request::userAgent(),
+        ]);
+    }
+
+    /**
      * Lấy label của model để hiển thị
      */
     protected function getModelLabel(Model $model): string

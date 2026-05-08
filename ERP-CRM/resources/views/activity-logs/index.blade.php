@@ -29,9 +29,20 @@
                         <select name="action"
                             class="w-full rounded-lg border-gray-300 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
                             <option value="">Tất cả</option>
+                            @php
+                                $actionLabels = [
+                                    'created' => 'Tạo mới',
+                                    'updated' => 'Cập nhật',
+                                    'deleted' => 'Xóa',
+                                    'approved' => 'Duyệt',
+                                    'login' => 'Đăng nhập',
+                                    'logout' => 'Đăng xuất',
+                                    'registered' => 'Đăng ký',
+                                ];
+                            @endphp
                             @foreach($actions as $action)
                                 <option value="{{ $action }}" {{ request('action') == $action ? 'selected' : '' }}>
-                                    {{ ucfirst($action) }}
+                                    {{ $actionLabels[$action] ?? ucfirst($action) }}
                                 </option>
                             @endforeach
                         </select>
@@ -78,11 +89,15 @@
                                 'Permission' => 'Quyền hạn',
                                 'CustomerCareStage' => 'Giai đoạn CSKH',
                                 'WorkSchedule' => 'Lịch làm việc',
+                                '-' => 'Hệ thống',
                             ];
                         @endphp
                         <select name="subject_type"
                             class="w-full rounded-lg border-gray-300 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
                             <option value="">Tất cả</option>
+                            @if($hasSystemLogs)
+                                <option value="system" {{ request('subject_type') == 'system' ? 'selected' : '' }}>Hệ thống</option>
+                            @endif
                             @foreach($subjectTypes as $type)
                                 <option value="App\Models\{{ $type }}" {{ request('subject_type') == "App\\Models\\{$type}" ? 'selected' : '' }}>
                                     {{ $moduleNames[$type] ?? $type }}
@@ -134,8 +149,9 @@
                                     'updated' => ['icon' => 'edit', 'color' => 'text-blue-600', 'bg' => 'bg-blue-100', 'label' => 'Sửa'],
                                     'deleted' => ['icon' => 'trash', 'color' => 'text-red-600', 'bg' => 'bg-red-100', 'label' => 'Xóa'],
                                     'approved' => ['icon' => 'check-circle', 'color' => 'text-purple-600', 'bg' => 'bg-purple-100', 'label' => 'Duyệt'],
-                                    'login' => ['icon' => 'sign-in-alt', 'color' => 'text-yellow-600', 'bg' => 'bg-yellow-100', 'label' => 'Login'],
-                                    'logout' => ['icon' => 'sign-out-alt', 'color' => 'text-gray-600', 'bg' => 'bg-gray-100', 'label' => 'Logout'],
+                                    'login' => ['icon' => 'sign-in-alt', 'color' => 'text-yellow-600', 'bg' => 'bg-yellow-100', 'label' => 'Đăng nhập'],
+                                    'logout' => ['icon' => 'sign-out-alt', 'color' => 'text-gray-600', 'bg' => 'bg-gray-100', 'label' => 'Đăng xuất'],
+                                    'registered' => ['icon' => 'user-plus', 'color' => 'text-indigo-600', 'bg' => 'bg-indigo-100', 'label' => 'Đăng ký'],
                                 ];
                                 $config = $actionConfig[$log->action] ?? ['icon' => 'circle', 'color' => 'text-gray-600', 'bg' => 'bg-gray-100', 'label' => ucfirst($log->action)];
                             @endphp
