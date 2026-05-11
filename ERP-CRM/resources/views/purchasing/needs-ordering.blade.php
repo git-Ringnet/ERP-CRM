@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
+<div class="">
     <div class="mb-6">
         <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <a href="{{ route('purchase-requests.index') }}" class="hover:text-teal-600">Danh sách PR</a>

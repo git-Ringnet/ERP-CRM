@@ -21,9 +21,9 @@
             <i class="fas fa-file-pdf mr-2"></i> Hóa đơn (In)
         </a>
         @endif
-        <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline">
+        <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline" id="emailForm">
             @csrf
-            <button type="submit" 
+            <button type="button" onclick="confirmSendEmail()"
                     class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
                 <i class="fas fa-envelope mr-2"></i> Gửi Email
             </button>
@@ -813,6 +813,32 @@ function openPaymentModal() {
 
 function closePaymentModal() {
     document.getElementById('paymentModal').classList.add('hidden');
+}
+
+function confirmSendEmail() {
+    Swal.fire({
+        title: 'Xác nhận gửi Email?',
+        text: "Hệ thống sẽ gửi thông tin đơn hàng đến khách hàng qua email.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Đồng ý, gửi ngay!',
+        cancelButtonText: 'Hủy bỏ',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading state
+            Swal.fire({
+                title: 'Đang gửi email...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            document.getElementById('emailForm').submit();
+        }
+    });
 }
 
 function handlePaymentCurrencyChange() {
