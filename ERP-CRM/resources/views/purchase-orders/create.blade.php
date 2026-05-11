@@ -804,4 +804,3 @@ function addItemsToOrder(items) {
 </script>
 @endpush
 @endsection
-@endsection
