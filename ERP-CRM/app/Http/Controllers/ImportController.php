@@ -48,7 +48,7 @@ class ImportController extends Controller
     {
         $this->authorize('viewAny', Import::class);
 
-        $query = Import::with(['warehouse', 'supplier', 'employee', 'items']);
+        $query = Import::with(['warehouse', 'supplier', 'employee', 'items.product']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {

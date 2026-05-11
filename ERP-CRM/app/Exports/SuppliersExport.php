@@ -37,12 +37,13 @@ class SuppliersExport implements FromCollection, WithHeadings, WithMapping
         return [
             'Mã nhà cung cấp',
             'Tên nhà cung cấp',
-            'Email',
+            'Người liên hệ (Tên)',
+            'Chức vụ',
             'Số điện thoại',
-            'Địa chỉ',
+            'Email',
             'Mã số thuế',
             'Website',
-            'Người liên hệ',
+            'Địa chỉ',
             'Điều khoản thanh toán (ngày)',
             'Loại sản phẩm',
             'Ghi chú',
@@ -52,17 +53,39 @@ class SuppliersExport implements FromCollection, WithHeadings, WithMapping
     /**
      * Map each row to the desired format
      */
-    public function map($supplier): array
+    public function map($item): array
     {
+        if ($item instanceof \App\Models\SupplierContact) {
+            $contact = $item;
+            $supplier = $contact->supplier;
+            return [
+                $supplier->code ?? '',
+                $supplier->name ?? '',
+                $contact->name ?? '',
+                $contact->position ?? '',
+                $contact->phone ?? '',
+                $contact->email ?? '',
+                $supplier->tax_code ?? '',
+                $supplier->website ?? '',
+                $supplier->address ?? '',
+                $supplier->payment_terms ?? 30,
+                $supplier->product_type ?? '',
+                $contact->note ?? '',
+            ];
+        }
+
+        // Fallback for Supplier without contacts
+        $supplier = $item;
         return [
             $supplier->code ?? '',
             $supplier->name ?? '',
-            $supplier->email ?? '',
+            $supplier->contact_person ?? '',
+            '', // Chức vụ
             $supplier->phone ?? '',
-            $supplier->address ?? '',
+            $supplier->email ?? '',
             $supplier->tax_code ?? '',
             $supplier->website ?? '',
-            $supplier->contact_person ?? '',
+            $supplier->address ?? '',
             $supplier->payment_terms ?? 30,
             $supplier->product_type ?? '',
             $supplier->note ?? '',

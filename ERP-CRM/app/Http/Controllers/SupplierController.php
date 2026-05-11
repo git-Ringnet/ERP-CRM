@@ -19,7 +19,7 @@ class SupplierController extends Controller
     {
         $this->authorize('viewAny', \App\Models\Supplier::class);
 
-        $query = DB::table('suppliers');
+        $query = \App\Models\Supplier::query();
 
         // Search functionality (Requirement 2.9)
         if ($request->filled('search')) {   
@@ -40,7 +40,7 @@ class SupplierController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $suppliers = $query->orderBy('created_at', 'desc')->paginate(10);
+        $suppliers = $query->with('contacts')->orderBy('created_at', 'desc')->paginate(10);
 
         return view('suppliers.index', compact('suppliers'));
     }
@@ -103,6 +103,16 @@ class SupplierController extends Controller
             'special_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'special_discount_condition' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
+            'contacts' => ['nullable', 'array'],
+            'contacts.*.name' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.first_name' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.last_name' => ['nullable', 'string', 'max:255'],
+            'contacts.*.title' => ['nullable', 'string', 'max:50'],
+            'contacts.*.position' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.phone' => ['required_with:contacts', 'string', 'max:20'],
+            'contacts.*.email' => ['required_with:contacts', 'email', 'max:255'],
+            'contacts.*.is_primary' => ['boolean'],
+            'contacts.*.note' => ['nullable', 'string'],
         ], [
             'code.required' => 'Mã nhà cung cấp là bắt buộc.',
             'code.string' => 'Mã nhà cung cấp phải là chuỗi ký tự.',
@@ -146,6 +156,11 @@ class SupplierController extends Controller
             'special_discount.max' => 'Chiết khấu đặc biệt không được vượt quá 100.',
             'special_discount_condition.string' => 'Điều kiện chiết khấu đặc biệt phải là chuỗi ký tự.',
             'note.string' => 'Ghi chú phải là chuỗi ký tự.',
+            'contacts.*.first_name.required_with' => 'Tên người liên hệ là bắt buộc.',
+            'contacts.*.position.required_with' => 'Chức vụ người liên hệ là bắt buộc.',
+            'contacts.*.phone.required_with' => 'Số điện thoại người liên hệ là bắt buộc.',
+            'contacts.*.email.required_with' => 'Email người liên hệ là bắt buộc.',
+            'contacts.*.email.email' => 'Email người liên hệ không hợp lệ.',
         ]);
 
         $numericFields = [
@@ -158,7 +173,15 @@ class SupplierController extends Controller
             }
         }
 
-        \App\Models\Supplier::create($validated);
+        DB::transaction(function() use ($validated) {
+            $supplier = \App\Models\Supplier::create($validated);
+            
+            if (!empty($validated['contacts'])) {
+                foreach ($validated['contacts'] as $contactData) {
+                    $supplier->contacts()->create($contactData);
+                }
+            }
+        });
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Nhà cung cấp đã được tạo thành công.');
@@ -197,15 +220,8 @@ class SupplierController extends Controller
      */
     public function edit($id)
     {
-        $supplier = DB::table('suppliers')->where('id', $id)->first();
-
-        if (!$supplier) {
-            abort(404);
-        }
-
-        // Convert stdClass to Supplier model for authorization
-        $supplierModel = \App\Models\Supplier::findOrFail($id);
-        $this->authorize('update', $supplierModel);
+        $supplier = \App\Models\Supplier::with('contacts')->findOrFail($id);
+        $this->authorize('update', $supplier);
 
         return view('suppliers.edit', compact('supplier'));
     }
@@ -216,15 +232,8 @@ class SupplierController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $supplier = DB::table('suppliers')->where('id', $id)->first();
-
-        if (!$supplier) {
-            abort(404);
-        }
-
-        // Convert stdClass to Supplier model for authorization
-        $supplierModel = \App\Models\Supplier::findOrFail($id);
-        $this->authorize('update', $supplierModel);
+        $supplier = \App\Models\Supplier::findOrFail($id);
+        $this->authorize('update', $supplier);
 
         // Validation with unique rule ignoring current record
         $validated = $request->validate([
@@ -246,6 +255,16 @@ class SupplierController extends Controller
             'special_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'special_discount_condition' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
+            'contacts' => ['nullable', 'array'],
+            'contacts.*.name' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.first_name' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.last_name' => ['nullable', 'string', 'max:255'],
+            'contacts.*.title' => ['nullable', 'string', 'max:50'],
+            'contacts.*.position' => ['required_with:contacts', 'string', 'max:255'],
+            'contacts.*.phone' => ['required_with:contacts', 'string', 'max:20'],
+            'contacts.*.email' => ['required_with:contacts', 'email', 'max:255'],
+            'contacts.*.is_primary' => ['boolean'],
+            'contacts.*.note' => ['nullable', 'string'],
         ], [
             'code.required' => 'Mã nhà cung cấp là bắt buộc.',
             'code.string' => 'Mã nhà cung cấp phải là chuỗi ký tự.',
@@ -289,6 +308,11 @@ class SupplierController extends Controller
             'special_discount.max' => 'Chiết khấu đặc biệt không được vượt quá 100.',
             'special_discount_condition.string' => 'Điều kiện chiết khấu đặc biệt phải là chuỗi ký tự.',
             'note.string' => 'Ghi chú phải là chuỗi ký tự.',
+            'contacts.*.first_name.required_with' => 'Tên người liên hệ là bắt buộc.',
+            'contacts.*.position.required_with' => 'Chức vụ người liên hệ là bắt buộc.',
+            'contacts.*.phone.required_with' => 'Số điện thoại người liên hệ là bắt buộc.',
+            'contacts.*.email.required_with' => 'Email người liên hệ là bắt buộc.',
+            'contacts.*.email.email' => 'Email người liên hệ không hợp lệ.',
         ]);
 
         $numericFields = [
@@ -301,7 +325,16 @@ class SupplierController extends Controller
             }
         }
 
-        $supplierModel->update($validated);
+        DB::transaction(function() use ($validated, $supplier) {
+            $supplier->update($validated);
+            
+            if (isset($validated['contacts'])) {
+                $supplier->contacts()->delete();
+                foreach ($validated['contacts'] as $contactData) {
+                    $supplier->contacts()->create($contactData);
+                }
+            }
+        });
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Nhà cung cấp đã được cập nhật thành công.');
@@ -376,10 +409,21 @@ class SupplierController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $suppliers = collect($query->get());
+        $suppliers = $query->with('contacts')->get();
+
+        $contactsToExport = collect();
+        foreach ($suppliers as $supplier) {
+            if ($supplier->contacts->isEmpty()) {
+                $contactsToExport->push($supplier);
+            } else {
+                foreach ($supplier->contacts as $contact) {
+                    $contactsToExport->push($contact);
+                }
+            }
+        }
 
         // Generate Excel file (Requirement 7.7)
-        $filepath = $exportService->exportSuppliers($suppliers);
+        $filepath = $exportService->exportSuppliers($contactsToExport);
 
         return response()->download($filepath)->deleteFileAfterSend(true);
     }

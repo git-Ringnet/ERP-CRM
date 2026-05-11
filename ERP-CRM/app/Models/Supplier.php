@@ -65,6 +65,11 @@ class Supplier extends Model
         return $this->hasMany(Import::class);
     }
 
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(SupplierContact::class);
+    }
+
     public function purchaseRequests(): BelongsToMany
     {
         return $this->belongsToMany(PurchaseRequest::class, 'purchase_request_suppliers')

@@ -14,7 +14,24 @@
         </a>
     </div>
 
-    <form action="{{ route('suppliers.update', $supplier->id) }}" method="POST">
+    <form action="{{ route('suppliers.update', $supplier->id) }}" method="POST" x-data="{ 
+        contacts: {{ $supplier->contacts->count() > 0 ? json_encode($supplier->contacts->map(function($c) { return ['id' => $c->id, 'name' => $c->name, 'first_name' => $c->first_name, 'last_name' => $c->last_name, 'title' => $c->title, 'position' => $c->position, 'phone' => $c->phone, 'email' => $c->email, 'note' => $c->note, 'is_primary' => (bool)$c->is_primary]; })) : json_encode([['name' => '', 'first_name' => '', 'last_name' => '', 'title' => '', 'position' => '', 'phone' => '', 'email' => '', 'note' => '', 'is_primary' => true]]) }},
+        addContact() {
+            this.contacts.push({ name: '', first_name: '', last_name: '', title: '', position: '', phone: '', email: '', note: '', is_primary: false });
+        },
+        removeContact(index) {
+            if (this.contacts.length > 1) {
+                this.contacts.splice(index, 1);
+            }
+        },
+        setPrimary(index) {
+            this.contacts.forEach((c, i) => c.is_primary = (i === index));
+        },
+        updateFullName(index) {
+            this.contacts[index].name = (this.contacts[index].first_name + ' ' + this.contacts[index].last_name).trim();
+        },
+        errors: {{ json_encode($errors->toArray()) }}
+    }">
         @csrf
         @method('PUT')
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -49,11 +66,7 @@
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('phone') border-red-500 @enderror">
                                 @error('phone')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                             </div>
-                            <div>
-                                <label for="contact_person" class="block text-sm font-medium text-gray-700 mb-1">Người liên hệ</label>
-                                <input type="text" name="contact_person" id="contact_person" value="{{ old('contact_person', $supplier->contact_person) }}"
-                                       class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                            </div>
+                            <!-- Removed simple contact_person field, now handled by dynamic contacts below -->
                             <div>
                                 <label for="tax_code" class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
                                 <div class="relative">
@@ -82,6 +95,83 @@
                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Người liên hệ (Folder style) -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <h2 class="text-base font-semibold text-gray-800">
+                            <i class="fas fa-users mr-2 text-primary"></i>Danh sách người liên hệ
+                        </h2>
+                        <button type="button" @click="addContact()" class="px-3 py-1 bg-primary text-white rounded-md hover:bg-primary-dark text-xs transition-colors">
+                            <i class="fas fa-plus mr-1"></i>Thêm người liên hệ
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <template x-for="(contact, index) in contacts" :key="index">
+                            <div class="p-4 border border-gray-200 rounded-lg relative bg-gray-50/50">
+                                <div class="flex justify-between items-center mb-3">
+                                    <span class="text-sm font-bold text-gray-500 uppercase" x-text="`Người liên hệ #${index + 1}`"></span>
+                                    <div class="flex items-center gap-3">
+                                        <label class="flex items-center cursor-pointer">
+                                            <input type="radio" :name="`primary_contact_indicator`" :checked="contact.is_primary" @change="setPrimary(index)" class="form-radio text-primary h-4 w-4">
+                                            <span class="ml-2 text-xs text-gray-600">Liên hệ chính</span>
+                                            <input type="hidden" :name="`contacts[${index}][is_primary]`" :value="contact.is_primary ? 1 : 0">
+                                        </label>
+                                        <button type="button" @click="removeContact(index)" x-show="contacts.length > 1" class="text-red-500 hover:text-red-700 transition-colors">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Xưng hô (Mr/Ms/Mrs)</label>
+                                        <input type="text" :name="`contacts[${index}][title]`" x-model="contact.title" placeholder="Mr, Ms..."
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tên <span class="text-red-500">*</span></label>
+                                            <input type="text" :name="`contacts[${index}][first_name]`" x-model="contact.first_name" @input="updateFullName(index)" required placeholder="Tên"
+                                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Họ</label>
+                                            <input type="text" :name="`contacts[${index}][last_name]`" x-model="contact.last_name" @input="updateFullName(index)" placeholder="Họ và tên đệm"
+                                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        </div>
+                                        <input type="hidden" :name="`contacts[${index}][name]`" x-model="contact.name">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                        <input type="text" :name="`contacts[${index}][position]`" x-model="contact.position" required placeholder="VD: Giám đốc, Kế toán..."
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        <template x-if="errors[`contacts.${index}.position`]">
+                                            <p class="mt-1 text-[10px] text-red-500" x-text="errors[`contacts.${index}.position`][0]"></p>
+                                        </template>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                                        <input type="tel" :name="`contacts[${index}][phone]`" x-model="contact.phone" required placeholder="Nhập SĐT"
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
+                                        <input type="email" :name="`contacts[${index}][email]`" x-model="contact.email" required placeholder="example@gmail.com"
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                        <template x-if="errors[`contacts.${index}.email`]">
+                                            <p class="mt-1 text-[10px] text-red-500" x-text="errors[`contacts.${index}.email`][0]"></p>
+                                        </template>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
+                                        <input type="text" :name="`contacts[${index}][note]`" x-model="contact.note" placeholder="Thông tin thêm..."
+                                               class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </div>
 

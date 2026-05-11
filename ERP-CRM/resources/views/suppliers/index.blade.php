@@ -11,9 +11,9 @@
                 <div class="grid grid-cols-1 mb-3">
                     <!-- Search -->
                     <div class="relative">
-                        <input type="text" name="search" value="{{ request('search') }}" 
-                               placeholder="Tìm kiếm theo mã, tên, email, SĐT..." 
-                               class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                        <input type="text" name="search" value="{{ request('search') }}"
+                            placeholder="Tìm kiếm theo mã, tên, email, SĐT..."
+                            class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                         <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                     </div>
                 </div>
@@ -22,25 +22,27 @@
                     <!-- Date From -->
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs text-gray-600 mb-1">Từ ngày</label>
-                        <input type="text" id="supplierDateFrom" name="date_from" value="{{ request('date_from') }}" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                               placeholder="Từ ngày">
+                        <input type="text" id="supplierDateFrom" name="date_from" value="{{ request('date_from') }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Từ ngày">
                     </div>
 
                     <!-- Date To -->
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs text-gray-600 mb-1">Đến ngày</label>
-                        <input type="text" id="supplierDateTo" name="date_to" value="{{ request('date_to') }}" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                               placeholder="Đến ngày">
+                        <input type="text" id="supplierDateTo" name="date_to" value="{{ request('date_to') }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Đến ngày">
                     </div>
 
                     <!-- Buttons -->
                     <div class="flex gap-2">
-                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm whitespace-nowrap">
+                        <button type="submit"
+                            class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm whitespace-nowrap">
                             <i class="fas fa-filter mr-1"></i>Lọc
                         </button>
-                        <a href="{{ route('suppliers.index') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm whitespace-nowrap">
+                        <a href="{{ route('suppliers.index') }}"
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm whitespace-nowrap">
                             <i class="fas fa-redo mr-1"></i>Đặt lại
                         </a>
                     </div>
@@ -49,28 +51,28 @@
                     <div class="flex gap-2 ml-auto">
                         <div class="relative" x-data="{ open: false }">
                             <button @click="open = !open" type="button"
-                                    class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm whitespace-nowrap">
+                                class="inline-flex items-center px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 transition-colors text-sm whitespace-nowrap">
                                 <i class="fas fa-file-excel mr-2"></i>Excel
                                 <i class="fas fa-chevron-down ml-2 text-xs"></i>
                             </button>
                             <div x-show="open" @click.away="open = false" x-cloak
-                                 class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                                <a href="{{ route('suppliers.export') }}?{{ http_build_query(request()->query()) }}" 
-                                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
+                                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <a href="{{ route('suppliers.export') }}?{{ http_build_query(request()->query()) }}"
+                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg">
                                     <i class="fas fa-download mr-2 text-green-600"></i>Export Excel
                                 </a>
-                                <button type="button" onclick="document.getElementById('importModal').classList.remove('hidden')"
-                                        class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <button type="button" onclick="openImportModal()"
+                                    class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-upload mr-2 text-blue-600"></i>Import Excel
                                 </button>
-                                <a href="{{ route('suppliers.import.template') }}" 
-                                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg border-t border-gray-100">
-                                    <i class="fas fa-file-download mr-2 text-gray-600"></i>Tải mẫu Import
-                                </a>
+                                <!-- <a href="{{ route('suppliers.import.template') }}" 
+                                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg border-t border-gray-100">
+                                        <i class="fas fa-file-download mr-2 text-gray-600"></i>Tải mẫu Import
+                                    </a> -->
                             </div>
                         </div>
-                        <a href="{{ route('suppliers.create') }}" 
-                           class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm whitespace-nowrap">
+                        <a href="{{ route('suppliers.create') }}"
+                            class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm whitespace-nowrap">
                             <i class="fas fa-plus mr-2"></i>Thêm NCC
                         </a>
                     </div>
@@ -79,10 +81,12 @@
         </div>
 
         <!-- Table -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" x-data="{ expanded: null }">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                        </th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã NCC
@@ -103,7 +107,12 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($suppliers as $supplier)
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 cursor-pointer"
+                            @click="expanded === {{ $supplier->id }} ? expanded = null : expanded = {{ $supplier->id }}">
+                            <td class="px-4 py-3 text-center">
+                                <i class="fas fa-chevron-right transition-transform duration-200"
+                                    :class="expanded === {{ $supplier->id }} ? 'rotate-90 text-primary' : 'text-gray-400'"></i>
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                                 {{ ($suppliers->currentPage() - 1) * $suppliers->perPage() + $loop->iteration }}
                             </td>
@@ -112,9 +121,9 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $supplier->name }}</div>
-                                @if($supplier->contact_person)
-                                    <div class="text-sm text-gray-500">LH: {{ $supplier->contact_person }}</div>
-                                @endif
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <i class="fas fa-users mr-1"></i> {{ $supplier->contacts->count() }} người liên hệ
+                                </div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $supplier->email }}</td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ $supplier->phone }}</td>
@@ -124,7 +133,7 @@
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {{ $supplier->payment_terms }} ngày
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                            <td class="px-4 py-3 whitespace-nowrap text-center" @click.stop>
                                 <div class="flex items-center justify-center gap-2">
                                     <a href="{{ route('suppliers.show', $supplier->id) }}"
                                         class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
@@ -136,12 +145,12 @@
                                         title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('suppliers.destroy', $supplier->id) }}" method="POST" class="inline">
+                                    <form action="{{ route('suppliers.destroy', $supplier->id) }}" method="POST"
+                                        class="inline delete-form">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="button"
-                                            onclick="confirmDelete(this.form, '{{ $supplier->name }}')"
-                                            class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors"
+                                        <button type="button" onclick="confirmDelete(this.form, '{{ $supplier->name }}')"
+                                            class="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors delete-btn"
                                             title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -149,9 +158,57 @@
                                 </div>
                             </td>
                         </tr>
+                        <!-- Expandable row for Contacts -->
+                        <tr x-show="expanded === {{ $supplier->id }}" x-cloak class="bg-gray-50">
+                            <td colspan="9" class="px-8 py-4">
+                                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Người
+                                                    liên hệ</th>
+                                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Chức
+                                                    vụ</th>
+                                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Số
+                                                    điện thoại</th>
+                                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Email
+                                                </th>
+                                                <th class="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase">Ghi
+                                                    chú</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            @forelse($supplier->contacts as $contact)
+                                                <tr class="hover:bg-blue-50 transition-colors">
+                                                    <td class="px-4 py-2 font-medium text-gray-900">
+                                                        {{ $contact->name }}
+                                                        @if($contact->is_primary)
+                                                            <span
+                                                                class="ml-1 text-[10px] bg-blue-100 text-blue-600 px-1 rounded">Chính</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-4 py-2 text-gray-600">{{ $contact->position ?? '-' }}</td>
+                                                    <td class="px-4 py-2 text-blue-600 font-medium">{{ $contact->phone ?? '-' }}
+                                                    </td>
+                                                    <td class="px-4 py-2 text-gray-600">{{ $contact->email ?? '-' }}</td>
+                                                    <td class="px-4 py-2 text-gray-500 text-xs italic">{{ $contact->note ?? '-' }}
+                                                    </td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="5" class="px-4 py-4 text-center text-gray-400 italic">
+                                                        Chưa có thông tin người liên hệ
+                                                    </td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Không có dữ liệu nhà cung cấp</p>
                             </td>
@@ -169,33 +226,89 @@
         @endif
     </div>
 
-    <!-- Import Modal -->
-    <div id="importModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div class="mt-3">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-medium text-gray-900">Import Nhà Cung Cấp</h3>
-                    <button onclick="document.getElementById('importModal').classList.add('hidden')"
-                        class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times"></i>
+    <!-- Import Excel Modal -->
+    <div id="importModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-semibold text-gray-900">
+                        <i class="fas fa-file-excel text-green-600 mr-2"></i>Import Nhà cung cấp từ Excel
+                    </h3>
+                    <button type="button" onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
-                <form action="{{ route('suppliers.import') }}" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Chọn file Excel</label>
-                        <input type="file" name="file" accept=".xlsx,.xls" required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
-                        <p class="text-xs text-gray-500 mt-1">Chấp nhận file .xlsx, .xls (tối đa 10MB)</p>
+            </div>
+
+            <div class="p-6">
+                <!-- Template Download -->
+                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-start">
+                        <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu</h4>
+                            <p class="text-sm text-blue-700 mb-3">
+                                Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. Nếu mã NCC đã tồn tại, hệ thống sẽ cập
+                                nhật thông tin.
+                            </p>
+                            <a href="{{ route('suppliers.import.template') }}"
+                                class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                <i class="fas fa-download mr-2"></i>
+                                Tải file mẫu Excel
+                            </a>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')"
-                            class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
-                            Hủy
+                </div>
+
+                <!-- Upload Form -->
+                <form action="{{ route('suppliers.import') }}" method="POST" enctype="multipart/form-data" id="importForm">
+                    @csrf
+
+                    <!-- File Upload -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Chọn file Excel <span class="text-red-500">*</span>
+                        </label>
+
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors"
+                            id="dropZone">
+                            <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" required class="hidden">
+
+                            <div id="dropZoneContent">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                                <p class="text-gray-600 mb-2">
+                                    Kéo thả file vào đây hoặc
+                                    <label for="fileInput"
+                                        class="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                        chọn file
+                                    </label>
+                                </p>
+                                <p class="text-sm text-gray-500">
+                                    Hỗ trợ: .xlsx, .xls (Tối đa 10MB)
+                                </p>
+                            </div>
+
+                            <div id="fileInfo" class="hidden">
+                                <i class="fas fa-file-excel text-4xl text-green-600 mb-3"></i>
+                                <p class="text-gray-900 font-medium" id="fileName"></p>
+                                <p class="text-sm text-gray-500" id="fileSize"></p>
+                                <button type="button" onclick="clearFile()"
+                                    class="mt-3 text-sm text-red-600 hover:text-red-700">
+                                    <i class="fas fa-times mr-1"></i>Xóa file
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="closeImportModal()"
+                            class="px-6 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                            <i class="fas fa-times mr-1"></i> Hủy
                         </button>
-                        <button type="submit"
-                            class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
-                            <i class="fas fa-upload mr-2"></i>Import
+                        <button type="submit" id="submitBtn" disabled
+                            class="px-6 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-upload mr-1"></i> Bắt đầu Import
                         </button>
                     </div>
                 </form>
@@ -205,26 +318,105 @@
 @endsection
 
 @push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof flatpickr !== 'undefined') {
-            if (document.getElementById('supplierDateFrom')) {
-                flatpickr("#supplierDateFrom", {
-                    dateFormat: "Y-m-d",
-                    altInput: true,
-                    altFormat: "d/m/Y",
-                    locale: "vn"
-                });
-            }
-            if (document.getElementById('supplierDateTo')) {
-                flatpickr("#supplierDateTo", {
-                    dateFormat: "Y-m-d",
-                    altInput: true,
-                    altFormat: "d/m/Y",
-                    locale: "vn"
-                });
-            }
+    <script>
+        function openImportModal() {
+            document.getElementById('importModal').classList.remove('hidden');
         }
-    });
-</script>
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.add('hidden');
+            clearFile();
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZoneContent = document.getElementById('dropZoneContent');
+        const fileInfo = document.getElementById('fileInfo');
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof flatpickr !== 'undefined') {
+                if (document.getElementById('supplierDateFrom')) {
+                    flatpickr("#supplierDateFrom", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+                if (document.getElementById('supplierDateTo')) {
+                    flatpickr("#supplierDateTo", {
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d/m/Y",
+                        locale: "vn"
+                    });
+                }
+            }
+        });
+
+        if (fileInput) {
+            fileInput.addEventListener('change', function (e) {
+                if (this.files.length > 0) {
+                    displayFileInfo(this.files[0]);
+                }
+            });
+        }
+
+        if (dropZone) {
+            dropZone.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                this.classList.add('border-blue-500', 'bg-blue-50');
+            });
+
+            dropZone.addEventListener('dragleave', function (e) {
+                e.preventDefault();
+                this.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+
+            dropZone.addEventListener('drop', function (e) {
+                e.preventDefault();
+                this.classList.remove('border-blue-500', 'bg-blue-50');
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    displayFileInfo(files[0]);
+                }
+            });
+        }
+
+        function displayFileInfo(file) {
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+
+            dropZoneContent.classList.add('hidden');
+            fileInfo.classList.remove('hidden');
+            submitBtn.disabled = false;
+        }
+
+        function clearFile() {
+            fileInput.value = '';
+            dropZoneContent.classList.remove('hidden');
+            fileInfo.classList.add('hidden');
+            submitBtn.disabled = true;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        document.getElementById('importModal').addEventListener('click', function (e) {
+            if (e.target === this) {
+                closeImportModal();
+            }
+        });
+    </script>
 @endpush

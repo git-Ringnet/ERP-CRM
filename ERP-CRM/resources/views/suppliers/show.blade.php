@@ -83,9 +83,27 @@
                                 </a>
                             </p>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Người liên hệ</label>
-                            <p class="text-base text-gray-900">{{ $supplier->contact_person ?: 'Chưa cập nhật' }}</p>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-500 mb-2">Người liên hệ</label>
+                            @if($supplier->contacts->count() > 0)
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    @foreach($supplier->contacts as $contact)
+                                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 relative">
+                                        @if($contact->is_primary)
+                                        <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded font-semibold uppercase">Chính</span>
+                                        @endif
+                                        <div class="font-medium text-gray-900">{{ $contact->name }}</div>
+                                        @if($contact->position)<div class="text-xs text-gray-500 mb-1">{{ $contact->position }}</div>@endif
+                                        <div class="text-sm mt-2">
+                                            @if($contact->phone)<div class="text-blue-600"><i class="fas fa-phone-alt w-4 text-gray-400"></i> {{ $contact->phone }}</div>@endif
+                                            @if($contact->email)<div class="text-gray-600"><i class="fas fa-envelope w-4 text-gray-400"></i> {{ $contact->email }}</div>@endif
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-base text-gray-900 italic">Chưa cập nhật</p>
+                            @endif
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Mã số thuế</label>

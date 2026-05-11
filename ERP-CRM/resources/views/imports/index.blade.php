@@ -112,23 +112,27 @@
 
 
         <!-- Table -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" x-data="{ expanded: null }">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhà cung cấp</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho nhập</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày nhập</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhân viên</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-32">Mã phiếu</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Nhà cung cấp</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Kho nhập</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ngày nhập</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Số lượng</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Trạng thái</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Nhân viên</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-32">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($imports as $import)
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 cursor-pointer" @click="expanded === {{ $import->id }} ? expanded = null : expanded = {{ $import->id }}">
+                            <td class="px-4 py-3 text-center">
+                                <i class="fas fa-chevron-right transition-transform duration-200" :class="expanded === {{ $import->id }} ? 'rotate-90 text-primary' : 'text-gray-400'"></i>
+                            </td>
                             <td class="px-4 py-3">
                                 <a href="{{ route('imports.show', $import) }}"
                                     class="text-blue-600 hover:text-blue-800 font-medium">
@@ -165,7 +169,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $import->employee->name ?? '-' }}</td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-center" @click.stop>
                                 <div class="flex items-center justify-center gap-1">
                                     <a href="{{ route('imports.show', $import) }}"
                                         class="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200" title="Xem chi tiết">
@@ -200,6 +204,45 @@
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Details Row (Hidden by default) -->
+                        <tr x-show="expanded === {{ $import->id }}" x-cloak class="bg-gray-50">
+                            <td colspan="9" class="px-8 py-4">
+                                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                    <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm nhập kho:</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-xs border-collapse">
+                                            <thead class="bg-gray-100">
+                                                <tr>
+                                                    <th class="border p-2 text-left">Sản phẩm</th>
+                                                    <th class="border p-2 text-center">Số lượng</th>
+                                                    <th class="border p-2 text-right">Đơn giá</th>
+                                                    <th class="border p-2 text-right">Thành tiền</th>
+                                                    <th class="border p-2 text-center">HSD</th>
+                                                    <th class="border p-2 text-center">Bảo hành</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($import->items as $item)
+                                                <tr>
+                                                    <td class="border p-2 font-medium">{{ $item->product->name ?? 'N/A' }} ({{ $item->product->code ?? 'N/A' }})</td>
+                                                    <td class="border p-2 text-center">{{ number_format($item->quantity) }}</td>
+                                                    <td class="border p-2 text-right">{{ number_format($item->cost) }} đ</td>
+                                                    <td class="border p-2 text-right text-blue-600 font-medium">{{ number_format($item->quantity * $item->cost) }} đ</td>
+                                                    <td class="border p-2 text-center">{{ $item->expiry_date ? $item->expiry_date->format('d/m/Y') : '-' }}</td>
+                                                    <td class="border p-2 text-center">{{ $item->warranty_months ? $item->warranty_months . ' tháng' : '-' }}</td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    @if($import->note)
+                                    <div class="mt-3 p-2 bg-yellow-50 rounded border border-yellow-100 text-xs text-yellow-800">
+                                        <strong>Ghi chú:</strong> {{ $import->note }}
+                                    </div>
                                     @endif
                                 </div>
                             </td>
@@ -349,6 +392,7 @@
                 document.getElementById('importModal').classList.add('hidden');
                 clearFile();
             }
+
 
             const dropZone = document.getElementById('dropZone');
             const fileInput = document.getElementById('fileInput');
