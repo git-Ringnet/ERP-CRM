@@ -139,7 +139,8 @@ class TransactionService
 
             // Create ProductItems and update inventory when approving
             if ($existingTransaction) {
-                foreach ($transaction->items as $item) {
+                // Chỉ xử lý các items chưa được đồng bộ (processed_at is NULL)
+                foreach ($transaction->items()->whereNull('processed_at')->get() as $item) {
                     // Use item's warehouse_id if available, otherwise use transaction's warehouse_id
                     $warehouseId = $item->warehouse_id ?? $transaction->warehouse_id;
 
@@ -199,6 +200,9 @@ class TransactionService
                             $avgCost
                         );
                     }
+
+                    // Đánh dấu đã xử lý dòng này
+                    $item->update(['processed_at' => now()]);
                 }
             }
 

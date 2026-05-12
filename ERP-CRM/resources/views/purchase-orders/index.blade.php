@@ -21,7 +21,8 @@
         </div>
         <div class="bg-white rounded-lg shadow p-4">
             <p class="text-sm text-gray-500">Tổng giá trị PO</p>
-            <p class="text-2xl font-bold text-primary">{{ number_format($stats['total_value']) }}đ</p>
+            <p class="text-2xl font-bold text-primary">${{ number_format($stats['total_value'], 2) }}</p>
+
         </div>
     </div>
 
@@ -52,6 +53,8 @@
                 <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã đặt</option>
                 <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang về</option>
                 <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Đã về – đủ hàng</option>
+                <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+
             </select>
             <select name="supplier_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả NCC --</option>
@@ -72,11 +75,10 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhà cung cấp</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian đặt</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao DK</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo (Sales)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao hàng dự kiến</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
@@ -103,65 +105,28 @@
                         $rowClass = $isOverdue ? 'bg-red-50 hover:bg-red-100' : ($isLongWaiting ? 'bg-orange-50 hover:bg-orange-100' : ($isNearDelivery ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'));
                     @endphp
                     <tr class="{{ $rowClass }}">
-                        <td class="px-4 py-3 font-medium text-primary">{{ $order->code }}</td>
-                        <td class="px-4 py-3">{{ $order->supplier->name }}</td>
-                        <td class="px-4 py-3">
-                            <div class="text-sm text-gray-900">{{ $order->creator->name ?? 'N/A' }}</div>
+                        <td class="px-4 py-3 font-medium text-primary">
+                            <a href="{{ route('purchase-orders.show', $order) }}" class="hover:underline">{{ $order->code }}</a>
                         </td>
-                        <td class="px-4 py-3">{{ $order->order_date->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3">
-                            @if($order->status !== 'received' && $order->status !== 'cancelled')
-                                <div class="flex items-center">
-                                    <span class="text-sm font-medium {{ $isLongWaiting ? 'text-orange-600' : 'text-gray-600' }}">
-                                        {{ $daysElapsed }} ngày
-                                    </span>
-                                    <span class="text-xs text-gray-400 ml-1">({{ $weeksElapsed }}w)</span>
-                                </div>
-                                @if($isLongWaiting)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 mt-1">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i> Đã lâu
-                                    </span>
-                                @elseif($isNearDelivery)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 mt-1">
-                                        <i class="fas fa-shipping-fast mr-1"></i> Sắp về
-                                    </span>
-                                @elseif($isOverdue)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 mt-1 animate-pulse">
-                                        <i class="fas fa-exclamation-circle mr-1"></i> Quá hạn
-                                    </span>
-                                @endif
-                            @else
-                                <span class="text-gray-400 text-sm">-</span>
-                            @endif
+                        <td class="px-4 py-3 text-sm text-gray-600">
+                            {{ $order->linked_so_codes }}
                         </td>
+                        <td class="px-4 py-3 text-sm text-gray-600">
+                            {{ $order->linked_salesperson_names }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ $order->order_date->format('d/m/Y') }}</td>
                         <td class="px-4 py-3">
-                            @if($order->expected_delivery)
-                                <div class="{{ $isOverdue ? 'text-red-600 font-medium' : ($isNearDelivery ? 'text-green-600' : 'text-gray-600') }}">
-                                    {{ $order->expected_delivery->format('d/m/Y') }}
-                                </div>
-                                @if($isOverdue)
-                                    <span class="text-xs text-red-500">Quá {{ now()->diffInDays($order->expected_delivery) }} ngày</span>
-                                @elseif($isNearDelivery)
-                                    <span class="text-xs text-green-500">Còn {{ now()->diffInDays($order->expected_delivery, false) }} ngày</span>
-                                @endif
-                            @elseif($order->status !== 'received' && $order->status !== 'cancelled')
-                                <div class="text-gray-400 text-sm">{{ $expectedMinDate->format('d/m') }} - {{ $expectedMaxDate->format('d/m') }}</div>
-                                <span class="text-xs text-gray-400">4-6 tuần</span>
-                            @else
-                                <span class="text-gray-400">-</span>
-                            @endif
+                            <input type="date" 
+                                value="{{ $order->expected_delivery ? $order->expected_delivery->format('Y-m-d') : '' }}"
+                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-expected-delivery"
+                                data-id="{{ $order->id }}">
                         </td>
                         <td class="px-4 py-3 text-right font-medium">
-                            @if($order->currency && !$order->currency->is_base)
-                                <div class="text-gray-900 font-semibold">
-                                    {{ $order->currency->symbol }} {{ number_format($order->total_foreign ?? ($order->total / ($order->exchange_rate ?: 1)), $order->currency->decimal_places ?? 2) }}
-                                </div>
-                                <div class="text-xs text-gray-500 font-normal mt-0.5">
-                                    {{ number_format($order->total) }} đ
-                                </div>
-                            @else
-                                <div class="text-gray-900 font-semibold">{{ number_format($order->total) }} đ</div>
-                            @endif
+                            @php 
+                                $val = $order->total_foreign ?? ($order->total / ($order->exchange_rate ?: 1));
+                                $decimals = (floor($val) == $val) ? 0 : ($order->currency->decimal_places ?? 2);
+                            @endphp
+                            <div class="text-gray-900 font-semibold">${{ number_format($val, $decimals) }}</div>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             @php
@@ -292,4 +257,59 @@
         </div>
     </div>
 </div>
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateInputs = document.querySelectorAll('.update-expected-delivery');
+        
+        dateInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const poId = this.dataset.id;
+                const date = this.value;
+                const originalValue = this.defaultValue;
+                
+                // Show loading state
+                this.classList.add('opacity-50');
+                this.disabled = true;
+
+                fetch(`/purchase-orders/${poId}/update-expected-delivery`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        expected_delivery: date
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.defaultValue = date;
+                        // Optional: show toast notification
+                        if (window.Toast) {
+                            Toast.fire({
+                                icon: 'success',
+                                title: 'Cập nhật ngày giao hàng thành công'
+                            });
+                        }
+                    } else {
+                        alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
+                        this.value = originalValue;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
+                    this.value = originalValue;
+                })
+                .finally(() => {
+                    this.classList.remove('opacity-50');
+                    this.disabled = false;
+                });
+            });
+        });
+    });
+</script>
+@endpush
 @endsection

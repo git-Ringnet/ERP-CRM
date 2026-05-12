@@ -90,28 +90,43 @@
                     <td colspan="7" class="px-6 py-4">
                         <div class="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
-                            <table class="w-full text-xs border-collapse">
-                                <thead class="bg-gray-100">
-                                    <tr>
-                                        <th class="border p-2">Hãng</th>
-                                        <th class="border p-2">Sản phẩm / P/N</th>
-                                        <th class="border p-2 text-center">Yêu cầu</th>
-                                        <th class="border p-2 text-center">Đã đặt</th>
-                                        <th class="border p-2 text-center">Còn lại</th>
-                                        <th class="border p-2">SI Name</th>
+                            <table class="w-full text-[10px] border-collapse border border-gray-200">
+                                <thead class="bg-yellow-100">
+                                    <tr class="border-b border-gray-300">
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Hãng</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Type</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Sản phẩm / P/N</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center">Yêu cầu</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center">Đã đặt</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center font-bold">Còn lại</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">SN</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Exp date</th>
+                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">SI Name</th>
+                                        <th colspan="2" class="border-b border-gray-300 p-1 text-center font-bold bg-yellow-200">Thông tin CQ (Điền tay)</th>
+                                    </tr>
+                                    <tr class="bg-yellow-100">
+                                        <th class="border-r border-gray-300 p-1 text-center">EU Name - MST</th>
+                                        <th class="p-1 text-center">Address</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($request->items as $item)
-                                    <tr>
-                                        <td class="border p-2">{{ $item->vendor }}</td>
-                                        <td class="border p-2 font-medium">{{ $item->part_number }}</td>
-                                        <td class="border p-2 text-center">{{ $item->quantity }}</td>
-                                        <td class="border p-2 text-center text-blue-600">{{ $item->ordered_quantity_total }}</td>
-                                        <td class="border p-2 text-center font-bold {{ $item->remaining_order_quantity > 0 ? 'text-red-500' : 'text-green-600' }}">
-                                            {{ $item->remaining_order_quantity }}
+                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                                        <td class="border-r border-gray-200 p-2">{{ $item->vendor->name ?? $item->vendor }}</td>
+                                        <td class="border-r border-gray-200 p-2">
+                                            <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[9px]">{{ $item->type }}</span>
                                         </td>
-                                        <td class="border p-2 text-gray-500">{{ $item->si_name }}</td>
+                                        <td class="border-r border-gray-200 p-2 font-medium text-teal-700">{{ $item->part_number }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-center font-bold">{{ $item->quantity + 0 }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">{{ $item->ordered_quantity_total + 0 }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-center font-bold {{ $item->remaining_order_quantity > 0.001 ? 'text-red-500' : 'text-green-600' }}">
+                                            {{ $item->remaining_order_quantity + 0 }}
+                                        </td>
+                                        <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->serial_number ?: '-' }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
+                                        <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}</td>
+                                        <td class="p-2 text-gray-500">{{ $item->address ?: '-' }}</td>
                                     </tr>
                                     @endforeach
                                 </tbody>

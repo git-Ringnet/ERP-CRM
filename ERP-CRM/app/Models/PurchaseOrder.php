@@ -79,6 +79,12 @@ class PurchaseOrder extends Model
         return $this->hasMany(SupplierPaymentHistory::class);
     }
 
+    public function imports(): HasMany
+    {
+        return $this->hasMany(Import::class, 'reference_id')
+            ->where('reference_type', 'purchase_order');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -135,10 +141,22 @@ class PurchaseOrder extends Model
     {
         $this->subtotal = round($this->items->sum('total'), 2);
         $this->discount_amount = round($this->subtotal * ($this->discount_percent / 100), 2);
-        $afterDiscount = $this->subtotal - $this->discount_amount;
-        $beforeVat = $afterDiscount + $this->shipping_cost + $this->other_cost;
-        $this->vat_amount = round($beforeVat * ($this->vat_percent / 100), 2);
-        $this->total = round($beforeVat + $this->vat_amount, 2);
+        
+        // Bỏ VAT theo yêu cầu
+        $this->vat_amount = 0;
+        
+        $beforeVat = ($this->subtotal - $this->discount_amount) + $this->shipping_cost + $this->other_cost;
+        $finalTotal = round($beforeVat, 2);
+
+        $isForeign = $this->currency_id && $this->currency_id != Currency::getBaseCurrencyId();
+
+        if ($isForeign) {
+            $this->total_foreign = $finalTotal;
+            $this->total = round($finalTotal * ($this->exchange_rate ?: 1), 2);
+        } else {
+            $this->total = $finalTotal;
+            $this->total_foreign = null;
+        }
     }
 
     /**
@@ -208,4 +226,29 @@ class PurchaseOrder extends Model
             default => 'bg-gray-100 text-gray-800',
         };
     }
+
+    /**
+     * Lấy danh sách mã SO liên quan
+     */
+    public function getLinkedSoCodesAttribute(): string
+    {
+        $codes = $this->items->map(function($item) {
+            return $item->saleOrderRequestItem->saleOrderRequest->sale->code ?? null;
+        })->filter()->unique();
+
+        return $codes->isEmpty() ? ($this->sale->code ?? 'N/A') : $codes->implode(', ');
+    }
+
+    /**
+     * Lấy danh sách nhân viên Sales liên quan
+     */
+    public function getLinkedSalespersonNamesAttribute(): string
+    {
+        $names = $this->items->map(function($item) {
+            return $item->saleOrderRequestItem->saleOrderRequest->sale->user->name ?? null;
+        })->filter()->unique();
+
+        return $names->isEmpty() ? ($this->sale->user->name ?? 'N/A') : $names->implode(', ');
+    }
 }
+

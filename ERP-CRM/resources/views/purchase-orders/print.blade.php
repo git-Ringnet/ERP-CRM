@@ -90,6 +90,7 @@
             <tr>
                 <th style="width: 40px;">STT</th>
                 <th>Sản phẩm</th>
+                <th style="width: 80px;">Mã SO</th>
                 <th style="width: 80px;" class="number">Số lượng</th>
                 <th style="width: 60px;">ĐVT</th>
                 <th style="width: 100px;" class="number">Đơn giá</th>
@@ -107,6 +108,13 @@
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $item->product_name }}</td>
+                <td>
+                    @if($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale)
+                        {{ $item->saleOrderRequestItem->saleOrderRequest->sale->code }}
+                    @else
+                        -
+                    @endif
+                </td>
                 <td class="number">{{ number_format($item->quantity) }}</td>
                 <td>{{ $item->unit }}</td>
                 <td class="number">

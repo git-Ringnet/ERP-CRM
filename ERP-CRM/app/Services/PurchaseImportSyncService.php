@@ -178,20 +178,29 @@ class PurchaseImportSyncService
 
         DB::beginTransaction();
         try {
-            $import = Import::create([
-                'code' => Import::generateCode(),
-                'warehouse_id' => $warehouseId,
-                'supplier_id' => $purchaseOrder->supplier_id,
-                'date' => now(),
-                'employee_id' => auth()->id(),
-                'total_qty' => 0,
-                'reference_type' => 'purchase_order',
-                'reference_id' => $purchaseOrder->id,
-                'note' => "Nhập hàng một phần từ đơn mua hàng {$purchaseOrder->code}",
-                'status' => 'pending',
-            ]);
+            $import = Import::where('reference_type', 'purchase_order')
+                ->where('reference_id', $purchaseOrder->id)
+                ->first();
 
-            $totalQty = 0;
+            if (!$import) {
+                $import = Import::create([
+                    'code' => $purchaseOrder->code,
+                    'warehouse_id' => $warehouseId,
+                    'supplier_id' => $purchaseOrder->supplier_id,
+                    'date' => now(),
+                    'employee_id' => auth()->id(),
+                    'total_qty' => 0,
+                    'reference_type' => 'purchase_order',
+                    'reference_id' => $purchaseOrder->id,
+                    'note' => "Nhập hàng từ đơn mua hàng {$purchaseOrder->code}",
+                    'status' => 'pending',
+                ]);
+            } else {
+                // Nếu đã có phiếu nhập, chuyển về pending để có thể duyệt đợt mới
+                $import->update(['status' => 'pending']);
+            }
+
+            $batchQty = 0;
             foreach ($purchaseOrder->items as $poItem) {
                 $qty = (float) ($receivedQtys[$poItem->id] ?? 0);
                 if ($qty <= 0) continue;
@@ -207,20 +216,21 @@ class PurchaseImportSyncService
                 ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $productId,
+                    'warehouse_id' => $warehouseId, // Mỗi dòng có thể nhập vào kho riêng nếu cần
                     'quantity' => $qty,
                     'unit' => $poItem->unit,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
-                    'comments' => "Từ PO {$purchaseOrder->code} (Nhập một phần)",
+                    'comments' => "Từ PO {$purchaseOrder->code} (Nhận đợt ngày " . now()->format('d/m/Y') . ")",
                 ]);
-                $totalQty += $qty;
+                $batchQty += $qty;
             }
 
-            if ($totalQty <= 0) {
+            if ($batchQty <= 0) {
                 DB::rollBack();
                 return null;
             }
 
-            $import->update(['total_qty' => $totalQty]);
+            $import->update(['total_qty' => $import->items->sum('quantity')]);
 
             if ($autoComplete) {
                 $this->transactionService->processImport(['warehouse_id' => $warehouseId], $import);

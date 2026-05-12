@@ -98,11 +98,14 @@
                         @endif
                     </form>
                 @endif
-                @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
-                    <button type="button" onclick="document.getElementById('receive-form').submit()"
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
-                        <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
-                    </button>
+                @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
+                    <div class="inline-flex items-center space-x-2">
+                        <input type="hidden" name="warehouse_id" form="receive-form" value="{{ $warehouses->first()->id ?? '' }}">
+                        <button type="button" onclick="document.getElementById('receive-form').submit()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
+                        </button>
+                    </div>
                 @endif
                 <a href="{{ route('purchase-orders.print', $purchaseOrder) }}"
                     class="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-all duration-200" target="_blank">
@@ -214,10 +217,11 @@
                             <p class="text-sm text-gray-500">Tổng giá trị PO</p>
                             @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
                                 <p class="text-xl font-bold text-primary">
-                                    {{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1)), $purchaseOrder->currency->decimal_places ?? 2) }}
-                                </p>
-                                <p class="text-sm font-normal text-gray-500">
-                                    ≈ {{ number_format($purchaseOrder->total) }} đ
+                                    @php 
+                                        $totalVal = $purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1));
+                                        $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : ($purchaseOrder->currency->decimal_places ?? 2);
+                                    @endphp
+                                    {{ number_format($totalVal, $dispDecimals) }} $
                                 </p>
                             @else
                                 <p class="text-xl font-bold text-primary">
@@ -400,7 +404,7 @@
             $otherForeign = $purchaseOrder->other_cost;
             $otherVnd = $isForeign ? round($otherForeign * $rate) : $otherForeign;
 
-            $vatForeign = $purchaseOrder->vat_amount;
+            $vatForeign = $purchaseOrder->items->sum('vat_amount');
             $vatVnd = $isForeign ? round($vatForeign * $rate) : $vatForeign;
 
             $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, $decimals) : $purchaseOrder->total);
@@ -417,67 +421,104 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">SL Đặt</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đã nhận</th>
-                        @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
-                            <th class="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Nhận lần này</th>
-                        @endif
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá nhập kho</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @foreach($purchaseOrder->items as $index => $item)
                         <tr>
                             <td class="px-4 py-3">{{ $index + 1 }}</td>
-                            <td class="px-4 py-3 font-medium">{{ $item->product_name }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($item->quantity) }} {{ $item->unit }}</td>
-                            <td class="px-4 py-3 text-right">
-                                <span class="{{ $item->received_quantity >= $item->quantity ? 'text-green-600 font-bold' : 'text-orange-500' }}">
-                                    {{ number_format($item->received_quantity) }}
-                                </span>
-                            </td>
-                            @if(in_array($purchaseOrder->status, ['shipping', 'partial_received']))
-                                <td class="px-4 py-3 text-right">
-                                    @php $remaining = $item->quantity - $item->received_quantity; @endphp
-                                    <input type="number" name="items[{{ $item->id }}]" value="{{ $remaining }}" 
-                                        min="0" max="{{ $remaining }}" step="0.01"
-                                        class="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-blue-50">
-                                </td>
-                            @endif
-                            <td class="px-4 py-3 text-right">
-                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
-                                    <div class="font-medium text-gray-900">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($item->unit_price, $purchaseOrder->currency->decimal_places ?? 2) }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->unit_price * ($purchaseOrder->exchange_rate ?: 1)) }} đ</div>
-                                @else
-                                    {{ number_format($item->unit_price) }} đ
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
+                                @if($item->unit)
+                                    <div class="text-xs text-gray-400">ĐVT: {{ $item->unit }}</div>
+                                @endif
+                                @if($item->received_quantity > 0)
+                                    <div class="text-[10px] text-green-600 font-medium">Đã nhận: {{ number_format($item->received_quantity) }}</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-right font-medium">
-                                @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
-                                    <div class="font-medium text-gray-900">{{ $purchaseOrder->currency->symbol ?? $purchaseOrder->currency->code }} {{ number_format($item->total, $purchaseOrder->currency->decimal_places ?? 2) }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total * ($purchaseOrder->exchange_rate ?: 1)) }} đ</div>
+                            <td class="px-4 py-3 text-sm">
+                                @if($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale)
+                                    <a href="{{ route('sales.show', $item->saleOrderRequestItem->saleOrderRequest->sale->id) }}" class="text-blue-600 hover:underline font-medium">
+                                        {{ $item->saleOrderRequestItem->saleOrderRequest->sale->code }}
+                                    </a>
                                 @else
-                                    {{ number_format($item->total) }} đ
+                                    <span class="text-gray-400">-</span>
                                 @endif
+                            </td>
+                            <td class="px-4 py-3 text-right font-medium">{{ number_format($item->quantity) }}</td>
+                            <td class="px-4 py-3 text-right text-gray-500">
+                                @if($item->warehouse_unit_price > 0)
+                                    {{ number_format($item->warehouse_unit_price, $decimals) }} {{ $symbol }}
+                                @else
+                                    -
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex items-center justify-end group">
+                                    <input type="number" step="0.01" value="{{ $item->unit_price }}" 
+                                        onchange="updateItemPrice({{ $item->id }}, this.value)"
+                                        class="w-24 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
+                                    <span class="text-blue-700 ml-0.5">{{ $symbol }}</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-right font-bold text-gray-900">
+                                <span id="item-total-{{ $item->id }}">{{ number_format($item->total, $decimals) }}</span> {{ $symbol }}
+                            </td>
+                            <td class="px-2 py-3">
+                                <div class="flex flex-col items-center space-y-1">
+                                    {{-- Status Selector --}}
+                                    <div class="relative inline-block w-24">
+                                        <select onchange="updateItemStatus({{ $item->id }}, this.value)" 
+                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all cursor-pointer
+                                            {{ $item->status == 'ordered' ? 'bg-gray-100 text-gray-600 focus:ring-gray-400' : '' }}
+                                            {{ $item->status == 'shipping' ? 'bg-blue-100 text-blue-600 focus:ring-blue-400' : '' }}
+                                            {{ $item->status == 'received' ? 'bg-green-100 text-green-600 focus:ring-green-400' : '' }}
+                                            {{ $item->status == 'cancelled' ? 'bg-red-100 text-red-600 focus:ring-red-400' : '' }}">
+                                            <option value="ordered" {{ $item->status == 'ordered' ? 'selected' : '' }}>Chờ hàng</option>
+                                            <option value="shipping" {{ $item->status == 'shipping' ? 'selected' : '' }}>Đang về</option>
+                                            <option value="received" {{ $item->status == 'received' ? 'selected' : '' }}>Đã về</option>
+                                            <option value="cancelled" {{ $item->status == 'cancelled' ? 'selected' : '' }}>Hủy</option>
+                                        </select>
+                                    </div>
+
+                                    {{-- License Upload & Link --}}
+                                    <div class="flex items-center justify-center space-x-1">
+                                        @if($item->license_file)
+                                            <a href="{{ asset('storage/' . $item->license_file) }}" target="_blank" 
+                                                class="flex items-center justify-center w-5 h-5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors" title="Xem License">
+                                                <i class="fas fa-file-contract text-[10px]"></i>
+                                            </a>
+                                        @endif
+                                        <button type="button" onclick="document.getElementById('license-upload-{{ $item->id }}').click()"
+                                            class="flex items-center gap-1 px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded text-[9px] font-bold hover:bg-teal-100 transition-all border border-teal-100" title="Upload License">
+                                            <i class="fas fa-upload"></i> Up
+                                        </button>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
                 <tfoot class="bg-gray-50">
                     @php 
-                        $footerColspan = in_array($purchaseOrder->status, ['shipping', 'partial_received']) ? 6 : 5; 
+                        $footerColspan = 6; 
                     @endphp
                     <tr>
                         <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
                         <td class="px-4 py-2 text-right">
                             @if($isForeign)
-                                <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
-                                <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
+                                <div class="font-medium text-gray-900">{{ number_format($subtotalForeign, (floor($subtotalForeign) == $subtotalForeign) ? 0 : $decimals) }} $</div>
                             @else
                                 <div class="font-medium text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
                             @endif
                         </td>
+                        <td></td>
                     </tr>
                     @if($purchaseOrder->discount_percent > 0)
                         <tr>
@@ -485,12 +526,12 @@
                                 ({{ $purchaseOrder->discount_percent }}%):</td>
                             <td class="px-4 py-2 text-right text-red-600">
                                 @if($isForeign)
-                                    <div>-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
-                                    <div class="text-xs text-red-400">-{{ number_format($discountVnd) }} đ</div>
+                                    <div>-{{ number_format($discountForeign, (floor($discountForeign) == $discountForeign) ? 0 : $decimals) }} $</div>
                                 @else
                                     -{{ number_format($discountVnd) }} đ
                                 @endif
                             </td>
+                            <td></td>
                         </tr>
                     @endif
                     @if($purchaseOrder->shipping_cost > 0)
@@ -498,12 +539,12 @@
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($shippingForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($shippingVnd) }} đ</div>
+                                    <div class="font-medium text-gray-900">{{ number_format($shippingForeign, (floor($shippingForeign) == $shippingForeign) ? 0 : $decimals) }} $</div>
                                 @else
                                     {{ number_format($shippingVnd) }} đ
                                 @endif
                             </td>
+                            <td></td>
                         </tr>
                     @endif
                     @if($purchaseOrder->other_cost > 0)
@@ -511,38 +552,24 @@
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
                             <td class="px-4 py-2 text-right">
                                 @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($otherForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-500">{{ number_format($otherVnd) }} đ</div>
+                                    <div class="font-medium text-gray-900">{{ number_format($otherForeign, (floor($otherForeign) == $otherForeign) ? 0 : $decimals) }} $</div>
                                 @else
                                     {{ number_format($otherVnd) }} đ
                                 @endif
                             </td>
+                            <td></td>
                         </tr>
                     @endif
-                    <tr>
-                        <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">VAT ({{ $purchaseOrder->vat_percent }}%):
-                        </td>
-                        <td class="px-4 py-2 text-right">
-                            @if($isForeign)
-                                <div class="font-medium text-gray-900">{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
-                                <div class="text-xs text-gray-500">{{ number_format($vatVnd) }} đ</div>
-                            @else
-                                {{ number_format($vatVnd) }} đ
-                            @endif
-                        </td>
-                    </tr>
                     <tr class="border-t bg-gray-100">
                         <td colspan="{{ $footerColspan }}" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
                         <td class="px-4 py-3 text-right text-primary">
                             @if($isForeign)
-                                <div class="text-lg font-bold">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
-                                <div class="text-sm font-normal text-gray-500">
-                                    ≈ {{ number_format($totalVnd) }} đ
-                                </div>
+                                <div class="text-lg font-bold">{{ number_format($totalForeign, (floor($totalForeign) == $totalForeign) ? 0 : $decimals) }} $</div>
                             @else
                                 <div class="text-lg font-bold">{{ number_format($totalVnd) }} đ</div>
                             @endif
                         </td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -642,8 +669,32 @@
 
     </div>
 
+    {{-- Hidden forms for License Upload --}}
+    @foreach($purchaseOrder->items as $item)
+        <form id="license-form-{{ $item->id }}" action="{{ route('purchase-orders.items.upload-license', $item) }}" 
+            method="POST" enctype="multipart/form-data" style="display: none;">
+            @csrf
+            <input type="file" id="license-upload-{{ $item->id }}" name="license_file" onchange="this.form.submit()">
+        </form>
+    @endforeach
+
     @push('scripts')
         <script>
+            // JS for Receipt Logic
+            function fillRemaining(btn) {
+                const row = btn.closest('div');
+                const input = row.querySelector('.receive-input');
+                if (input) {
+                    input.value = input.dataset.remaining;
+                }
+            }
+
+            function fillAllRemaining() {
+                document.querySelectorAll('.receive-input').forEach(input => {
+                    input.value = input.dataset.remaining;
+                });
+            }
+
             // Check if coming from a successful approval
             @if(session('success') && str_contains(session('success'), 'duyệt'))
                 // Show success animation
@@ -691,6 +742,46 @@
                     this.classList.remove('flex');
                 }, 500);
             });
+            function updateItemPrice(itemId, price) {
+                fetch(`/purchase-orders/items/${itemId}/update-price`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ unit_price: price })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Cập nhật lại giao diện (tùy chọn)
+                        if (window.Toast) {
+                            Toast.fire({ icon: 'success', title: 'Đã cập nhật giá mua' });
+                        }
+                        location.reload(); // Reload để cập nhật tổng tiền footer
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+            function updateItemStatus(itemId, status) {
+                fetch(`/purchase-orders/items/${itemId}/update-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ status: status })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (window.Toast) {
+                            Toast.fire({ icon: 'success', title: 'Đã cập nhật trạng thái' });
+                        }
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
         </script>
     @endpush
 @endsection

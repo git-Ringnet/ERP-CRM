@@ -9,6 +9,7 @@ class SaleOrderRequestItem extends Model
 {
     protected $fillable = [
         'sale_order_request_id',
+        'sale_item_id',
         'vendor_id',
         'vendor',
         'type',
@@ -31,6 +32,11 @@ class SaleOrderRequestItem extends Model
     public function saleOrderRequest(): BelongsTo
     {
         return $this->belongsTo(SaleOrderRequest::class, 'sale_order_request_id');
+    }
+
+    public function saleItem(): BelongsTo
+    {
+        return $this->belongsTo(SaleItem::class, 'sale_item_id');
     }
 
     public function vendor(): BelongsTo

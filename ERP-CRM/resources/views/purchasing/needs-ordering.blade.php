@@ -118,6 +118,14 @@
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Ghi chú cho Đơn hàng (PO)</label>
                         <input type="text" name="note" class="w-full border-gray-300 rounded-lg text-sm" placeholder="Nhập ghi chú chung cho PO này...">
                     </div>
+                    <div class="w-48">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tiền tệ PO</label>
+                        <div class="flex p-1 bg-gray-100 rounded-lg">
+                            <button type="button" onclick="setCurrency('VND')" id="btnVND" class="flex-1 py-1 text-xs font-bold rounded-md bg-white shadow-sm text-teal-700 transition-all">VND</button>
+                            <button type="button" onclick="setCurrency('USD')" id="btnUSD" class="flex-1 py-1 text-xs font-bold rounded-md text-gray-500 hover:text-teal-600 transition-all">USD</button>
+                        </div>
+                        <input type="hidden" name="currency_code" id="selectedCurrency" value="VND">
+                    </div>
                     <div class="text-right">
                         <p class="text-xs text-gray-500 mb-1">Đang chọn <span id="selectedCount" class="font-bold text-teal-600">0</span> mặt hàng</p>
                         <button type="button" onclick="submitPo()" class="bg-teal-600 text-white px-8 py-2.5 rounded-xl hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-105">
@@ -193,6 +201,24 @@
         document.querySelectorAll('.order-qty-input').forEach(input => input.disabled = true);
         currentVendorId = null;
         updateSubmitBar();
+    }
+
+    function setCurrency(code) {
+        document.getElementById('selectedCurrency').value = code;
+        const btnVND = document.getElementById('btnVND');
+        const btnUSD = document.getElementById('btnUSD');
+        
+        if (code === 'VND') {
+            btnVND.classList.add('bg-white', 'shadow-sm', 'text-teal-700');
+            btnVND.classList.remove('text-gray-500');
+            btnUSD.classList.remove('bg-white', 'shadow-sm', 'text-teal-700');
+            btnUSD.classList.add('text-gray-500');
+        } else {
+            btnUSD.classList.add('bg-white', 'shadow-sm', 'text-teal-700');
+            btnUSD.classList.remove('text-gray-500');
+            btnVND.classList.remove('bg-white', 'shadow-sm', 'text-teal-700');
+            btnVND.classList.add('text-gray-500');
+        }
     }
 
     function updateSubmitBar() {

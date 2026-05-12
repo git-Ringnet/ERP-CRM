@@ -180,11 +180,43 @@
                 return { totalCost, totalRevenue, itemCount };
             },
 
+            global_cost: 0,
+            global_revenue: 0,
+            global_profit: 0,
+            global_margin_p: 0,
+
+            updateGlobalTotals() {
+                let cost = 0;
+                let rev = 0;
+                let profit = 0;
+                
+                document.querySelectorAll('.row-cost-total-input').forEach(el => cost += parseFloat(el.value) || 0);
+                document.querySelectorAll('.row-revenue-total-input').forEach(el => rev += parseFloat(el.value) || 0);
+                document.querySelectorAll('.row-net-profit-input').forEach(el => profit += parseFloat(el.value) || 0);
+                
+                this.global_cost = cost;
+                this.global_revenue = rev;
+                this.global_profit = profit;
+                
+                // Net Revenue tổng = Tổng doanh thu các dòng * (1 - chiết khấu đơn hàng)
+                let netRevTotal = rev * (1 - {{ $sale->discount ?? 0 }} / 100);
+                this.global_margin_p = netRevTotal > 0 ? ((profit / netRevTotal) * 100).toFixed(1) : 0;
+            },
+
             init() {
                 // Listen for row extra expense changes and sync totals
                 this.$watch('extra_amts', () => {}, { deep: true });
+                
+                // Listen for row updates to refresh global totals
+                window.addEventListener('pnl-row-updated', () => {
+                    this.updateGlobalTotals();
+                });
+
                 // Sync extra_amts on initial load after rows render
-                setTimeout(() => this.syncExtraAmtsFromRows(), 300);
+                setTimeout(() => {
+                    this.syncExtraAmtsFromRows();
+                    this.updateGlobalTotals();
+                }, 500);
             }
         }
     }
@@ -201,6 +233,8 @@
             cost_price: data.cost_price,
             cost_total: data.cost_total,
             revenue_total: data.revenue_total,
+            order_discount: data.order_discount || 0,
+            net_revenue: 0,
             
             finance_na: data.finance_na,
             finance_mode: data.finance_mode || 'percent',
@@ -249,6 +283,7 @@
             tax_v: 0,
             net_profit: 0,
             margin_p: 0,
+            net_revenue: 0,
 
             init() {
                 // Defer first calculation to ensure all rows are in DOM
@@ -292,8 +327,12 @@
                 this.est_usd_total = Math.round(this.usd_p * (1 - this.disc / 100) * (1 + this.imp_r / 100) * 100) / 100;
                 this.cost_price = Math.round(this.est_usd_total * this.rate);
                 this.cost_total = Math.round(this.cost_price * this.qty);
-                this.gross_profit = this.revenue_total - this.cost_total;
-                this.gross_p = this.revenue_total > 0 ? ((this.gross_profit / this.revenue_total) * 100).toFixed(1) : 0;
+                
+                // Doanh thu thuần của dòng = Doanh thu dòng * (1 - chiết khấu tổng đơn)
+                this.net_revenue = this.revenue_total * (1 - this.order_discount / 100);
+                
+                this.gross_profit = this.net_revenue - this.cost_total;
+                this.gross_p = this.net_revenue > 0 ? ((this.gross_profit / this.net_revenue) * 100).toFixed(1) : 0;
 
                 this.finance_v = this.finance_na ? 0 : (this.finance_mode === 'fixed' ? Math.round(calcShareFromTotal(this.finance_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.finance_p / 100)));
                 this.overdue_v = this.overdue_na ? 0 : (this.overdue_mode === 'fixed' ? (unformat(this.oic) || 0) : Math.round(this.cost_total * (this.overdue_p / 100)));
@@ -341,7 +380,12 @@
                 
                 this.total_costs = Math.round((!this.finance_na ? this.finance_v : 0) + (!this.overdue_na ? this.overdue_v : 0) + (!this.mgmt_na ? this.mgmt_v : 0) + (!this.support_na ? this.support_v : 0) + (!this.other_na ? this.other_v : 0) + this.tax_v + this.poc_v + this.imp_v + extraSum);
                 this.net_profit = this.gross_profit - this.total_costs;
-                this.margin_p = this.revenue_total > 0 ? ((this.net_profit / this.revenue_total) * 100).toFixed(1) : 0;
+                this.margin_p = this.net_revenue > 0 ? ((this.net_profit / this.net_revenue) * 100).toFixed(1) : 0;
+                
+                // Notify parent about update
+                this.$nextTick(() => {
+                    window.dispatchEvent(new CustomEvent('pnl-row-updated'));
+                });
             },
 
             formatNumber(n, decimals = 0) {
@@ -732,6 +776,7 @@
                                 cost_price: {{ $item->cost_price ?: 0 }},
                                 cost_total: {{ $item->cost_total ?: 0 }},
                                 revenue_total: {{ $item->total }},
+                                order_discount: {{ $sale->discount ?? 0 }},
                                 finance_na: {{ (!is_null($item->finance_cost_percent) && floatval($item->finance_cost_percent) <= 0) ? 'true' : 'false' }},
                                 finance_mode: '{{ $financeMode }}',
                                 finance_allocated: {{ $financeAllocated }},
@@ -804,6 +849,7 @@
                                 <input type="hidden" name="items[{{ $index }}][cost_price]" :value="cost_price">
                                 <input type="hidden" name="items[{{ $index }}][cost_total]" :value="cost_total" class="row-cost-total-input">
                                 <input type="hidden" name="items[{{ $index }}][total]" :value="revenue_total" class="row-revenue-total-input">
+                                <input type="hidden" :value="net_profit" class="row-net-profit-input">
                                 <input type="hidden" name="items[{{ $index }}][estimated_cost_usd]" :value="est_usd_total">
                                 
                                 {{-- Hidden inputs cho các trường chi phí không hiển thị --}}
@@ -1070,6 +1116,23 @@
                         </tr>
                     @endforeach
                 </tbody>
+                <tfoot class="bg-gray-800 text-white font-bold text-xs sticky bottom-0">
+                    <tr>
+                        <td colspan="10" class="px-2 py-3 text-right uppercase tracking-wider">Tổng cộng (Đơn hàng):</td>
+                        <td class="px-2 py-3 text-right"></td> {{-- Giá bán lẻ --}}
+                        <td class="px-2 py-3 text-right bg-blue-900" x-text="formatNumber(global_revenue)"></td>
+                        <td class="px-2 py-3 text-right" x-text="formatNumber(global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100) - global_cost)"></td>
+                        <td class="px-2 py-3 text-center" x-text="(global_revenue > 0 ? (((global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) - global_cost) / (global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) * 100).toFixed(1) : 0) + '%'"></td>
+                        
+                        {{-- Spacing for standard expenses --}}
+                        <td colspan="{{ $visibleStandardCols + $extraExpenses->count() }}" class="px-2 py-3"></td>
+                        
+                        <td class="px-2 py-3 text-right bg-yellow-600"></td> {{-- Tổng chi phí dòng --}}
+                        
+                        <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)"></td>
+                        <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'"></td>
+                    </tr>
+                </tfoot>
 
             </table>
         </div>

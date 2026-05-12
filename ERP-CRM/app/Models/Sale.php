@@ -474,8 +474,8 @@ class Sale extends Model
     {
         $totalCost = 0;
         
+        // 1. Chi phí từ các item (Standard OpEx)
         foreach ($this->items as $item) {
-            // Tính chi phí % dựa trên cost_total
             $costBase = $item->cost_total ?: 0;
             
             // Chi phí Tài chính
@@ -506,20 +506,48 @@ class Sale extends Model
             }
             
             // POC / Triển khai / Thuế nhà thầu: VND hoặc % trên giá vốn dòng
-            if (! is_null($item->technical_poc_percent)) {
+            if (! is_null($item->technical_poc_percent) && $item->technical_poc_percent > 0) {
                 $totalCost += ($costBase * (float) $item->technical_poc_percent / 100);
             } else {
                 $totalCost += ($item->technical_poc_cost ?: 0);
             }
-            if (! is_null($item->implementation_cost_percent)) {
+
+            if (! is_null($item->implementation_cost_percent) && $item->implementation_cost_percent > 0) {
                 $totalCost += ($costBase * (float) $item->implementation_cost_percent / 100);
             } else {
                 $totalCost += ($item->implementation_cost ?: 0);
             }
-            if (! is_null($item->contractor_tax_percent)) {
+
+            if (! is_null($item->contractor_tax_percent) && $item->contractor_tax_percent > 0) {
                 $totalCost += ($costBase * (float) $item->contractor_tax_percent / 100);
             } else {
                 $totalCost += ($item->contractor_tax ?: 0);
+            }
+        }
+
+        // 2. Chi phí bổ sung từ bảng sale_expenses (loại trừ các loại đã tính ở trên nếu là dạng đồng bộ)
+        $standardTypes = [
+            'Chi phí Tài chính',
+            'Lãi vay phát sinh do nợ quá hạn',
+            'Chi phí Quản lí, Back Office & kỹ thuật',
+            '24x7 Support cost',
+            'Other Support',
+            'Technical support/POC',
+            'Chi phí triển khai hợp đồng',
+            'Thuế nhà thầu',
+        ];
+
+        $costBaseTotal = $this->getCostOfGoodsSold();
+
+        foreach ($this->expenses as $expense) {
+            // Nếu là loại standard và đã được sync vào item thì bỏ qua để tránh tính trùng
+            // (Thường fixed expenses sẽ được sync vào technical_poc_cost hoặc implementation_cost)
+            if (in_array($expense->type, $standardTypes)) continue;
+
+            if ($expense->input_mode === 'percent') {
+                $totalCost += ($costBaseTotal * ($expense->percent_value / 100));
+            } else {
+                $totalCost += ($expense->amount ?: 0);
             }
         }
         
@@ -540,18 +568,20 @@ class Sale extends Model
      */
     public function calculateMargin(): void
     {
+        // Margin ròng = Doanh thu (không thuế) - Giá vốn - Chi phí OpEx
+        $costOfGoodsSold = $this->getCostOfGoodsSold();
         $this->calculateTotalCost();
         
-        // Get cost of goods sold from items
-        $costOfGoodsSold = $this->getCostOfGoodsSold();
+        // Revenue Excl VAT
+        // Note: 'subtotal' in DB is raw sum, 'discount' and 'vat' are percentages
+        $discountAmount = $this->subtotal * ($this->discount / 100);
+        $netRevenue = $this->subtotal - $discountAmount;
         
-        // Margin = Total - Cost of Goods Sold - Operating Expenses
-        $this->margin = $this->total - $costOfGoodsSold - $this->cost;
+        $this->margin = $netRevenue - $costOfGoodsSold - $this->cost;
         
-        // Calculate margin percent, handle edge cases
-        if ($this->total > 0) {
-            $this->margin_percent = ($this->margin / $this->total) * 100;
-            // Cap at reasonable limits to avoid database overflow
+        if ($netRevenue > 0) {
+            // Tỷ lệ Margin ròng trên Doanh thu thuần (không thuế) để khớp với logic từng dòng của bảng PNL
+            $this->margin_percent = ($this->margin / $netRevenue) * 100;
             $this->margin_percent = max(-999.99, min(999.99, $this->margin_percent));
         } else {
             $this->margin_percent = 0;

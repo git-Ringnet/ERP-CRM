@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseOrderController extends Controller
@@ -66,7 +67,10 @@ class PurchaseOrderController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
-        $orders = $query->orderBy('created_at', 'desc')->paginate(15);
+        $orders = $query->with([
+            'supplier', 'creator', 'currency', 'sale.user',
+            'items.saleOrderRequestItem.saleOrderRequest.sale.user'
+        ])->orderBy('created_at', 'desc')->paginate(15);
         $suppliers = Supplier::orderBy('name')->get();
 
         // Thống kê - apply same filtering
@@ -77,11 +81,26 @@ class PurchaseOrderController extends Controller
             }
         }
 
+        $totalValue = (clone $statsQuery)
+            ->join('purchase_order_items', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
+            ->leftJoin('sale_order_request_items', 'purchase_order_items.sale_order_request_item_id', '=', 'sale_order_request_items.id')
+            ->leftJoin('sale_items', 'sale_order_request_items.sale_item_id', '=', 'sale_items.id')
+            ->whereIn('purchase_orders.status', ['approved', 'shipping', 'received'])
+            ->selectRaw('SUM(
+                CASE 
+                    WHEN sale_items.id IS NOT NULL THEN (
+                        sale_items.usd_price * (1 - COALESCE(sale_items.discount_rate, 0)/100) * (1 + COALESCE(sale_items.import_cost_rate, 0)/100) * purchase_order_items.quantity
+                    )
+                    ELSE (purchase_order_items.unit_price * purchase_order_items.quantity / COALESCE(purchase_orders.exchange_rate, 1))
+                END
+            ) as total_cost_usd')
+            ->value('total_cost_usd') ?? 0;
+
         $stats = [
             'pending' => (clone $statsQuery)->whereIn('status', ['draft', 'pending_approval'])->count(),
             'sent' => (clone $statsQuery)->whereIn('status', ['approved', 'shipping'])->count(),
             'received' => (clone $statsQuery)->where('status', 'received')->count(),
-            'total_value' => (clone $statsQuery)->whereIn('status', ['approved', 'shipping', 'received'])->sum('total'),
+            'total_value' => $totalValue,
         ];
 
         return view('purchase-orders.index', compact('orders', 'suppliers', 'stats'));
@@ -127,6 +146,7 @@ class PurchaseOrderController extends Controller
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
         ]);
 
         DB::beginTransaction();
@@ -144,7 +164,7 @@ class PurchaseOrderController extends Controller
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
                 'other_cost' => $request->other_cost ?? 0,
-                'vat_percent' => $request->vat_percent ?? 10,
+                'vat_percent' => 0,
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
                 'currency_id' => $request->currency_id ?? Currency::getBaseCurrencyId(),
@@ -158,6 +178,9 @@ class PurchaseOrderController extends Controller
                 $total = round($item['quantity'] * $item['unit_price'], 2);
                 $subtotal += $total;
 
+                $itemVatPercent = 0;
+                $itemVatAmount = 0;
+
                 $order->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
@@ -166,30 +189,16 @@ class PurchaseOrderController extends Controller
                     'ordered_quantity' => $item['quantity'], // Set ordered_quantity initially
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
+                    'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
                     'total' => $total,
+                    'vat_percent' => $itemVatPercent,
+                    'vat_amount' => $itemVatAmount,
                 ]);
             }
 
-            // Tính tổng
-            $discountAmount = round($subtotal * ($order->discount_percent / 100), 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $beforeVat = $afterDiscount + $order->shipping_cost + $order->other_cost;
-            $vatAmount = round($beforeVat * ($order->vat_percent / 100), 2);
-
-            $finalTotal = round($beforeVat + $vatAmount, 2);
-            $isForeign = $this->currencyService->isForeignTransaction($order->currency_id);
-
-            $order->update([
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'vat_amount' => $vatAmount,
-                'total' => $isForeign
-                    ? $this->currencyService->toBase($finalTotal, (float)$order->exchange_rate)
-                    : $finalTotal,
-                'total_foreign' => $isForeign ? $finalTotal : null,
-            ]);
-
-            // Cập nhật công nợ
+            // Tính tổng (Sử dụng calculateTotals của Model để đảm bảo tính nhất quán)
+            $order->load('items');
+            $order->calculateTotals();
             $order->updateDebt();
             $order->save();
 
@@ -217,17 +226,6 @@ class PurchaseOrderController extends Controller
         }
     }
 
-
-    public function show(PurchaseOrder $purchaseOrder)
-    {
-        // Return 404 instead of 403 if user lacks permission to prevent information disclosure
-        if (!auth()->user()->can('view', $purchaseOrder)) {
-            abort(404);
-        }
-
-        $purchaseOrder->load(['supplier', 'items.product', 'supplierQuotation', 'creator', 'approver', 'sale.orderRequests.items', 'sale.orderRequests.attachments', 'sale.orderRequests.creator']);
-        return view('purchase-orders.show', compact('purchaseOrder'));
-    }
 
     public function edit(PurchaseOrder $purchaseOrder)
     {
@@ -261,6 +259,7 @@ class PurchaseOrderController extends Controller
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
         ]);
 
         DB::beginTransaction();
@@ -273,7 +272,7 @@ class PurchaseOrderController extends Controller
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
                 'other_cost' => $request->other_cost ?? 0,
-                'vat_percent' => $request->vat_percent ?? 10,
+                'vat_percent' => 0,
                 'payment_terms' => $request->payment_terms ?? 'net30',
                 'note' => $request->note,
                 'currency_id' => $request->currency_id ?? $purchaseOrder->currency_id,
@@ -287,35 +286,25 @@ class PurchaseOrderController extends Controller
                 $total = round($item['quantity'] * $item['unit_price'], 2);
                 $subtotal += $total;
 
+                $itemVatPercent = 0;
+                $itemVatAmount = 0;
+
                 $purchaseOrder->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
+                    'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
                     'total' => $total,
+                    'vat_percent' => $itemVatPercent,
+                    'vat_amount' => $itemVatAmount,
                 ]);
             }
 
-            $discountAmount = round($subtotal * ($purchaseOrder->discount_percent / 100), 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $beforeVat = $afterDiscount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost;
-            $vatAmount = round($beforeVat * ($purchaseOrder->vat_percent / 100), 2);
-
-            $finalTotal = round($beforeVat + $vatAmount, 2);
-            $isForeign = $this->currencyService->isForeignTransaction($purchaseOrder->currency_id);
-
-            $purchaseOrder->update([
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'vat_amount' => $vatAmount,
-                'total' => $isForeign
-                    ? $this->currencyService->toBase($finalTotal, (float)$purchaseOrder->exchange_rate)
-                    : $finalTotal,
-                'total_foreign' => $isForeign ? $finalTotal : null,
-            ]);
-
-            // Cập nhật công nợ
+            // Tính tổng (Sử dụng calculateTotals của Model để đảm bảo tính nhất quán)
+            $purchaseOrder->load('items');
+            $purchaseOrder->calculateTotals();
             $purchaseOrder->updateDebt();
             $purchaseOrder->save();
 
@@ -441,6 +430,16 @@ class PurchaseOrderController extends Controller
         ]);
 
         return back()->with('success', 'Đã xác nhận NCC đã nhận đơn hàng!');
+    }
+
+    public function show(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('view', $purchaseOrder);
+
+        $purchaseOrder->load(['supplier', 'sale', 'items.product', 'creator', 'approver', 'currency', 'imports.warehouse']);
+        $warehouses = \App\Models\Warehouse::active()->get();
+
+        return view('purchase-orders.show', compact('purchaseOrder', 'warehouses'));
     }
 
     public function ship(PurchaseOrder $purchaseOrder)
@@ -790,7 +789,7 @@ class PurchaseOrderController extends Controller
         if (!$supplierId) return response()->json([]);
 
         // Get PR items for this supplier where ordered_quantity < quantity
-        $items = \App\Models\SaleOrderRequestItem::with(['orderRequest.sale', 'orderRequest.creator'])
+        $items = \App\Models\SaleOrderRequestItem::with(['orderRequest.sale', 'orderRequest.creator', 'saleItem'])
             ->where('vendor_id', $supplierId)
             ->get()
             ->filter(function ($item) {
@@ -807,10 +806,96 @@ class PurchaseOrderController extends Controller
                     'unit' => $item->unit,
                     'type' => $item->type,
                     'si_name' => $item->si_name,
+                    'estimated_cost_usd' => (float) ($item->saleItem->estimated_cost_usd ?? 0),
+                    'cost_price_vnd' => (float) ($item->saleItem ? $item->saleItem->calculateVndCost() : 0),
                 ];
             })
             ->values();
 
         return response()->json($items);
+    }
+
+    public function updateExpectedDelivery(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $request->validate([
+            'expected_delivery' => 'nullable|date',
+        ]);
+
+        $purchaseOrder->update([
+            'expected_delivery' => $request->expected_delivery,
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Cập nhật giá mua thực tế của từng món hàng
+     */
+    public function updateItemPrice(Request $request, PurchaseOrderItem $item)
+    {
+        $validated = $request->validate([
+            'unit_price' => 'required|numeric|min:0'
+        ]);
+
+        $item->update([
+            'unit_price' => $validated['unit_price'],
+            'total' => round($item->quantity * $validated['unit_price'], 2)
+        ]);
+
+        // Cập nhật lại tổng tiền PO
+        $item->purchaseOrder->calculateTotals();
+        $item->purchaseOrder->updateDebt();
+        $item->purchaseOrder->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Cập nhật trạng thái từng món hàng trong PO
+     */
+    public function updateItemStatus(Request $request, PurchaseOrderItem $item)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|in:ordered,shipping,received,cancelled'
+        ]);
+
+        $item->update(['status' => $validated['status']]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Tải lên file license cho từng món hàng
+     */
+    public function uploadItemLicense(Request $request, PurchaseOrderItem $item)
+    {
+        $request->validate([
+            'license_file' => 'required|file|max:10240', // 10MB
+        ]);
+
+        if ($request->hasFile('license_file')) {
+            $file = $request->file('license_file');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('po-licenses', $filename, 'public');
+            
+            $item->update(['license_file' => $path]);
+
+            // Notify Sales
+            if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale) {
+                $sale = $item->saleOrderRequestItem->saleOrderRequest->sale;
+                if ($sale->user_id) {
+                    \App\Models\Notification::create([
+                        'user_id' => $sale->user_id,
+                        'type' => 'license_uploaded',
+                        'title' => 'Đã có License cho sản phẩm ' . $item->product_name,
+                        'content' => "PO Team đã tải lên license cho sản phẩm trong đơn hàng {$sale->code}. Bạn có thể xem và tải về ngay.",
+                        'link' => route('sales.show', $sale->id),
+                        'is_read' => false,
+                    ]);
+                }
+            }
+        }
+
+        return back()->with('success', 'Đã tải lên license cho sản phẩm ' . $item->product_name);
     }
 }

@@ -127,34 +127,33 @@
             </div>
             <div id="itemsContainer" class="space-y-3">
                 @foreach($purchaseOrder->items as $index => $item)
-                <div class="item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
-                    <div class="col-span-4 relative product-autocomplete">
+                <div class="item-row grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                    <div class="col-span-3 relative product-autocomplete">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
                         <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}"
                             class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
                         <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id ?? '' }}" class="product-id">
                         <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
                     </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+                    <div class="col-span-1">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
                         <input type="number" name="items[{{ $index }}][quantity]" value="{{ $item->quantity }}" min="1" required
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">đ</span>)</label>
-                        <input type="number" name="items[{{ $index }}][unit_price]" value="{{ number_format($item->unit_price, $decimals, '.', '') }}" min="0" required step="any"
-                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
-                        <div class="text-[10px] text-gray-500 mt-1 vnd-unit-price {{ $isForeign ? '' : 'hidden' }} truncate">
-                            {{ $isForeign ? number_format($item->unit_price * ($purchaseOrder->exchange_rate ?: 1)) . ' đ' : '' }}
-                        </div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho (<span class="currency-symbol">đ</span>)</label>
+                        <input type="number" name="items[{{ $index }}][warehouse_unit_price]" value="{{ $item->warehouse_unit_price }}" min="0" step="0.01"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (<span class="currency-symbol">đ</span>)</label>
+                        <input type="number" name="items[{{ $index }}][unit_price]" value="{{ number_format($item->unit_price, $decimals, '.', '') }}" min="0" step="any" required
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">đ</span>)</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
                         <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly
                             value="{{ number_format($item->total, $decimals, '.', ',') }}">
-                        <div class="text-[10px] text-gray-500 mt-1 vnd-item-total {{ $isForeign ? '' : 'hidden' }} truncate">
-                            {{ $isForeign ? number_format($item->total * ($purchaseOrder->exchange_rate ?: 1)) . ' đ' : '' }}
-                        </div>
                     </div>
                     <div class="col-span-1 flex justify-center">
                         <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
@@ -203,21 +202,7 @@
                     <input type="number" name="other_cost" value="{{ old('other_cost', $purchaseOrder->other_cost) }}" min="0"
                         class="w-32 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
                 </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600 text-sm">VAT (%):</span>
-                    <div class="flex items-center gap-2">
-                        @php
-                            $discountAmount = $purchaseOrder->subtotal * ($purchaseOrder->discount_percent / 100);
-                            $beforeVat = $purchaseOrder->subtotal - $discountAmount + $purchaseOrder->shipping_cost + $purchaseOrder->other_cost;
-                            $vatAmount = $beforeVat * ($purchaseOrder->vat_percent / 100);
-                        @endphp
-                        <span id="vatAmountDisplay" class="text-sm font-medium text-blue-600 {{ $vatAmount > 0 ? '' : 'hidden' }}">
-                            {{ $vatAmount > 0 ? '+' . ($isForeign ? $purchaseOrder->currency->symbol . ' ' : '') . number_format($vatAmount, $decimals, '.', ',') . ($isForeign ? '' : ' đ') : '' }}
-                        </span>
-                        <input type="number" name="vat_percent" value="{{ old('vat_percent', $purchaseOrder->vat_percent) }}" min="0"
-                            class="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-right" onchange="calculateTotal()">
-                    </div>
-                </div>
+                <input type="hidden" name="vat_percent" value="0">
                 <div class="flex justify-between items-start pt-3 border-t">
                     <span class="text-lg font-semibold mt-1">Tổng cộng:</span>
                     <div class="text-right">
@@ -389,11 +374,7 @@ function calculateTotal() {
     
     const beforeVat = afterDiscount + shippingCost + otherCost;
 
-    const vatInput = document.querySelector('input[name="vat_percent"]');
-    const vatRate = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
-    const vatAmount = Math.round((beforeVat * (vatRate / 100)) * 100) / 100;
-    
-    const total = Math.round((beforeVat + vatAmount) * 100) / 100;
+    const total = Math.round((beforeVat) * 100) / 100;
 
     const select = document.getElementById('currencySelect');
     const option = select ? select.options[select.selectedIndex] : null;
@@ -489,27 +470,29 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('addItem').addEventListener('click', function() {
     const container = document.getElementById('itemsContainer');
     const newRow = document.createElement('div');
-    newRow.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
+    newRow.className = 'item-row grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
     newRow.innerHTML = `
-        <div class="col-span-4 relative product-autocomplete">
+        <div class="col-span-3 relative product-autocomplete">
             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
             <input type="text" name="items[${itemIndex}][product_name]" class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off" placeholder="Nhập tên sản phẩm...">
             <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id">
             <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
         </div>
-        <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
+        <div class="col-span-1">
+            <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
             <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
         </div>
         <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Đơn giá (<span class="currency-symbol">đ</span>)</label>
-            <input type="number" name="items[${itemIndex}][unit_price]" min="0" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price" onchange="calculateRow(this)">
-            <div class="text-[10px] text-gray-500 mt-1 vnd-unit-price hidden truncate"></div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho</label>
+            <input type="number" name="items[${itemIndex}][warehouse_unit_price]" value="0" min="0" step="0.01" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100" readonly>
+        </div>
+        <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua</label>
+            <input type="number" name="items[${itemIndex}][unit_price]" min="0" step="0.01" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
         </div>
         <div class="col-span-3">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền (<span class="currency-symbol">đ</span>)</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
             <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
-            <div class="text-[10px] text-gray-500 mt-1 vnd-item-total hidden truncate"></div>
         </div>
         <div class="col-span-1 flex justify-center">
             <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200"><i class="fas fa-trash"></i></button>

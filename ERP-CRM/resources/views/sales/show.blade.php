@@ -410,11 +410,6 @@
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
                     <i class="fas fa-chart-line mr-2"></i> Phân tích P&L
                 </button>
-                <button @click="activeTab = 'margin'"
-                    :class="activeTab === 'margin' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                    class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
-                    <i class="fas fa-chart-pie mr-2"></i> Tổng quan Margin
-                </button>
                 <button @click="activeTab = 'invoice'"
                     :class="activeTab === 'invoice' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
@@ -425,6 +420,11 @@
                     @elseif($sale->invoiceRequests->count() > 0)
                         <span class="ml-1.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ $sale->invoiceRequests->count() }}</span>
                     @endif
+                </button>
+                <button @click="activeTab = 'procurement'"
+                    :class="activeTab === 'procurement' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
+                    <i class="fas fa-shopping-cart mr-2"></i> Thông tin mua hàng (PO)
                 </button>
             </nav>
         </div>
@@ -562,168 +562,75 @@
             @include('sales.partials.pnl-tab')
         </div>
 
-        <!-- Tab: Margin -->
-        <div x-show="activeTab === 'margin'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95">
-            @php
-                $totalCostOfGoods = $sale->items->sum('cost_total');
-                $grossMargin = $sale->total - $totalCostOfGoods;
-                $grossMarginPercent = $sale->total > 0 ? ($grossMargin / $sale->total) * 100 : 0;
-                
-                $totalOpex = 0;
-                $opexDetails = [];
-                $costBaseTotal = $sale->items->sum('cost_total') ?: 0;
-
-                // Chi phí theo item (đồng bộ logic với bảng P&L)
-                foreach ($sale->items as $item) {
-                    $costBase = $item->cost_total ?: 0;
-                    
-                    // Chi phí Tài chính
-                    if (!is_null($item->finance_cost_percent) && $item->finance_cost_percent > 0) {
-                        $val = round($costBase * $item->finance_cost_percent / 100);
-                        $opexDetails['Chi phí Tài chính'] = ($opexDetails['Chi phí Tài chính'] ?? 0) + $val;
-                    }
-                    
-                    // Lãi vay phát sinh
-                    if (!is_null($item->overdue_interest_percent) && $item->overdue_interest_percent > 0) {
-                        $val = round($costBase * $item->overdue_interest_percent / 100);
-                        $opexDetails['Lãi vay phát sinh do nợ quá hạn'] = ($opexDetails['Lãi vay phát sinh do nợ quá hạn'] ?? 0) + $val;
-                    }
-
-                    // Chi phí Quản lý
-                    if (!is_null($item->management_cost_percent) && $item->management_cost_percent > 0) {
-                        $val = round($costBase * $item->management_cost_percent / 100);
-                        $opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] = ($opexDetails['Chi phí Quản lí, Back Office & kỹ thuật'] ?? 0) + $val;
-                    }
-
-                    // 24x7 Support
-                    if (!is_null($item->support_247_cost_percent) && $item->support_247_cost_percent > 0) {
-                        $val = round($costBase * $item->support_247_cost_percent / 100);
-                        $opexDetails['24x7 Support cost'] = ($opexDetails['24x7 Support cost'] ?? 0) + $val;
-                    }
-
-                    // Other Support (%)
-                    if (!is_null($item->other_support_cost) && $item->other_support_cost > 0) {
-                        $val = round($costBase * $item->other_support_cost / 100);
-                        $opexDetails['Other Support'] = ($opexDetails['Other Support'] ?? 0) + $val;
-                    }
-
-                    // Chi phí cố định theo item
-                    if (($item->technical_poc_cost ?? 0) > 0) {
-                        $opexDetails['Technical support/POC'] = ($opexDetails['Technical support/POC'] ?? 0) + ($item->technical_poc_cost ?? 0);
-                    }
-
-                    if (($item->implementation_cost ?? 0) > 0) {
-                        $opexDetails['Chi phí triển khai hợp đồng'] = ($opexDetails['Chi phí triển khai hợp đồng'] ?? 0) + ($item->implementation_cost ?? 0);
-                    }
-                }
-
-                // Thuế nhà thầu: ưu tiên từ SaleExpense fixed, fallback từ item
-                $contractorTaxExpense = $sale->expenses->first(function ($e) {
-                    return $e->type === 'Thuế nhà thầu';
-                });
-                if ($contractorTaxExpense && $contractorTaxExpense->input_mode === 'fixed') {
-                    $opexDetails['Thuế nhà thầu'] = round($contractorTaxExpense->amount);
-                } else {
-                    $itemContractorTax = round($sale->items->sum('contractor_tax'));
-                    if ($itemContractorTax > 0) {
-                        $opexDetails['Thuế nhà thầu'] = $itemContractorTax;
-                    }
-                }
-
-                // Extra SaleExpense (ví dụ: Chi phí khách hàng)
-                $standardExpenseTypes = [
-                    'Chi phí Tài chính',
-                    'Lãi vay phát sinh do nợ quá hạn',
-                    'Chi phí Quản lí, Back Office & kỹ thuật',
-                    '24x7 Support cost',
-                    'Other Support',
-                    'Technical support/POC',
-                    'Chi phí triển khai hợp đồng',
-                    'Thuế nhà thầu',
-                ];
-
-                foreach ($sale->expenses as $expense) {
-                    if (in_array($expense->type, $standardExpenseTypes, true)) {
-                        continue;
-                    }
-
-                    if ($expense->input_mode === 'percent') {
-                        $amount = round($costBaseTotal * (($expense->percent_value ?: 0) / 100));
-                    } else {
-                        $amount = round($expense->amount ?: 0);
-                    }
-
-                    if ($amount > 0) {
-                        $opexDetails[$expense->type] = ($opexDetails[$expense->type] ?? 0) + $amount;
-                    }
-                }
-                
-                // Tính tổng OpEx
-                $totalOpex = array_sum($opexDetails);
-                
-                $netMargin = $grossMargin - $totalOpex;
-                $netMarginPercent = $sale->total > 0 ? ($netMargin / $sale->total) * 100 : 0;
-            @endphp
-            
-            <div class="bg-white rounded-lg shadow-sm overflow-hidden mt-4">
-                <div class="p-4 border-b bg-gradient-to-r from-green-50 to-blue-50">
-                    <h3 class="text-lg font-semibold text-gray-900">
-                        <i class="fas fa-chart-pie mr-2 text-green-600"></i>
-                        Phân tích Margin theo đơn hàng
-                    </h3>
-                    <p class="text-sm text-gray-500 mt-1">Thể hiện giá bán, giá vốn và các chi phí liên quan</p>
-                </div>
-                
-                <div class="p-4 sm:p-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Left Summary -->
-                        <div class="space-y-4">
-                            <h4 class="font-semibold text-gray-800 border-b pb-2">Tổng quan doanh thu & chi phí</h4>
-                            
-                            <div class="bg-blue-50 rounded-lg p-4">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-medium text-blue-700">Doanh thu (Giá bán)</span>
-                                    <span class="text-lg font-bold text-blue-700">{{ number_format($sale->total) }} đ</span>
-                                </div>
-                            </div>
-                            
-                        </div>
-                        
-                        <!-- Right Summary -->
-                        <div class="space-y-4">
-                            <h4 class="font-semibold text-gray-800 border-b pb-2">Kết quả kinh doanh</h4>
-                            
-                            <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-medium text-yellow-700">Lợi nhuận gộp (Gross Profit)</span>
-                                    <span class="text-lg font-bold text-yellow-700">{{ number_format($grossMargin) }} đ</span>
-                                </div>
-                                <div class="mt-2 text-xs text-yellow-600">Tỷ lệ: {{ number_format($grossMarginPercent, 1) }}%</div>
-                            </div>
-                            
-                            <div class="rounded-lg p-6 border-2 {{ $netMargin >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' }}">
-                                <div class="text-center">
-                                    <div class="text-sm font-bold uppercase {{ $netMargin >= 0 ? 'text-green-800' : 'text-red-800' }}">
-                                        Lợi nhuận ròng (Net Profit)
-                                    </div>
-                                    <div class="text-3xl font-extrabold mt-2 {{ $netMargin >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                                        {{ number_format($netMargin) }} đ
-                                    </div>
-                                    <div class="mt-2 text-sm font-bold {{ $netMargin >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                        Margin ròng: {{ number_format($netMarginPercent, 1) }}%
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
 
         <!-- Tab: Invoice -->
         <div x-show="activeTab === 'invoice'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95" class="mt-4">
             @include('sales.partials.invoice-tab')
+        </div>
+
+        <!-- Tab: Procurement -->
+        <div x-show="activeTab === 'procurement'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95" class="mt-4">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+                <div class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Trạng thái hàng về & License</h3>
+                    <span class="text-[10px] text-gray-400 italic">Dữ liệu được cập nhật bởi bộ phận PO</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">File License</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            @php
+                                $allPoItems = $sale->purchaseOrders->flatMap(function($po) {
+                                    return $po->items;
+                                });
+                            @endphp
+                            @forelse($allPoItems as $item)
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product_name }}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="font-bold text-blue-600">{{ $item->purchaseOrder->code }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-3 py-1 rounded-full text-[10px] font-bold shadow-sm
+                                        {{ $item->status == 'ordered' ? 'bg-gray-100 text-gray-600' : '' }}
+                                        {{ $item->status == 'shipping' ? 'bg-blue-100 text-blue-600' : '' }}
+                                        {{ $item->status == 'received' ? 'bg-green-100 text-green-600' : '' }}
+                                        {{ $item->status == 'cancelled' ? 'bg-red-100 text-red-600' : '' }}">
+                                        {{ $item->status_label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    @if($item->license_file)
+                                    <a href="{{ asset('storage/' . $item->license_file) }}" target="_blank" 
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95">
+                                        <i class="fas fa-download"></i> Tải License
+                                    </a>
+                                    @else
+                                    <span class="text-xs text-gray-400 italic">Chờ upload...</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @empty
+                            <tr>
+                                <td colspan="4" class="px-4 py-12 text-center">
+                                    <div class="flex flex-col items-center justify-center space-y-2 text-gray-400">
+                                        <i class="fas fa-shopping-cart text-4xl"></i>
+                                        <p class="text-sm italic">Chưa có thông tin đặt mua hàng cho đơn này.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
     <!-- End Tabs Wrapper -->

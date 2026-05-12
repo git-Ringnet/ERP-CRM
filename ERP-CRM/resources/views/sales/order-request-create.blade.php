@@ -92,6 +92,7 @@
                                         value="{{ $partNumber }}" placeholder="P/N"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                                     <input type="hidden" name="order_request_items[{{ $idx }}][product_id]" value="{{ $saleItem->product_id }}">
+                                    <input type="hidden" name="order_request_items[{{ $idx }}][sale_item_id]" value="{{ $saleItem->id }}">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"

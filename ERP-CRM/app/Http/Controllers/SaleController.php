@@ -344,6 +344,7 @@ class SaleController extends Controller
             }
 
             $this->syncOrderExpensesToPnlItems($sale);
+            $sale->load(['items', 'expenses']);
 
             // Calculate margin and debt
             $sale->calculateMargin();
@@ -681,6 +682,7 @@ class SaleController extends Controller
             }
 
             $this->syncOrderExpensesToPnlItems($sale);
+            $sale->load(['items', 'expenses']);
 
             // Calculate margin and debt AFTER creating new items
             $sale->calculateMargin();
@@ -1830,6 +1832,7 @@ class SaleController extends Controller
             'order_request_items.*.type' => 'required|string|max:100',
             'order_request_items.*.part_number' => 'required|string|max:255',
             'order_request_items.*.product_id' => 'nullable|exists:products,id',
+            'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
             'order_request_items.*.quantity' => 'required|numeric|min:0.01',
             'order_request_items.*.unit' => 'nullable|string|max:50',
             'order_request_items.*.serial_number' => 'nullable|string|max:255',
@@ -1863,6 +1866,7 @@ class SaleController extends Controller
                     'type' => $item['type'],
                     'part_number' => $item['part_number'],
                     'product_id' => $item['product_id'] ?? null,
+                    'sale_item_id' => $item['sale_item_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? null,
                     'serial_number' => $item['serial_number'] ?? null,

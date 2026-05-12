@@ -20,6 +20,7 @@ class ImportItem extends Model
         'cost',
         'warehouse_price',
         'comments',
+        'processed_at',
         'warranty_months',
         'expiry_date',
     ];
@@ -29,6 +30,7 @@ class ImportItem extends Model
         'cost' => 'decimal:2',
         'warehouse_price' => 'decimal:2',
         'expiry_date' => 'date',
+        'processed_at' => 'datetime',
         'warranty_months' => 'integer',
     ];
 
