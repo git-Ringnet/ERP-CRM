@@ -73,73 +73,101 @@ class PurchaseOrderRequestController extends Controller
         $items = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
                 $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING]);
             })
-            ->with(['saleOrderRequest', 'vendor', 'product', 'purchaseOrderItems'])
+            ->with(['saleOrderRequest.sale', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
             ->get();
 
-        // Gom nhóm theo Vendor và Sản phẩm/Part Number
-        $grouped = [];
-        foreach ($items as $item) {
-            $key = ($item->vendor_id ?? 'no-vendor') . '-' . ($item->product_id ?? 'no-prod') . '-' . ($item->part_number ?? 'no-pn');
-            
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = [
-                    'vendor_id' => $item->vendor_id,
-                    'vendor_name' => $item->vendor?->name ?? $item->vendor ?? 'Unknown Vendor',
-                    'product_id' => $item->product_id,
-                    'part_number' => $item->part_number,
-                    'unit' => $item->unit,
-                    'requested' => 0,
-                    'ordered' => 0,
-                    'items' => [] // Danh sách các PR item gốc để truy vết
-                ];
-            }
-
-            $ordered = $item->ordered_quantity_total;
-            
-            $grouped[$key]['requested'] += $item->quantity;
-            $grouped[$key]['ordered'] += $ordered;
-            $grouped[$key]['items'][] = [
-                'id' => $item->id,
-                'pr_code' => $item->saleOrderRequest->code,
-                'quantity' => $item->quantity,
-                'ordered' => $ordered,
-                'remaining' => max(0, $item->quantity - $ordered)
-            ];
-        }
-
-        // Chỉ giữ lại những nhóm còn cần đặt hàng (remaining > 0)
-        $finalData = array_filter($grouped, function($g) {
-            return ($g['requested'] - $g['ordered']) > 0.001;
-        });
-
-        // Group theo Vendor để hiển thị trên UI dễ hơn
+        // Gom nhóm theo Vendor -> SaleOrderRequest
         $vendorGroups = [];
-        foreach ($finalData as $data) {
-            $vName = $data['vendor_name'];
-            $vId = $data['vendor_id'];
+        
+        foreach ($items as $item) {
+            $vName = $item->vendor?->name ?? $item->vendor ?? 'Unknown Vendor';
+            $vId = $item->vendor_id;
 
             // Nếu vId null, thử tìm theo name trong DB để có ID hợp lệ
             if (!$vId) {
                 $found = Supplier::where('name', $vName)->first();
-                if ($found) {
-                    $vId = $found->id;
-                } else {
-                    // Nếu vẫn không thấy, tạo key dựa trên name
-                    $vId = 'name-' . md5($vName);
-                }
+                $vId = $found ? $found->id : 'name-' . md5($vName);
             }
 
             if (!isset($vendorGroups[$vId])) {
                 $vendorGroups[$vId] = [
                     'id' => $vId,
                     'name' => $vName,
+                    'sales_orders' => []
+                ];
+            }
+
+            $pr = $item->saleOrderRequest;
+            $soKey = $pr->id;
+
+            if (!isset($vendorGroups[$vId]['sales_orders'][$soKey])) {
+                // Lấy mã SO thực tế nếu có, không thì lấy mã PR
+                $displayCode = ($pr->sale && $pr->sale->code) ? $pr->sale->code : $pr->code;
+                
+                $vendorGroups[$vId]['sales_orders'][$soKey] = [
+                    'id' => $pr->id,
+                    'code' => $displayCode,
+                    'pr_code' => $pr->code, // Giữ lại mã PR để tham chiếu
+                    'total_usd' => 0,
+                    'requested' => 0,
+                    'ordered' => 0,
                     'products' => []
                 ];
             }
-            $vendorGroups[$vId]['products'][] = $data;
+
+            $ordered = $item->ordered_quantity_total;
+            $remaining = max(0, $item->quantity - $ordered);
+
+            // Chỉ thêm sản phẩm nếu còn cần đặt hàng
+            if ($remaining > 0.001) {
+                // Tính unit price USD từ SaleItem
+                $unitPriceUsd = 0;
+                if ($item->saleItem) {
+                    $si = $item->saleItem;
+                    $rate = (float)($si->exchange_rate ?: ($pr->sale?->exchange_rate ?: 24500));
+                    
+                    if ($si->estimated_cost_usd > 0) {
+                        $unitPriceUsd = (float)$si->estimated_cost_usd;
+                    } elseif ($si->usd_price > 0) {
+                        $unitPriceUsd = (float)($si->usd_price * (1 - (($si->discount_rate ?? 0) / 100)) * (1 + (($si->import_cost_rate ?? 0) / 100)));
+                    } elseif ($si->cost_total > 0 && $item->quantity > 0) {
+                        // Fallback: Back-calculate from VND cost
+                        $unitPriceUsd = ($si->cost_total / $item->quantity) / $rate;
+                    }
+                }
+
+                $vendorGroups[$vId]['sales_orders'][$soKey]['products'][] = [
+                    'id' => $item->id,
+                    'part_number' => $item->part_number,
+                    'unit' => $item->unit,
+                    'requested' => $item->quantity,
+                    'ordered' => $ordered,
+                    'remaining' => $remaining,
+                    'unit_price_usd' => $unitPriceUsd,
+                ];
+
+                $vendorGroups[$vId]['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
+                $vendorGroups[$vId]['sales_orders'][$soKey]['requested'] += $item->quantity;
+                $vendorGroups[$vId]['sales_orders'][$soKey]['ordered'] += $ordered;
+            }
         }
 
-        return view('purchasing.needs-ordering', compact('vendorGroups'));
+        // Lọc bỏ các SO không còn sản phẩm nào cần đặt và sắp xếp
+        foreach ($vendorGroups as $vId => &$vGroup) {
+            $vGroup['sales_orders'] = array_filter($vGroup['sales_orders'], function($so) {
+                return count($so['products']) > 0;
+            });
+            
+            // Nếu Vendor không còn SO nào, đánh dấu để xóa
+            if (empty($vGroup['sales_orders'])) {
+                unset($vendorGroups[$vId]);
+            }
+        }
+
+        $currencies = \App\Models\Currency::where('is_active', 1)->get();
+        $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
+
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId'));
     }
 
     /**
@@ -154,6 +182,8 @@ class PurchaseOrderRequestController extends Controller
             'items.*.pr_item_id' => 'required|exists:sale_order_request_items,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'note' => 'nullable|string|max:2000',
+            'currency_id' => 'required|exists:currencies,id',
+            'exchange_rate' => 'required|numeric|min:0',
         ]);
 
         DB::beginTransaction();
@@ -161,32 +191,12 @@ class PurchaseOrderRequestController extends Controller
             $vendor = Supplier::findOrFail($validated['vendor_id']);
             
             // 0. Xác định tiền tệ ưu tiên
-            $poCurrencyId = null;
-            if ($request->filled('currency_code')) {
-                $selectedCurrency = \App\Models\Currency::where('code', $request->currency_code)->first();
-                if ($selectedCurrency) $poCurrencyId = $selectedCurrency->id;
-            }
+            $poCurrencyId = $validated['currency_id'];
+            $exchangeRate = (float)$validated['exchange_rate'];
 
-            if (!$poCurrencyId) {
-                $vendor = Supplier::findOrFail($validated['vendor_id']);
-                $poCurrencyId = $vendor->currency_id;
-            }
-            
-            // Nếu vẫn chưa có tiền tệ, kiểm tra items
-            if (!$poCurrencyId) {
-                $prItemIds = array_column($validated['items'], 'pr_item_id');
-                $prItemsForCurrency = SaleOrderRequestItem::whereIn('id', $prItemIds)->with('saleItem')->get();
-                $hasUsdItem = $prItemsForCurrency->contains(fn($i) => $i->saleItem && $i->saleItem->estimated_cost_usd > 0);
-                
-                if ($hasUsdItem) {
-                    $usdCurrency = \App\Models\Currency::where('code', 'USD')->first();
-                    if ($usdCurrency) $poCurrencyId = $usdCurrency->id;
-                }
-            }
-
-            if (!$poCurrencyId) {
-                $poCurrencyId = \App\Models\Currency::getBaseCurrencyId();
-            }
+            // Fetch items for later use in price calculation
+            $prItemIds = array_column($validated['items'], 'pr_item_id');
+            $prItemsForCurrency = SaleOrderRequestItem::whereIn('id', $prItemIds)->with('saleItem')->get();
 
             // 1. Tạo Purchase Order
             $po = PurchaseOrder::create([
@@ -197,7 +207,7 @@ class PurchaseOrderRequestController extends Controller
                 'created_by' => auth()->id(),
                 'note' => $validated['note'],
                 'currency_id' => $poCurrencyId,
-                'exchange_rate' => $this->currencyService->getRateById($poCurrencyId, now()),
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $affectedPrs = [];

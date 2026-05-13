@@ -37,16 +37,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Confirm navigation away from unsaved forms
     const formInputs = document.querySelectorAll('form input, form textarea, form select');
-    let formChanged = false;
+    window.formChanged = false;
     
     formInputs.forEach(input => {
         input.addEventListener('change', function() {
-            formChanged = true;
+            window.formChanged = true;
         });
     });
 
     window.addEventListener('beforeunload', function(e) {
-        if (formChanged) {
+        if (window.formChanged) {
             e.preventDefault();
             e.returnValue = '';
         }
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reset form changed flag on submit
     forms.forEach(form => {
         form.addEventListener('submit', function() {
-            formChanged = false;
+            window.formChanged = false;
         });
     });
 

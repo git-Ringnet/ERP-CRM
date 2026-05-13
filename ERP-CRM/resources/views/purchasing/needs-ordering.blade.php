@@ -23,7 +23,7 @@
             @csrf
             <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
 
-            <div class="grid grid-cols-1 gap-8">
+            <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
                 @foreach($vendorGroups as $vId => $vendor)
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden vendor-section" data-vendor-id="{{ $vId }}">
                     <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -33,7 +33,7 @@
                             </div>
                             <div>
                                 <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
-                                <p class="text-xs text-gray-500">{{ count($vendor['products']) }} mặt hàng cần đặt</p>
+                                <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Sales Order cần xử lý</p>
                             </div>
                         </div>
                         <button type="button" onclick="preparePo('{{ $vId }}')" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm">
@@ -45,61 +45,82 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    <th class="px-6 py-3 w-10">
+                                    <th class="px-6 py-3 w-10 text-center">
                                         <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 vendor-check-all" data-vendor-id="{{ $vId }}">
                                     </th>
-                                    <th class="px-6 py-3">Sản phẩm / Part Number</th>
-                                    <th class="px-6 py-3 text-center">Đơn vị</th>
-                                    <th class="px-6 py-3 text-center">Tổng Yêu cầu</th>
+                                    <th class="px-6 py-3">Mã SO</th>
+                                    <th class="px-6 py-3 text-center">Total Giá nhập USD</th>
                                     <th class="px-6 py-3 text-center">Đã đặt</th>
                                     <th class="px-6 py-3 text-center">Còn thiếu</th>
-                                    <th class="px-6 py-3 text-center">Đặt đợt này</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
-                                @foreach($vendor['products'] as $pIdx => $product)
+                                @foreach($vendor['sales_orders'] as $soId => $so)
                                 @php
-                                    $remaining = $product['requested'] - $product['ordered'];
+                                    $soRemaining = $so['requested'] - $so['ordered'];
                                 @endphp
-                                <tr class="hover:bg-teal-50/30 transition-colors">
-                                    <td class="px-6 py-4">
-                                        <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 item-checkbox" 
+                                <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer" @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
+                                    <td class="px-6 py-4 text-center" @click.stop>
+                                        <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 so-checkbox" 
                                             data-vendor-id="{{ $vId }}" 
-                                            data-product-key="{{ $vId }}-{{ $pIdx }}">
+                                            data-so-id="{{ $soId }}">
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="font-bold text-gray-800">{{ $product['part_number'] }}</div>
-                                        <div class="flex flex-wrap gap-1 mt-1">
-                                            @foreach($product['items'] as $source)
-                                                @if($source['remaining'] > 0)
-                                                <span class="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded cursor-help" title="PR #{{ $source['pr_code'] }}: Yêu cầu {{ $source['quantity'] }}, Còn {{ $source['remaining'] }}">
-                                                    #{{ $source['pr_code'] }} ({{ $source['remaining'] }})
-                                                </span>
-                                                @endif
-                                            @endforeach
+                                        <div class="flex items-center gap-3">
+                                            <i class="fas fa-chevron-right text-gray-400 text-[10px] transition-transform duration-200" :class="expandedSo === '{{ $soId }}' ? 'rotate-90 text-teal-600' : ''"></i>
+                                            <div>
+                                                <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
+                                                <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-center text-sm text-gray-500">{{ $product['unit'] ?: '-' }}</td>
-                                    <td class="px-6 py-4 text-center font-medium">{{ $product['requested'] }}</td>
-                                    <td class="px-6 py-4 text-center text-blue-600">{{ $product['ordered'] }}</td>
-                                    <td class="px-6 py-4 text-center font-bold text-red-500">{{ $remaining }}</td>
-                                    <td class="px-6 py-4 text-center">
-                                        <div class="flex flex-col gap-2">
-                                            @foreach($product['items'] as $sourceIdx => $source)
-                                                @if($source['remaining'] > 0)
-                                                <div class="flex items-center gap-2 justify-center item-input-row hidden" data-product-key="{{ $vId }}-{{ $pIdx }}">
-                                                    <span class="text-[10px] font-bold text-gray-400 w-12 text-right">#{{ $source['pr_code'] }}</span>
-                                                    <input type="number" 
-                                                        name="items_data[{{ $source['id'] }}]" 
-                                                        value="{{ $source['remaining'] }}" 
-                                                        max="{{ $source['remaining'] }}" 
-                                                        step="0.01"
-                                                        class="w-20 border-gray-300 rounded text-xs text-center focus:ring-teal-500 order-qty-input"
-                                                        disabled
-                                                        data-pr-item-id="{{ $source['id'] }}">
-                                                </div>
-                                                @endif
-                                            @endforeach
+                                    <td class="px-6 py-4 text-center font-bold text-teal-700">
+                                        ${{ number_format($so['total_usd'], 2) }}
+                                    </td>
+                                    <td class="px-6 py-4 text-center text-blue-600 text-sm">{{ number_format($so['ordered'], 0) }}</td>
+                                    <td class="px-6 py-4 text-center font-bold text-red-500 text-sm">{{ number_format($soRemaining, 0) }}</td>
+                                </tr>
+
+                                <!-- Expandable Product Detail Row -->
+                                <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                    <td colspan="5" class="px-8 py-4">
+                                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                                            <table class="w-full text-sm">
+                                                <thead class="bg-gray-100">
+                                                    <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                                        <th class="px-4 py-2 w-10 text-center"></th>
+                                                        <th class="px-4 py-2">Tên Part / Sản phẩm</th>
+                                                        <th class="px-4 py-2 text-center">Số lượng</th>
+                                                        <th class="px-4 py-2 text-center">Unit Price (USD)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-gray-100">
+                                                    @foreach($so['products'] as $product)
+                                                    <tr class="hover:bg-teal-50/50 transition-colors">
+                                                        <td class="px-4 py-3 text-center">
+                                                            <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 item-checkbox" 
+                                                                data-vendor-id="{{ $vId }}" 
+                                                                data-so-id="{{ $soId }}"
+                                                                data-product-id="{{ $product['id'] }}">
+                                                        </td>
+                                                        <td class="px-4 py-3">
+                                                            <div class="font-medium text-gray-800">{{ $product['part_number'] }}</div>
+                                                            <div class="text-[10px] text-gray-400">{{ $product['unit'] ?: '-' }}</div>
+                                                        </td>
+                                                        <td class="px-4 py-3 text-center">{{ number_format($product['requested'], 0) }}</td>
+                                                        <td class="px-4 py-3 text-center text-gray-500">
+                                                            ${{ number_format($product['unit_price_usd'], 2) }}
+                                                            <input type="number" 
+                                                                name="items_data[{{ $product['id'] }}]" 
+                                                                value="{{ $product['remaining'] }}" 
+                                                                class="order-qty-input hidden"
+                                                                disabled
+                                                                data-pr-item-id="{{ $product['id'] }}">
+                                                        </td>
+                                                    </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </td>
                                 </tr>
@@ -112,24 +133,46 @@
             </div>
 
             <!-- Global Note & Submit (Floating bottom bar?) -->
-            <div id="submitBar" class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-teal-100 p-4 z-40">
-                <div class="flex items-center gap-6">
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Ghi chú cho Đơn hàng (PO)</label>
-                        <input type="text" name="note" class="w-full border-gray-300 rounded-lg text-sm" placeholder="Nhập ghi chú chung cho PO này...">
+            <div id="submitBar" class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-5xl bg-white rounded-2xl shadow-2xl border border-teal-100 p-5 z-40">
+                <div class="flex flex-col md:flex-row items-end gap-4">
+                    <div class="flex-1 w-full">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Ghi chú cho Đơn hàng (PO)</label>
+                        <input type="text" name="note" class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500" placeholder="Nhập ghi chú chung cho PO này...">
                     </div>
-                    <div class="w-48">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tiền tệ PO</label>
-                        <div class="flex p-1 bg-gray-100 rounded-lg">
-                            <button type="button" onclick="setCurrency('VND')" id="btnVND" class="flex-1 py-1 text-xs font-bold rounded-md bg-white shadow-sm text-teal-700 transition-all">VND</button>
-                            <button type="button" onclick="setCurrency('USD')" id="btnUSD" class="flex-1 py-1 text-xs font-bold rounded-md text-gray-500 hover:text-teal-600 transition-all">USD</button>
+                    
+                    <div class="w-full md:w-56">
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Loại tiền tệ PO</label>
+                        <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                            @foreach($currencies as $currency)
+                                <option value="{{ $currency->id }}"
+                                    data-is-base="{{ $currency->is_base ? '1' : '0' }}"
+                                    data-code="{{ $currency->code }}"
+                                    data-symbol="{{ $currency->symbol }}"
+                                    {{ $baseCurrencyId == $currency->id ? 'selected' : '' }}>
+                                    {{ $currency->code }} - {{ $currency->name_vi }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div id="exchangeRateGroup" class="w-full md:w-48 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Tỷ giá (<span id="rateSource" class="text-xs text-blue-500">...</span>)
+                        </label>
+                        <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0" value="1"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div class="text-right hidden md:block">
+                            <p class="text-[10px] text-gray-400 uppercase font-bold mb-1">Đang chọn <span id="selectedCount" class="text-teal-600">0</span> items</p>
+                            <button type="button" onclick="submitPo()" class="bg-teal-600 text-white px-8 py-3 rounded-xl hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap">
+                                XÁC NHẬN TẠO PO
+                            </button>
                         </div>
-                        <input type="hidden" name="currency_code" id="selectedCurrency" value="VND">
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500 mb-1">Đang chọn <span id="selectedCount" class="font-bold text-teal-600">0</span> mặt hàng</p>
-                        <button type="button" onclick="submitPo()" class="bg-teal-600 text-white px-8 py-2.5 rounded-xl hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-105">
-                            XÁC NHẬN TẠO PO
+                        <button type="button" onclick="submitPo()" class="md:hidden w-full bg-teal-600 text-white py-3 rounded-xl hover:bg-teal-700 font-bold shadow-lg transition-all">
+                            XÁC NHẬN TẠO PO (<span id="selectedCountMobile">0</span>)
                         </button>
                     </div>
                 </div>
@@ -142,112 +185,203 @@
 <script>
     let currentVendorId = null;
 
-    // Khi chọn checkbox của một item
-    document.querySelectorAll('.item-checkbox').forEach(cb => {
-        cb.addEventListener('change', function() {
-            const vId = this.dataset.vendorId;
-            const pKey = this.dataset.productKey;
-            
-            // Nếu chuyển sang Vendor khác, bỏ chọn tất cả vendor cũ
-            if (currentVendorId && currentVendorId !== vId) {
-                if (confirm('Bạn đang chọn mặt hàng từ Hãng khác. Chuyển sang Hãng này sẽ bỏ chọn các mặt hàng cũ?')) {
+    // Sử dụng Event Delegation để xử lý tất cả checkbox
+    document.addEventListener('change', async function(e) {
+        const cb = e.target;
+        if (!cb.classList.contains('item-checkbox') && 
+            !cb.classList.contains('so-checkbox') && 
+            !cb.classList.contains('vendor-check-all')) return;
+
+        const vId = cb.dataset.vendorId;
+        
+        // Nếu chuyển sang Vendor khác khi đang có lựa chọn
+        if (currentVendorId && currentVendorId !== vId) {
+            const hasSelections = document.querySelectorAll('.item-checkbox:checked').length > 0;
+            if (hasSelections) {
+                // Tạm thời đảo ngược lại trạng thái checkbox vừa click
+                const newState = cb.checked;
+                cb.checked = !newState;
+                
+                const result = await Swal.fire({
+                    title: 'Chuyển đổi Hãng',
+                    text: 'Bạn đang chọn mặt hàng từ Hãng khác. Chuyển sang Hãng này sẽ bỏ chọn các mặt hàng cũ?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#0d9488',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Đồng ý chuyển',
+                    cancelButtonText: 'Hủy',
+                    reverseButtons: true
+                });
+
+                if (result.isConfirmed) {
                     resetSelections();
+                    currentVendorId = vId;
+                    document.getElementById('selectedVendorId').value = vId;
+                    cb.checked = newState; // Khôi phục lại trạng thái mong muốn
+                    // Tiếp tục xử lý logic bên dưới
                 } else {
-                    this.checked = false;
+                    // Giữ nguyên Hãng cũ, checkbox đã được đảo ngược ở trên rồi
+                    updateSubmitBar(); // Cập nhật lại thanh bar nếu cần
                     return;
                 }
             }
+        }
+        
+        currentVendorId = vId;
+        document.getElementById('selectedVendorId').value = vId;
 
-            currentVendorId = vId;
-            document.getElementById('selectedVendorId').value = vId;
-
-            // Hiển thị/Ẩn các input số lượng tương ứng
-            const inputRows = document.querySelectorAll(`.item-input-row[data-product-key="${pKey}"]`);
-            inputRows.forEach(row => {
-                row.classList.toggle('hidden', !this.checked);
-                const input = row.querySelector('input');
-                input.disabled = !this.checked;
-            });
-
-            updateSubmitBar();
-        });
-    });
-
-    // Chọn tất cả trong một Vendor
-    document.querySelectorAll('.vendor-check-all').forEach(cb => {
-        cb.addEventListener('change', function() {
-            const vId = this.dataset.vendorId;
-            
-            if (currentVendorId && currentVendorId !== vId) {
-                if (!confirm('Bạn đang chọn mặt hàng từ Hãng khác. Chuyển sang Hãng này sẽ bỏ chọn các mặt hàng cũ?')) {
-                    this.checked = false;
-                    return;
-                }
-                resetSelections();
-            }
-
-            const itemCbs = document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"]`);
+        // Xử lý logic riêng cho từng loại checkbox
+        if (cb.classList.contains('item-checkbox')) {
+            const soId = cb.dataset.soId;
+            toggleItemSelection(cb);
+            updateSoCheckbox(vId, soId);
+            updateVendorCheckbox(vId);
+        } 
+        else if (cb.classList.contains('so-checkbox')) {
+            const soId = cb.dataset.soId;
+            const itemCbs = document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"][data-so-id="${soId}"]`);
             itemCbs.forEach(itemCb => {
-                itemCb.checked = this.checked;
-                // Kích hoạt sự kiện change thủ công
-                itemCb.dispatchEvent(new Event('change'));
+                itemCb.checked = cb.checked;
+                toggleItemSelection(itemCb);
             });
-        });
+            updateVendorCheckbox(vId);
+        } 
+        else if (cb.classList.contains('vendor-check-all')) {
+            // Check all SOs
+            document.querySelectorAll(`.so-checkbox[data-vendor-id="${vId}"]`).forEach(soCb => soCb.checked = cb.checked);
+            // Check all Items
+            document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"]`).forEach(itemCb => {
+                itemCb.checked = cb.checked;
+                toggleItemSelection(itemCb);
+            });
+        }
+        
+        updateSubmitBar();
     });
 
-    function resetSelections() {
-        document.querySelectorAll('.item-checkbox, .vendor-check-all').forEach(cb => cb.checked = false);
-        document.querySelectorAll('.item-input-row').forEach(row => row.classList.add('hidden'));
-        document.querySelectorAll('.order-qty-input').forEach(input => input.disabled = true);
-        currentVendorId = null;
-        updateSubmitBar();
+    // Ngăn chặn sự kiện click lan ra ngoài (gây đóng mở SO row)
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('.item-checkbox, .so-checkbox, .vendor-check-all')) {
+            e.stopPropagation();
+        }
+    }, true);
+
+    function toggleItemSelection(cb) {
+        const row = cb.closest('tr');
+        if (!row) return;
+        const input = row.querySelector('.order-qty-input');
+        if (input) {
+            input.disabled = !cb.checked;
+            input.classList.toggle('opacity-50', !cb.checked);
+        }
     }
 
-    function setCurrency(code) {
-        document.getElementById('selectedCurrency').value = code;
-        const btnVND = document.getElementById('btnVND');
-        const btnUSD = document.getElementById('btnUSD');
+    function updateSoCheckbox(vId, soId) {
+        const items = document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"][data-so-id="${soId}"]`);
+        const checkedItems = document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"][data-so-id="${soId}"]:checked`);
+        const soCb = document.querySelector(`.so-checkbox[data-vendor-id="${vId}"][data-so-id="${soId}"]`);
         
-        if (code === 'VND') {
-            btnVND.classList.add('bg-white', 'shadow-sm', 'text-teal-700');
-            btnVND.classList.remove('text-gray-500');
-            btnUSD.classList.remove('bg-white', 'shadow-sm', 'text-teal-700');
-            btnUSD.classList.add('text-gray-500');
-        } else {
-            btnUSD.classList.add('bg-white', 'shadow-sm', 'text-teal-700');
-            btnUSD.classList.remove('text-gray-500');
-            btnVND.classList.remove('bg-white', 'shadow-sm', 'text-teal-700');
-            btnVND.classList.add('text-gray-500');
+        if (soCb) {
+            soCb.checked = items.length === checkedItems.length;
+            soCb.indeterminate = checkedItems.length > 0 && checkedItems.length < items.length;
         }
+    }
+
+    function updateVendorCheckbox(vId) {
+        const soCbs = document.querySelectorAll(`.so-checkbox[data-vendor-id="${vId}"]`);
+        const checkedSoCbs = document.querySelectorAll(`.so-checkbox[data-vendor-id="${vId}"]:checked`);
+        const vendorCb = document.querySelector(`.vendor-check-all[data-vendor-id="${vId}"]`);
+        
+        if (vendorCb) {
+            vendorCb.checked = soCbs.length === checkedSoCbs.length;
+            vendorCb.indeterminate = checkedSoCbs.length > 0 && checkedSoCbs.length < soCbs.length;
+        }
+    }
+
+    function resetSelections() {
+        document.querySelectorAll('.item-checkbox, .so-checkbox, .vendor-check-all').forEach(cb => {
+            cb.checked = false;
+            cb.indeterminate = false;
+        });
+        document.querySelectorAll('.order-qty-input').forEach(input => {
+            input.disabled = true;
+            input.classList.add('opacity-50');
+        });
+        currentVendorId = null;
+        updateSubmitBar();
     }
 
     function updateSubmitBar() {
         const checkedCount = document.querySelectorAll('.item-checkbox:checked').length;
         const bar = document.getElementById('submitBar');
         const countSpan = document.getElementById('selectedCount');
+        const countSpanMobile = document.getElementById('selectedCountMobile');
         
         if (checkedCount > 0) {
             bar.classList.remove('hidden');
-            countSpan.innerText = checkedCount;
+            if (countSpan) countSpan.innerText = checkedCount;
+            if (countSpanMobile) countSpanMobile.innerText = checkedCount;
         } else {
             bar.classList.add('hidden');
             currentVendorId = null;
         }
     }
 
+    // --- Currency logic ---
+    function onCurrencyChange() {
+        const select = document.getElementById('currencySelect');
+        const option = select.options[select.selectedIndex];
+        const isBase = option.dataset.isBase === '1';
+        const exchangeRateGroup = document.getElementById('exchangeRateGroup');
+        
+        if (isBase) {
+            exchangeRateGroup.classList.add('hidden');
+            document.getElementById('exchangeRateInput').value = 1;
+        } else {
+            exchangeRateGroup.classList.remove('hidden');
+            fetchExchangeRate(select.value);
+        }
+    }
+
+    async function fetchExchangeRate(currencyId) {
+        const date = new Date().toISOString().split('T')[0];
+        const rateSource = document.getElementById('rateSource');
+        
+        rateSource.textContent = '...';
+        
+        try {
+            const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
+            const data = await response.json();
+            
+            if (data.rate) {
+                document.getElementById('exchangeRateInput').value = data.rate;
+                rateSource.textContent = data.source === 'auto' ? 'Vietcombank' : 'Thủ công';
+            } else {
+                rateSource.textContent = 'Manual';
+            }
+        } catch (error) {
+            console.error('Error fetching exchange rate:', error);
+            rateSource.textContent = 'Error';
+        }
+    }
+
     function submitPo() {
         const form = document.getElementById('mainPoForm');
-        const btn = event.currentTarget;
+        const btn = document.querySelector('button[onclick="submitPo()"]');
         const items = document.querySelectorAll('.order-qty-input:not(:disabled)');
         
-        // Validation: Check if vendor_id is valid (numeric)
         const vId = document.getElementById('selectedVendorId').value;
         if (!vId || isNaN(vId)) {
-            alert('Hãng này chưa được liên kết với Nhà cung cấp trong hệ thống. Vui lòng kiểm tra lại dữ liệu hoặc tạo Nhà cung cấp tương ứng.');
+            Swal.fire({
+                title: 'Lỗi Nhà cung cấp',
+                text: 'Hãng này chưa được liên kết với Nhà cung cấp trong hệ thống. Vui lòng kiểm tra lại dữ liệu.',
+                icon: 'error',
+                confirmButtonColor: '#0d9488'
+            });
             return;
         }
 
-        // Xóa các input cũ nếu có (trường hợp nhấn nhiều lần)
         form.querySelectorAll('.temp-input').forEach(i => i.remove());
 
         let idx = 0;
@@ -275,30 +409,58 @@
         });
 
         if (idx === 0) {
-            alert('Vui lòng nhập số lượng đặt hàng cho ít nhất một mặt hàng.');
+            Swal.fire({
+                title: 'Chưa chọn mặt hàng',
+                text: 'Vui lòng chọn ít nhất một mặt hàng để tạo đơn hàng.',
+                icon: 'warning',
+                confirmButtonColor: '#0d9488'
+            });
             return;
         }
 
-        if (confirm(`Tạo Đơn đặt hàng (PO) cho ${idx} mặt hàng này?`)) {
-            // Hiển thị trạng thái đang xử lý
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> ĐANG XỬ LÝ...';
-            
-            // Sử dụng native submit để tránh xung đột với các library khác
-            HTMLFormElement.prototype.submit.call(form);
+        Swal.fire({
+            title: 'Xác nhận tạo PO',
+            text: `Bạn có chắc chắn muốn tạo Đơn đặt hàng (PO) cho ${idx} mặt hàng đã chọn?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0d9488', // teal-600
+            cancelButtonColor: '#6b7280', // gray-500
+            confirmButtonText: 'Đồng ý, tạo PO',
+            cancelButtonText: 'Hủy',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Tắt cảnh báo thay đổi chưa lưu
+                window.formChanged = false;
+                
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> ĐANG XỬ LÝ...';
+                HTMLFormElement.prototype.submit.call(form);
+            }
+        });
+    }
+
+    async function preparePo(vId) {
+        if (await handleVendorSwitch(vId)) {
+            const checkAll = document.querySelector(`.vendor-check-all[data-vendor-id="${vId}"]`);
+            if (checkAll) {
+                checkAll.checked = true;
+                // Manual trigger of the click logic since dispatching click is tricky with async
+                // Check all SOs
+                document.querySelectorAll(`.so-checkbox[data-vendor-id="${vId}"]`).forEach(soCb => soCb.checked = true);
+                // Check all Items
+                document.querySelectorAll(`.item-checkbox[data-vendor-id="${vId}"]`).forEach(itemCb => {
+                    itemCb.checked = true;
+                    toggleItemSelection(itemCb);
+                });
+                updateSubmitBar();
+                document.getElementById('submitBar').scrollIntoView({ behavior: 'smooth' });
+            }
         }
     }
 
-    function preparePo(vId) {
-        // Tự động check-all cho vendor này
-        const checkAll = document.querySelector(`.vendor-check-all[data-vendor-id="${vId}"]`);
-        if (checkAll) {
-            checkAll.checked = true;
-            checkAll.dispatchEvent(new Event('change'));
-            // Cuộn xuống thanh submit
-            document.getElementById('submitBar').scrollIntoView({ behavior: 'smooth' });
-        }
-    }
+    // Initialize currency UI
+    document.addEventListener('DOMContentLoaded', onCurrencyChange);
 </script>
 @endpush
 
