@@ -37,7 +37,7 @@
 
         <!-- Header Actions -->
         <div class="flex justify-between items-center">
-            <a href="{{ route('purchase-orders.index') }}" class="text-gray-600 hover:text-gray-800">
+            <a href="{{ url()->previous() }}" class="text-gray-600 hover:text-gray-800">
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
             </a>
             <div class="flex space-x-2">
@@ -101,6 +101,10 @@
                 @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
                     <div class="inline-flex items-center space-x-2">
                         <input type="hidden" name="warehouse_id" form="receive-form" value="{{ $warehouses->first()->id ?? '' }}">
+                        <button type="button" onclick="fillAllRemaining()" 
+                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-check-double mr-2"></i> Nhận hết
+                        </button>
                         <button type="button" onclick="document.getElementById('receive-form').submit()"
                             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
                             <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
@@ -423,6 +427,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL Nhận</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá nhập kho</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền</th>
@@ -452,6 +457,21 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right font-medium">{{ number_format($item->quantity) }}</td>
+                            <td class="px-4 py-3 text-right">
+                                @if($item->remaining_quantity > 0)
+                                    <div class="flex items-center justify-end space-x-1">
+                                        <input type="number" name="items[{{ $item->id }}]" 
+                                            class="receive-input w-20 px-2 py-1 text-right border border-blue-300 rounded focus:ring-1 focus:ring-blue-500"
+                                            placeholder="0" step="1" min="0" max="{{ $item->remaining_quantity }}"
+                                            data-remaining="{{ $item->remaining_quantity }}">
+                                        <button type="button" onclick="fillRemaining(this)" class="text-blue-500 hover:text-blue-700" title="Nhận hết">
+                                            <i class="fas fa-arrow-alt-circle-right"></i>
+                                        </button>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-green-600 font-bold"><i class="fas fa-check"></i> Đủ</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-right text-gray-500">
                                 @if($item->warehouse_unit_price > 0)
                                     {{ number_format($item->warehouse_unit_price, $decimals) }} {{ $symbol }}
@@ -507,7 +527,7 @@
                 </tbody>
                 <tfoot class="bg-gray-50">
                     @php 
-                        $footerColspan = 6; 
+                        $footerColspan = 7; 
                     @endphp
                     <tr>
                         <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
@@ -681,19 +701,21 @@
     @push('scripts')
         <script>
             // JS for Receipt Logic
-            function fillRemaining(btn) {
-                const row = btn.closest('div');
-                const input = row.querySelector('.receive-input');
-                if (input) {
+            window.fillRemaining = function(btn) {
+                const parent = btn.parentElement;
+                const input = parent.querySelector('.receive-input');
+                if (input && input.dataset.remaining) {
                     input.value = input.dataset.remaining;
                 }
-            }
+            };
 
-            function fillAllRemaining() {
+            window.fillAllRemaining = function() {
                 document.querySelectorAll('.receive-input').forEach(input => {
-                    input.value = input.dataset.remaining;
+                    if (input.dataset.remaining) {
+                        input.value = input.dataset.remaining;
+                    }
                 });
-            }
+            };
 
             // Check if coming from a successful approval
             @if(session('success') && str_contains(session('success'), 'duyệt'))

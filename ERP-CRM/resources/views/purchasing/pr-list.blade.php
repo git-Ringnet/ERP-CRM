@@ -18,6 +18,18 @@
     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
         <form action="{{ route('purchase-requests.index') }}" method="GET" class="flex flex-wrap gap-4 items-end">
             <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Mã PR</label>
+                <input type="text" name="code" value="{{ request('code') }}" placeholder="SOR..." class="border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Mã SO</label>
+                <input type="text" name="sale_code" value="{{ request('sale_code') }}" placeholder="SO..." class="border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Note / P.I.C</label>
+                <input type="text" name="note" value="{{ request('note') }}" placeholder="Tìm trong ghi chú..." class="border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+            </div>
+            <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Trạng thái</label>
                 <select name="status" class="border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
                     <option value="">Tất cả đang xử lý</option>
@@ -28,9 +40,12 @@
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition-colors text-sm">
-                Lọc dữ liệu
+            <button type="submit" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm shadow-sm">
+                <i class="fas fa-search mr-1"></i> Lọc dữ liệu
             </button>
+            <a href="{{ route('purchase-requests.index') }}" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm">
+                Xóa lọc
+            </a>
         </form>
     </div>
 
@@ -40,10 +55,11 @@
             <thead>
                 <tr class="bg-gray-50 border-b border-gray-100">
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Mã PR</th>
-                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Đơn hàng (SO)</th>
-                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Người yêu cầu</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Đơn hàng (mã SO)</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Hãng</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Người yêu cầu (Sales)</th>
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Ngày gửi</th>
-                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Số lượng Item</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Note</th>
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Trạng thái</th>
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Thao tác</th>
                 </tr>
@@ -53,13 +69,48 @@
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="px-6 py-4 font-bold text-teal-700">#{{ $request->code }}</td>
                     <td class="px-6 py-4">
-                        <a href="{{ route('sales.show', $request->sale_id) }}" class="text-blue-600 hover:underline">
+                        <a href="{{ route('sales.show', $request->sale_id) }}" class="text-blue-600 hover:underline font-medium">
                             {{ $request->sale->code ?? 'N/A' }}
                         </a>
                     </td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col gap-1">
+                            @php
+                                $uniqueVendors = $request->items->pluck('vendor')->unique()->filter();
+                                if ($uniqueVendors->isEmpty()) {
+                                    $uniqueVendors = $request->items->map(fn($i) => $i->vendor->name ?? null)->unique()->filter();
+                                }
+                            @endphp
+                            <div class="text-sm font-medium text-gray-800">
+                                {{ $uniqueVendors->implode(', ') ?: 'N/A' }}
+                            </div>
+                            @if($request->attachments->count() > 0)
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                @foreach($request->attachments as $attachment)
+                                <a href="javascript:void(0)" 
+                                   onclick="openFilePreviewModal('{{ route('sales.order-request.attachment.preview', ['sale' => $request->sale_id, 'attachment' => $attachment->id]) }}', '{{ $attachment->file_name }}')"
+                                   class="inline-flex items-center text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                                   title="{{ $attachment->file_name }}">
+                                    <i class="fas fa-eye mr-1"></i> {{ \Illuminate\Support\Str::limit($attachment->file_name, 15) }}
+                                </a>
+                                @endforeach
+                            </div>
+                            @endif
+                        </div>
+                    </td>
                     <td class="px-6 py-4 text-sm">{{ $request->creator->name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">{{ $request->sent_at ? $request->sent_at->format('d/m/Y H:i') : 'N/A' }}</td>
-                    <td class="px-6 py-4 text-sm">{{ $request->items->count() }} mặt hàng</td>
+                    <td class="px-6 py-4 text-sm max-w-xs">
+                        <div class="flex items-center group">
+                            <div class="truncate text-gray-600 mr-2" title="{{ $request->note }}">
+                                {{ $request->note ?: '-' }}
+                            </div>
+                            <button type="button" onclick="showNoteModal('{{ $request->id }}', '{{ $request->code }}', '{{ addslashes($request->note) }}')" 
+                                    class="text-teal-500 hover:text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </td>
                     <td class="px-6 py-4 text-center">
                         <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-{{ $request->status_color }}-100 text-{{ $request->status_color }}-700 uppercase">
                             {{ $request->status_label }}
@@ -87,46 +138,37 @@
                 </tr>
                 <!-- Details Row (Hidden by default) -->
                 <tr id="details-{{ $request->id }}" class="hidden bg-gray-50">
-                    <td colspan="7" class="px-6 py-4">
+                    <td colspan="8" class="px-6 py-4">
                         <div class="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
                             <table class="w-full text-[10px] border-collapse border border-gray-200">
                                 <thead class="bg-yellow-100">
                                     <tr class="border-b border-gray-300">
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Hãng</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Type</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Sản phẩm / P/N</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center">Yêu cầu</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center">Đã đặt</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-center font-bold">Còn lại</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">SN</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">Exp date</th>
-                                        <th rowspan="2" class="border-r border-gray-300 p-2 text-left">SI Name</th>
-                                        <th colspan="2" class="border-b border-gray-300 p-1 text-center font-bold bg-yellow-200">Thông tin CQ (Điền tay)</th>
-                                    </tr>
-                                    <tr class="bg-yellow-100">
-                                        <th class="border-r border-gray-300 p-1 text-center">EU Name - MST</th>
-                                        <th class="p-1 text-center">Address</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
+                                        <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
+                                        <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
+                                        <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
+                                        <th class="p-2 text-left">Note</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($request->items as $item)
                                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                                         <td class="border-r border-gray-200 p-2">{{ $item->vendor->name ?? $item->vendor }}</td>
-                                        <td class="border-r border-gray-200 p-2">
-                                            <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[9px]">{{ $item->type }}</span>
-                                        </td>
                                         <td class="border-r border-gray-200 p-2 font-medium text-teal-700">{{ $item->part_number }}</td>
                                         <td class="border-r border-gray-200 p-2 text-center font-bold">{{ $item->quantity + 0 }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">{{ $item->ordered_quantity_total + 0 }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-center font-bold {{ $item->remaining_order_quantity > 0.001 ? 'text-red-500' : 'text-green-600' }}">
-                                            {{ $item->remaining_order_quantity + 0 }}
+                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">
+                                            {{ number_format($item->saleItem->profit_percent ?? 0, 2) }}%
                                         </td>
                                         <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->serial_number ?: '-' }}</td>
                                         <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
                                         <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
                                         <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}</td>
-                                        <td class="p-2 text-gray-500">{{ $item->address ?: '-' }}</td>
+                                        <td class="p-2 text-gray-500">{{ $item->note ?: '-' }}</td>
                                     </tr>
                                     @endforeach
                                 </tbody>
@@ -146,7 +188,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                    <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                         <i class="fas fa-inbox text-4xl mb-3"></i>
                         <p>Không có yêu cầu đặt hàng nào cần xử lý.</p>
                     </td>
@@ -180,6 +222,30 @@
     </div>
 </div>
 
+<!-- Note/PIC Modal -->
+<div id="noteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Cập nhật Ghi chú / P.I.C <span id="notePrCode" class="text-teal-600"></span></h3>
+            <button type="button" onclick="closeNoteModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <form id="noteForm" method="POST">
+            @csrf
+            @method('PATCH')
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Thông tin Ghi chú / P.I.C</label>
+                <textarea name="note" id="noteTextarea" rows="4" class="w-full border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500" placeholder="Nhập thông tin người phụ trách hoặc ghi chú khác..."></textarea>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeNoteModal()" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">Hủy</button>
+                <button type="submit" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-bold shadow-md">Lưu thay đổi</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @push('scripts')
 <script>
     function toggleDetails(id) {
@@ -195,6 +261,17 @@
 
     function closeRejectModal() {
         document.getElementById('rejectModal').classList.add('hidden');
+    }
+
+    function showNoteModal(id, code, note) {
+        document.getElementById('notePrCode').innerText = '#' + code;
+        document.getElementById('noteTextarea').value = note;
+        document.getElementById('noteForm').action = `/purchase-requests/${id}/update-note`;
+        document.getElementById('noteModal').classList.remove('hidden');
+    }
+
+    function closeNoteModal() {
+        document.getElementById('noteModal').classList.add('hidden');
     }
 </script>
 @endpush

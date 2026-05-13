@@ -1949,6 +1949,24 @@ class SaleController extends Controller
         return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
     }
 
+    /**
+     * Preview order request attachment
+     */
+    public function previewOrderRequestAttachment(Sale $sale, \App\Models\SaleOrderRequestAttachment $attachment)
+    {
+        if (!auth()->user()->can('view', $sale)) {
+            abort(404);
+        }
+
+        $path = Storage::disk('public')->path($attachment->file_path);
+
+        if (!file_exists($path)) {
+            return back()->with('error', 'File không tồn tại.');
+        }
+
+        return response()->file($path);
+    }
+
     public function orderTracking(Request $request)
     {
         $query = SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder']);

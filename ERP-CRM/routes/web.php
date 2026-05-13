@@ -169,6 +169,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
+    Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
 
     // Invoice Request routes
     Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');
@@ -283,6 +284,7 @@ Route::middleware(['auth'])->group(function () {
     // Purchasing Management (Flow sau khi gửi PR)
     Route::get('/purchase-requests', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'index'])->name('purchase-requests.index');
     Route::post('/purchase-requests/{id}/verify', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'verify'])->name('purchase-requests.verify');
+    Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
     Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
 

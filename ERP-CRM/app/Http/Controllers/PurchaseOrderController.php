@@ -888,8 +888,10 @@ class PurchaseOrderController extends Controller
                         'user_id' => $sale->user_id,
                         'type' => 'license_uploaded',
                         'title' => 'Đã có License cho sản phẩm ' . $item->product_name,
-                        'content' => "PO Team đã tải lên license cho sản phẩm trong đơn hàng {$sale->code}. Bạn có thể xem và tải về ngay.",
+                        'message' => "PO Team đã tải lên license cho sản phẩm trong đơn hàng {$sale->code}. Bạn có thể xem và tải về ngay.",
                         'link' => route('sales.show', $sale->id),
+                        'icon' => 'fas fa-certificate',
+                        'color' => 'teal',
                         'is_read' => false,
                     ]);
                 }

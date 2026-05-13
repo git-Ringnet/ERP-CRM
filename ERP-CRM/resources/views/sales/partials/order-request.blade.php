@@ -260,9 +260,10 @@
                         @if($req->attachments->count() > 0)
                             <div class="flex flex-wrap gap-2">
                                 @foreach($req->attachments as $att)
-                                    <a href="{{ route('sales.order-request.attachment.download', [$sale->id, $att->id]) }}"
+                                    <a href="javascript:void(0)"
+                                        onclick="openFilePreviewModal('{{ route('sales.order-request.attachment.preview', [$sale->id, $att->id]) }}', '{{ $att->file_name }}')"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-blue-50 rounded-lg text-xs text-gray-700 hover:text-blue-600 transition-colors">
-                                        <i class="{{ $att->file_icon }}"></i>
+                                        <i class="fas fa-eye text-teal-500"></i>
                                         <span>{{ $att->file_name }}</span>
                                         <span class="text-gray-400">({{ $att->file_size_formatted }})</span>
                                     </a>

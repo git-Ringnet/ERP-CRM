@@ -1065,6 +1065,7 @@
     <!-- SweetAlert Helpers -->
     <script src="{{ asset('js/sweetalert-helpers.js') }}"></script>
 
+    @include('partials.file-preview-modal')
     @stack('scripts')
 </body>
 

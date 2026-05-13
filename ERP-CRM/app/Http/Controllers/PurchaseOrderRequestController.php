@@ -27,10 +27,28 @@ class PurchaseOrderRequestController extends Controller
     public function index(Request $request)
     {
         $status = $request->input('status');
-        $query = SaleOrderRequest::with(['sale', 'creator', 'items']);
+        $code = $request->input('code');
+        $sale_code = $request->input('sale_code');
+        $note = $request->input('note');
+
+        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'attachments']);
 
         if ($status) {
             $query->where('status', $status);
+        }
+
+        if ($code) {
+            $query->where('code', 'like', '%' . $code . '%');
+        }
+
+        if ($sale_code) {
+            $query->whereHas('sale', function ($q) use ($sale_code) {
+                $q->where('code', 'like', '%' . $sale_code . '%');
+            });
+        }
+
+        if ($note) {
+            $query->where('note', 'like', '%' . $note . '%');
         }
 
         $requests = $query->orderBy('created_at', 'desc')->paginate(20);
@@ -61,6 +79,17 @@ class PurchaseOrderRequestController extends Controller
         }
 
         return back()->with('error', 'Hành động không hợp lệ.');
+    }
+
+    public function updateNote(Request $request, $id)
+    {
+        $pr = SaleOrderRequest::findOrFail($id);
+        $request->validate(['note' => 'nullable|string|max:2000']);
+        
+        $pr->note = $request->input('note');
+        $pr->save();
+
+        return back()->with('success', 'Đã cập nhật ghi chú cho yêu cầu #' . $pr->code);
     }
 
     /**
