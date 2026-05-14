@@ -11,10 +11,10 @@
     <button type="button" onclick="toggleOrderRequestSection()"
         class="w-full flex items-center justify-between text-left">
         <h4 class="text-lg font-medium text-gray-900">
-            <i class="fas fa-cart-plus text-teal-500 mr-2"></i>Yêu cầu đặt hàng
+            <i class="fas fa-cart-plus text-emerald-500 mr-2"></i>Yêu cầu đặt hàng
             @if($existingItems->count() > 0)
                 <span
-                    class="ml-2 px-2 py-0.5 text-xs font-bold bg-teal-100 text-teal-700 rounded-full">{{ $existingItems->count() }}
+                    class="ml-2 px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{{ $existingItems->count() }}
                     SP</span>
             @endif
         </h4>
@@ -32,7 +32,7 @@
                     <i class="fas fa-list mr-1"></i> Chi tiết sản phẩm cần đặt
                 </span>
                 <button type="button" onclick="addOrderRequestRow()"
-                    class="text-xs px-3 py-1.5 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors">
+                    class="text-xs px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
                     <i class="fas fa-plus mr-1"></i> Thêm dòng
                 </button>
             </div>
@@ -62,7 +62,7 @@
                                 <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">
                                     <td class="px-1 py-1.5">
                                         <select name="order_request_items[{{ $idx }}][vendor_id]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                             <option value="">-- Chọn --</option>
                                             @foreach($suppliers ?? [] as $s)
                                                 <option value="{{ $s->id }}" {{ $item->vendor_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
@@ -71,7 +71,7 @@
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <select name="order_request_items[{{ $idx }}][type]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                             <option value="">-- Chọn --</option>
                                             @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
                                                 <option value="{{ $t }}" {{ $item->type == $t ? 'selected' : '' }}>{{ $t }}</option>
@@ -81,42 +81,42 @@
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
                                             value="{{ $item->part_number }}" placeholder="P/N"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
                                             value="{{ $item->quantity }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][unit]"
                                             value="{{ $item->unit }}" placeholder="Đơn vị"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][serial_number]"
                                             value="{{ $item->serial_number }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="date" name="order_request_items[{{ $idx }}][exp_date]"
                                             value="{{ $item->exp_date ? $item->exp_date->format('Y-m-d') : '' }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][si_name]" required
                                             value="{{ $item->si_name }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][eu_name_mst]" required
                                             value="{{ $item->eu_name_mst }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][address]"
                                             value="{{ $item->address }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5 text-center">
                                         <button type="button" onclick="removeOrderRequestRow(this)"
@@ -130,7 +130,7 @@
                             <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="0">
                                 <td class="px-1 py-1.5">
                                     <select name="order_request_items[0][vendor_id]" required
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                         <option value="">-- Chọn --</option>
                                         @foreach($suppliers ?? [] as $s)
                                             <option value="{{ $s->id }}">{{ $s->name }}</option>
@@ -139,7 +139,7 @@
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <select name="order_request_items[0][type]" required
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                         <option value="">-- Chọn --</option>
                                         @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
                                             <option value="{{ $t }}">{{ $t }}</option>
@@ -148,36 +148,36 @@
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][part_number]" required placeholder="P/N"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][serial_number]" placeholder="SN"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="date" name="order_request_items[0][exp_date]"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][eu_name_mst]" required
                                         placeholder="EU Name - MST"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][address]" placeholder="Address"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5 text-center">
                                     <button type="button" onclick="removeOrderRequestRow(this)"
@@ -202,7 +202,7 @@
                 <i class="fas fa-sticky-note text-yellow-500 mr-1"></i> Ghi chú cho PO team
             </label>
             <textarea name="order_request_note" rows="2" placeholder="Ghi chú thêm cho PO team..."
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-teal-400 focus:border-teal-400">{{ $existingNote }}</textarea>
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ $existingNote }}</textarea>
         </div>
 
         {{-- File Attachments --}}
@@ -211,7 +211,7 @@
                 <i class="fas fa-paperclip text-blue-500 mr-1"></i> File đính kèm (PNL, Hợp đồng mua bán,...)
             </label>
             <input type="file" name="order_request_files[]" multiple
-                class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 border border-gray-300 rounded-lg px-2 py-1.5">
+                class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-lg px-2 py-1.5">
             <p class="text-xs text-gray-400 mt-1">Có thể chọn nhiều file cùng lúc. Tối đa 20MB/file.</p>
 
             {{-- Show existing attachments --}}

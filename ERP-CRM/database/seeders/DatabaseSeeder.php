@@ -50,6 +50,9 @@ class DatabaseSeeder extends Seeder
 
             // // Module Quy trình
             // ApprovalWorkflowSeeder::class, // Quy trình duyệt
+
+            //NCC
+            SupplierSeeder::class
         ]);
     }
 }

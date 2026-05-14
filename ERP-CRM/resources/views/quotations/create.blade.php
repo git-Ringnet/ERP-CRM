@@ -149,7 +149,7 @@
                         @foreach(old('products') as $index => $item)
                         <div class="product-item bg-gray-50 p-3 rounded-lg border border-gray-100 mb-4" data-index="{{ $index }}">
                             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-                                <div class="md:col-span-4">
+                                <div class="md:col-span-3">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                                     <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
                                         @if(isset($item['product_id']) && $item['product_id'])
@@ -167,13 +167,20 @@
                                            onchange="calculateRowTotal({{ $index }})"
                                            class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                 </div>
-                                <div class="md:col-span-3">
+                                <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                                     <input type="text" name="products[{{ $index }}][price]"
                                            value="{{ $item['price'] }}" required
                                            onchange="calculateRowTotal({{ $index }})"
                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
                                     <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                                    <input type="number" name="products[{{ $index }}][vat]"
+                                           value="{{ $item['vat'] ?? 10 }}" min="0" step="0.01"
+                                           onchange="calculateRowTotal({{ $index }})"
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                                 </div>
                                 <div class="md:col-span-3">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
@@ -193,7 +200,7 @@
                     @else
                         <div class="product-item bg-gray-50 p-3 rounded-lg border border-gray-100" data-index="0">
                             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-                                <div class="md:col-span-4">
+                                <div class="md:col-span-3">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                                     <select name="products[0][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
                                         <option value=""></option>
@@ -206,12 +213,18 @@
                                            onchange="calculateRowTotal(0)"
                                            class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                 </div>
-                                <div class="md:col-span-3">
+                                <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                                     <input type="text" name="products[0][price]" value="0" required
                                            onchange="calculateRowTotal(0)"
                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
                                     <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                                    <input type="number" name="products[0][vat]" value="10" min="0" step="0.01"
+                                           onchange="calculateRowTotal(0)"
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                                 </div>
                                 <div class="md:col-span-3">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
@@ -273,11 +286,10 @@
                                 </div>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-gray-600">VAT (%):</span>
+                                <span class="text-gray-600">Thuế VAT:</span>
                                 <div class="flex items-center gap-2">
-                                    <span id="vatAmount" class="text-gray-500 text-sm">0 đ</span>
-                                    <input type="number" name="vat" id="vat" value="{{ old('vat', 10) }}" min="0"
-                                        onchange="calculateTotal()" class="w-20 border rounded px-2 py-1 text-right focus:ring-1 focus:ring-primary">
+                                    <span id="vatAmount" class="font-medium">0 đ</span>
+                                    <input type="hidden" name="vat" value="0">
                                 </div>
                             </div>
                             <hr class="my-2">
@@ -428,7 +440,7 @@
             newRow.className = 'product-item bg-gray-50 p-3 rounded-lg border border-gray-100';
             newRow.innerHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                         <select name="products[${productIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
                             <option value=""></option>
@@ -441,12 +453,18 @@
                                onchange="calculateRowTotal(${productIndex})"
                                class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                         <input type="text" name="products[${productIndex}][price]" value="0" required
                                onchange="calculateRowTotal(${productIndex})"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
                         <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                        <input type="number" name="products[${productIndex}][vat]" value="10" min="0" step="0.01"
+                               onchange="calculateRowTotal(${productIndex})"
+                               class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
@@ -487,17 +505,31 @@
             const option = $('#currencySelect option:selected');
             const symbol = option.data('symbol') || '';
             let subtotal = 0;
-            $('.row-total').each(function() { subtotal += unformatMoney($(this).val()); });
+            let totalVatAmount = 0;
             const discount = parseFloat($('#discount').val()) || 0;
-            const vat = parseFloat($('#vat').val()) || 0;
+
+            $('.product-item').each(function() {
+                const row = $(this);
+                const qty = parseFloat(row.find('.quantity-input').val()) || 0;
+                const price = unformatMoney(row.find('.price-input').val());
+                const rowSubtotal = qty * price;
+                subtotal += rowSubtotal;
+
+                const vatPercent = parseFloat(row.find('.vat-input').val()) || 0;
+                const rowDiscount = rowSubtotal * discount / 100;
+                const rowBaseForVat = rowSubtotal - rowDiscount;
+                const rowVatAmount = rowBaseForVat * vatPercent / 100;
+                totalVatAmount += rowVatAmount;
+            });
+
             const discountAmount = subtotal * discount / 100;
-            const afterDiscount = subtotal - discountAmount;
-            const vatAmount = afterDiscount * vat / 100;
-            const total = afterDiscount + vatAmount;
+            const total = subtotal - discountAmount + totalVatAmount;
+
             $('#subtotal').text(formatMoney(subtotal) + ' ' + symbol);
             $('#discountAmount').text(formatMoney(discountAmount) + ' ' + symbol);
-            $('#vatAmount').text(formatMoney(vatAmount) + ' ' + symbol);
+            $('#vatAmount').text(formatMoney(totalVatAmount) + ' ' + symbol);
             $('#total').text(formatMoney(total) + ' ' + symbol);
+
             const vndRef = $('#totalVndReference');
             if (option.data('is-base') === 1) { vndRef.text(''); } else {
                 const rate = parseFloat($('#exchangeRateInput').val()) || 1;

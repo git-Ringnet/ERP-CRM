@@ -30,6 +30,7 @@ class Sale extends Model
         'paid_amount',
         'debt_amount',
         'payment_status',
+        'payment_due_date',
         'status',
         'note',
         'currency_id',
@@ -46,6 +47,7 @@ class Sale extends Model
     protected $casts = [
         'date' => 'date',
         'invoice_date' => 'date',
+        'payment_due_date' => 'date',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'vat' => 'decimal:2',
@@ -445,12 +447,27 @@ class Sale extends Model
      */
     public function getPaymentStatusLabelAttribute(): string
     {
-        return match($this->payment_status) {
+        $base = match($this->payment_status) {
             'unpaid' => 'Chưa thanh toán',
             'partial' => 'Thanh toán một phần',
             'paid' => 'Đã thanh toán',
             default => 'Chưa thanh toán',
         };
+
+        // Thêm trạng thái tới hạn / quá hạn
+        if ($this->payment_status !== 'paid' && $this->payment_due_date) {
+            $today = now()->startOfDay();
+            $dueDate = $this->payment_due_date->startOfDay();
+            $daysUntilDue = $today->diffInDays($dueDate, false);
+
+            if ($daysUntilDue < 0) {
+                return 'Quá hạn ' . abs($daysUntilDue) . ' ngày';
+            } elseif ($daysUntilDue <= 3) {
+                return 'Tới hạn' . ($daysUntilDue > 0 ? " ({$daysUntilDue} ngày)" : ' (Hôm nay)');
+            }
+        }
+
+        return $base;
     }
 
     /**
@@ -458,6 +475,19 @@ class Sale extends Model
      */
     public function getPaymentStatusColorAttribute(): string
     {
+        // Ưu tiên hiển thị trạng thái tới hạn / quá hạn
+        if ($this->payment_status !== 'paid' && $this->payment_due_date) {
+            $today = now()->startOfDay();
+            $dueDate = $this->payment_due_date->startOfDay();
+            $daysUntilDue = $today->diffInDays($dueDate, false);
+
+            if ($daysUntilDue < 0) {
+                return 'bg-red-600 text-white animate-pulse';
+            } elseif ($daysUntilDue <= 3) {
+                return 'bg-orange-500 text-white';
+            }
+        }
+
         return match($this->payment_status) {
             'unpaid' => 'bg-red-100 text-red-800',
             'partial' => 'bg-yellow-100 text-yellow-800',
@@ -564,23 +594,115 @@ class Sale extends Model
 
     /**
      * Calculate margin
-     * Margin = Doanh thu - Giá vốn hàng bán - Chi phí bán hàng
+     * Margin = Doanh thu thuần - Giá vốn - Tổng chi phí (khớp 100% với bảng P&L)
      */
     public function calculateMargin(): void
     {
-        // Margin ròng = Doanh thu (không thuế) - Giá vốn - Chi phí OpEx
-        $costOfGoodsSold = $this->getCostOfGoodsSold();
-        $this->calculateTotalCost();
-        
-        // Revenue Excl VAT
-        // Note: 'subtotal' in DB is raw sum, 'discount' and 'vat' are percentages
+        $this->loadMissing(['items', 'expenses']);
+
+        // Revenue Excl VAT — khớp với P&L: sum(revenue_total) * (1 - discount%)
         $discountAmount = $this->subtotal * ($this->discount / 100);
         $netRevenue = $this->subtotal - $discountAmount;
-        
-        $this->margin = $netRevenue - $costOfGoodsSold - $this->cost;
-        
+
+        $totalNetProfit = 0;
+
+        foreach ($this->items as $item) {
+            $itemRevenue = ($item->total ?: 0) * (1 - ($this->discount ?? 0) / 100);
+            $costTotal   = $item->cost_total ?: 0;
+
+            // Gross profit per row
+            $grossProfit = $itemRevenue - $costTotal;
+
+            // --- Tính chi phí OpEx từng dòng (logic giống P&L JS) ---
+            $financeV = 0;
+            if (!is_null($item->finance_cost_percent) && floatval($item->finance_cost_percent) > 0) {
+                $financeV = round($costTotal * $item->finance_cost_percent / 100);
+            }
+
+            $overdueV = 0;
+            if (!is_null($item->overdue_interest_percent) && floatval($item->overdue_interest_percent) > 0) {
+                $overdueV = round($costTotal * $item->overdue_interest_percent / 100);
+            } else {
+                $overdueV = round($item->overdue_interest_cost ?: 0);
+            }
+
+            $mgmtV = 0;
+            if (!is_null($item->management_cost_percent) && floatval($item->management_cost_percent) > 0) {
+                $mgmtV = round($costTotal * $item->management_cost_percent / 100);
+            }
+
+            $supportV = 0;
+            if (!is_null($item->support_247_cost_percent) && floatval($item->support_247_cost_percent) > 0) {
+                $supportV = round($costTotal * $item->support_247_cost_percent / 100);
+            }
+
+            $otherV = 0;
+            if (!is_null($item->other_support_cost) && floatval($item->other_support_cost) > 0) {
+                $otherV = round($costTotal * $item->other_support_cost / 100);
+            }
+
+            // POC
+            $pocV = 0;
+            if (!is_null($item->technical_poc_percent) && floatval($item->technical_poc_percent) > 0) {
+                $pocV = round($costTotal * $item->technical_poc_percent / 100);
+            } else {
+                $pocV = round($item->technical_poc_cost ?: 0);
+            }
+
+            // Implementation
+            $impV = 0;
+            if (!is_null($item->implementation_cost_percent) && floatval($item->implementation_cost_percent) > 0) {
+                $impV = round($costTotal * $item->implementation_cost_percent / 100);
+            } else {
+                $impV = round($item->implementation_cost ?: 0);
+            }
+
+            // Contractor tax
+            $taxV = round($item->contractor_tax ?: 0);
+
+            // Extra expenses per item
+            $extraSum = 0;
+            $itemExtraData = $item->extra_expenses_data ?? [];
+            foreach ($itemExtraData as $expId => $amt) {
+                $extraSum += round(floatval($amt));
+            }
+
+            // Tổng chi phí dòng
+            $rowTotalCosts = $financeV + $overdueV + $mgmtV + $supportV + $otherV + $pocV + $impV + $taxV + $extraSum;
+
+            // Net profit dòng
+            $rowNetProfit = $grossProfit - $rowTotalCosts;
+            $totalNetProfit += $rowNetProfit;
+        }
+
+        // Chi phí % phân bổ từ sale_expenses (loại extra, dạng percent)
+        $standardTypes = [
+            'Chi phí Tài chính',
+            'Lãi vay phát sinh do nợ quá hạn',
+            'Chi phí Quản lí, Back Office & kỹ thuật',
+            '24x7 Support cost',
+            'Other Support',
+            'Technical support/POC',
+            'Chi phí triển khai hợp đồng',
+            'Thuế nhà thầu',
+        ];
+
+        $costBaseTotal = $this->getCostOfGoodsSold();
+
+        foreach ($this->expenses as $expense) {
+            if (in_array($expense->type, $standardTypes)) continue;
+
+            if ($expense->input_mode === 'percent') {
+                // Percent-based expenses: tính trên giá vốn tổng
+                $totalNetProfit -= round($costBaseTotal * ($expense->percent_value / 100));
+            }
+            // Fixed-mode extra expenses: đã tính qua extra_expenses_data ở trên
+        }
+
+        $this->margin = round($totalNetProfit);
+        $this->cost = round($netRevenue - $this->getCostOfGoodsSold() - $totalNetProfit); // Giữ sync field cost
+
         if ($netRevenue > 0) {
-            // Tỷ lệ Margin ròng trên Doanh thu thuần (không thuế) để khớp với logic từng dòng của bảng PNL
             $this->margin_percent = ($this->margin / $netRevenue) * 100;
             $this->margin_percent = max(-999.99, min(999.99, $this->margin_percent));
         } else {

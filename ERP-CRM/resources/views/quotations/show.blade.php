@@ -61,6 +61,7 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">VAT (%)</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
                         </tr>
                     </thead>
@@ -83,6 +84,7 @@
                                     {{ number_format($item->price, 0, ',', '.') }} đ
                                 @endif
                             </td>
+                            <td class="px-4 py-3 text-center">{{ (float)$item->vat }}%</td>
                             <td class="px-4 py-3 text-right font-medium">
                                 @if($quotation->currency && !$quotation->currency->is_base)
                                     <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}</div>
@@ -102,16 +104,19 @@
                 @foreach($quotation->items as $index => $item)
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
-                    <div class="text-sm text-gray-500 mt-1">
-                        @if($quotation->currency && !$quotation->currency->is_base)
-                            SL: {{ $item->quantity }} x {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }} <span class="text-xs">({{ number_format($item->price * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ)</span>
-                        @else
-                            SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
-                        @endif
+                    <div class="text-sm text-gray-500 mt-1 flex justify-between">
+                        <span>
+                            @if($quotation->currency && !$quotation->currency->is_base)
+                                SL: {{ $item->quantity }} x {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}
+                            @else
+                                SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
+                            @endif
+                        </span>
+                        <span class="text-blue-600">VAT: {{ (float)$item->vat }}%</span>
                     </div>
-                    <div class="text-sm font-medium text-right mt-2">
+                    <div class="text-sm font-medium text-right mt-2 border-t pt-1">
                         @if($quotation->currency && !$quotation->currency->is_base)
-                            = {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }} <div class="text-xs text-gray-500">({{ number_format($item->total * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ)</div>
+                            = {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}
                         @else
                             = {{ number_format($item->total, 0, ',', '.') }} đ
                         @endif
@@ -133,11 +138,10 @@
                 $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);
                 $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($quotation->discount / 100));
 
-                $afterDiscountForeign = $subtotalForeign - $discountForeign;
-                $vatForeign = round($afterDiscountForeign * ($quotation->vat / 100), $decimals);
-                $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($quotation->vat / 100));
+                $vatForeign = $quotation->items->sum('vat_amount');
+                $vatVnd = $quotation->vat_amount ?: round($vatForeign * $rate);
 
-                $totalForeign = $quotation->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $quotation->total);
+                $totalForeign = $quotation->total_foreign ?: round($subtotalForeign - $discountForeign + $vatForeign, $decimals);
                 $totalVnd = $quotation->total;
             @endphp
             <div class="mt-4 border-t pt-4">
@@ -145,22 +149,22 @@
                     <div class="w-full md:w-64 space-y-2 text-sm">
                         <div class="flex justify-between items-start">
                             <span class="text-gray-500">Tổng tiền hàng:</span>
-                            <div class="text-right">
+                            <div class="text-right font-medium">
                                 @if($isForeign)
                                     <div>{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-400">{{ number_format($subtotalVnd, 0, ',', '.') }} đ</div>
+                                    <div class="text-xs text-gray-400 font-normal">{{ number_format($subtotalVnd, 0, ',', '.') }} đ</div>
                                 @else
                                     <span>{{ number_format($subtotalVnd, 0, ',', '.') }} đ</span>
                                 @endif
                             </div>
                         </div>
                         @if($quotation->discount > 0)
-                        <div class="flex justify-between items-start">
-                            <span class="text-gray-500">Chiết khấu ({{ $quotation->discount }}%):</span>
-                            <div class="text-right text-red-600">
+                        <div class="flex justify-between items-start text-red-600">
+                            <span class="text-gray-500">Chiết khấu ({{ (float)$quotation->discount }}%):</span>
+                            <div class="text-right">
                                 @if($isForeign)
                                     <div>-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
-                                    <div class="text-xs text-red-400">-{{ number_format($discountVnd, 0, ',', '.') }} đ</div>
+                                    <div class="text-xs text-red-400 font-normal">-{{ number_format($discountVnd, 0, ',', '.') }} đ</div>
                                 @else
                                     <span>-{{ number_format($discountVnd, 0, ',', '.') }} đ</span>
                                 @endif
@@ -168,11 +172,11 @@
                         </div>
                         @endif
                         <div class="flex justify-between items-start">
-                            <span class="text-gray-500">VAT ({{ $quotation->vat }}%):</span>
-                            <div class="text-right">
+                            <span class="text-gray-500">Thuế VAT:</span>
+                            <div class="text-right font-medium text-blue-600">
                                 @if($isForeign)
                                     <div>{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
-                                    <div class="text-xs text-gray-400">{{ number_format($vatVnd, 0, ',', '.') }} đ</div>
+                                    <div class="text-xs text-gray-400 font-normal">{{ number_format($vatVnd, 0, ',', '.') }} đ</div>
                                 @else
                                     <span>{{ number_format($vatVnd, 0, ',', '.') }} đ</span>
                                 @endif

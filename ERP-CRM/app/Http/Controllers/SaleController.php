@@ -129,6 +129,20 @@ class SaleController extends Controller
         }
 
         $sales = $query->with(['project', 'user'])->orderBy('created_at', 'desc')->paginate(10);
+
+        // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
+        $saleCodes = $sales->pluck('code')->toArray();
+        $paymentTransactions = \App\Models\FinancialTransaction::whereIn('reference_number', $saleCodes)
+            ->where('type', 'income')
+            ->orderBy('date', 'asc')
+            ->get()
+            ->groupBy('reference_number');
+
+        // Gắn vào từng sale
+        foreach ($sales as $sale) {
+            $sale->payment_history = $paymentTransactions->get($sale->code, collect());
+        }
+
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
@@ -914,6 +928,8 @@ class SaleController extends Controller
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_date' => ['required', 'date'],
             'payment_method' => ['required', 'string'],
+            'payment_label' => ['nullable', 'string', 'max:100'],
+            'payment_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'note' => ['nullable', 'string'],
         ]);
 
@@ -956,12 +972,19 @@ class SaleController extends Controller
             $sale->save();
 
             // Tạo giao dịch thu vào financial_transactions
+            $paymentLabel = $validated['payment_label'] ?? '';
+            $paymentPercent = $validated['payment_percent'] ?? null;
+            $enrichedNote = trim(implode(' - ', array_filter([
+                $paymentLabel ? $paymentLabel . ($paymentPercent ? " ({$paymentPercent}%)" : '') : '',
+                $validated['note'] ?? '',
+            ])));
+
             $financialService = app(\App\Services\FinancialTransactionService::class);
             $financialService->createFromSale(
                 $sale,
                 $actualAmountForeign,
                 $validated['payment_method'],
-                $validated['note'],
+                $enrichedNote ?: null,
                 $paymentCurrencyId,
                 $paymentRate
             );
@@ -1375,6 +1398,53 @@ class SaleController extends Controller
             $sale->load(['items', 'expenses']);
             $this->syncPnlItemsToOrderExpenses($sale);
 
+            // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
+            $submitForApproval = $request->input('_submit_for_approval') == '1';
+
+            if ($submitForApproval && in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
+                // Tính margin trước khi gửi duyệt
+                $sale->calculateMargin();
+                $sale->save();
+
+                // Xóa lịch sử duyệt cũ (nếu đang resubmit)
+                ApprovalHistory::where('document_type', 'sale_pnl')
+                    ->where('document_id', $sale->id)
+                    ->delete();
+
+                $result = $this->approvalService->submit($sale, 'sale_pnl');
+
+                if (!$result['success']) {
+                    $isSystemError = str_contains($result['message'] ?? '', 'Lỗi hệ thống');
+                    if (!$isSystemError) {
+                        $sale->update(['pl_status' => 'pending']);
+                        DB::commit();
+                        return redirect()->route('sales.show', $sale->id)
+                            ->with('warning', 'Đã lưu P&L. Chưa cấu hình quy trình duyệt — đã chuyển sang chờ duyệt thủ công.')
+                            ->withFragment('pnl');
+                    }
+                    DB::commit();
+                    return back()->with('error', 'Đã lưu P&L nhưng lỗi khi gửi duyệt: ' . $result['message']);
+                }
+
+                // Đồng bộ pl_status theo kết quả
+                $sale->refresh();
+                if (isset($result['auto_approved']) && $result['auto_approved']) {
+                    $sale->update([
+                        'pl_status'      => 'approved',
+                        'pl_approved_at' => now(),
+                        'pl_approved_by' => auth()->id(),
+                    ]);
+                } else {
+                    $sale->update(['pl_status' => 'pending']);
+                }
+
+                DB::commit();
+                return redirect()->route('sales.show', $sale->id)
+                    ->with('success', 'Đã lưu và ' . ($result['message'] ?? 'gửi duyệt P&L thành công.'))
+                    ->withFragment('pnl');
+            }
+
+            // Lưu nháp thông thường
             $sale->pl_status = 'draft';
             $sale->calculateMargin();
             $sale->save();
@@ -1646,18 +1716,13 @@ class SaleController extends Controller
                 }
             }
 
-            // Contractor Tax - Respect manual override
-            if (is_null($item->contractor_tax_percent) && (is_null($item->contractor_tax) || $item->contractor_tax == 0)) {
-                if ($contractorTax && $contractorTax->input_mode === 'percent') {
-                    $item->contractor_tax_percent = (float) ($contractorTax->percent_value ?? 0);
-                    $item->contractor_tax = 0;
-                } elseif ($contractorTax && $contractorTax->input_mode === 'fixed') {
-                    $item->contractor_tax_percent = null;
-                    $item->contractor_tax = round(((float) ($contractorTax->amount ?? 0)) * $share, 2);
-                } else {
-                    $item->contractor_tax_percent = null;
-                    $item->contractor_tax = 0;
-                }
+            // Contractor Tax - Use fixed formula: Cost / 0.9 * 0.1 (if expense type exists)
+            if ($contractorTax) {
+                $item->contractor_tax_percent = null;
+                $item->contractor_tax = round($costTotal / 0.9 * 0.1);
+            } else {
+                $item->contractor_tax_percent = null;
+                $item->contractor_tax = 0;
             }
 
             $item->save();

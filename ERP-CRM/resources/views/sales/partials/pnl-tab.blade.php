@@ -262,6 +262,7 @@
             tax_mode: data.tax_mode || 'fixed',
             tax_p: data.tax_p || 0,
             tax_allocated: data.tax_allocated || 0,
+            has_tax: data.has_tax || false,
             
             extra_costs: data.extra_costs || [],
             extra_vals: [],
@@ -290,6 +291,16 @@
                 setTimeout(() => {
                     this.calculate();
                 }, 200);
+
+                // Lắng nghe sự kiện thay đổi chi phí để cập nhật has_tax
+                window.addEventListener('expense-updated', (e) => {
+                    const expenses = e.detail.expenses || [];
+                    const hasTaxRow = expenses.some(exp => exp.type === 'Thuế nhà thầu');
+                    if (this.has_tax !== hasTaxRow) {
+                        this.has_tax = hasTaxRow;
+                        this.calculate();
+                    }
+                });
             },
 
             calculate() {
@@ -352,11 +363,8 @@
                     this.imp_v = Math.round(unformat(this.imp));
                 }
 
-                if (this.tax_mode === 'percent') {
-                   this.tax_v = Math.round(this.cost_total * ((parseFloat(this.tax_p) || 0) / 100));
-                } else {
-                    this.tax_v = Math.round(unformat(this.tax));
-                }
+                // Thuế nhà thầu: Formula = Cost / (1 - 10%) * 10% (only if enabled)
+                this.tax_v = this.has_tax ? Math.round(this.cost_total / 0.9 * 0.1) : 0;
                 
                 let extraSum = 0;
                 this.extra_vals = [];
@@ -424,14 +432,25 @@
 
     function submitPnlFormAction(url, message) {
         if (confirm(message)) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = url;
-            const csrf = document.createElement('input');
-            csrf.type = 'hidden'; csrf.name = '_token'; csrf.value = '{{ csrf_token() }}';
-            form.appendChild(csrf);
-            document.body.appendChild(form);
-            form.submit();
+            const pnlForm = document.getElementById('pnlForm');
+            if (pnlForm) {
+                // Unformat money values before submit
+                document.querySelectorAll('.extra-expense-money').forEach((input) => {
+                    input.value = (input.value || '').toString().replace(/,/g, '');
+                });
+                
+                // Thêm flag để backend biết cần gửi duyệt sau khi lưu
+                let flag = pnlForm.querySelector('input[name="_submit_for_approval"]');
+                if (!flag) {
+                    flag = document.createElement('input');
+                    flag.type = 'hidden';
+                    flag.name = '_submit_for_approval';
+                    pnlForm.appendChild(flag);
+                }
+                flag.value = '1';
+                
+                pnlForm.submit();
+            }
         }
     }
 
@@ -804,6 +823,7 @@
                                 tax_mode: '{{ $taxModeRow }}',
                                 tax_p: {{ $taxPercentRow }},
                                 tax_allocated: {{ $contractorTaxAllocated }},
+                                has_tax: {{ $hasContractorTax ? 'true' : 'false' }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
                                         {
@@ -1065,15 +1085,10 @@
                             @endif
                             @if($hasContractorTax)
                             <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-right text-xs">
-                                <input type="hidden" name="items[{{ $index }}][contractor_tax_percent]" :value="tax_mode === 'percent' ? tax_p : ''">
+                                {{-- Contractor tax is now purely formula-based: Cost / 0.9 * 0.1 --}}
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
                                 <div class="flex flex-col items-end">
-                                    <span x-show="tax_mode === 'percent'" class="block px-1 py-1 font-medium" x-text="formatNumber(tax_v)"></span>
-                                    <input type="text" inputmode="numeric"
-                                        x-show="tax_mode !== 'percent'"
-                                        x-model="tax" @input="calculate()"
-                                        class="w-full text-xs p-1 border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
-                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    <span class="block px-1 py-1 font-bold text-blue-700" x-text="formatNumber(tax_v)"></span>
                                 </div>
                             </td>
                             @endif
@@ -1178,10 +1193,10 @@
                         </button>
                     @endif
 
-                    @if($sale->pl_status !== null)
-                        <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', '{{ $sale->pl_status === 'pending' ? 'Gửi duyệt lại P&L này (Dùng để sửa lỗi nếu bị kẹt)?' : 'Gửi duyệt P&L này?' }}')"
+                    @if($sale->pl_status !== null && $sale->pl_status !== 'pending')
+                        <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', 'Gửi duyệt P&L này?')"
                             class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150">
-                            <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'pending']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
+                            <i class="fas fa-paper-plane mr-2"></i> {{ $sale->pl_status === 'rejected' ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
                         </button>
                     @endif
                 @endif

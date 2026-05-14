@@ -315,11 +315,16 @@ class ProductController extends Controller
     public function apiSearch(Request $request)
     {
         $q = $request->get('q');
+        $page = $request->get('page', 1);
+        $limit = !empty($q) ? 20 : 10;
+        $offset = ($page - 1) * $limit;
 
         $query = Product::query();
 
         if (!empty($q)) {
             $query->search($q);
+        } else {
+            $query->orderBy('created_at', 'desc');
         }
 
         $baseProducts = $query->with(['supplierPriceListItems.priceList'])
@@ -328,7 +333,8 @@ class ProductController extends Controller
                     $query->where('status', \App\Models\ProductItem::STATUS_LIQUIDATION);
                 }
             ])
-            ->limit(20)
+            ->offset($offset)
+            ->limit($limit)
             ->get();
 
         $products = collect();

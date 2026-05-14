@@ -17,6 +17,8 @@ class QuotationItem extends Model
         'quantity',
         'price',
         'total',
+        'vat',
+        'vat_amount',
         'note',
     ];
 
@@ -24,6 +26,8 @@ class QuotationItem extends Model
         'quantity' => 'integer',
         'price' => 'decimal:2',
         'total' => 'decimal:2',
+        'vat' => 'decimal:2',
+        'vat_amount' => 'decimal:2',
     ];
 
     public function quotation()

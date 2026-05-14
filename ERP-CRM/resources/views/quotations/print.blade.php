@@ -287,13 +287,12 @@
             $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);
             $discountVnd = $isForeign ? round($discountForeign * $rate) : round($subtotalVnd * ($quotation->discount / 100));
 
-            // VAT Amount
-            $afterDiscountForeign = $subtotalForeign - $discountForeign;
-            $vatForeign = round($afterDiscountForeign * ($quotation->vat / 100), $decimals);
-            $vatVnd = $isForeign ? round($vatForeign * $rate) : round(($subtotalVnd - $discountVnd) * ($quotation->vat / 100));
+            // VAT Amount (Sum from items)
+            $vatForeign = $quotation->items->sum('vat_amount');
+            $vatVnd = $quotation->vat_amount ?: round($vatForeign * $rate);
 
             // Total
-            $totalForeign = $quotation->total_foreign ?? ($isForeign ? round($afterDiscountForeign + $vatForeign, $decimals) : $quotation->total);
+            $totalForeign = $quotation->total_foreign ?: round($subtotalForeign - $discountForeign + $vatForeign, $decimals);
             $totalVnd = $quotation->total;
         @endphp
         <table>
@@ -301,9 +300,10 @@
                 <tr>
                     <th style="width: 40px;" class="text-center">STT</th>
                     <th>Sản phẩm</th>
-                    <th style="width: 80px;" class="text-center">SL</th>
-                    <th style="width: 120px;" class="text-right">Đơn giá</th>
-                    <th style="width: 130px;" class="text-right">Thành tiền</th>
+                    <th style="width: 60px;" class="text-center">SL</th>
+                    <th style="width: 110px;" class="text-right">Đơn giá</th>
+                    <th style="width: 70px;" class="text-center">VAT (%)</th>
+                    <th style="width: 120px;" class="text-right">Thành tiền</th>
                 </tr>
             </thead>
             <tbody>
@@ -331,6 +331,7 @@
                                 {{ number_format($itemPriceVnd) }} đ
                             @endif
                         </td>
+                        <td class="text-center">{{ (float)$item->vat }}%</td>
                         <td class="text-right">
                             @if($isForeign)
                                 <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
@@ -347,7 +348,7 @@
         <div class="totals text-right">
             <div class="row">
                 <span>Tổng tiền hàng:</span>
-                <span class="text-right">
+                <span class="text-right font-medium">
                     @if($isForeign)
                         <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
                         <div style="font-size: 11px; color: #666;">{{ number_format($subtotalVnd) }} đ</div>
@@ -370,8 +371,8 @@
                 </div>
             @endif
             <div class="row">
-                <span>VAT ({{ (float) $quotation->vat }}%):</span>
-                <span class="text-right">
+                <span>Thuế VAT:</span>
+                <span class="text-right font-medium" style="color: #3498db;">
                     @if($isForeign)
                         <div style="font-weight: bold;">{{ $symbol }}{{ number_format($vatForeign, $decimals, '.', ',') }}</div>
                         <div style="font-size: 11px; color: #666;">{{ number_format($vatVnd) }} đ</div>

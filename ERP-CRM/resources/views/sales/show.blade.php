@@ -28,7 +28,7 @@
                 <i class="fas fa-envelope mr-2"></i> Gửi Email
             </button>
         </form>
-        @if($sale->debt_amount > 0)
+        @if($sale->debt_amount > 0 && in_array($sale->status, ['shipping', 'completed']))
         <button onclick="openPaymentModal()" 
                 class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
             <i class="fas fa-money-bill mr-2"></i> Ghi nhận thanh toán
@@ -36,7 +36,7 @@
         @endif
         @if($sale->pl_status === 'approved')
         <a href="{{ route('sales.order-request.create', $sale->id) }}" 
-                class="inline-flex items-center px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors">
+                class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
             <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
             @if($sale->orderRequests && $sale->orderRequests->count() > 0)
                 <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
@@ -644,7 +644,7 @@
     <!-- Payment Modal -->
     <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div class="p-6">
+            <div class="p-6" x-data="paymentForm()">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Ghi nhận thanh toán</h3>
                 <form action="{{ route('sales.payment', $sale->id) }}" method="POST">
                     @csrf
@@ -668,12 +668,78 @@
                             </div>
                         </div>
 
+                        {{-- Nội dung thanh toán --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền thanh toán <span class="text-red-500">*</span></label>
-                            <input type="number" name="amount" id="payment_amount" required min="0" step="0.01"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            <p class="text-xs text-gray-500 mt-1">Còn nợ: <span id="payment_debt_display">{{ number_format($sale->debt_amount) }}</span> đ</p>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung thanh toán</label>
+                            <select name="payment_label" x-model="paymentLabel"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                                <option value="">-- Chọn --</option>
+                                <option value="Cọc">Cọc</option>
+                                <option value="Thanh toán đợt 1">Thanh toán đợt 1</option>
+                                <option value="Thanh toán đợt 2">Thanh toán đợt 2</option>
+                                <option value="Thanh toán đợt 3">Thanh toán đợt 3</option>
+                                <option value="Thanh toán cuối">Thanh toán cuối</option>
+                                <option value="Thanh toán toàn bộ">Thanh toán toàn bộ</option>
+                                <option value="Khác">Khác</option>
+                            </select>
                         </div>
+
+                        {{-- Kiểu nhập: % hoặc VND --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kiểu nhập <span class="text-red-500">*</span></label>
+                            <div class="flex rounded-lg overflow-hidden border border-gray-300">
+                                <button type="button" @click="inputMode = 'percent'"
+                                    :class="inputMode === 'percent' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
+                                    class="flex-1 px-3 py-2 text-sm font-medium transition-colors">
+                                    <i class="fas fa-percent mr-1"></i> % Phần trăm
+                                </button>
+                                <button type="button" @click="inputMode = 'fixed'"
+                                    :class="inputMode === 'fixed' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
+                                    class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-gray-300">
+                                    <i class="fas fa-money-bill mr-1"></i> Số tiền
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Nhập % --}}
+                        <div x-show="inputMode === 'percent'" x-transition>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Phần trăm thanh toán <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <input type="number" x-model="percentValue" @input="calcAmount()" min="0" max="100" step="0.1"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-400 text-right text-lg font-semibold"
+                                       placeholder="0">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                            </div>
+                            <div class="mt-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="text-purple-700">Số tiền tương ứng:</span>
+                                    <span class="font-bold text-purple-800 text-base" x-text="formatMoney(calculatedAmount) + ' đ'"></span>
+                                </div>
+                                <div class="text-[10px] text-purple-500 mt-1">
+                                    = <span x-text="formatMoney(orderTotal)"></span> đ × <span x-text="percentValue || 0"></span>%
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Nhập số tiền --}}
+                        <div x-show="inputMode === 'fixed'" x-transition>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Số tiền thanh toán <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <input type="number" x-model="fixedAmount" @input="calcPercent()" min="0" step="0.01"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-primary text-right"
+                                       placeholder="0">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₫</span>
+                            </div>
+                            <div class="mt-1 flex justify-between items-center text-xs text-gray-500">
+                                <span>Tương đương: <span class="font-medium text-purple-600" x-text="calculatedPercent + '%'"></span></span>
+                                <span>Còn nợ: <span id="payment_debt_display">{{ number_format($sale->debt_amount) }}</span> đ</span>
+                            </div>
+                        </div>
+
+                        {{-- Hidden input gửi số tiền thực tế --}}
+                        <input type="hidden" name="amount" :value="inputMode === 'percent' ? calculatedAmount : fixedAmount">
+                        <input type="hidden" name="payment_percent" :value="inputMode === 'percent' ? percentValue : calculatedPercent">
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Ngày thanh toán <span class="text-red-500">*</span></label>
                             <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required
@@ -713,6 +779,36 @@
 
 @push('scripts')
 <script>
+function paymentForm() {
+    return {
+        inputMode: 'percent',
+        percentValue: '',
+        fixedAmount: '',
+        calculatedAmount: 0,
+        calculatedPercent: '0.0',
+        orderTotal: {{ $sale->total ?: 0 }},
+        paymentLabel: '',
+
+        calcAmount() {
+            const pct = parseFloat(this.percentValue) || 0;
+            this.calculatedAmount = Math.round(this.orderTotal * pct / 100);
+        },
+
+        calcPercent() {
+            const amt = parseFloat(this.fixedAmount) || 0;
+            if (this.orderTotal > 0) {
+                this.calculatedPercent = (amt / this.orderTotal * 100).toFixed(1);
+            } else {
+                this.calculatedPercent = '0.0';
+            }
+        },
+
+        formatMoney(n) {
+            return new Intl.NumberFormat('vi-VN').format(Math.round(n));
+        }
+    };
+}
+
 function openPaymentModal() {
     document.getElementById('paymentModal').classList.remove('hidden');
     handlePaymentCurrencyChange();

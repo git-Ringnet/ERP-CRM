@@ -77,9 +77,9 @@
 
     <!-- Results Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
+        <div class="px-6 py-4 border-b bg-gradient-to-r from-emerald-50 to-cyan-50">
             <h3 class="font-semibold text-gray-800 flex items-center">
-                <i class="fas fa-boxes mr-2 text-teal-600"></i>
+                <i class="fas fa-boxes mr-2 text-emerald-600"></i>
                 Theo dõi hàng về — Group theo Sale Order + Sản phẩm
             </h3>
             <p class="text-xs text-gray-500 mt-1">Dữ liệu được tổng hợp từ tất cả các yêu cầu đặt hàng (PR)</p>

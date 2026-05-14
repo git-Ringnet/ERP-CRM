@@ -256,18 +256,53 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
+                                {{-- Trạng thái thanh toán --}}
                                 <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->payment_status_color }}">
                                     {{ $sale->payment_status_label }}
                                 </span>
-                                @if($sale->debt_amount > 0)
-                                    @if($sale->currency && !$sale->currency->is_base && $sale->exchange_rate)
-                                        <div class="text-xs font-medium text-red-600 mt-1">
-                                            Nợ: {{ $sale->currency->symbol }} {{ number_format($sale->debt_amount / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
+
+                                @php
+                                    $paidPercent = $sale->total > 0 ? round($sale->paid_amount / $sale->total * 100, 1) : 0;
+                                    $payments = $sale->payment_history ?? collect();
+                                @endphp
+
+                                {{-- Progress bar --}}
+                                @if($sale->total > 0 && $sale->payment_status !== 'unpaid')
+                                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1.5">
+                                    <div class="h-1.5 rounded-full {{ $paidPercent >= 100 ? 'bg-green-500' : 'bg-blue-500' }}" style="width: {{ min($paidPercent, 100) }}%"></div>
+                                </div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">{{ $paidPercent }}% đã thanh toán</div>
+                                @endif
+
+                                {{-- Danh sách % thanh toán --}}
+                                @if($payments->count() > 0)
+                                <div class="mt-1 space-y-0.5">
+                                    @foreach($payments as $pm)
+                                        @php
+                                            // Parse label và % từ note, e.g. "Cọc (30%)" hoặc "Thanh toán đợt 1 (40%)"
+                                            $pmNote = $pm->note ?? '';
+                                            $pmPercent = $sale->total > 0 ? round($pm->amount / $sale->total * 100, 1) : 0;
+                                            // Thử trích label từ note
+                                            $pmLabel = '';
+                                            if (preg_match('/^(.+?)\s*\([\d.]+%\)/', $pmNote, $m)) {
+                                                $pmLabel = trim($m[1]);
+                                            } elseif (preg_match('/^(Cọc|Thanh toán.+?)(\s*-|$)/u', $pmNote, $m)) {
+                                                $pmLabel = trim($m[1]);
+                                            }
+                                            $pmLabel = $pmLabel ?: 'TT';
+                                        @endphp
+                                        <div class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 inline-block">
+                                            {{ $pmLabel }} {{ $pmPercent }}%
                                         </div>
-                                        <div class="text-[10px] text-red-500 opacity-75">({{ number_format($sale->debt_amount) }} đ)</div>
-                                    @else
-                                        <div class="text-xs text-red-600 mt-1">Nợ: {{ number_format($sale->debt_amount) }} đ</div>
-                                    @endif
+                                    @endforeach
+                                </div>
+                                @endif
+
+                                {{-- Hạn thanh toán --}}
+                                @if($sale->payment_due_date && $sale->payment_status !== 'paid')
+                                    <div class="text-[10px] text-gray-400 mt-1">
+                                        <i class="far fa-calendar-alt"></i> {{ $sale->payment_due_date->format('d/m/Y') }}
+                                    </div>
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">

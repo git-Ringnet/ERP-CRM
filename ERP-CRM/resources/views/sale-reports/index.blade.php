@@ -53,15 +53,17 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
-                    <select name="product_id"
-                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
-                        <option value="">Tất cả sản phẩm</option>
-                        @foreach($products as $product)
-                            <option value="{{ $product->id }}" {{ $productId == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="relative searchable-select" id="productSearchContainer" data-ajax-url="{{ route('api.products.search') }}">
+                        <input type="text" id="productSearchInput" 
+                            class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary"
+                            placeholder="Chọn hoặc tìm mã SP..." autocomplete="off"
+                            value="{{ $selectedProduct ? $selectedProduct->code : '' }}">
+                        <input type="hidden" name="product_id" id="productIdHidden" value="{{ $productId }}">
+                        
+                        <div id="productSearchDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            <!-- Results will be loaded here -->
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">NV Kinh doanh</label>
@@ -142,19 +144,10 @@
                     </button>
                     <button type="button"
                         class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
-                        data-tab="monthly">
-                        <i class="fas fa-calendar-alt mr-1"></i>Theo Tháng
-                    </button>
-                    <button type="button"
-                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
-                        data-tab="profit">
-                        <i class="fas fa-chart-pie mr-1"></i>Phân tích Lợi nhuận
-                    </button>
-                    <button type="button"
-                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
                         data-tab="margin">
                         <i class="fas fa-file-invoice-dollar mr-1"></i>Báo cáo Margin
                     </button>
+
                     <button type="button"
                         class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
                         data-tab="conversion">
@@ -209,7 +202,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Sản phẩm</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Mã sản phẩm</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">Số lượng bán</th>
                                 <th class="px-3 py-2 text-right font-medium text-gray-700">Doanh thu</th>
                                 <th class="px-3 py-2 text-right font-medium text-gray-700">Lợi nhuận gộp</th>
@@ -217,9 +210,9 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
-                            @forelse($productReport as $row)
+                             @forelse($productReport as $row)
                                 <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['product'] }}</td>
+                                    <td class="px-3 py-2 font-medium" title="{{ $row['product_name'] }}">{{ $row['product_code'] ?: 'N/A' }}</td>
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
                                     <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue'], 0, ',', '.') }}đ</td>
                                     <td class="px-3 py-2 text-right text-green-600 font-medium">
@@ -241,94 +234,7 @@
                 </div>
             </div>
 
-            <!-- Monthly Report -->
-            <div class="tab-content p-4 hidden" id="tab-monthly">
-                <h3 class="text-base font-semibold text-gray-800 mb-4"><i class="fas fa-calendar-alt mr-2 text-primary"></i>Diễn biến doanh thu theo tháng</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Tháng</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Số đơn hàng</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Doanh thu</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Lợi nhuận</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ suất LN</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @forelse($monthlyReport as $row)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['month'] }}</td>
-                                    <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue'], 0, ',', '.') }}đ</td>
-                                    <td class="px-3 py-2 text-right text-green-600 font-medium">
-                                        {{ number_format($row['total_profit'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-center">
-                                        <span class="inline-block px-2 py-0.5 text-xs font-medium {{ $row['margin_percent'] >= 15 ? 'bg-green-100 text-green-800' : ($row['margin_percent'] >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }} rounded-full">
-                                            {{ $row['margin_percent'] }}%
-                                        </span>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="5" class="px-3 py-8 text-center text-gray-500">Không có dữ liệu</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            <!-- Profit Analysis -->
-            <div class="tab-content p-4 hidden" id="tab-profit">
-                <h3 class="text-base font-semibold text-gray-800 mb-4"><i class="fas fa-chart-pie mr-2 text-primary"></i>Cơ cấu doanh thu & Chi phí</h3>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <!-- Text Summary -->
-                    <div>
-                        <div class="bg-gray-50 rounded-lg p-5">
-                            <h4 class="text-sm font-bold text-gray-500 uppercase mb-4">Tổng quan tài chính</h4>
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center pb-2 border-b border-gray-200">
-                                    <span class="text-gray-700 font-medium">Doanh thu thuần</span>
-                                    <span class="text-lg font-bold text-primary">{{ number_format($profitAnalysis['revenue'], 0, ',', '.') }}đ</span>
-                                </div>
-                                <div class="flex justify-between items-center pb-2 border-b border-gray-200">
-                                    <span class="text-gray-600">(-) Giá vốn hàng bán (COGS)</span>
-                                    <span class="font-medium">{{ number_format($profitAnalysis['cogs'], 0, ',', '.') }}đ</span>
-                                </div>
-                                <div class="flex justify-between items-center pb-2 border-b border-gray-200">
-                                    <span class="text-gray-600">(-) Chi phí bán hàng</span>
-                                    <span class="font-medium">{{ number_format($profitAnalysis['expenses'], 0, ',', '.') }}đ</span>
-                                </div>
-                                <div class="flex justify-between items-center pt-2">
-                                    <span class="text-gray-800 font-bold">(=) Lợi nhuận ròng</span>
-                                    <span class="text-xl font-bold text-green-600">{{ number_format($profitAnalysis['profit'], 0, ',', '.') }}đ</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Breakdown Visual -->
-                    <div>
-                        <h4 class="text-sm font-bold text-gray-500 uppercase mb-4">Phân bổ doanh thu</h4>
-                        <div class="space-y-4">
-                            @foreach($profitAnalysis['breakdown'] as $item)
-                                <div>
-                                    <div class="flex justify-between text-sm mb-1">
-                                        <span class="font-medium {{ $item['color'] }}">{{ $item['name'] }}</span>
-                                        <span class="text-gray-600">{{ number_format($item['value'], 0, ',', '.') }}đ ({{ $item['rate'] }}%)</span>
-                                    </div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                        <div class="h-2.5 rounded-full {{ str_replace('text-', 'bg-', $item['color']) }}" style="width: {{ $item['rate'] }}%"></div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Margin Report -->
             <div class="tab-content p-4 hidden" id="tab-margin">
@@ -569,6 +475,124 @@
                 btn.addEventListener('click', function () {
                     switchTab(this.dataset.tab);
                 });
+            });
+
+            // Product Search Filter Logic
+            const productSearchContainer = document.getElementById('productSearchContainer');
+            const productSearchInput = document.getElementById('productSearchInput');
+            const productSearchDropdown = document.getElementById('productSearchDropdown');
+            const productIdHidden = document.getElementById('productIdHidden');
+            const ajaxUrl = productSearchContainer.dataset.ajaxUrl;
+            let debounceTimer;
+            let currentPage = 1;
+            let isFetching = false;
+            let hasMore = true;
+
+            async function fetchProducts(query = '', page = 1, append = false) {
+                if (isFetching || (!hasMore && page > 1)) return;
+                
+                isFetching = true;
+                if (!append) {
+                    productSearchDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-gray-500 italic">Đang tải...</div>';
+                    currentPage = 1;
+                    hasMore = true;
+                } else {
+                    const loader = document.createElement('div');
+                    loader.id = 'dropdown-loader';
+                    loader.className = 'px-3 py-2 text-xs text-gray-500 italic';
+                    loader.textContent = 'Đang tải thêm...';
+                    productSearchDropdown.appendChild(loader);
+                }
+                
+                productSearchDropdown.classList.remove('hidden');
+
+                try {
+                    const response = await fetch(`${ajaxUrl}?q=${encodeURIComponent(query)}&page=${page}`);
+                    const products = await response.json();
+                    
+                    document.getElementById('dropdown-loader')?.remove();
+                    
+                    if (products.length === 0) {
+                        hasMore = false;
+                        if (!append) {
+                            renderProducts([], false);
+                        }
+                    } else {
+                        renderProducts(products, append);
+                    }
+                } catch (error) {
+                    console.error('Search error:', error);
+                    productSearchDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-red-500">Lỗi khi tải sản phẩm</div>';
+                } finally {
+                    isFetching = false;
+                }
+            }
+
+            function renderProducts(products, append = false) {
+                if (!append) {
+                    productSearchDropdown.innerHTML = '';
+                    // Add "Tất cả sản phẩm" option only on first load
+                    const allOpt = document.createElement('div');
+                    allOpt.className = 'px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100 font-bold text-primary';
+                    allOpt.textContent = '-- Tất cả sản phẩm --';
+                    allOpt.onclick = () => selectProduct('', 'Tất cả sản phẩm');
+                    productSearchDropdown.appendChild(allOpt);
+                }
+
+                if (products.length === 0 && !append) {
+                    const noResult = document.createElement('div');
+                    noResult.className = 'px-3 py-2 text-xs text-gray-500 italic';
+                    noResult.textContent = 'Không tìm thấy sản phẩm';
+                    productSearchDropdown.appendChild(noResult);
+                    return;
+                }
+
+                products.forEach(p => {
+                    const opt = document.createElement('div');
+                    opt.className = 'px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100';
+                    // User requested: only show product code, no name
+                    opt.innerHTML = `<span class="font-bold">${p.code}</span>`;
+                    opt.title = p.name; // Keep name as title for hover
+                    opt.onclick = () => selectProduct(p.id, p.code);
+                    productSearchDropdown.appendChild(opt);
+                });
+            }
+
+            function selectProduct(id, code) {
+                productIdHidden.value = id;
+                productSearchInput.value = id ? code : '';
+                productSearchDropdown.classList.add('hidden');
+            }
+
+            productSearchInput.addEventListener('focus', () => {
+                if (productSearchDropdown.classList.contains('hidden')) {
+                    fetchProducts(productSearchInput.value, 1, false);
+                }
+            });
+
+            productSearchInput.addEventListener('input', (e) => {
+                const query = e.target.value;
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    fetchProducts(query, 1, false);
+                }, 300);
+            });
+
+            // Infinite Scroll Listener
+            productSearchDropdown.addEventListener('scroll', () => {
+                const { scrollTop, scrollHeight, clientHeight } = productSearchDropdown;
+                if (scrollTop + clientHeight >= scrollHeight - 10) {
+                    if (hasMore && !isFetching) {
+                        currentPage++;
+                        fetchProducts(productSearchInput.value, currentPage, true);
+                    }
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!productSearchContainer.contains(e.target)) {
+                    productSearchDropdown.classList.add('hidden');
+                }
             });
 
             // Handle initial tab from URL

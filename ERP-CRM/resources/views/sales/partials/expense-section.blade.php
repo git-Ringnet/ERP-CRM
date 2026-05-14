@@ -52,38 +52,66 @@
 
                     <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
-                        <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode"
-                                @focus="exp._modeBeforeFocus = exp.input_mode"
-                                @change="onExpenseInputModeChange(idx)"
-                                {{ $isLocked ? 'disabled' : '' }}
-                                :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer'">
-                            <option value="percent">% (Phần trăm)</option>
-                            <option value="fixed">VND (Số tiền)</option>
-                        </select>
-                        <template x-if="{{ $isLocked ? 'true' : 'false' }}">
-                            <input type="hidden" :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode">
+                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                            <div>
+                                <select :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode"
+                                        @focus="exp._modeBeforeFocus = exp.input_mode"
+                                        @change="onExpenseInputModeChange(idx)"
+                                        {{ $isLocked ? 'disabled' : '' }}
+                                        :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer'">
+                                    <option value="percent">% (Phần trăm)</option>
+                                    <option value="fixed">VND (Số tiền)</option>
+                                </select>
+                                @if($isLocked)
+                                <input type="hidden" :name="'expenses['+idx+'][input_mode]'" x-model="exp.input_mode">
+                                @endif
+                            </div>
+                        </template>
+                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                            <div>
+                                <div class="text-[10px] text-gray-500 italic py-2 px-1 bg-gray-100 rounded-lg border border-gray-200 text-center leading-tight">Tự động (Công thức)</div>
+                                <input type="hidden" :name="'expenses['+idx+'][input_mode]'" value="fixed">
+                            </div>
                         </template>
                     </div>
 
                     {{-- Giá trị input --}}
                      <div class="col-span-2">
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Giá trị</label>
-                        <div class="relative">
-                            <input type="text"
-                                   x-model="exp.input_value"
-                                   @input="recalcRow(idx)"
-                                   @blur="exp.input_value = formatRawInput(exp.input_value)"
-                                   @focus="exp.input_value = (exp.input_value || '').toString().replace(/,/g, '')"
-                                   :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
-                                   {{ $isLocked ? 'readonly' : '' }}
-                                   :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400'">
-                            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400"
-                                  x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
-                        </div>
-                        {{-- Hidden fields for server --}}
-                        <input type="hidden" :name="'expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''">
-                        <input type="hidden" :name="'expenses['+idx+'][amount]'" :value="exp.calculated_amount">
-                        <input type="hidden" :name="'expenses['+idx+'][description]'" x-model="exp.description">
+                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                            <div class="relative">
+                                <input type="text"
+                                       x-model="exp.input_value"
+                                       @input="recalcRow(idx)"
+                                       @blur="exp.input_value = formatRawInput(exp.input_value)"
+                                       @focus="exp.input_value = (exp.input_value || '').toString().replace(/,/g, '')"
+                                       :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
+                                       {{ $isLocked ? 'readonly' : '' }}
+                                       :class="'{{ $isLocked ? 'bg-gray-50' : '' }} w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-purple-400'">
+                                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400"
+                                      x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
+                            </div>
+                        </template>
+                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                            <div>
+                                <div class="text-xs text-gray-400 py-2 px-3 bg-gray-100 rounded-lg border border-gray-200 text-center">N/A</div>
+                            </div>
+                        </template>
+                        {{-- Hidden fields for server (chỉ render khi KHÔNG phải Thuế nhà thầu) --}}
+                        <template x-if="exp.type !== 'Thuế nhà thầu'">
+                            <div>
+                                <input type="hidden" :name="'expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''">
+                                <input type="hidden" :name="'expenses['+idx+'][amount]'" :value="exp.calculated_amount">
+                                <input type="hidden" :name="'expenses['+idx+'][description]'" x-model="exp.description">
+                            </div>
+                        </template>
+                        <template x-if="exp.type === 'Thuế nhà thầu'">
+                            <div>
+                                <input type="hidden" :name="'expenses['+idx+'][percent_value]'" value="">
+                                <input type="hidden" :name="'expenses['+idx+'][amount]'" value="0">
+                                <input type="hidden" :name="'expenses['+idx+'][description]'" value="">
+                            </div>
+                        </template>
                     </div>
 
                     {{-- Thành tiền (VND) - Only show for Fixed or when redundant display is OK --}}
@@ -92,8 +120,9 @@
                         <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Thành tiền (VND)</label>
                         <div class="text-right font-medium text-sm px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-100"
                              :class="exp.calculated_amount > 0 ? 'text-gray-900' : 'text-gray-400'">
-                            <span x-show="exp.input_mode === 'fixed'" x-text="formatCurrency(exp.calculated_amount)"></span>
-                            <span x-show="exp.input_mode === 'percent'" class="text-gray-300 italic text-xs">Phụ thuộc giá vốn</span>
+                            <span x-show="exp.input_mode === 'fixed' && exp.type !== 'Thuế nhà thầu'" x-text="formatCurrency(exp.calculated_amount)"></span>
+                            <span x-show="exp.input_mode === 'percent' && exp.type !== 'Thuế nhà thầu'" class="text-gray-300 italic text-xs">Phụ thuộc giá vốn</span>
+                            <span x-show="exp.type === 'Thuế nhà thầu'" class="text-blue-500 italic text-[10px]">Tính trong P&L</span>
                         </div>
                     </div>
 
@@ -236,10 +265,10 @@ function expenseManager() {
         recalcAll() {
             this.expenses.forEach((_, idx) => this.recalcRow(idx));
             
-            // Sync the grand total to the margin display in parent scope if needed
-            // The margin display in create.blade.php / edit.blade.php relies on this.totalExpenses
-            // Actually, calculateTotal() in the main page handles it by summing .expense-amount
-            // We need to ensure the hidden inputs for the server are updated
+            // Dispatch event to notify other components (like P&L tab)
+            window.dispatchEvent(new CustomEvent('expense-updated', { 
+                detail: { expenses: JSON.parse(JSON.stringify(this.expenses)) } 
+            }));
         },
 
         formatCurrency(value) {

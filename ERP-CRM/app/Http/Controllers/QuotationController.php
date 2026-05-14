@@ -110,6 +110,7 @@ class QuotationController extends Controller
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ], [
@@ -127,14 +128,20 @@ class QuotationController extends Controller
             $customer = Customer::find($validated['customer_id']);
 
             $subtotal = 0;
+            $totalVatAmount = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += round($item['quantity'] * $item['price'], 2);
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $subtotal += $itemSubtotal;
+                
+                $itemVat = $item['vat'] ?? 0;
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * $itemVat / 100, 2);
+                $totalVatAmount += $itemVatAmount;
             }
 
             $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
-            $total = round($afterDiscount + $vatAmount, 2);
+            $total = round($subtotal - $discountAmount + $totalVatAmount, 2);
 
             $quotation = Quotation::create([
                 'code' => $validated['code'],
@@ -147,7 +154,10 @@ class QuotationController extends Controller
                     ? $this->currencyService->toBase($subtotal, $validated['exchange_rate'] ?? 1)
                     : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
-                'vat' => $validated['vat'] ?? 10,
+                'vat' => 0,
+                'vat_amount' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($totalVatAmount, $validated['exchange_rate'] ?? 1)
+                    : $totalVatAmount,
                 'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
                     ? $this->currencyService->toBase($total, $validated['exchange_rate'] ?? 1)
                     : $total,
@@ -177,6 +187,11 @@ class QuotationController extends Controller
                     }
                 }
 
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * ($item['vat'] ?? 0) / 100, 2);
+
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
@@ -184,7 +199,9 @@ class QuotationController extends Controller
                     'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'total' => $item['quantity'] * $item['price'],
+                    'vat' => $item['vat'] ?? 0,
+                    'vat_amount' => $itemVatAmount,
+                    'total' => $itemSubtotal,
                 ]);
             }
 
@@ -252,6 +269,7 @@ class QuotationController extends Controller
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
         ], [
@@ -269,14 +287,20 @@ class QuotationController extends Controller
             $customer = Customer::find($validated['customer_id']);
 
             $subtotal = 0;
+            $totalVatAmount = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += round($item['quantity'] * $item['price'], 2);
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $subtotal += $itemSubtotal;
+                
+                $itemVat = $item['vat'] ?? 0;
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * $itemVat / 100, 2);
+                $totalVatAmount += $itemVatAmount;
             }
 
             $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
-            $total = round($afterDiscount + $vatAmount, 2);
+            $total = round($subtotal - $discountAmount + $totalVatAmount, 2);
 
             $quotation->update([
                 'code' => $validated['code'],
@@ -289,7 +313,10 @@ class QuotationController extends Controller
                     ? $this->currencyService->toBase($subtotal, $validated['exchange_rate'] ?? 1)
                     : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
-                'vat' => $validated['vat'] ?? 10,
+                'vat' => 0,
+                'vat_amount' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
+                    ? $this->currencyService->toBase($totalVatAmount, $validated['exchange_rate'] ?? 1)
+                    : $totalVatAmount,
                 'total' => $this->currencyService->isForeignTransaction($validated['currency_id'] ?? null)
                     ? $this->currencyService->toBase($total, $validated['exchange_rate'] ?? 1)
                     : $total,
@@ -320,6 +347,11 @@ class QuotationController extends Controller
                     }
                 }
 
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * ($item['vat'] ?? 0) / 100, 2);
+
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
@@ -327,7 +359,9 @@ class QuotationController extends Controller
                     'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'total' => $item['quantity'] * $item['price'],
+                    'vat' => $item['vat'] ?? 0,
+                    'vat_amount' => $itemVatAmount,
+                    'total' => $itemSubtotal,
                 ]);
             }
 

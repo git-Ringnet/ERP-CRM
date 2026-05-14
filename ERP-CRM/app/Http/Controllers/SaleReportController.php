@@ -35,12 +35,6 @@ class SaleReportController extends Controller
         // Product report
         $productReport = $this->getProductReport($dateFrom, $dateTo, $productId);
 
-        // Monthly report
-        $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo);
-
-        // Profit analysis
-        $profitAnalysis = $this->getProfitAnalysis($dateFrom, $dateTo);
-
         // Margin report (new)
         $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId);
 
@@ -48,12 +42,13 @@ class SaleReportController extends Controller
         $conversionReport = $this->getConversionReport($dateFrom, $dateTo, $customerId, $productId, $userId, $request->input('search_user'));
 
         $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
+        // Don't load all products to prevent slow page load
+        $selectedProduct = $productId ? Product::find($productId) : null;
         $users = User::orderBy('name')->get();
 
         return view('sale-reports.index', compact(
-            'stats', 'customerReport', 'productReport', 'monthlyReport',
-            'profitAnalysis', 'marginReport', 'conversionReport', 'customers', 'products', 'users',
+            'stats', 'customerReport', 'productReport',
+            'marginReport', 'conversionReport', 'customers', 'selectedProduct', 'users',
             'dateFrom', 'dateTo', 'customerId', 'productId', 'userId'
         ));
     }
@@ -64,9 +59,9 @@ class SaleReportController extends Controller
      */
     private function getMarginReport($dateFrom, $dateTo, $customerId = null, $userId = null): array
     {
-        $query = Sale::with(['customer', 'user', 'items.product'])
+        $query = Sale::with(['customer', 'user'])
             ->whereBetween('date', [$dateFrom, $dateTo])
-            ->whereIn('status', ['pending', 'approved', 'shipping', 'completed']);
+            ->whereIn('status', ['approved', 'shipping', 'completed']);
 
         if ($customerId) {
             $query->where('customer_id', $customerId);
@@ -86,17 +81,9 @@ class SaleReportController extends Controller
                 $mainProductCode = $firstItem->product->code ?? '';
             }
 
-            // Calculate margin from P/L data
-            $costTotal = $sale->items->sum('cost_total');
-            $revenueTotal = $sale->total;
-            
-            // Total expenses from items
-            $totalExpenses = 0;
-            foreach ($sale->items as $item) {
-                $totalExpenses += $item->total_expenses;
-            }
-
-            $margin = $revenueTotal - $costTotal - $totalExpenses;
+            // Use margin from Sale table for consistency
+            $margin = (float) $sale->margin;
+            $revenueTotal = (float) $sale->total;
             $marginPercent = $revenueTotal > 0 ? ($margin / $revenueTotal) * 100 : 0;
 
             // Payment info
@@ -198,18 +185,20 @@ class SaleReportController extends Controller
     {
         $query = SaleItem::select(
                 'sale_items.product_id',
+                'products.code as product_code',
                 'sale_items.product_name',
                 DB::raw('SUM(sale_items.quantity) as total_quantity'),
                 DB::raw('SUM(sale_items.total * sales.exchange_rate) as total_revenue'),
                 DB::raw('SUM((sale_items.total * sales.exchange_rate) - sale_items.cost_total) as total_profit')
             )
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
             ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
             ->whereBetween('sales.date', [$dateFrom, $dateTo])
-            ->groupBy('sale_items.product_id', 'sale_items.product_name');
+            ->groupBy('sale_items.product_id', 'products.code', 'sale_items.product_name');
 
         if ($productId) {
-            $query->where('product_id', $productId);
+            $query->where('sale_items.product_id', $productId);
         }
 
         $results = $query->orderByDesc('total_revenue')->get();
@@ -220,10 +209,12 @@ class SaleReportController extends Controller
                 : 0;
 
             return [
-                'product' => $item->product_name,
+                'product_id' => $item->product_id,
+                'product_code' => $item->product_code,
+                'product_name' => $item->product_name,
                 'total_quantity' => $item->total_quantity,
                 'total_revenue' => $item->total_revenue,
-                'total_profit' => $item->total_profit, // Note: This is Gross Profit per item, excludes sale-level expenses like shipping
+                'total_profit' => $item->total_profit,
                 'margin_percent' => round($marginPercent, 1),
             ];
         })->toArray();
