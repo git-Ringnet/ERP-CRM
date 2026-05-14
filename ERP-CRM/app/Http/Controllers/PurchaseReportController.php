@@ -40,12 +40,24 @@ class PurchaseReportController extends Controller
         // Discount analysis
         $discountAnalysis = $this->getDiscountAnalysis($dateFrom, $dateTo);
 
-        $suppliers = Supplier::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
+        // Tracking report (Theo dõi hàng về)
+        $trackingReport = $this->getTrackingReport($request);
 
+        // Get suppliers for filter dropdown
+        $suppliers = \App\Models\Supplier::orderBy('name')->get();
+        
+        // Optimize: Only load the selected product to avoid large dropdown lag
+        $products = collect();
+        if ($productId) {
+            $selectedProduct = \App\Models\Product::find($productId);
+            if ($selectedProduct) {
+                $products->push($selectedProduct);
+            }
+        }
+        
         return view('purchase-reports.index', compact(
             'stats', 'supplierReport', 'productReport', 'monthlyReport',
-            'costAnalysis', 'discountAnalysis', 'suppliers', 'products',
+            'costAnalysis', 'discountAnalysis', 'trackingReport', 'suppliers', 'products',
             'dateFrom', 'dateTo', 'supplierId', 'productId'
         ));
     }
@@ -61,6 +73,7 @@ class PurchaseReportController extends Controller
         $stats = $query->selectRaw('
             COUNT(*) as total_orders,
             SUM(total) as total_amount,
+            SUM(CASE WHEN total_foreign > 0 THEN total_foreign ELSE total / NULLIF(exchange_rate, 0) END) as total_amount_usd,
             SUM(subtotal * exchange_rate) as total_subtotal,
             SUM(discount_amount * exchange_rate) as total_discount,
             SUM(shipping_cost * exchange_rate) as total_shipping,
@@ -70,6 +83,7 @@ class PurchaseReportController extends Controller
         return [
             'total_orders' => $stats->total_orders ?? 0,
             'total_amount' => $stats->total_amount ?? 0,
+            'total_amount_usd' => $stats->total_amount_usd ?? 0,
             'total_discount' => $stats->total_discount ?? 0,
             'total_shipping' => $stats->total_shipping ?? 0,
             'total_paid' => $stats->total_paid ?? 0,
@@ -280,11 +294,129 @@ class PurchaseReportController extends Controller
         ];
     }
 
+    private function getTrackingReport(Request $request): array
+    {
+        $query = \App\Models\SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
+
+        // Filter by Sales Order Code
+        if ($request->filled('sale_code')) {
+            $query->whereHas('saleOrderRequest.sale', function($q) use ($request) {
+                $q->where('code', 'like', '%' . $request->sale_code . '%');
+            });
+        }
+
+        // Filter by Part Number
+        if ($request->filled('part_number')) {
+            $query->where('part_number', 'like', '%' . $request->part_number . '%');
+        }
+
+        // Filter by Vendor
+        if ($request->filled('supplier_id')) {
+            $query->where('vendor_id', $request->supplier_id);
+        }
+
+        $allItems = $query->latest()->get();
+
+        $grouped = [];
+        foreach ($allItems as $item) {
+            $saleCode = $item->saleOrderRequest->sale->code ?? 'N/A';
+            $saleId = $item->saleOrderRequest->sale_id ?? 0;
+            $key = $saleId . '-' . ($item->part_number ?? 'no-pn');
+
+            if (!isset($grouped[$key])) {
+                // Lấy giá kho tạm tính (USD) từ SaleItem nếu chưa có PO
+                $estimatedPrice = $item->saleItem ? ($item->saleItem->estimated_cost_usd ?? 0) : 0;
+                
+                $grouped[$key] = [
+                    'sale_id' => $saleId,
+                    'sale_code' => $saleCode,
+                    'part_number' => $item->part_number,
+                    'vendor_name' => $item->vendor->name ?? $item->vendor ?? 'N/A',
+                    'requested' => 0,
+                    'ordered' => 0,
+                    'received' => 0,
+                    'unit_price_usd' => $estimatedPrice, // Mặc định lấy từ Sale
+                    'pr_codes' => [],
+                    'po_links' => [], 
+                    'created_at' => $item->created_at,
+                ];
+            }
+
+            $ordered = $item->ordered_quantity_total;
+            $received = $item->received_quantity_total;
+
+            $grouped[$key]['requested'] += $item->quantity;
+            $grouped[$key]['ordered'] += $ordered;
+            $grouped[$key]['received'] += $received;
+
+            // Nếu đã có PO, lấy giá từ PO (ưu tiên warehouse_unit_price)
+            if ($item->purchaseOrderItems->count() > 0) {
+                $lastPoItem = $item->purchaseOrderItems->last();
+                $grouped[$key]['unit_price_usd'] = $lastPoItem->warehouse_unit_price ?: $lastPoItem->unit_price ?: $grouped[$key]['unit_price_usd'];
+            }
+
+            $prCode = $item->saleOrderRequest->code ?? '';
+            if ($prCode && !in_array($prCode, $grouped[$key]['pr_codes'])) {
+                $grouped[$key]['pr_codes'][] = $prCode;
+            }
+
+            foreach ($item->purchaseOrderItems as $poItem) {
+                $poId = $poItem->purchase_order_id;
+                if (!isset($grouped[$key]['po_links'][$poId])) {
+                    $grouped[$key]['po_links'][$poId] = [
+                        'id' => $poId,
+                        'code' => $poItem->purchaseOrder->code ?? '',
+                        'status_label' => $poItem->purchaseOrder->status_label ?? '',
+                    ];
+                }
+            }
+        }
+
+        foreach ($grouped as &$row) {
+            $row['po_links'] = array_values($row['po_links']);
+            $row['remaining'] = max(0, $row['requested'] - $row['received']);
+            $row['total_usd'] = $row['requested'] * $row['unit_price_usd'];
+
+            if ($row['ordered'] <= 0) {
+                $row['status'] = 'waiting';
+                $row['status_label'] = 'Chờ đặt hàng';
+                $row['status_color'] = 'bg-gray-100 text-gray-600';
+                $row['status_icon'] = 'fas fa-clock';
+            } elseif ($row['ordered'] < $row['requested']) {
+                $row['status'] = 'ordering';
+                $row['status_label'] = 'Đang đặt hàng';
+                $row['status_color'] = 'bg-blue-100 text-blue-800';
+                $row['status_icon'] = 'fas fa-shopping-cart';
+            } elseif ($row['received'] < $row['requested']) {
+                $row['status'] = 'in_transit';
+                $row['status_label'] = 'Đang về hàng';
+                $row['status_color'] = 'bg-orange-100 text-orange-800';
+                $row['status_icon'] = 'fas fa-truck';
+            } else {
+                $row['status'] = 'completed';
+                $row['status_label'] = 'Đã đủ hàng';
+                $row['status_color'] = 'bg-green-100 text-green-800';
+                $row['status_icon'] = 'fas fa-check-circle';
+            }
+        }
+
+        return array_values($grouped);
+    }
+
     public function export(Request $request)
     {
-        $this->authorize('export', \App\Models\PurchaseReport::class);
+        $this->authorize('viewAny', \App\Models\PurchaseReport::class);
         
-        // Export logic here
-        return redirect()->back()->with('success', 'Đã xuất báo cáo thành công!');
+        $type = $request->input('report_type', 'tracking');
+        
+        if ($type === 'tracking') {
+            $data = $this->getTrackingReport($request);
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\PurchaseTrackingExport($data), 
+                'bao-cao-theo-doi-hang-ve-' . date('Ymd') . '.xlsx'
+            );
+        }
+
+        return redirect()->back()->with('error', 'Loại báo cáo không hợp lệ!');
     }
 }
