@@ -5,6 +5,23 @@
 
 @section('content')
     <div class="bg-white rounded-lg shadow-sm">
+        <!-- Manufacturer Tabs -->
+        <div class="px-4 border-b border-gray-200 bg-gray-50 overflow-x-auto rounded-t-lg">
+            <div class="flex space-x-8">
+                <a href="{{ route('products.index', array_merge(request()->query(), ['supplier_id' => null])) }}"
+                    class="py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap {{ !$currentSupplierId ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
+                    Tất cả
+                </a>
+                @foreach($suppliersWithProducts as $supplier)
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['supplier_id' => $supplier->id])) }}"
+                        class="py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap {{ $currentSupplierId == $supplier->id ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
+                        {{ $supplier->name }}
+                        <span class="ml-1 text-xs text-gray-400">({{ $supplier->dynamic_products_count }})</span>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+
         <!-- Header -->
         <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div class="flex flex-col sm:flex-row gap-4 flex-1">
@@ -70,6 +87,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên sản
                             phẩm</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hãng</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden">
                             Danh
                             mục</th>
@@ -92,6 +110,19 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                @php
+                                    $supplierNames = $product->supplierPriceListItems
+                                        ->map(fn($item) => $item->priceList->supplier->name ?? null)
+                                        ->filter()
+                                        ->unique();
+                                @endphp
+                                @if($supplierNames->count() > 0)
+                                    {{ $supplierNames->implode(', ') }}
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center hidden">
                                 @if($product->category)

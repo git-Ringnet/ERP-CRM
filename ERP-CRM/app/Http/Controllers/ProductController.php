@@ -33,12 +33,31 @@ class ProductController extends Controller
             $query->filterByCategory($request->category);
         }
 
-        $products = $query->orderBy('created_at', 'desc')->paginate(10);
+        // Filter by supplier
+        if ($request->filled('supplier_id')) {
+            $query->filterBySupplier($request->supplier_id);
+        }
+
+        $products = $query->with(['supplierPriceListItems.priceList.supplier'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        // Get suppliers who have price lists for the tab system
+        $suppliersWithProducts = \App\Models\Supplier::whereHas('supplierPriceLists')
+            ->orderBy('name')
+            ->get();
+        
+        // Calculate dynamic product counts for each supplier tab
+        foreach ($suppliersWithProducts as $supplier) {
+            $supplier->dynamic_products_count = Product::filterBySupplier($supplier->id)->count();
+        }
+        
+        $currentSupplierId = $request->get('supplier_id');
 
         // Get categories for filter dropdown
         $categories = Product::CATEGORIES;
 
-        return view('products.index', compact('products', 'categories'));
+        return view('products.index', compact('products', 'categories', 'suppliersWithProducts', 'currentSupplierId'));
     }
 
     /**
@@ -50,7 +69,8 @@ class ProductController extends Controller
         $this->authorize('create', Product::class);
 
         $categories = Product::CATEGORIES;
-        return view('products.create', compact('categories'));
+        $suppliers = \App\Models\Supplier::orderBy('name')->get();
+        return view('products.create', compact('categories', 'suppliers'));
     }
 
     /**
@@ -110,8 +130,9 @@ class ProductController extends Controller
         $this->authorize('update', $product);
 
         $categories = Product::CATEGORIES;
+        $suppliers = \App\Models\Supplier::orderBy('name')->get();
 
-        return view('products.edit', compact('product', 'categories'));
+        return view('products.edit', compact('product', 'categories', 'suppliers'));
     }
 
     /**

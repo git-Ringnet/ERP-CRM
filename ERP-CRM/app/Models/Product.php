@@ -126,6 +126,22 @@ class Product extends Model
     }
 
     /**
+     * Scope for filtering products by supplier (via price list items)
+     */
+    public function scopeFilterBySupplier(Builder $query, ?int $supplierId): Builder
+    {
+        if (empty($supplierId)) {
+            return $query;
+        }
+
+        return $query->whereHas('supplierPriceListItems', function($q) use ($supplierId) {
+            $q->whereHas('priceList', function($sq) use ($supplierId) {
+                $sq->where('supplier_id', $supplierId);
+            });
+        });
+    }
+
+    /**
      * Relationship: Product has many supplier price list items (by matching code to SKU)
      */
     public function supplierPriceListItems(): HasMany
