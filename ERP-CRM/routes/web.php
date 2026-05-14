@@ -269,6 +269,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
     Route::post('/purchase-orders/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirmBySupplier'])->name('purchase-orders.confirm');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+    Route::post('/purchase-orders/{purchaseOrder}/receive-all', [PurchaseOrderController::class, 'receiveAll'])->name('purchase-orders.receive-all');
     Route::post('/purchase-orders/{purchaseOrder}/ship', [PurchaseOrderController::class, 'ship'])->name('purchase-orders.ship');
     Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
     Route::get('/purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');

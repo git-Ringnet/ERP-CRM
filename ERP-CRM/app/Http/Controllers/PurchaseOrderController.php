@@ -554,6 +554,65 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    /**
+     * Quickly receive all remaining items in a PO
+     */
+    public function receiveAll(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if (!in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received'])) {
+            return back()->with('error', 'Đơn hàng chưa sẵn sàng để nhận!');
+        }
+
+        DB::beginTransaction();
+        try {
+            $receivedItemData = [];
+            foreach ($purchaseOrder->items as $item) {
+                if ($item->remaining_quantity > 0) {
+                    $receivedItemData[$item->id] = $item->remaining_quantity;
+                    $item->received_quantity += $item->remaining_quantity;
+                    $item->save();
+                }
+            }
+
+            if (empty($receivedItemData)) {
+                return back()->with('warning', 'Đơn hàng đã được nhận đủ trước đó!');
+            }
+
+            $purchaseOrder->update([
+                'status' => 'received',
+                'actual_delivery' => now(),
+            ]);
+
+            // Sync với Module Nhập kho
+            try {
+                $warehouse = \App\Models\Warehouse::active()->first();
+                $this->purchaseImportSyncService->createPartialImportFromPO(
+                    $purchaseOrder, 
+                    $receivedItemData, 
+                    $warehouse->id ?? null, 
+                    false
+                );
+            } catch (\Exception $e) {
+                Log::warning("Could not create import for PO #{$purchaseOrder->id}: " . $e->getMessage());
+            }
+
+            DB::commit();
+
+            if ($purchaseOrder->sale_id) {
+                $this->notifySalesUser($purchaseOrder, 'Hàng đã về - đủ hàng', "Đơn mua hàng {$purchaseOrder->code} đã được nhận đủ hàng.");
+            }
+
+            $this->checkAndNotifyOrderComplete($purchaseOrder);
+
+            return back()->with('success', 'Đã nhận đủ hàng thành công!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
     public function cancel(PurchaseOrder $purchaseOrder)
     {
         $this->authorize('update', $purchaseOrder);

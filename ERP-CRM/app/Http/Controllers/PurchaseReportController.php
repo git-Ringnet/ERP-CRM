@@ -34,12 +34,6 @@ class PurchaseReportController extends Controller
         // Monthly report
         $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo);
 
-        // Cost analysis
-        $costAnalysis = $this->getCostAnalysis($dateFrom, $dateTo);
-
-        // Discount analysis
-        $discountAnalysis = $this->getDiscountAnalysis($dateFrom, $dateTo);
-
         // Tracking report (Theo dõi hàng về)
         $trackingReport = $this->getTrackingReport($request);
 
@@ -57,7 +51,7 @@ class PurchaseReportController extends Controller
         
         return view('purchase-reports.index', compact(
             'stats', 'supplierReport', 'productReport', 'monthlyReport',
-            'costAnalysis', 'discountAnalysis', 'trackingReport', 'suppliers', 'products',
+            'trackingReport', 'suppliers', 'products',
             'dateFrom', 'dateTo', 'supplierId', 'productId'
         ));
     }
@@ -96,10 +90,13 @@ class PurchaseReportController extends Controller
                 'supplier_id',
                 DB::raw('COUNT(*) as order_count'),
                 DB::raw('SUM(total) as total_amount'),
+                DB::raw('SUM(CASE WHEN total_foreign > 0 THEN total_foreign ELSE total / NULLIF(exchange_rate, 0) END) as total_amount_usd'),
                 DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
+                DB::raw('SUM(CASE WHEN total_foreign > 0 THEN (subtotal * exchange_rate) / NULLIF(exchange_rate, 0) ELSE subtotal END) as total_subtotal_usd'),
                 DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
                 DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
-                DB::raw('SUM(paid_amount) as total_paid')
+                DB::raw('SUM(paid_amount) as total_paid'),
+                DB::raw('SUM(CASE WHEN total_foreign > 0 THEN paid_amount / NULLIF(exchange_rate, 0) ELSE paid_amount / NULLIF(exchange_rate, 0) END) as total_paid_usd')
             )
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->groupBy('supplier_id')
@@ -120,10 +117,12 @@ class PurchaseReportController extends Controller
                 'supplier' => $item->supplier->name ?? 'N/A',
                 'order_count' => $item->order_count,
                 'total_amount' => $item->total_amount,
+                'total_amount_usd' => $item->total_amount_usd,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
                 'total_shipping' => $item->total_shipping,
                 'total_paid' => $item->total_paid,
+                'total_paid_usd' => $item->total_paid_usd,
                 'discount_rate' => round($discountRate, 1),
             ];
         })->toArray();
@@ -131,24 +130,30 @@ class PurchaseReportController extends Controller
 
     private function getProductReport($dateFrom, $dateTo, $productId = null): array
     {
-        $query = ImportItem::select(
-                'product_id',
-                DB::raw('SUM(quantity) as total_quantity'),
-                DB::raw('AVG(cost) as avg_purchase_price'),
-                DB::raw('SUM(cost * quantity) as total_value'),
-                DB::raw('AVG(warehouse_price) as avg_warehouse_price'),
-                DB::raw('SUM((warehouse_price - cost) * quantity) as total_service_cost'),
-                DB::raw('COUNT(DISTINCT import_id) as import_count')
-            )
-            ->whereHas('import', function($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('date', [$dateFrom, $dateTo])
-                  ->where('status', 'completed');
+        $query = ImportItem::query()
+            ->join('imports', 'import_items.import_id', '=', 'imports.id')
+            ->leftJoin('purchase_orders', function($join) {
+                $join->on('imports.reference_id', '=', 'purchase_orders.id')
+                     ->where('imports.reference_type', '=', 'purchase_order');
             })
-            ->groupBy('product_id')
+            ->select(
+                'import_items.product_id',
+                DB::raw('SUM(import_items.quantity) as total_quantity'),
+                DB::raw('AVG(import_items.cost) as avg_purchase_price'),
+                DB::raw('AVG(import_items.cost / NULLIF(COALESCE(purchase_orders.exchange_rate, 25000), 0)) as avg_purchase_price_usd'),
+                DB::raw('SUM(import_items.cost * import_items.quantity) as total_value'),
+                DB::raw('SUM((import_items.cost / NULLIF(COALESCE(purchase_orders.exchange_rate, 25000), 0)) * import_items.quantity) as total_value_usd'),
+                DB::raw('AVG(import_items.warehouse_price) as avg_warehouse_price'),
+                DB::raw('SUM((import_items.warehouse_price - import_items.cost) * import_items.quantity) as total_service_cost'),
+                DB::raw('COUNT(DISTINCT import_items.import_id) as import_count')
+            )
+            ->whereBetween('imports.date', [$dateFrom, $dateTo])
+            ->where('imports.status', 'completed')
+            ->groupBy('import_items.product_id')
             ->with('product');
 
         if ($productId) {
-            $query->where('product_id', $productId);
+            $query->where('import_items.product_id', $productId);
         }
 
         $results = $query->get();
@@ -167,7 +172,9 @@ class PurchaseReportController extends Controller
                 'product' => $item->product->name ?? 'N/A',
                 'total_quantity' => $item->total_quantity,
                 'avg_purchase_price' => $item->avg_purchase_price,
+                'avg_purchase_price_usd' => $item->avg_purchase_price_usd,
                 'total_value' => $item->total_value,
+                'total_value_usd' => $item->total_value_usd,
                 'avg_warehouse_price' => $item->avg_warehouse_price,
                 'total_service_cost' => $item->total_service_cost ?? 0,
                 'import_count' => $item->import_count,
@@ -182,10 +189,12 @@ class PurchaseReportController extends Controller
                 DB::raw("DATE_FORMAT(order_date, '%Y-%m') as period"),
                 DB::raw('COUNT(*) as order_count'),
                 DB::raw('SUM(total) as total_amount'),
+                DB::raw('SUM(CASE WHEN total_foreign > 0 THEN total_foreign ELSE total / NULLIF(exchange_rate, 0) END) as total_amount_usd'),
                 DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
                 DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
                 DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
-                DB::raw('SUM(paid_amount) as total_paid')
+                DB::raw('SUM(paid_amount) as total_paid'),
+                DB::raw('SUM(paid_amount / NULLIF(exchange_rate, 0)) as total_paid_usd')
             )
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->groupBy('period')
@@ -205,10 +214,12 @@ class PurchaseReportController extends Controller
                 'month' => $item->period,
                 'order_count' => $item->order_count,
                 'total_amount' => $item->total_amount,
+                'total_amount_usd' => $item->total_amount_usd,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
                 'total_shipping' => $item->total_shipping,
                 'total_paid' => $item->total_paid,
+                'total_paid_usd' => $item->total_paid_usd,
                 'change' => $change !== null ? round($change, 1) : null,
             ];
 
@@ -218,81 +229,7 @@ class PurchaseReportController extends Controller
         return $report;
     }
 
-    private function getCostAnalysis($dateFrom, $dateTo): array
-    {
-        $totals = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
-            ->selectRaw('
-                SUM(subtotal * exchange_rate) as goods_value,
-                SUM(shipping_cost * exchange_rate) as shipping_cost,
-                SUM(other_cost * exchange_rate) as other_cost,
-                SUM(vat_amount * exchange_rate) as vat_amount,
-                SUM(total) as grand_total
-            ')
-            ->first();
 
-        $grandTotal = $totals->grand_total ?? 1;
-
-        return [
-            'goods_value' => $totals->goods_value ?? 0,
-            'shipping_cost' => $totals->shipping_cost ?? 0,
-            'other_cost' => $totals->other_cost ?? 0,
-            'vat_amount' => $totals->vat_amount ?? 0,
-            'breakdown' => [
-                ['name' => 'Giá trị hàng hóa', 'value' => $totals->goods_value ?? 0, 'rate' => round((($totals->goods_value ?? 0) / $grandTotal) * 100, 1)],
-                ['name' => 'Chi phí vận chuyển', 'value' => $totals->shipping_cost ?? 0, 'rate' => round((($totals->shipping_cost ?? 0) / $grandTotal) * 100, 1)],
-                ['name' => 'Chi phí khác', 'value' => $totals->other_cost ?? 0, 'rate' => round((($totals->other_cost ?? 0) / $grandTotal) * 100, 1)],
-                ['name' => 'VAT', 'value' => $totals->vat_amount ?? 0, 'rate' => round((($totals->vat_amount ?? 0) / $grandTotal) * 100, 1)],
-            ]
-        ];
-    }
-
-    private function getDiscountAnalysis($dateFrom, $dateTo): array
-    {
-        $suppliers = Supplier::withCount(['purchaseOrders' => function ($query) use ($dateFrom, $dateTo) {
-            $query->whereBetween('order_date', [$dateFrom, $dateTo]);
-        }])
-        ->addSelect(['purchase_orders_sum_discount_amount' => PurchaseOrder::selectRaw('SUM(discount_amount * exchange_rate)')
-            ->whereColumn('supplier_id', 'suppliers.id')
-            ->whereBetween('order_date', [$dateFrom, $dateTo])
-        ])
-        ->addSelect(['purchase_orders_sum_subtotal' => PurchaseOrder::selectRaw('SUM(subtotal * exchange_rate)')
-            ->whereColumn('supplier_id', 'suppliers.id')
-            ->whereBetween('order_date', [$dateFrom, $dateTo])
-        ])
-        ->having('purchase_orders_count', '>', 0)
-        ->get();
-
-        $totalBase = $suppliers->sum('base_discount');
-        $totalVolume = $suppliers->sum('volume_discount');
-        $totalEarly = $suppliers->sum('early_payment_discount');
-        $totalSpecial = $suppliers->sum('special_discount');
-
-        $supplierDiscounts = $suppliers->map(function ($supplier) {
-            $subtotal = $supplier->purchase_orders_sum_subtotal ?? 0;
-            $discount = $supplier->purchase_orders_sum_discount_amount ?? 0;
-            $rate = $subtotal > 0 ? ($discount / $subtotal) * 100 : 0;
-
-            return [
-                'supplier' => $supplier->name,
-                'base_discount' => $supplier->base_discount ?? 0,
-                'volume_discount' => $supplier->volume_discount ?? 0,
-                'early_discount' => $supplier->early_payment_discount ?? 0,
-                'special_discount' => $supplier->special_discount ?? 0,
-                'total_discount' => $discount,
-                'discount_rate' => round($rate, 1),
-            ];
-        })->toArray();
-
-        return [
-            'totals' => [
-                'base' => $totalBase,
-                'volume' => $totalVolume,
-                'early' => $totalEarly,
-                'special' => $totalSpecial,
-            ],
-            'by_supplier' => $supplierDiscounts,
-        ];
-    }
 
     private function getTrackingReport(Request $request): array
     {

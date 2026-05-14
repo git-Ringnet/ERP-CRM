@@ -151,7 +151,7 @@
         </div>
 
         <!-- Summary Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="bg-primary text-white rounded-lg shadow-sm p-4">
                 <div class="flex justify-between items-center">
                     <div>
@@ -169,26 +169,6 @@
                         <p class="text-xs opacity-90 mt-1 font-medium">~ {{ number_format($stats['total_amount'] / 1000000, 1) }}tr VND</p>
                     </div>
                     <i class="fas fa-money-bill-wave text-3xl opacity-50"></i>
-                </div>
-            </div>
-            <div class="bg-yellow-500 text-white rounded-lg shadow-sm p-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-sm opacity-80">Tổng chiết khấu</p>
-                        <p class="text-2xl font-bold">{{ number_format($stats['total_discount'] / 1000000, 1) }}tr</p>
-                        <p class="text-xs opacity-90 mt-1">Tính theo giá trị quy đổi VND</p>
-                    </div>
-                    <i class="fas fa-percent text-3xl opacity-50"></i>
-                </div>
-            </div>
-            <div class="bg-red-500 text-white rounded-lg shadow-sm p-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-sm opacity-80">CP vận chuyển</p>
-                        <p class="text-2xl font-bold">{{ number_format($stats['total_shipping'] / 1000000, 1) }}tr</p>
-                        <p class="text-xs opacity-90 mt-1">Cảng + Nội địa</p>
-                    </div>
-                    <i class="fas fa-truck text-3xl opacity-50"></i>
                 </div>
             </div>
         </div>
@@ -216,16 +196,6 @@
                         class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
                         data-tab="monthly">
                         <i class="fas fa-calendar-alt mr-1"></i>Theo tháng
-                    </button>
-                    <button type="button"
-                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
-                        data-tab="cost">
-                        <i class="fas fa-chart-pie mr-1"></i>Phân tích CP
-                    </button>
-                    <button type="button"
-                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
-                        data-tab="discount">
-                        <i class="fas fa-tags mr-1"></i>Phân tích CK
                     </button>
                 </nav>
             </div>
@@ -336,10 +306,10 @@
                             <tr class="bg-gray-50">
                                 <th class="px-3 py-2 text-left font-medium text-gray-700">Nhà cung cấp</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">Số đơn</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Chiết khấu</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP vận chuyển</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Thực trả</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Chiết khấu (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP vận chuyển (VND)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Thực trả (USD)</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ CK</th>
                             </tr>
                         </thead>
@@ -348,15 +318,20 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium">{{ $row['supplier'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_amount'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="font-bold text-indigo-600">${{ number_format($row['total_amount_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600">
-                                        {{ number_format($row['total_discount'], 0, ',', '.') }}đ
+                                        <div class="font-medium">${{ number_format(($row['total_discount'] / 25000), 2) }}</div> <!-- Approximate USD for discount if not calculated -->
+                                        <div class="text-[10px] opacity-70">{{ number_format($row['total_discount'], 0, ',', '.') }}đ</div>
                                     </td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_shipping'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">
+                                        {{ number_format($row['total_shipping'], 0, ',', '.') }}đ
                                     </td>
-                                    <td class="px-3 py-2 text-right font-bold">
-                                        {{ number_format($row['total_paid'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="font-bold text-gray-900">${{ number_format($row['total_paid_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-center"><span
                                             class="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">{{ $row['discount_rate'] }}%</span>
@@ -382,10 +357,10 @@
                             <tr class="bg-gray-50">
                                 <th class="px-3 py-2 text-left font-medium text-gray-700">Sản phẩm</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">SL nhập</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Giá TB</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Giá kho TB</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP phục vụ</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Giá TB (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Giá kho TB (VND)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP phục vụ (VND)</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">Số NCC</th>
                             </tr>
                         </thead>
@@ -395,9 +370,13 @@
                                     <td class="px-3 py-2 font-medium">{{ $row['product'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
                                     <td class="px-3 py-2 text-right">
-                                        {{ number_format($row['avg_purchase_price'], 0, ',', '.') }}đ
+                                        <div class="font-bold text-indigo-600">${{ number_format($row['avg_purchase_price_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['avg_purchase_price'], 0, ',', '.') }}đ</div>
                                     </td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_value'], 0, ',', '.') }}đ</td>
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="font-bold">${{ number_format($row['total_value_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_value'], 0, ',', '.') }}đ</div>
+                                    </td>
                                     <td class="px-3 py-2 text-right text-green-600 font-bold">
                                         {{ number_format($row['avg_warehouse_price'], 0, ',', '.') }}đ
                                     </td>
@@ -426,10 +405,10 @@
                             <tr class="bg-gray-50">
                                 <th class="px-3 py-2 text-left font-medium text-gray-700">Tháng</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">Số đơn</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Chiết khấu</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP vận chuyển</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Thực trả</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Chiết khấu (VND)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">CP vận chuyển (VND)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Thực trả (USD)</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">So với tháng trước</th>
                             </tr>
                         </thead>
@@ -438,15 +417,18 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium">{{ $row['month'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['total_amount'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="font-bold text-indigo-600">${{ number_format($row['total_amount_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600">
                                         {{ number_format($row['total_discount'], 0, ',', '.') }}đ
                                     </td>
                                     <td class="px-3 py-2 text-right">{{ number_format($row['total_shipping'], 0, ',', '.') }}đ
                                     </td>
-                                    <td class="px-3 py-2 text-right font-bold">
-                                        {{ number_format($row['total_paid'], 0, ',', '.') }}đ
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="font-bold text-gray-900">${{ number_format($row['total_paid_usd'] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-center">
                                         @if($row['change'] !== null)
@@ -468,129 +450,7 @@
                 </div>
             </div>
 
-            <!-- Cost Analysis -->
-            <div class="tab-content p-4 hidden" id="tab-cost">
-                <h3 class="text-base font-semibold text-gray-800 mb-4"><i
-                        class="fas fa-chart-pie mr-2 text-primary"></i>Phân tích chi phí</h3>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">Giá trị hàng hóa</p>
-                        <p class="text-xl font-bold text-primary">
-                            {{ number_format($costAnalysis['goods_value'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">Chi phí vận chuyển</p>
-                        <p class="text-xl font-bold text-yellow-600">
-                            {{ number_format($costAnalysis['shipping_cost'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">Chi phí khác</p>
-                        <p class="text-xl font-bold text-blue-600">
-                            {{ number_format($costAnalysis['other_cost'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">VAT</p>
-                        <p class="text-xl font-bold text-red-600">
-                            {{ number_format($costAnalysis['vat_amount'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Loại chi phí</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Giá trị</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @foreach($costAnalysis['breakdown'] as $cost)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $cost['name'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($cost['value'], 0, ',', '.') }}đ</td>
-                                    <td class="px-3 py-2 text-center">{{ $cost['rate'] }}%</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            <!-- Discount Analysis -->
-            <div class="tab-content p-4 hidden" id="tab-discount">
-                <h3 class="text-base font-semibold text-gray-800 mb-4"><i class="fas fa-tags mr-2 text-primary"></i>Phân
-                    tích chiết khấu</h3>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">CK cơ bản</p>
-                        <p class="text-xl font-bold text-green-600">
-                            {{ number_format($discountAnalysis['totals']['base'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">CK số lượng</p>
-                        <p class="text-xl font-bold text-blue-600">
-                            {{ number_format($discountAnalysis['totals']['volume'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">CK thanh toán sớm</p>
-                        <p class="text-xl font-bold text-yellow-600">
-                            {{ number_format($discountAnalysis['totals']['early'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4 text-center">
-                        <p class="text-sm text-gray-600">CK đặc biệt</p>
-                        <p class="text-xl font-bold text-red-600">
-                            {{ number_format($discountAnalysis['totals']['special'] / 1000000, 1) }}tr
-                        </p>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Nhà cung cấp</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CK cơ bản</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CK số lượng</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CK TT sớm</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">CK đặc biệt</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng CK</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ CK</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @forelse($discountAnalysis['by_supplier'] as $row)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['supplier'] }}</td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['base_discount'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['volume_discount'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['early_discount'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-right">{{ number_format($row['special_discount'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-right text-green-600 font-bold">
-                                        {{ number_format($row['total_discount'], 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-3 py-2 text-center"><span
-                                            class="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">{{ $row['discount_rate'] }}%</span>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="px-3 py-8 text-center text-gray-500">Không có dữ liệu</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </div>
 

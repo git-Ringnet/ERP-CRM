@@ -128,14 +128,13 @@
                             @endphp
                             <div class="text-gray-900 font-semibold">${{ number_format($val, $decimals) }}</div>
                         </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <td class="px-4 py-3 whitespace-nowrap">
                             @php
-                                $steps = [
-                                    'pending' => 0,
-                                    'approved' => 1,
-                                    'shipping' => 2,
-                                    'received' => 3,
-                                    'cancelled' => -1,
+                                $statuses = [
+                                    'pending' => 'Chờ đặt', 
+                                    'approved' => 'Đã đặt', 
+                                    'shipping' => 'Đang về', 
+                                    'received' => 'Đã về – đủ hàng'
                                 ];
                                 $currentKey = 'pending';
                                 if (in_array($order->status, ['draft', 'pending_approval'])) $currentKey = 'pending';
@@ -144,46 +143,42 @@
                                 elseif ($order->status == 'received') $currentKey = 'received';
                                 elseif ($order->status == 'cancelled') $currentKey = 'cancelled';
                                 
-                                $step = $steps[$currentKey] ?? 0;
-                                $isCancelled = $order->status === 'cancelled';
+                                $currentIndex = array_search($currentKey, array_keys($statuses));
+                                if ($currentIndex === false && $order->status !== 'cancelled') $currentIndex = 0;
                             @endphp
 
-                            @if($isCancelled)
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                    <i class="fas fa-times-circle mr-1"></i>Đã hủy
-                                </span>
-                            @else
-                                <div class="flex items-center justify-center gap-0.5">
-                                    {{-- Step 1: Chờ đặt --}}
-                                    <div class="flex flex-col items-center" title="Chờ đặt">
-                                        <div class="w-3 h-3 rounded-full {{ $step >= 0 ? 'bg-yellow-400' : 'bg-gray-300' }} {{ $step === 0 ? 'animate-pulse ring-2 ring-yellow-200' : '' }}"></div>
-                                    </div>
-                                    <div class="w-3 h-0.5 {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-200' }}"></div>
-                                    
-                                    {{-- Step 2: Đã đặt --}}
-                                    <div class="flex flex-col items-center" title="Đã đặt">
-                                        <div class="w-3 h-3 rounded-full {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-300' }} {{ $step === 1 ? 'animate-pulse ring-2 ring-blue-200' : '' }}"></div>
-                                    </div>
-                                    <div class="w-3 h-0.5 {{ $step >= 2 ? ($order->is_hold ? 'bg-orange-400' : 'bg-purple-500') : 'bg-gray-200' }}"></div>
-                                    
-                                    {{-- Step 3: Đang về / Hold --}}
-                                    <div class="flex flex-col items-center" title="Đang về / Hold">
-                                        <div class="w-3 h-3 rounded-full {{ $step >= 2 ? ($order->is_hold ? 'bg-orange-400' : 'bg-purple-500') : 'bg-gray-300' }} {{ $step === 2 || $order->is_hold ? 'animate-pulse ring-2 '.($order->is_hold ? 'ring-orange-200' : 'ring-purple-200') : '' }}"></div>
-                                    </div>
-                                    <div class="w-3 h-0.5 {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-200' }}"></div>
-                                    
-                                    {{-- Step 4: Đã về --}}
-                                    <div class="flex flex-col items-center" title="Đã về – đủ hàng">
-                                        <div class="w-3 h-3 rounded-full {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-300' }}"></div>
-                                    </div>
+                            @if($order->status === 'cancelled')
+                                <div class="text-center">
+                                    <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700 uppercase">
+                                        <i class="fas fa-times-circle mr-1"></i>Hủy đơn
+                                    </span>
                                 </div>
-                                <div class="text-[10px] mt-1 font-medium {{ $step === 0 ? 'text-yellow-600' : ($step === 1 ? 'text-blue-600' : ($step === 2 ? ($order->is_hold ? 'text-orange-600' : 'text-purple-600') : 'text-green-600')) }}">
+                            @else
+                                <div class="flex items-center justify-center mb-1">
+                                    @foreach($statuses as $key => $label)
+                                        @php $idx = array_search($key, array_keys($statuses)); @endphp
+                                        <div class="flex items-center">
+                                            <div class="w-3 h-3 rounded-full {{ $idx <= $currentIndex ? ($order->is_hold && $idx == $currentIndex ? 'bg-orange-500 animate-pulse ring-2 ring-orange-200' : 'bg-primary shadow-sm') : 'bg-gray-200' }}" 
+                                                title="{{ $label }}"></div>
+                                            @if(!$loop->last)
+                                                <div class="w-4 h-0.5 {{ $idx < $currentIndex ? 'bg-primary' : 'bg-gray-100' }}"></div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <div class="text-center">
                                     @if($order->is_hold)
-                                        <span class="inline-flex items-center"><i class="fas fa-pause-circle mr-1"></i>HOLD</span>
+                                        <span class="text-[10px] font-bold text-orange-600 uppercase tracking-tighter animate-pulse flex items-center justify-center">
+                                            <i class="fas fa-pause-circle mr-1"></i>HOLD
+                                        </span>
                                     @elseif($order->status == 'pending_approval')
-                                        <span class="inline-flex items-center"><i class="fas fa-hourglass-half mr-1"></i>Chờ duyệt</span>
+                                        <span class="text-[10px] font-bold text-yellow-600 uppercase tracking-tighter flex items-center justify-center">
+                                            <i class="fas fa-hourglass-half mr-1"></i>Chờ đặt
+                                        </span>
                                     @else
-                                        {{ $order->status_label }}
+                                        <span class="text-[10px] font-bold {{ $currentIndex == 0 ? 'text-yellow-600' : ($currentIndex == 1 ? 'text-blue-600' : ($currentIndex == 2 ? 'text-purple-600' : 'text-green-600')) }} uppercase tracking-tighter">
+                                            {{ $order->status_label }}
+                                        </span>
                                     @endif
                                 </div>
                             @endif
@@ -209,9 +204,44 @@
                                 @if($order->status == 'pending_approval')
                                     <form action="{{ route('purchase-orders.approve', $order) }}" method="POST" class="inline">
                                         @csrf
-                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-all transform hover:scale-110" title="Xác nhận Đã đặt">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm hover:shadow-md transform hover:scale-110" title="Duyệt: Xác nhận Đã đặt">
                                             <i class="fas fa-check"></i>
                                         </button>
+                                    </form>
+                                @endif
+
+                                @if($order->status == 'approved')
+                                    <form action="{{ route('purchase-orders.ship', $order) }}" method="POST" class="inline">
+                                        @csrf
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all shadow-sm hover:shadow-md transform hover:scale-110" title="Chuyển sang Đang về">
+                                            <i class="fas fa-truck-moving"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                @if(in_array($order->status, ['shipping', 'partial_received']))
+                                    <form action="{{ route('purchase-orders.receive-all', $order) }}" method="POST" class="inline">
+                                        @csrf
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all shadow-sm hover:shadow-md transform hover:scale-110" title="Xác nhận Đã về (Nhận hết)">
+                                            <i class="fas fa-box-open"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                @if(in_array($order->status, ['approved', 'shipping', 'partial_received']))
+                                    <form action="{{ route('purchase-orders.toggle-hold', $order) }}" method="POST" class="inline" id="hold-form-{{ $order->id }}">
+                                        @csrf
+                                        <input type="hidden" name="hold_reason" id="hold_reason_{{ $order->id }}">
+                                        @if($order->is_hold)
+                                            <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all shadow-sm transform hover:scale-110" title="Gỡ Hold">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        @else
+                                            <button type="button" onclick="const reason = prompt('Nhập lý do Hold đơn hàng:'); if(reason !== null) { document.getElementById('hold_reason_{{ $order->id }}').value = reason; document.getElementById('hold-form-{{ $order->id }}').submit(); }"
+                                                class="inline-flex items-center justify-center w-8 h-8 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all shadow-sm transform hover:scale-110" title="Hold đơn hàng">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                        @endif
                                     </form>
                                 @endif
 
