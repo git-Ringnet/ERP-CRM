@@ -595,9 +595,81 @@ class SaleController extends Controller
                     'implementation_cost_percent' => $oldItem->implementation_cost_percent,
                     'contractor_tax' => $oldItem->contractor_tax,
                     'contractor_tax_percent' => $oldItem->contractor_tax_percent,
+                    'extra_expenses_data' => $oldItem->extra_expenses_data,
                 ];
             }
             
+            // 3. Map chi phí cũ sang ID chi phí mới
+            $oldExpenseTypes = $sale->expenses->pluck('type', 'id')->toArray();
+            
+            // Update sale expenses (Làm trước để có ID mới)
+            $sale->expenses()->delete();
+            $newExpensesMap = []; // oldId => newId
+            
+            if (!empty($validated['expenses'])) {
+                foreach ($validated['expenses'] as $expense) {
+                    if (empty($expense['type'])) continue;
+                    $inputMode = $expense['input_mode'] ?? 'fixed';
+                    $amount = $inputMode === 'percent'
+                        ? 0
+                        : round(floatval($expense['amount'] ?? 0), 2);
+                    $percentValue = $inputMode === 'percent'
+                        ? round(floatval($expense['percent_value'] ?? 0), 2)
+                        : null;
+
+                    $newExp = SaleExpense::create([
+                        'sale_id' => $sale->id,
+                        'type' => $expense['type'],
+                        'input_mode' => $inputMode,
+                        'percent_value' => $percentValue,
+                        'description' => $expense['description'] ?? '',
+                        'amount' => $amount,
+                    ]);
+                    
+                    $oldId = array_search($expense['type'], $oldExpenseTypes);
+                    if ($oldId !== false) {
+                        $newExpensesMap[$oldId] = $newExp->id;
+                        unset($oldExpenseTypes[$oldId]); // Đã map xong thì xóa đi để tránh trùng
+                    }
+                }
+            }
+
+            // 4. Xóa dữ liệu PNL cũ của các chi phí (Standard) đã bị người dùng xóa
+            $newExpenseTypes = array_column($validated['expenses'] ?? [], 'type');
+            $activeStandardFields = [];
+            $standardExpenseMapping = [
+                'Chi phí Tài chính' => ['finance_cost_percent'],
+                'Lãi vay phát sinh do nợ quá hạn' => ['overdue_interest_cost', 'overdue_interest_percent'],
+                'Chi phí Quản lí, Back Office & kỹ thuật' => ['management_cost_percent'],
+                '24x7 Support cost' => ['support_247_cost_percent'],
+                'Other Support' => ['other_support_cost'],
+                'Technical support/POC' => ['technical_poc_cost', 'technical_poc_percent'],
+                'Technical support/POC 30%' => ['technical_poc_cost', 'technical_poc_percent'],
+                'Chi phí triển khai hợp đồng' => ['implementation_cost', 'implementation_cost_percent'],
+                'Thuế nhà thầu' => ['contractor_tax', 'contractor_tax_percent'],
+            ];
+            foreach ($standardExpenseMapping as $type => $fields) {
+                if (in_array($type, $newExpenseTypes)) {
+                    foreach ($fields as $field) {
+                        $activeStandardFields[$field] = true;
+                    }
+                }
+            }
+            foreach ($oldPnlData as &$pnlItem) {
+                $allStandardFields = [
+                    'finance_cost_percent', 'overdue_interest_cost', 'overdue_interest_percent', 
+                    'management_cost_percent', 'support_247_cost_percent', 'other_support_cost', 
+                    'technical_poc_cost', 'technical_poc_percent', 'implementation_cost', 
+                    'implementation_cost_percent', 'contractor_tax', 'contractor_tax_percent'
+                ];
+                foreach ($allStandardFields as $field) {
+                    if (!isset($activeStandardFields[$field])) {
+                        $pnlItem[$field] = null;
+                    }
+                }
+            }
+            unset($pnlItem);
+
             // Delete old items and create new ones with cost price and project
             $sale->items()->delete();
 
@@ -641,6 +713,16 @@ class SaleController extends Controller
                     return (isset($oldPnl[$fieldOld]) && $oldPnl[$fieldOld] !== '') ? $oldPnl[$fieldOld] : null;
                 };
 
+                $oldExtraData = $oldPnl['extra_expenses_data'] ?? [];
+                $newExtraData = [];
+                if (is_array($oldExtraData)) {
+                    foreach ($oldExtraData as $oldId => $val) {
+                        if (isset($newExpensesMap[$oldId])) {
+                            $newExtraData[(string) $newExpensesMap[$oldId]] = $val;
+                        }
+                    }
+                }
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -672,31 +754,8 @@ class SaleController extends Controller
                     'implementation_cost_percent' => $getPercentVal('implementation_cost_percent', 'implementation_cost_percent'),
                     'contractor_tax' => $getVal('contractor_tax', 'contractor_tax', 0),
                     'contractor_tax_percent' => $getPercentVal('contractor_tax_percent', 'contractor_tax_percent'),
+                    'extra_expenses_data' => !empty($newExtraData) ? $newExtraData : null,
                 ]);
-            }
-
-            // Update sale expenses
-            $sale->expenses()->delete();
-            if (!empty($validated['expenses'])) {
-                foreach ($validated['expenses'] as $expense) {
-                    if (empty($expense['type'])) continue;
-                    $inputMode = $expense['input_mode'] ?? 'fixed';
-                    $amount = $inputMode === 'percent'
-                        ? 0
-                        : round(floatval($expense['amount'] ?? 0), 2);
-                    $percentValue = $inputMode === 'percent'
-                        ? round(floatval($expense['percent_value'] ?? 0), 2)
-                        : null;
-
-                    SaleExpense::create([
-                        'sale_id' => $sale->id,
-                        'type' => $expense['type'],
-                        'input_mode' => $inputMode,
-                        'percent_value' => $percentValue,
-                        'description' => $expense['description'] ?? '',
-                        'amount' => $amount,
-                    ]);
-                }
             }
 
             $this->syncOrderExpensesToPnlItems($sale);
@@ -1663,7 +1722,7 @@ class SaleController extends Controller
             }
 
             // Overdue Interest
-            if (is_null($item->overdue_interest_percent) && (is_null($item->overdue_interest_cost) || $item->overdue_interest_cost == 0)) {
+            if (is_null($item->overdue_interest_percent) && is_null($item->overdue_interest_cost)) {
                 if ($overdue && $overdue->input_mode === 'percent') {
                     $item->overdue_interest_percent = (float) ($overdue->percent_value ?? 0);
                     $item->overdue_interest_cost = 0;
@@ -1691,14 +1750,14 @@ class SaleController extends Controller
             }
 
             // Other Support Cost
-            if (is_null($item->other_support_cost) || $item->other_support_cost == 0) {
+            if (is_null($item->other_support_cost)) {
                 $item->other_support_cost = ($otherSupport && $otherSupport->input_mode === 'percent')
                     ? (float) ($otherSupport->percent_value ?? 0)
                     : 0;
             }
 
             // Technical POC - Respect manual override
-            if (is_null($item->technical_poc_percent) && (is_null($item->technical_poc_cost) || $item->technical_poc_cost == 0)) {
+            if (is_null($item->technical_poc_percent) && is_null($item->technical_poc_cost)) {
                 if ($technicalPoc && $technicalPoc->input_mode === 'percent') {
                      $item->technical_poc_percent = (float) ($technicalPoc->percent_value ?? 0);
                      $item->technical_poc_cost = 0;
@@ -1712,7 +1771,7 @@ class SaleController extends Controller
             }
 
             // Implementation Cost - Respect manual override
-            if (is_null($item->implementation_cost_percent) && (is_null($item->implementation_cost) || $item->implementation_cost == 0)) {
+            if (is_null($item->implementation_cost_percent) && is_null($item->implementation_cost)) {
                 if ($implementation && $implementation->input_mode === 'percent') {
                     $item->implementation_cost_percent = (float) ($implementation->percent_value ?? 0);
                     $item->implementation_cost = 0;
@@ -1725,11 +1784,11 @@ class SaleController extends Controller
                 }
             }
 
-            // Contractor Tax - Use fixed formula: Cost / 0.9 * 0.1 (if expense type exists)
-            if ($contractorTax) {
+            // Contractor Tax - Use fixed formula only if not manually set
+            if ($contractorTax && is_null($item->contractor_tax)) {
                 $item->contractor_tax_percent = null;
                 $item->contractor_tax = round($costTotal / 0.9 * 0.1);
-            } else {
+            } elseif (!$contractorTax) {
                 $item->contractor_tax_percent = null;
                 $item->contractor_tax = 0;
             }
