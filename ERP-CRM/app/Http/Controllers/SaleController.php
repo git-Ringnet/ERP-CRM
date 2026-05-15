@@ -570,14 +570,18 @@ class SaleController extends Controller
             $pnlMap = [];
             foreach ($requestPnlItems as $reqPnl) {
                 if (isset($reqPnl['product_id'])) {
-                    $pnlMap[$reqPnl['product_id']] = $reqPnl;
+                    $pid = $reqPnl['product_id'];
+                    if (!isset($pnlMap[$pid])) $pnlMap[$pid] = [];
+                    $pnlMap[$pid][] = $reqPnl;
                 }
             }
 
             // 2. Lưu dữ liệu P&L của items cũ để dự phòng trường hợp không có trong request (vd: tab P&L chưa load đủ)
             $oldPnlData = [];
             foreach ($sale->items as $oldItem) {
-                $oldPnlData[$oldItem->product_id] = [
+                $pid = $oldItem->product_id;
+                if (!isset($oldPnlData[$pid])) $oldPnlData[$pid] = [];
+                $oldPnlData[$pid][] = [
                     'usd_price' => $oldItem->usd_price,
                     'exchange_rate' => $oldItem->exchange_rate,
                     'discount_rate' => $oldItem->discount_rate,
@@ -655,20 +659,23 @@ class SaleController extends Controller
                     }
                 }
             }
-            foreach ($oldPnlData as &$pnlItem) {
-                $allStandardFields = [
-                    'finance_cost_percent', 'overdue_interest_cost', 'overdue_interest_percent', 
-                    'management_cost_percent', 'support_247_cost_percent', 'other_support_cost', 
-                    'technical_poc_cost', 'technical_poc_percent', 'implementation_cost', 
-                    'implementation_cost_percent', 'contractor_tax', 'contractor_tax_percent'
-                ];
-                foreach ($allStandardFields as $field) {
-                    if (!isset($activeStandardFields[$field])) {
-                        $pnlItem[$field] = null;
+            foreach ($oldPnlData as &$pnlItemsForProduct) {
+                foreach ($pnlItemsForProduct as &$pnlItem) {
+                    $allStandardFields = [
+                        'finance_cost_percent', 'overdue_interest_cost', 'overdue_interest_percent', 
+                        'management_cost_percent', 'support_247_cost_percent', 'other_support_cost', 
+                        'technical_poc_cost', 'technical_poc_percent', 'implementation_cost', 
+                        'implementation_cost_percent', 'contractor_tax', 'contractor_tax_percent'
+                    ];
+                    foreach ($allStandardFields as $field) {
+                        if (!isset($activeStandardFields[$field])) {
+                            $pnlItem[$field] = null;
+                        }
                     }
                 }
+                unset($pnlItem);
             }
-            unset($pnlItem);
+            unset($pnlItemsForProduct);
 
             // Delete old items and create new ones with cost price and project
             $sale->items()->delete();
@@ -687,8 +694,15 @@ class SaleController extends Controller
                     : $product->warranty_months;
 
                 // Lấy dữ liệu P&L: Ưu tiên dữ liệu từ form P&L (items[]), sau đó mới tới Data cũ, cuối cùng là mặc định
-                $reqPnl = $pnlMap[$item['product_id']] ?? [];
-                $oldPnl = $oldPnlData[$item['product_id']] ?? [];
+                $reqPnl = [];
+                if (!empty($pnlMap[$item['product_id']])) {
+                    $reqPnl = array_shift($pnlMap[$item['product_id']]);
+                }
+
+                $oldPnl = [];
+                if (!empty($oldPnlData[$item['product_id']])) {
+                    $oldPnl = array_shift($oldPnlData[$item['product_id']]);
+                }
 
                 // Helper xử lý giá trị NULL/0/NA
                 $getVal = function($fieldReq, $fieldOld, $fallback = null, $naField = null) use ($reqPnl, $oldPnl) {
