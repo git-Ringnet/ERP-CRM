@@ -100,7 +100,6 @@ class SinglePurchaseOrderExport implements FromArray, WithHeadings, WithStyles, 
         $rows[] = ['Nhà cung cấp:', $this->po->supplier->name ?? ''];
         $rows[] = ['Ngày tạo:', $this->po->order_date->format('d/m/Y')];
         $rows[] = ['Ngày giao dự kiến:', $this->po->expected_delivery ? $this->po->expected_delivery->format('d/m/Y') : '-'];
-        $rows[] = ['Tiền tệ:', ($this->po->currency->code ?? 'VND') . ($isForeign ? " (Tỷ giá: " . number_format($rate) . ")" : '')];
 
         return $rows;
     }
