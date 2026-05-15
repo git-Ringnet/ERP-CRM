@@ -592,26 +592,40 @@
 
         function sendBulkInvoice() {
             if (selectedSales.size === 0) {
-                alert('Vui lòng chọn ít nhất 1 đơn hàng');
+                Swal.fire({
+                    title: 'Thông báo',
+                    text: 'Vui lòng chọn ít nhất 1 đơn hàng',
+                    icon: 'info'
+                });
                 return;
             }
 
-            if (!confirm(`Bạn có chắc muốn gửi hóa đơn cho ${selectedSales.size} đơn hàng đã chọn?`)) {
-                return;
-            }
+            Swal.fire({
+                title: 'Gửi hóa đơn hàng loạt?',
+                text: `Bạn có chắc muốn gửi hóa đơn cho ${selectedSales.size} đơn hàng đã chọn?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#059669',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Đồng ý, gửi ngay!',
+                cancelButtonText: 'Hủy bỏ',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const inputsContainer = document.getElementById('bulkEmailInputs');
+                    inputsContainer.innerHTML = '';
 
-            const inputsContainer = document.getElementById('bulkEmailInputs');
-            inputsContainer.innerHTML = '';
+                    selectedSales.forEach(id => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'sale_ids[]';
+                        input.value = id;
+                        inputsContainer.appendChild(input);
+                    });
 
-            selectedSales.forEach(id => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'sale_ids[]';
-                input.value = id;
-                inputsContainer.appendChild(input);
+                    document.getElementById('bulkEmailForm').submit();
+                }
             });
-
-            document.getElementById('bulkEmailForm').submit();
         }
     </script>
 @endpush

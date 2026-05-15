@@ -154,10 +154,12 @@
                 @endif
                 
                 @if(in_array($sale->status, ['pending', 'approved']))
-                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('Xác nhận hủy đơn hàng?')">
+                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="cancelled">
-                        <button type="submit" class="px-3 py-1 bg-white border border-red-200 text-red-600 text-xs font-bold rounded hover:bg-red-50 transition-all">
+                        <button type="button" 
+                                onclick="confirmAction(this.closest('form'), 'Xác nhận hủy đơn?', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Đồng ý hủy', '#d33')"
+                                class="px-3 py-1 bg-white border border-red-200 text-red-600 text-xs font-bold rounded hover:bg-red-50 transition-all">
                             <i class="fas fa-times mr-1"></i> HỦY ĐƠN
                         </button>
                     </form>

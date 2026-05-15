@@ -409,6 +409,7 @@
 let productIndex = {{ count(old('products', [])) ?: 1 }};
 let expenseIndex = {{ count(old('expenses', [])) ?: 0 }};
 let milestoneIndex = 0;
+let isSubmitting = false;
 
 function formatMoney(amount) {
     return new Intl.NumberFormat('vi-VN').format(amount);
@@ -418,12 +419,6 @@ function formatMoney(amount) {
 window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
 window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
 
-// Prevent "Leave site?" warning when submitting form
-window.addEventListener('beforeunload', function(e) {
-    if (isSubmitting) {
-        return undefined;
-    }
-});
 
 // Searchable Select Functions
 function initSearchableSelect(container, onSelect) {
@@ -1312,7 +1307,7 @@ function validateAndSubmit() {
         errors.push('Cần ít nhất 1 sản phẩm');
     }
     
-    // Show errors or submit
+    // Show confirmation modal or submit
     if (errors.length > 0) {
         errorList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
         errorContainer.classList.remove('hidden');
@@ -1320,21 +1315,36 @@ function validateAndSubmit() {
     } else {
         errorContainer.classList.add('hidden');
         
-        // Unformat money values before submit
-        document.querySelectorAll('.price-input').forEach(input => {
-            input.value = unformatMoney(input.value);
+        Swal.fire({
+            title: 'Xác nhận lưu đơn hàng?',
+            text: "Bạn có chắc chắn muốn lưu đơn hàng này không?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Đồng ý, lưu ngay!',
+            cancelButtonText: 'Hủy',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Unformat money values before submit
+                document.querySelectorAll('.price-input').forEach(input => {
+                    input.value = unformatMoney(input.value);
+                });
+                document.querySelectorAll('.expense-amount').forEach(input => {
+                    input.value = unformatMoney(input.value);
+                });
+                const paidAmount = document.getElementById('paid_amount');
+                if (paidAmount) {
+                    paidAmount.value = unformatMoney(paidAmount.value);
+                }
+                
+                // Set flag to prevent "Leave site?" warning from app.js
+                window.formChanged = false;
+                isSubmitting = true;
+                document.getElementById('saleForm').submit();
+            }
         });
-        document.querySelectorAll('.expense-amount').forEach(input => {
-            input.value = unformatMoney(input.value);
-        });
-        const paidAmount = document.getElementById('paid_amount');
-        if (paidAmount) {
-            paidAmount.value = unformatMoney(paidAmount.value);
-        }
-        
-        // Set flag to prevent "Leave site?" warning
-        isSubmitting = true;
-        document.getElementById('saleForm').submit();
     }
 }
 
