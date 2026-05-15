@@ -234,25 +234,29 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                                @if($sale->currency && !$sale->currency->is_base && $sale->exchange_rate)
-                                    <div class="font-medium {{ $sale->margin_color }}">
-                                        {{ $sale->margin >= 0 ? '+' : ($sale->margin < 0 ? '-' : '') }}{{ $sale->currency->symbol }} {{ number_format(abs($sale->margin) / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
-                                    </div>
-                                    <div class="text-xs {{ $sale->margin_color }} opacity-75 mt-0.5">
-                                        {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 1) }}%)
-                                    </div>
+                                @if(empty($sale->pl_status))
+                                    <div class="text-gray-400 text-center">-</div>
                                 @else
-                                    <div class="font-medium {{ $sale->margin_color }}">
-                                        {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
-                                    </div>
-                                    <div class="text-xs {{ $sale->margin_color }}">
-                                        ({{ number_format($sale->margin_percent, 1) }}%)
-                                    </div>
-                                @endif
-                                @if($sale->margin < 0)
-                                    <div class="text-xs text-red-600 mt-0.5">
-                                        <i class="fas fa-exclamation-triangle"></i> Lỗ
-                                    </div>
+                                    @if($sale->currency && !$sale->currency->is_base && $sale->exchange_rate)
+                                        <div class="font-medium {{ $sale->margin_color }}">
+                                            {{ $sale->margin >= 0 ? '+' : ($sale->margin < 0 ? '-' : '') }}{{ $sale->currency->symbol }} {{ number_format(abs($sale->margin) / $sale->exchange_rate, $sale->currency->decimal_places ?? 2) }}
+                                        </div>
+                                        <div class="text-xs {{ $sale->margin_color }} opacity-75 mt-0.5">
+                                            {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ ({{ number_format($sale->margin_percent, 1) }}%)
+                                        </div>
+                                    @else
+                                        <div class="font-medium {{ $sale->margin_color }}">
+                                            {{ $sale->margin >= 0 ? '+' : '' }}{{ number_format($sale->margin) }} đ
+                                        </div>
+                                        <div class="text-xs {{ $sale->margin_color }}">
+                                            ({{ number_format($sale->margin_percent, 1) }}%)
+                                        </div>
+                                    @endif
+                                    @if($sale->margin < 0)
+                                        <div class="text-xs text-red-600 mt-0.5">
+                                            <i class="fas fa-exclamation-triangle"></i> Lỗ
+                                        </div>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">

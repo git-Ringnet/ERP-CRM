@@ -1007,6 +1007,66 @@ class PurchaseOrderController extends Controller
 
         $item->update(['status' => $validated['status']]);
 
+        // Logic tạo phiếu nhập kho (Import) khi hàng về
+        if ($validated['status'] === 'received') {
+            try {
+                $po = $item->purchaseOrder;
+                
+                // 1. Tìm phiếu nhập kho duy nhất cho PO này (bất kể trạng thái)
+                $import = \App\Models\Import::where('reference_type', 'purchase_order')
+                    ->where('reference_id', $po->id)
+                    ->first();
+
+                // 2. Nếu chưa có, tạo mới. Nếu có rồi mà đã completed, mở lại thành pending
+                if (!$import) {
+                    $import = \App\Models\Import::create([
+                        'code' => \App\Models\Import::generateCode(),
+                        'warehouse_id' => $po->warehouse_id ?? \App\Models\Warehouse::first()->id ?? 1,
+                        'supplier_id' => $po->supplier_id,
+                        'date' => now(),
+                        'employee_id' => auth()->id(),
+                        'reference_type' => 'purchase_order',
+                        'reference_id' => $po->id,
+                        'status' => 'pending',
+                        'note' => "Tự động tạo từ đơn mua hàng " . $po->code,
+                        'total_qty' => 0,
+                    ]);
+                } elseif ($import->status === 'completed') {
+                    $import->update(['status' => 'pending']);
+                }
+
+                // 3. Thêm/Cập nhật item vào phiếu nhập kho
+                // Chỉ tìm những hàng CÙNG GIÁ và CHƯA DUYỆT VÀO KHO để cập nhật
+                $importItem = \App\Models\ImportItem::where('import_id', $import->id)
+                    ->where('product_id', $item->product_id)
+                    ->where('cost', $item->unit_price)
+                    ->whereNull('processed_at')
+                    ->first();
+
+                if (!$importItem) {
+                    \App\Models\ImportItem::create([
+                        'import_id' => $import->id,
+                        'product_id' => $item->product_id,
+                        'warehouse_id' => $import->warehouse_id,
+                        'quantity' => $item->quantity,
+                        'cost' => $item->unit_price, 
+                        'warehouse_price' => $item->unit_price,
+                        'comments' => "Hàng về từ PO " . $po->code . ($item->sale ? " (Đơn " . $item->sale->code . ")" : ""),
+                    ]);
+                } else {
+                    // Nếu đã có hàng cùng giá chưa duyệt, cộng dồn số lượng thay vì đè lên
+                    $importItem->increment('quantity', $item->quantity);
+                }
+
+                // 4. Cập nhật lại tổng số lượng của phiếu nhập
+                $import->update(['total_qty' => $import->items()->sum('quantity')]);
+
+            } catch (\Exception $e) {
+                \Log::error("Lỗi tự động tạo phiếu nhập kho: " . $e->getMessage());
+                // Không return error ở đây để không làm gián đoạn việc cập nhật trạng thái PO
+            }
+        }
+
         // Auto-check: nếu tất cả items đều 'received' → cập nhật PO status
         $po = $item->purchaseOrder;
         $po->load('items');

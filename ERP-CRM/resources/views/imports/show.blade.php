@@ -227,10 +227,10 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <span class="text-sm font-medium text-gray-900">{{ number_format($item->cost, 0, ',', '.') }} ₫</span>
+                                    <span class="text-sm font-medium text-gray-900">{{ number_format($item->cost, 0, ',', '.') }} $</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <span class="text-sm font-bold text-gray-900">{{ number_format($item->quantity * $item->cost, 0, ',', '.') }} ₫</span>
+                                    <span class="text-sm font-bold text-gray-900">{{ number_format($item->quantity * $item->cost, 0, ',', '.') }} $</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     @php

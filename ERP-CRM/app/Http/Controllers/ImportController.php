@@ -15,7 +15,9 @@ use App\Services\ProductItemService;
 use App\Services\NotificationService;
 use App\Services\WarehouseJournalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\PurchaseOrder;
 
 /**
  * ImportController - Handles all import (nhập kho) operations
@@ -342,31 +344,68 @@ class ImportController extends Controller
     {
         $this->authorize('approve', $import);
 
-        // Only allow approving pending imports
-        if ($import->status !== 'pending') {
+        // Cho phép duyệt nếu phiếu đang pending hoặc đã từng completed nhưng có item mới chưa xử lý
+        if (!in_array($import->status, ['pending', 'completed'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Chỉ có thể duyệt phiếu đang chờ xử lý.'
+                'message' => 'Trạng thái phiếu không hợp lệ để duyệt.'
             ], 400);
         }
 
+        // Tìm các items chưa được xử lý vào kho
+        $unprocessedItems = $import->items()->whereNull('processed_at')->get();
+
+        if ($unprocessedItems->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không có sản phẩm mới nào cần duyệt vào kho.'
+            ], 400);
+        }
+
+        DB::beginTransaction();
         try {
+            // Chỉ truyền các item chưa xử lý vào service xử lý kho
             $this->transactionService->processImport([
                 'code' => $import->code,
                 'warehouse_id' => $import->warehouse_id,
                 'date' => $import->date->format('Y-m-d'),
                 'employee_id' => $import->employee_id,
                 'note' => $import->note,
-                'items' => $import->items->map(fn($item) => [
+                'items' => $unprocessedItems->map(fn($item) => [
                     'product_id' => $item->product_id,
-                    'warehouse_id' => $item->warehouse_id,
+                    'warehouse_id' => $item->warehouse_id ?? $import->warehouse_id,
                     'quantity' => $item->quantity,
                     'unit' => $item->unit,
                     'cost' => $item->cost,
                     'warranty_months' => $item->warranty_months,
                     'expiry_date' => $item->expiry_date ? $item->expiry_date->format('Y-m-d') : null,
+                    'id' => $item->id, // Truyền ID để service biết cập nhật processed_at
                 ])->toArray(),
             ], $import);
+
+            // Đánh dấu các item đã xử lý xong
+            foreach ($unprocessedItems as $item) {
+                $item->update(['processed_at' => now()]);
+            }
+
+            // Kiểm tra xem đã về đủ hàng so với PO chưa (nếu có reference PO)
+            $allDone = true;
+            if ($import->reference_type === 'purchase_order') {
+                $po = PurchaseOrder::find($import->reference_id);
+                if ($po) {
+                    $po->load('items');
+                    // Nếu PO vẫn còn món chưa về (không phải received/cancelled) thì chưa xong
+                    $hasMoreInPo = $po->items->contains(fn($i) => !in_array($i->status, ['received', 'cancelled']));
+                    if ($hasMoreInPo) {
+                        $allDone = false;
+                    }
+                }
+            }
+
+            // Cập nhật trạng thái phiếu
+            $import->update([
+                'status' => $allDone ? 'completed' : 'pending'
+            ]);
 
             // Tạo bút toán kế toán tự động (Lịch sử: Duyệt)
             try {
@@ -376,37 +415,21 @@ class ImportController extends Controller
                 Log::warning('Không thể tạo bút toán cho phiếu nhập ' . $import->code . ' khi duyệt: ' . $journalEx->getMessage());
             }
 
-            // Tạo thông báo cho người tạo phiếu
-            if ($import->employee_id) {
-                $this->notificationService->notifyDocumentApproved($import, 'import', $import->employee_id);
-            }
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Phiếu nhập đã được duyệt'
+                'message' => $allDone ? 'Toàn bộ phiếu nhập đã được duyệt hoàn tất.' : 'Đã duyệt nhập kho các sản phẩm vừa về. Phiếu vẫn mở để chờ đợt hàng tiếp theo.'
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
             $message = 'Lỗi cơ sở dữ liệu khi duyệt: ' . $e->getMessage();
-            
-            // Handle duplicate entry error (1062)
             if ($e->errorInfo[1] == 1062) {
-                // Extract SKU from message if possible: "Duplicate entry '1-sa' for key '...'"
-                if (preg_match("/Duplicate entry '(.*)' for key/", $e->getMessage(), $matches)) {
-                    $duplicated = $matches[1];
-                    // Remove product_id prefix if it's there (e.g., "1-sa" -> "sa")
-                    $parts = explode('-', $duplicated);
-                    $sku = count($parts) > 1 ? end($parts) : $duplicated;
-                    $message = "Serial '{$sku}' đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
-                } else {
-                    $message = "Một hoặc nhiều Serial đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
-                }
+                $message = "Một hoặc nhiều Serial đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.";
             }
-            
-            return response()->json([
-                'success' => false,
-                'message' => $message
-            ], 400); // 400 is better for validation/duplicate errors
+            return response()->json(['success' => false, 'message' => $message], 400);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi duyệt: ' . $e->getMessage()
