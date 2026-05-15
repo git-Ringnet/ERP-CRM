@@ -7,7 +7,7 @@
 <div class="space-y-4">
     <!-- Actions -->
     <div class="flex flex-wrap gap-2">
-        <a href="{{ route('projects.index') }}" 
+        <a href="{{ url()->previous() }}" 
            class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
             <i class="fas fa-arrow-left mr-2"></i> Quay lại
         </a>

@@ -42,6 +42,7 @@ class Sale extends Model
         'pl_approved_at',
         'pl_approved_by',
         'invoice_date',
+        'payment_terms',
     ];
 
     protected $casts = [
@@ -58,6 +59,7 @@ class Sale extends Model
         'paid_amount' => 'decimal:2',
         'debt_amount' => 'decimal:2',
         'exchange_rate' => 'decimal:6',
+        'payment_terms' => 'array',
         'total_foreign' => 'decimal:4',
         'paid_amount_foreign' => 'decimal:4',
         'debt_amount_foreign' => 'decimal:4',

@@ -16,6 +16,27 @@ class CustomerRequest extends FormRequest
     }
 
     /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        // Resolve debt_limit_value from the type-specific input
+        $type = $this->input('debt_limit_type', 'amount');
+
+        if ($type === 'percent') {
+            $value = $this->input('debt_limit_value_percent', $this->input('debt_limit_value', 0));
+        } else {
+            // Strip comma-formatted amount string (e.g. "50,000,000" -> "50000000")
+            $raw = $this->input('debt_limit_value_amount', $this->input('debt_limit_value', 0));
+            $value = is_string($raw) ? str_replace(',', '', $raw) : $raw;
+        }
+
+        $this->merge([
+            'debt_limit_value' => $value ?: 0,
+        ]);
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
@@ -35,6 +56,9 @@ class CustomerRequest extends FormRequest
             'debt_days' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string'],
             'am' => ['nullable', 'string', 'max:255'],
+            'debt_limit_type' => ['nullable', 'string', 'in:amount,percent'],
+            'debt_limit_value' => ['required', 'numeric', 'min:0'],
+            'payment_terms' => ['nullable', 'array'],
             'contacts' => ['nullable', 'array'],
             'contacts.*.first_name' => ['required', 'string', 'max:255'],
             'contacts.*.last_name' => ['nullable', 'string', 'max:255'],
@@ -46,6 +70,7 @@ class CustomerRequest extends FormRequest
             'contacts.*.is_primary' => ['nullable', 'boolean'],
         ];
     }
+
 
     /**
      * Get custom error messages for validation rules.

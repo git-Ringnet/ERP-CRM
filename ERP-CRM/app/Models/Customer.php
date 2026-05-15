@@ -21,14 +21,18 @@ class Customer extends Model
         'tax_code',
         'website',
         'debt_limit',
+        'debt_limit_type',
+        'debt_limit_value',
         'debt_days',
         'note',
         'am',
+        'payment_terms',
     ];
 
     protected $casts = [
         'debt_limit' => 'decimal:2',
-        'debt_days' => 'integer',
+        'is_locked' => 'boolean',
+        'payment_terms' => 'array',
     ];
 
     /**
@@ -137,13 +141,31 @@ class Customer extends Model
     }
 
     /**
+     * Get total sales amount
+     */
+    public function getTotalSalesAttribute(): float
+    {
+        return $this->sales()
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->sum('total');
+    }
+
+    /**
      * Check if customer is over debt limit
      */
     public function isOverDebtLimit(): bool
     {
-        if (!$this->debt_limit || $this->debt_limit <= 0) {
+        $limit = $this->debt_limit;
+
+        if ($this->debt_limit_type === 'percent') {
+            $totalSales = $this->total_sales;
+            $limit = ($totalSales * ($this->debt_limit_value ?: 0)) / 100;
+        }
+
+        if (!$limit || $limit <= 0) {
             return false;
         }
-        return $this->total_debt > $this->debt_limit;
+        
+        return $this->total_debt > $limit;
     }
 }

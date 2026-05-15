@@ -92,6 +92,7 @@
                                                         <th class="px-4 py-2">Tên Part / Sản phẩm</th>
                                                         <th class="px-4 py-2 text-center">Số lượng</th>
                                                         <th class="px-4 py-2 text-center">Unit Price (USD)</th>
+                                                        <th class="px-4 py-2 text-center w-16"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody class="divide-y divide-gray-100">
@@ -117,6 +118,12 @@
                                                                 disabled
                                                                 data-pr-item-id="{{ $product['id'] }}">
                                                         </td>
+                                                        <td class="px-4 py-3 text-center">
+                                                            <button type="button" onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')" 
+                                                                class="text-red-400 hover:text-red-600 transition-colors" title="Hủy sản phẩm">
+                                                                <i class="fas fa-times-circle text-sm"></i>
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                     @endforeach
                                                 </tbody>
@@ -139,30 +146,8 @@
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Ghi chú cho Đơn hàng (PO)</label>
                         <input type="text" name="note" class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500" placeholder="Nhập ghi chú chung cho PO này...">
                     </div>
-                    
-                    <div class="w-full md:w-56">
-                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Loại tiền tệ PO</label>
-                        <select name="currency_id" id="currencySelect" onchange="onCurrencyChange()"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-                            @foreach($currencies as $currency)
-                                <option value="{{ $currency->id }}"
-                                    data-is-base="{{ $currency->is_base ? '1' : '0' }}"
-                                    data-code="{{ $currency->code }}"
-                                    data-symbol="{{ $currency->symbol }}"
-                                    {{ $baseCurrencyId == $currency->id ? 'selected' : '' }}>
-                                    {{ $currency->code }} - {{ $currency->name_vi }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div id="exchangeRateGroup" class="w-full md:w-48 hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                            Tỷ giá (<span id="rateSource" class="text-xs text-blue-500">...</span>)
-                        </label>
-                        <input type="number" name="exchange_rate" id="exchangeRateInput" step="0.000001" min="0" value="1"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-                    </div>
+                    <input type="hidden" name="currency_id" value="{{ $baseCurrencyId }}">
+                    <input type="hidden" name="exchange_rate" value="1">
 
                     <div class="flex items-center gap-4 w-full md:w-auto">
                         <div class="text-right hidden md:block">
@@ -178,6 +163,58 @@
                 </div>
             </div>
         </form>
+    @endif
+
+    {{-- Danh sách sản phẩm đã hủy --}}
+    @if(isset($cancelledItems) && $cancelledItems->count() > 0)
+    <div class="mt-8" x-data="{ showCancelled: false }">
+        <button type="button" @click="showCancelled = !showCancelled" 
+            class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-3">
+            <i class="fas fa-chevron-right text-[10px] transition-transform duration-200" :class="showCancelled ? 'rotate-90' : ''"></i>
+            <i class="fas fa-ban text-red-400"></i>
+            Sản phẩm đã hủy ({{ $cancelledItems->count() }})
+        </button>
+        <div x-show="showCancelled" x-cloak class="bg-white rounded-xl shadow-sm border border-red-100 overflow-hidden">
+            <div class="bg-red-50 px-6 py-3 border-b border-red-100">
+                <h3 class="text-sm font-bold text-red-700">
+                    <i class="fas fa-ban mr-2"></i>Sản phẩm đã hủy — không tham gia đặt hàng
+                </h3>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                    <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        <th class="px-6 py-2">Sản phẩm</th>
+                        <th class="px-6 py-2">Hãng</th>
+                        <th class="px-6 py-2">Mã SO</th>
+                        <th class="px-6 py-2 text-center">Số lượng</th>
+                        <th class="px-6 py-2 text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($cancelledItems as $ci)
+                    <tr class="hover:bg-gray-50 text-gray-400">
+                        <td class="px-6 py-3">
+                            <span class="line-through">{{ $ci->part_number }}</span>
+                            <span class="ml-2 px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-600 rounded">ĐÃ HỦY</span>
+                        </td>
+                        <td class="px-6 py-3">{{ $ci->vendor?->name ?? $ci->vendor }}</td>
+                        <td class="px-6 py-3">{{ $ci->saleOrderRequest?->sale?->code ?? $ci->saleOrderRequest?->code ?? 'N/A' }}</td>
+                        <td class="px-6 py-3 text-center">{{ $ci->quantity + 0 }}</td>
+                        <td class="px-6 py-3 text-center">
+                            <form action="{{ route('purchase-requests.items.restore', $ci->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button type="submit" onclick="return confirm('Khôi phục sản phẩm này về danh sách cần đặt?')" 
+                                    class="text-teal-500 hover:text-teal-700 transition-colors text-xs font-bold">
+                                    <i class="fas fa-undo mr-1"></i>Khôi phục
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
     @endif
 </div>
 
@@ -328,44 +365,6 @@
         }
     }
 
-    // --- Currency logic ---
-    function onCurrencyChange() {
-        const select = document.getElementById('currencySelect');
-        const option = select.options[select.selectedIndex];
-        const isBase = option.dataset.isBase === '1';
-        const exchangeRateGroup = document.getElementById('exchangeRateGroup');
-        
-        if (isBase) {
-            exchangeRateGroup.classList.add('hidden');
-            document.getElementById('exchangeRateInput').value = 1;
-        } else {
-            exchangeRateGroup.classList.remove('hidden');
-            fetchExchangeRate(select.value);
-        }
-    }
-
-    async function fetchExchangeRate(currencyId) {
-        const date = new Date().toISOString().split('T')[0];
-        const rateSource = document.getElementById('rateSource');
-        
-        rateSource.textContent = '...';
-        
-        try {
-            const response = await fetch(`{{ route('api.exchange-rate') }}?currency_id=${currencyId}&date=${date}`);
-            const data = await response.json();
-            
-            if (data.rate) {
-                document.getElementById('exchangeRateInput').value = data.rate;
-                rateSource.textContent = data.source === 'auto' ? 'Vietcombank' : 'Thủ công';
-            } else {
-                rateSource.textContent = 'Manual';
-            }
-        } catch (error) {
-            console.error('Error fetching exchange rate:', error);
-            rateSource.textContent = 'Error';
-        }
-    }
-
     function submitPo() {
         const form = document.getElementById('mainPoForm');
         const btn = document.querySelector('button[onclick="submitPo()"]');
@@ -459,8 +458,34 @@
         }
     }
 
-    // Initialize currency UI
-    document.addEventListener('DOMContentLoaded', onCurrencyChange);
+    function cancelPrItem(itemId, partNumber) {
+        Swal.fire({
+            title: 'Hủy sản phẩm',
+            html: `Bạn có chắc chắn muốn hủy sản phẩm <strong>${partNumber}</strong>?<br><small class="text-gray-500">Sản phẩm sẽ được trả về bước Duyệt yêu cầu PR.</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Xác nhận hủy',
+            cancelButtonText: 'Giữ lại',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/purchase-requests/items/${itemId}/cancel`;
+                
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = '_token';
+                csrf.value = '{{ csrf_token() }}';
+                form.appendChild(csrf);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
 </script>
 @endpush
 

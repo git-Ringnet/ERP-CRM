@@ -14,6 +14,7 @@ use App\Models\Warehouse;
 use App\Models\Notification;
 use App\Mail\PurchaseOrderMail;
 use App\Exports\PurchaseOrdersExport;
+use App\Exports\SinglePurchaseOrderExport;
 use App\Services\PurchaseImportSyncService;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
@@ -436,7 +437,7 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('view', $purchaseOrder);
 
-        $purchaseOrder->load(['supplier', 'sale', 'items.product', 'creator', 'approver', 'currency', 'imports.warehouse']);
+        $purchaseOrder->load(['supplier', 'sale', 'items.product', 'items.saleOrderRequestItem.saleItem', 'items.saleOrderRequestItem.saleOrderRequest.sale', 'creator', 'approver', 'currency', 'imports.warehouse']);
         $warehouses = \App\Models\Warehouse::active()->get();
 
         return view('purchase-orders.show', compact('purchaseOrder', 'warehouses'));
@@ -446,20 +447,30 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('update', $purchaseOrder);
 
-        if ($purchaseOrder->status !== 'approved') {
-            return back()->with('error', 'Đơn hàng chưa ở trạng thái Đã đặt!');
+        if (!in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received'])) {
+            return back()->with('error', 'Đơn hàng chưa ở trạng thái có thể chuyển!');
         }
 
-        $purchaseOrder->update([
-            'status' => 'shipping',
-        ]);
+        // Batch update: chỉ chuyển items đang 'ordered' → 'shipping'
+        $updated = $purchaseOrder->items()
+            ->where('status', 'ordered')
+            ->update(['status' => 'shipping']);
+
+        if ($updated === 0) {
+            return back()->with('warning', 'Không có sản phẩm nào ở trạng thái "Chờ hàng" để chuyển.');
+        }
+
+        // Update PO status to shipping if not already
+        if ($purchaseOrder->status === 'approved') {
+            $purchaseOrder->update(['status' => 'shipping']);
+        }
 
         // Thông báo cho sales
         if ($purchaseOrder->sale_id) {
             $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đang về', "Đơn mua hàng {$purchaseOrder->code} đã được xuất đi và đang trên đường về.");
         }
 
-        return back()->with('success', 'Đã cập nhật trạng thái: Đang về!');
+        return back()->with('success', "Đã chuyển {$updated} sản phẩm sang trạng thái: Đang về!");
     }
 
     public function receive(Request $request, PurchaseOrder $purchaseOrder)
@@ -621,8 +632,43 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Không thể hủy đơn hàng này!');
         }
 
-        $purchaseOrder->update(['status' => 'cancelled']);
-        return back()->with('success', 'Đã hủy đơn mua hàng!');
+        DB::beginTransaction();
+        try {
+            // Thu thập các PR liên quan trước khi xóa items
+            $affectedPrIds = $purchaseOrder->items()
+                ->whereNotNull('sale_order_request_item_id')
+                ->pluck('sale_order_request_item_id')
+                ->unique();
+
+            $affectedSorIds = [];
+            if ($affectedPrIds->isNotEmpty()) {
+                $affectedSorIds = \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrIds)
+                    ->pluck('sale_order_request_id')
+                    ->unique()
+                    ->filter()
+                    ->toArray();
+            }
+
+            // Xóa tất cả PO items (giải phóng ordered_quantity_total)
+            $purchaseOrder->items()->delete();
+
+            // Hủy PO
+            $purchaseOrder->update(['status' => 'cancelled']);
+
+            // Revert status các PR (SaleOrderRequest) liên quan
+            foreach ($affectedSorIds as $sorId) {
+                $sor = \App\Models\SaleOrderRequest::find($sorId);
+                if ($sor) {
+                    $sor->checkAndUpdateStatus();
+                }
+            }
+
+            DB::commit();
+            return back()->with('success', 'Đã hủy đơn mua hàng! Sản phẩm đã trả về Gom đơn cần đặt.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 
     public function print(PurchaseOrder $purchaseOrder)
@@ -918,7 +964,69 @@ class PurchaseOrderController extends Controller
             'status' => 'required|string|in:ordered,shipping,received,cancelled'
         ]);
 
+        // Nếu cancel item → xóa PO item và revert PR
+        if ($validated['status'] === 'cancelled') {
+            DB::beginTransaction();
+            try {
+                $po = $item->purchaseOrder;
+                $prItemId = $item->sale_order_request_item_id;
+
+                // Xóa PO item (giải phóng ordered_quantity)
+                $item->delete();
+
+                // Recalculate PO totals
+                $po->load('items');
+                $po->calculateTotals();
+                $po->updateDebt();
+                $po->save();
+
+                // Nếu PO không còn items → hủy PO luôn
+                if ($po->items->isEmpty()) {
+                    $po->update(['status' => 'cancelled']);
+                }
+
+                // Revert PR status
+                if ($prItemId) {
+                    $prItem = \App\Models\SaleOrderRequestItem::find($prItemId);
+                    if ($prItem) {
+                        $prItem->saleOrderRequest->checkAndUpdateStatus();
+                    }
+                }
+
+                DB::commit();
+                return response()->json([
+                    'success' => true,
+                    'po_status_updated' => $po->items->isEmpty() ? 'cancelled' : null,
+                    'message' => 'Đã hủy sản phẩm và trả về Gom đơn.'
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+        }
+
         $item->update(['status' => $validated['status']]);
+
+        // Auto-check: nếu tất cả items đều 'received' → cập nhật PO status
+        $po = $item->purchaseOrder;
+        $po->load('items');
+        $allReceived = $po->items->every(fn($i) => $i->status === 'received' || $i->status === 'cancelled');
+        $hasReceived = $po->items->contains(fn($i) => $i->status === 'received');
+        
+        if ($allReceived && $hasReceived && $po->status !== 'received') {
+            $po->update([
+                'status' => 'received',
+                'actual_delivery' => now(),
+            ]);
+            
+            // Notify sales
+            if ($po->sale_id) {
+                $this->notifySalesUser($po, 'Hàng đã về - đủ hàng', "Tất cả sản phẩm trong đơn mua hàng {$po->code} đã về đủ.");
+            }
+            $this->checkAndNotifyOrderComplete($po);
+            
+            return response()->json(['success' => true, 'po_status_updated' => 'received']);
+        }
 
         return response()->json(['success' => true]);
     }
@@ -958,5 +1066,83 @@ class PurchaseOrderController extends Controller
         }
 
         return back()->with('success', 'Đã tải lên license cho sản phẩm ' . $item->product_name);
+    }
+
+    /**
+     * Batch xác nhận nhận hàng: chuyển tất cả items 'shipping' → 'received'
+     */
+    public function confirmReceived(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        if (!in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received'])) {
+            return back()->with('error', 'Đơn hàng chưa sẵn sàng để nhận!');
+        }
+
+        DB::beginTransaction();
+        try {
+            // Batch update: chỉ chuyển items đang 'shipping' → 'received'
+            $updated = $purchaseOrder->items()
+                ->where('status', 'shipping')
+                ->update(['status' => 'received']);
+
+            if ($updated === 0) {
+                return back()->with('warning', 'Không có sản phẩm nào ở trạng thái "Đang về" để xác nhận.');
+            }
+
+            // Cập nhật received_quantity cho các items vừa chuyển
+            $purchaseOrder->load('items');
+            foreach ($purchaseOrder->items as $item) {
+                if ($item->status === 'received' && $item->received_quantity < $item->quantity) {
+                    $item->received_quantity = $item->quantity;
+                    $item->save();
+                }
+            }
+
+            // Check if all items are received
+            $allReceived = $purchaseOrder->items->every(fn($i) => $i->status === 'received' || $i->status === 'cancelled');
+            $hasReceived = $purchaseOrder->items->contains(fn($i) => $i->status === 'received');
+
+            if ($allReceived && $hasReceived) {
+                $purchaseOrder->update([
+                    'status' => 'received',
+                    'actual_delivery' => now(),
+                ]);
+            } elseif ($hasReceived) {
+                $purchaseOrder->update(['status' => 'partial_received']);
+            }
+
+            DB::commit();
+
+            // Notify sales
+            if ($purchaseOrder->sale_id) {
+                $statusText = ($allReceived && $hasReceived) ? 'Hàng đã về - đủ hàng' : 'Hàng đã về - một phần';
+                $this->notifySalesUser($purchaseOrder, $statusText, "Đơn mua hàng {$purchaseOrder->code}: {$updated} sản phẩm đã được xác nhận nhận hàng.");
+            }
+
+            if ($allReceived && $hasReceived) {
+                $this->checkAndNotifyOrderComplete($purchaseOrder);
+            }
+
+            $msg = ($allReceived && $hasReceived) 
+                ? "Đã xác nhận nhận {$updated} sản phẩm. Đơn hàng đã đủ hàng!" 
+                : "Đã xác nhận nhận {$updated} sản phẩm.";
+
+            return back()->with('success', $msg);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Export single PO to Excel
+     */
+    public function exportSingle(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('view', $purchaseOrder);
+
+        $filename = $purchaseOrder->code . '-' . date('Y-m-d') . '.xlsx';
+        return Excel::download(new SinglePurchaseOrderExport($purchaseOrder), $filename);
     }
 }

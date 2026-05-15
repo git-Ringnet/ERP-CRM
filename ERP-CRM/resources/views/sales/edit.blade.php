@@ -93,7 +93,8 @@
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
                                      data-value="{{ $customer->id }}" 
-                                     data-text="{{ $customer->name }} ({{ $customer->code }})">
+                                     data-text="{{ $customer->name }} ({{ $customer->code }})"
+                                     data-milestones="{{ json_encode($customer->payment_terms) }}">
                                     {{ $customer->name }} ({{ $customer->code }})
                                 </div>
                             @endforeach
@@ -359,7 +360,18 @@
 @push('scripts')
 <script>
 let productIndex = {{ count($sale->items) }};
+let milestoneIndex = 0;
 let isSubmitting = false;
+
+function formatMoney(amount) {
+    const select = document.getElementById('currencySelect');
+    const isVnd = select ? (select.options[select.selectedIndex]?.dataset.isBase === '1') : true;
+    const decimals = isVnd ? 0 : 2;
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    }).format(amount);
+}
 
 // Order Request config
 window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
@@ -655,7 +667,24 @@ function setupMoneyInput(input) {
 function initAllSearchableSelects() {
     const customerSelect = document.getElementById('customerSelect');
     if (customerSelect && !customerSelect.dataset.initialized) {
-        initSearchableSelect(customerSelect);
+        initSearchableSelect(customerSelect, (opt) => {
+            // Load milestones if available
+            const milestonesJson = opt.dataset.milestones;
+            if (milestonesJson) {
+                try {
+                    const milestones = JSON.parse(milestonesJson);
+                    const list = document.getElementById('milestoneList');
+                    list.innerHTML = ''; // Clear existing
+                    milestoneIndex = 0;
+                    
+                    if (milestones && milestones.length > 0) {
+                        milestones.forEach(ms => addPaymentMilestone(ms));
+                    }
+                } catch (e) {
+                    console.error('Error parsing milestones:', e);
+                }
+            }
+        });
         customerSelect.dataset.initialized = 'true';
     }
     
@@ -709,7 +738,107 @@ document.addEventListener('DOMContentLoaded', function() {
     if (projectSelect && projectSelect.value && (!customerHiddenInput || !customerHiddenInput.value)) {
         handleProjectSelection();
     }
+
+    // Load existing milestones
+    const existingMilestones = @json($sale->payment_terms ?? []);
+    if (existingMilestones && existingMilestones.length > 0) {
+        existingMilestones.forEach(ms => addPaymentMilestone(ms));
+    }
+    
+    calculateTotal();
 });
+
+function addPaymentMilestone(data = null) {
+    const list = document.getElementById('milestoneList');
+    if (!list) return;
+    
+    const row = document.createElement('tr');
+    row.className = 'border-b hover:bg-gray-50 milestone-row';
+    
+    const label = data ? data.label : '';
+    const percent = data ? data.percent : 0;
+    const days = data ? data.days : 0;
+    
+    row.innerHTML = `
+        <td class="px-4 py-2">
+            <input type="text" name="payment_terms[${milestoneIndex}][label]" value="${label}" required
+                   placeholder="VD: Cọc, Đợt 1..."
+                   class="w-full border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="payment_terms[${milestoneIndex}][percent]" value="${percent}" min="0" max="100" required
+                   onchange="calculateMilestoneAmounts()"
+                   class="w-full text-center border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary milestone-percent">
+        </td>
+        <td class="px-4 py-2 text-right">
+            <span class="milestone-amount font-medium">0</span>
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="payment_terms[${milestoneIndex}][days]" value="${days}" min="0" required
+                   class="w-full text-center border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary">
+        </td>
+        <td class="px-4 py-2 text-center">
+            <button type="button" onclick="this.closest('tr').remove(); calculateMilestoneAmounts();" class="text-red-500 hover:text-red-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </td>
+    `;
+    
+    list.appendChild(row);
+    milestoneIndex++;
+    calculateMilestoneAmounts();
+}
+
+function calculateMilestoneAmounts() {
+    const totalInput = document.getElementById('total');
+    if (!totalInput) return;
+    
+    const total = unformatMoney(totalInput.value);
+    let totalPercent = 0;
+    let totalAmount = 0;
+    
+    document.querySelectorAll('.milestone-row').forEach(row => {
+        const percent = parseFloat(row.querySelector('.milestone-percent').value) || 0;
+        const amount = Math.round(total * percent / 100);
+        
+        row.querySelector('.milestone-amount').textContent = formatMoney(amount);
+        totalPercent += percent;
+        totalAmount += amount;
+    });
+    
+    const totalPercentEl = document.getElementById('milestoneTotalPercent');
+    const totalAmountEl = document.getElementById('milestoneTotalAmount');
+    
+    if (totalPercentEl) totalPercentEl.textContent = totalPercent + '%';
+    if (totalAmountEl) totalAmountEl.textContent = formatMoney(totalAmount);
+    
+    // Update footer color if not 100%
+    if (totalPercentEl) {
+        if (totalPercent !== 100) {
+            totalPercentEl.classList.remove('text-green-600');
+            totalPercentEl.classList.add('text-red-600');
+        } else {
+            totalPercentEl.classList.remove('text-red-600');
+            totalPercentEl.classList.add('text-green-600');
+        }
+    }
+}
+
+function applyPercentDeposit() {
+    const firstMilestone = document.querySelector('.milestone-row');
+    if (firstMilestone) {
+        const amountText = firstMilestone.querySelector('.milestone-amount').textContent;
+        const paidInput = document.getElementById('paid_amount');
+        paidInput.value = amountText;
+        calculateDebt();
+        
+        // Visual feedback
+        paidInput.classList.add('ring-2', 'ring-green-500');
+        setTimeout(() => paidInput.classList.remove('ring-2', 'ring-green-500'), 1000);
+    } else {
+        alert('Vui lòng thiết lập lộ trình thanh toán trước.');
+    }
+}
 
 function addProductRow() {
     const productList = document.getElementById('productList');
@@ -829,6 +958,7 @@ function calculateTotal() {
 
     calculateMargin();
     calculateDebt();
+    calculateMilestoneAmounts();
 }
 
 // Calculate on page load

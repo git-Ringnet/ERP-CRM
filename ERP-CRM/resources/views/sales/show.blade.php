@@ -394,6 +394,76 @@
             </div>
         </div>
         @endif
+
+        @php
+            $displayTerms = ($sale->payment_terms && count($sale->payment_terms) > 0)
+                ? $sale->payment_terms
+                : (($sale->customer && $sale->customer->payment_terms && count($sale->customer->payment_terms) > 0)
+                    ? $sale->customer->payment_terms
+                    : []);
+        @endphp
+        @if(count($displayTerms) > 0)
+        <div class="mt-8 pt-6 border-t border-gray-100">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>
+                Lộ trình thanh toán & Công nợ
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                @foreach($displayTerms as $ms)
+                @php
+                    $msDays = (int)($ms['days'] ?? 0);
+                    $approvedDate = $sale->approved_at ?? $sale->created_at;
+                    $dueDate = $approvedDate ? \Carbon\Carbon::parse($approvedDate)->addDays($msDays) : null;
+                    $now = now();
+                    $daysLeft = $dueDate ? $now->diffInDays($dueDate, false) : null;
+
+                    // Determine status
+                    if ($daysLeft === null) {
+                        $deadlineStatus = null;
+                    } elseif ($daysLeft < 0) {
+                        $deadlineStatus = 'overdue';
+                        $deadlineLabel = 'Quá hạn ' . abs((int)$daysLeft) . ' ngày';
+                        $deadlineColor = 'bg-red-100 text-red-700 border-red-200';
+                        $deadlineIcon = 'fas fa-exclamation-circle';
+                    } elseif ($daysLeft <= 3) {
+                        $deadlineStatus = 'due_soon';
+                        $deadlineLabel = $daysLeft == 0 ? 'Tới hạn hôm nay' : 'Còn ' . (int)$daysLeft . ' ngày';
+                        $deadlineColor = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+                        $deadlineIcon = 'fas fa-clock';
+                    } else {
+                        $deadlineStatus = 'normal';
+                        $deadlineLabel = 'Còn ' . (int)$daysLeft . ' ngày';
+                        $deadlineColor = 'bg-green-100 text-green-700 border-green-200';
+                        $deadlineIcon = 'far fa-calendar-check';
+                    }
+                @endphp
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 {{ $deadlineStatus === 'overdue' ? 'ring-2 ring-red-300' : ($deadlineStatus === 'due_soon' ? 'ring-2 ring-yellow-300' : '') }}">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-sm font-bold text-gray-700">{{ $ms['label'] }}</span>
+                        <span class="text-xs font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">{{ $ms['percent'] }}%</span>
+                    </div>
+                    <div class="text-lg font-bold text-gray-900 mb-1">
+                        {{ number_format(($sale->total * $ms['percent'] / 100)) }} <span class="text-xs font-normal">₫</span>
+                    </div>
+                    @if($dueDate)
+                    <div class="text-[10px] text-gray-500 italic mb-1.5">
+                        Hạn: {{ $dueDate->format('d/m/Y') }}
+                    </div>
+                    @if($sale->payment_status !== 'paid')
+                    <div class="text-[10px] font-bold px-2 py-1 rounded border {{ $deadlineColor }} inline-flex items-center gap-1">
+                        <i class="{{ $deadlineIcon }}"></i> {{ $deadlineLabel }}
+                    </div>
+                    @endif
+                    @else
+                    <div class="text-[10px] text-gray-500 italic">
+                        Thời hạn: {{ $msDays }} ngày kể từ ngày duyệt
+                    </div>
+                    @endif
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
     </div>
 
     <!-- Tabs Header -->
@@ -642,8 +712,8 @@
     @include('sales.partials.order-request')
 
     <!-- Payment Modal -->
-    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
             <div class="p-6" x-data="paymentForm()">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Ghi nhận thanh toán</h3>
                 <form action="{{ route('sales.payment', $sale->id) }}" method="POST">
@@ -671,15 +741,12 @@
                         {{-- Nội dung thanh toán --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung thanh toán</label>
-                            <select name="payment_label" x-model="paymentLabel"
+                            <select name="payment_label" x-model="paymentLabel" @change="onLabelChange()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
                                 <option value="">-- Chọn --</option>
-                                <option value="Cọc">Cọc</option>
-                                <option value="Thanh toán đợt 1">Thanh toán đợt 1</option>
-                                <option value="Thanh toán đợt 2">Thanh toán đợt 2</option>
-                                <option value="Thanh toán đợt 3">Thanh toán đợt 3</option>
-                                <option value="Thanh toán cuối">Thanh toán cuối</option>
-                                <option value="Thanh toán toàn bộ">Thanh toán toàn bộ</option>
+                                <template x-for="(ms, idx) in availableMilestones" :key="idx">
+                                    <option :value="ms.label" x-text="ms.label + ' (' + ms.percent + '%)'" :data-percent="ms.percent"></option>
+                                </template>
                                 <option value="Khác">Khác</option>
                             </select>
                         </div>
@@ -691,12 +758,12 @@
                                 <button type="button" @click="inputMode = 'percent'"
                                     :class="inputMode === 'percent' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     class="flex-1 px-3 py-2 text-sm font-medium transition-colors">
-                                    <i class="fas fa-percent mr-1"></i> % Phần trăm
+                                    <i class="fas fa-percent mr-1"></i> %
                                 </button>
                                 <button type="button" @click="inputMode = 'fixed'"
                                     :class="inputMode === 'fixed' ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-gray-300">
-                                    <i class="fas fa-money-bill mr-1"></i> Số tiền
+                                    <i class="fas fa-money-bill mr-1"></i> Tiền
                                 </button>
                             </div>
                         </div>
@@ -780,6 +847,36 @@
 @push('scripts')
 <script>
 function paymentForm() {
+    const allMilestones = @json(
+        ($sale->payment_terms && count($sale->payment_terms) > 0)
+            ? $sale->payment_terms
+            : (($sale->customer && $sale->customer->payment_terms && count($sale->customer->payment_terms) > 0)
+                ? $sale->customer->payment_terms
+                : [])
+    );
+    
+    // Get already-paid labels from financial transactions
+    @php
+        $paidLabels = \App\Models\FinancialTransaction::where('reference_number', $sale->code)
+            ->where('type', 'income')
+            ->pluck('note')
+            ->map(function($note) {
+                // Extract label from note like "Cọc (30%)" or "Thanh toán đợt 1 (70%) - ghi chú"
+                if (preg_match('/^(.+?)\s*\(\d/', $note, $m)) {
+                    return trim($m[1]);
+                }
+                if (preg_match('/^(Cọc|Thanh toán.+?)(\s*-|$)/u', $note, $m)) {
+                    return trim($m[1]);
+                }
+                return trim($note);
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+    @endphp
+    const paidLabels = @json($paidLabels);
+    
     return {
         inputMode: 'percent',
         percentValue: '',
@@ -788,6 +885,41 @@ function paymentForm() {
         calculatedPercent: '0.0',
         orderTotal: {{ $sale->total ?: 0 }},
         paymentLabel: '',
+        selectedMilestoneIndex: '',
+        milestones: allMilestones,
+        paidLabels: paidLabels,
+
+        get availableMilestones() {
+            if (allMilestones.length === 0) {
+                // Fallback defaults
+                return [
+                    { label: 'Cọc', percent: 0, days: 0 },
+                    { label: 'Thanh toán đợt 1', percent: 0, days: 0 },
+                    { label: 'Thanh toán cuối', percent: 0, days: 0 },
+                    { label: 'Thanh toán toàn bộ', percent: 0, days: 0 },
+                ].filter(ms => !this.paidLabels.includes(ms.label));
+            }
+            return allMilestones.filter(ms => !this.paidLabels.includes(ms.label));
+        },
+
+        onLabelChange() {
+            // Find the selected milestone and auto-fill percent
+            const selected = allMilestones.find(ms => ms.label === this.paymentLabel);
+            if (selected && selected.percent) {
+                this.percentValue = selected.percent;
+                this.inputMode = 'percent';
+                this.calcAmount();
+            }
+        },
+
+        selectMilestone() {
+            if (this.selectedMilestoneIndex !== '') {
+                const ms = this.milestones[this.selectedMilestoneIndex];
+                this.percentValue = ms.percent;
+                this.paymentLabel = ms.label;
+                this.calcAmount();
+            }
+        },
 
         calcAmount() {
             const pct = parseFloat(this.percentValue) || 0;

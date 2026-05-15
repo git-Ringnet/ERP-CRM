@@ -98,11 +98,20 @@ class PurchaseOrderRequestController extends Controller
      */
     public function needsOrdering()
     {
-        // Lấy các PR items từ các PR đang chờ xử lý
+        // Lấy các PR items từ các PR đang chờ xử lý (LOẠI BỎ items đã bị hủy)
         $items = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
                 $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING]);
             })
+            ->where('is_cancelled', false)
             ->with(['saleOrderRequest.sale', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
+            ->get();
+
+        // Lấy các items đã bị hủy (để hiển thị riêng)
+        $cancelledItems = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
+                $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING, SaleOrderRequest::STATUS_COMPLETED]);
+            })
+            ->where('is_cancelled', true)
+            ->with(['saleOrderRequest.sale', 'vendor'])
             ->get();
 
         // Gom nhóm theo Vendor -> SaleOrderRequest
@@ -196,7 +205,7 @@ class PurchaseOrderRequestController extends Controller
         $currencies = \App\Models\Currency::where('is_active', 1)->get();
         $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
 
-        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId'));
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems'));
     }
 
     /**
@@ -257,43 +266,25 @@ class PurchaseOrderRequestController extends Controller
                     throw new \Exception("Số lượng đặt hàng ({$itemData['quantity']}) vượt quá số lượng còn lại ({$remaining}) của mặt hàng {$prItem->part_number} trong PR #{$prItem->saleOrderRequest->code}");
                 }
 
-                // Tự động tính giá từ P&L nếu có
-                $unitPrice = 0;
+                // Tự động tính giá kho từ P&L nếu có (chỉ dùng cho tham khảo)
                 $warehousePrice = 0;
                 
                 if ($prItem->saleItem) {
                     $saleItem = $prItem->saleItem;
-                    $usdCurrency = \App\Models\Currency::where('code', 'USD')->first();
-                    $isPoUsd = $usdCurrency && $poCurrencyId == $usdCurrency->id;
                     
-                    // Tính toán giá USD dự tính từ P&L
+                    // Tính giá kho tạm tính USD từ P&L
                     $estUsd = $saleItem->estimated_cost_usd > 0 
                         ? (float)$saleItem->estimated_cost_usd 
                         : (float)($saleItem->usd_price * (1 - (($saleItem->discount_rate ?? 0) / 100)) * (1 + (($saleItem->import_cost_rate ?? 0) / 100)));
 
-                    // Tính toán giá VND dự tính từ P&L
-                    $estVnd = $saleItem->cost_price > 0 ? (float)$saleItem->cost_price : round($estUsd * ($saleItem->exchange_rate ?: 1));
-
-                    if ($isPoUsd) {
-                        $unitPrice = $estUsd;
-                        $warehousePrice = $estUsd;
-                    } else {
-                        // Nếu PO là VND hoặc tiền tệ khác
-                        if ($poCurrencyId == \App\Models\Currency::getBaseCurrencyId()) {
-                            $unitPrice = $estVnd;
-                            $warehousePrice = $estVnd;
-                        } else {
-                            // Tiền tệ khác -> quy đổi từ VND sang
-                            $unitPrice = $this->currencyService->fromBase($estVnd, $po->exchange_rate);
-                            $warehousePrice = $unitPrice;
-                        }
-                    }
+                    $warehousePrice = $estUsd;
                 }
 
+                // Giá mua thực tế mặc định = 0, cho người dùng tự điền
+                $unitPrice = 0;
+
                 // Tạo Purchase Order Item
-                $itemTotal = round($unitPrice * $itemData['quantity'], 2);
-                $itemVatPercent = 0;
-                $itemVatAmount = 0;
+                $itemTotal = 0; // Sẽ được cập nhật khi user điền giá
 
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
@@ -333,5 +324,60 @@ class PurchaseOrderRequestController extends Controller
             Log::error('Error creating PO from PR: ' . $e->getMessage());
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();
         }
+    }
+
+    /**
+     * Hủy sản phẩm ở Gom đơn → revert PR về trạng thái submitted
+     */
+    public function cancelItem(Request $request, $itemId)
+    {
+        $item = SaleOrderRequestItem::findOrFail($itemId);
+        $pr = $item->saleOrderRequest;
+
+        DB::beginTransaction();
+        try {
+            // Xóa tất cả PO items liên kết với item này (nếu có)
+            $poItems = $item->purchaseOrderItems;
+            foreach ($poItems as $poItem) {
+                $po = $poItem->purchaseOrder;
+                $poItem->delete();
+                
+                // Recalculate PO totals
+                $po->load('items');
+                if ($po->items->isEmpty()) {
+                    $po->update(['status' => 'cancelled']);
+                } else {
+                    $po->calculateTotals();
+                    $po->updateDebt();
+                    $po->save();
+                }
+            }
+
+            // Đánh dấu item là đã hủy
+            $item->update(['is_cancelled' => true]);
+
+            // Revert PR status
+            $pr->checkAndUpdateStatus();
+
+            DB::commit();
+            return back()->with('success', 'Đã hủy sản phẩm "' . $item->part_number . '". Yêu cầu sẽ được trả về Duyệt PR.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error cancelling PR item: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Khôi phục sản phẩm đã hủy ở Gom đơn
+     */
+    public function restoreItem(Request $request, $itemId)
+    {
+        $item = SaleOrderRequestItem::findOrFail($itemId);
+
+        $item->update(['is_cancelled' => false]);
+        $item->saleOrderRequest->checkAndUpdateStatus();
+
+        return back()->with('success', 'Đã khôi phục sản phẩm "' . $item->part_number . '" về danh sách cần đặt.');
     }
 }

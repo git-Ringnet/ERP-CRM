@@ -23,10 +23,12 @@ class SaleOrderRequestItem extends Model
         'eu_name_mst',
         'address',
         'note',
+        'is_cancelled',
     ];
 
     protected $casts = [
         'exp_date' => 'date',
+        'is_cancelled' => 'boolean',
     ];
 
     public function saleOrderRequest(): BelongsTo

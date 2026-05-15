@@ -135,15 +135,16 @@ class SaleOrderRequest extends Model
 
     /**
      * Kiểm tra và tự động cập nhật trạng thái dựa trên các items
+     * Hỗ trợ revert: completed → processing → submitted khi PO bị hủy
      */
     public function checkAndUpdateStatus(): void
     {
-        // Chỉ cập nhật nếu đang ở trạng thái processing hoặc submitted
-        if (!in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_PROCESSING])) {
+        // Cho phép revert từ completed
+        if (!in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_PROCESSING, self::STATUS_COMPLETED])) {
             return;
         }
 
-        $items = $this->items()->get();
+        $items = $this->items()->where('is_cancelled', false)->get();
         $allCompleted = true;
         $anyOrdered = false;
 
@@ -158,10 +159,16 @@ class SaleOrderRequest extends Model
         }
 
         $newStatus = $this->status;
-        if ($allCompleted) {
+        if ($items->isEmpty()) {
+            // Tất cả items bị hủy → revert về submitted
+            $newStatus = self::STATUS_SUBMITTED;
+        } elseif ($allCompleted) {
             $newStatus = self::STATUS_COMPLETED;
         } elseif ($anyOrdered) {
             $newStatus = self::STATUS_PROCESSING;
+        } else {
+            // Không có item nào được ordered → revert về submitted
+            $newStatus = self::STATUS_SUBMITTED;
         }
 
         if ($newStatus !== $this->status) {

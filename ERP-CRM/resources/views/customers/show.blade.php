@@ -491,17 +491,22 @@
             <div class="bg-white rounded-lg shadow-sm">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h2 class="text-lg font-semibold text-gray-800">
-                        <i class="fas fa-credit-card mr-2 text-primary"></i>Thông tin công nợ
+                        <i class="fas fa-credit-card mr-2 text-primary"></i>Công nợ
                     </h2>
                 </div>
                 <div class="p-6 space-y-4">
                     <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
                         <label class="block text-sm font-medium text-blue-700 mb-1">Hạn mức nợ</label>
-                        <p class="text-2xl font-bold text-blue-900">{{ number_format($customer->debt_limit) }} đ</p>
+                        @if($customer->debt_limit_type === 'percent')
+                            <p class="text-2xl font-bold text-blue-900">{{ rtrim(rtrim(number_format($customer->debt_limit_value, 2), '0'), '.') }}%</p>
+                            <p class="text-xs text-blue-600 mt-1 italic">Tính trên tổng doanh số đã duyệt</p>
+                        @else
+                            <p class="text-2xl font-bold text-blue-900">{{ number_format($customer->debt_limit_value) }} đ</p>
+                        @endif
                     </div>
                     <div class="bg-green-50 rounded-lg p-4 border border-green-200">
                         <label class="block text-sm font-medium text-green-700 mb-1">Số ngày nợ</label>
-                        <p class="text-2xl font-bold text-green-900">{{ $customer->debt_days }} ngày</p>
+                        <p class="text-2xl font-bold text-green-900">{{ $customer->debt_days ?: 0 }} ngày</p>
                     </div>
                     @if($customer->am)
                     <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
@@ -511,6 +516,35 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Điều khoản thanh toán mặc định -->
+            @if($customer->payment_terms && count($customer->payment_terms) > 0)
+            <div class="bg-white rounded-lg shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>Điều khoản thanh toán
+                    </h2>
+                </div>
+                <div class="p-4 space-y-2">
+                    @php $totalPercent = 0; @endphp
+                    @foreach($customer->payment_terms as $ms)
+                    @php $totalPercent += (float)($ms['percent'] ?? 0); @endphp
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">{{ $ms['label'] }}</p>
+                            <p class="text-[10px] text-gray-500 mt-0.5">Thời hạn: {{ $ms['days'] ?? 0 }} ngày</p>
+                        </div>
+                        <span class="text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded">{{ rtrim(rtrim(number_format((float)($ms['percent'] ?? 0), 2), '0'), '.') }}%</span>
+                    </div>
+                    @endforeach
+                    <div class="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
+                        <span class="text-sm font-medium text-gray-600">Tổng cộng:</span>
+                        <span class="text-sm font-bold {{ $totalPercent == 100 ? 'text-green-600' : 'text-red-600' }}">{{ rtrim(rtrim(number_format($totalPercent, 2), '0'), '.') }}%</span>
+                    </div>
+                </div>
+            </div>
+            @endif
+
 
             <!-- Thông tin hệ thống -->
             <div class="bg-white rounded-lg shadow-sm">

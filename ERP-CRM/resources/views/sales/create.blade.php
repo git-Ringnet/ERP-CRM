@@ -96,7 +96,8 @@
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
                                      data-value="{{ $customer->id }}" 
-                                     data-text="{{ $customer->name }} ({{ $customer->code }})">
+                                     data-text="{{ $customer->name }} ({{ $customer->code }})"
+                                     data-milestones="{{ json_encode($customer->payment_terms) }}">
                                     {{ $customer->name }} ({{ $customer->code }})
                                 </div>
                             @endforeach
@@ -289,15 +290,60 @@
                     </div>
                     <div class="flex justify-between items-center pt-2 border-t">
                         <label class="text-sm font-medium text-gray-700">Đã thanh toán</label>
-                        <input type="text" name="paid_amount" id="paid_amount" value="{{ old('paid_amount', 0) }}"
-                               onchange="calculateDebt()"
-                               class="w-48 text-right border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary paid-amount-input">
+                        <div class="flex gap-2 items-center">
+                            <div class="relative w-48">
+                                <input type="text" name="paid_amount" id="paid_amount" value="{{ old('paid_amount', 0) }}"
+                                       onchange="calculateDebt()"
+                                       class="w-full text-right border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-primary paid-amount-input">
+                                <div class="absolute right-0 top-0 h-full flex items-center pr-2">
+                                    <button type="button" onclick="applyPercentDeposit()" title="Tính % cọc"
+                                            class="text-xs bg-gray-100 px-1.5 py-1 rounded border border-gray-200 hover:bg-gray-200 text-primary font-bold">
+                                        %
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="flex justify-between items-center">
                         <label class="text-sm font-medium text-gray-700">Công nợ còn lại</label>
                         <input type="text" id="debt" readonly
                                class="w-48 text-right border border-gray-200 bg-red-50 rounded-lg px-3 py-2 font-medium text-red-700">
                     </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">
+                        <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>Điều khoản thanh toán & Lộ trình
+                    </h3>
+                    <button type="button" onclick="addPaymentMilestone()" class="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark transition-colors">
+                        <i class="fas fa-plus mr-1"></i>Thêm đợt
+                    </button>
+                </div>
+                <div class="p-0">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2">Đợt thanh toán</th>
+                                <th class="px-4 py-2 w-24 text-center">%</th>
+                                <th class="px-4 py-2 w-48 text-right">Số tiền dự kiến</th>
+                                <th class="px-4 py-2 w-32 text-center">Thời hạn (ngày)</th>
+                                <th class="px-4 py-2 w-16 text-center">Xóa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="milestoneList">
+                            <!-- Sẽ được điền tự động hoặc thêm thủ công -->
+                        </tbody>
+                        <tfoot class="bg-gray-50 font-bold">
+                            <tr>
+                                <td class="px-4 py-2 text-right">Tổng cộng:</td>
+                                <td class="px-4 py-2 text-center" id="milestoneTotalPercent">0%</td>
+                                <td class="px-4 py-2 text-right text-primary" id="milestoneTotalAmount">0</td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
 
@@ -360,9 +406,13 @@
 
 @push('scripts')
 <script>
-let productIndex = 1;
-let expenseIndex = 1;
-let isSubmitting = false;
+let productIndex = {{ count(old('products', [])) ?: 1 }};
+let expenseIndex = {{ count(old('expenses', [])) ?: 0 }};
+let milestoneIndex = 0;
+
+function formatMoney(amount) {
+    return new Intl.NumberFormat('vi-VN').format(amount);
+}
 
 // Order Request config
 window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
@@ -572,12 +622,111 @@ function initSearchableSelect(container, onSelect) {
     });
 }
 
+function addPaymentMilestone(data = null) {
+    const list = document.getElementById('milestoneList');
+    const row = document.createElement('tr');
+    row.className = 'border-b hover:bg-gray-50 milestone-row';
+    
+    const label = data ? data.label : '';
+    const percent = data ? data.percent : 0;
+    const days = data ? data.days : 0;
+    
+    row.innerHTML = `
+        <td class="px-4 py-2">
+            <input type="text" name="payment_terms[${milestoneIndex}][label]" value="${label}" required
+                   placeholder="VD: Cọc, Đợt 1..."
+                   class="w-full border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="payment_terms[${milestoneIndex}][percent]" value="${percent}" min="0" max="100" required
+                   onchange="calculateMilestoneAmounts()"
+                   class="w-full text-center border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary milestone-percent">
+        </td>
+        <td class="px-4 py-2 text-right">
+            <span class="milestone-amount font-medium">0</span>
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="payment_terms[${milestoneIndex}][days]" value="${days}" min="0" required
+                   class="w-full text-center border-gray-300 rounded px-2 py-1 focus:ring-primary focus:border-primary">
+        </td>
+        <td class="px-4 py-2 text-center">
+            <button type="button" onclick="this.closest('tr').remove(); calculateMilestoneAmounts();" class="text-red-500 hover:text-red-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </td>
+    `;
+    
+    list.appendChild(row);
+    milestoneIndex++;
+    calculateMilestoneAmounts();
+}
+
+function calculateMilestoneAmounts() {
+    const total = unformatMoney(document.getElementById('total').value);
+    let totalPercent = 0;
+    let totalAmount = 0;
+    
+    document.querySelectorAll('.milestone-row').forEach(row => {
+        const percent = parseFloat(row.querySelector('.milestone-percent').value) || 0;
+        const amount = Math.round(total * percent / 100);
+        
+        row.querySelector('.milestone-amount').textContent = formatMoney(amount);
+        totalPercent += percent;
+        totalAmount += amount;
+    });
+    
+    document.getElementById('milestoneTotalPercent').textContent = totalPercent + '%';
+    document.getElementById('milestoneTotalAmount').textContent = formatMoney(totalAmount);
+    
+    // Update footer color if not 100%
+    const totalPercentEl = document.getElementById('milestoneTotalPercent');
+    if (totalPercent !== 100) {
+        totalPercentEl.classList.remove('text-green-600');
+        totalPercentEl.classList.add('text-red-600');
+    } else {
+        totalPercentEl.classList.remove('text-red-600');
+        totalPercentEl.classList.add('text-green-600');
+    }
+}
+
+function applyPercentDeposit() {
+    const firstMilestone = document.querySelector('.milestone-row');
+    if (firstMilestone) {
+        const amountText = firstMilestone.querySelector('.milestone-amount').textContent;
+        const paidInput = document.getElementById('paid_amount');
+        paidInput.value = amountText;
+        calculateDebt();
+        
+        // Visual feedback
+        paidInput.classList.add('ring-2', 'ring-green-500');
+        setTimeout(() => paidInput.classList.remove('ring-2', 'ring-green-500'), 1000);
+    } else {
+        alert('Vui lòng thiết lập lộ trình thanh toán trước.');
+    }
+}
+
+// Update customer select to load milestones
 function initAllSearchableSelects() {
     // Customer select
     const customerSelect = document.getElementById('customerSelect');
     if (customerSelect) {
-        initSearchableSelect(customerSelect, () => {
-            // removed autoCalculateExpenses();
+        initSearchableSelect(customerSelect, (opt) => {
+            // Load milestones if available
+            const milestonesJson = opt.dataset.milestones;
+            if (milestonesJson) {
+                try {
+                    const milestones = JSON.parse(milestonesJson);
+                    const list = document.getElementById('milestoneList');
+                    list.innerHTML = ''; // Clear existing
+                    milestoneIndex = 0;
+                    
+                    if (milestones && milestones.length > 0) {
+                        milestones.forEach(ms => addPaymentMilestone(ms));
+                    }
+                } catch (e) {
+                    console.error('Error parsing milestones:', e);
+                }
+            }
         });
     }
     
@@ -961,6 +1110,7 @@ function calculateTotal() {
     
     calculateMargin();
     calculateDebt();
+    calculateMilestoneAmounts();
 }
 
 function calculateMargin() {

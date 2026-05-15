@@ -128,7 +128,7 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with(['project', 'user'])->orderBy('created_at', 'desc')->paginate(10);
+        $sales = $query->with(['project', 'user', 'customer'])->orderBy('created_at', 'desc')->paginate(10);
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
         $saleCodes = $sales->pluck('code')->toArray();
@@ -244,6 +244,7 @@ class SaleController extends Controller
             'expenses.*.amount' => ['nullable', 'numeric'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
+            'payment_terms' => ['nullable', 'array'],
         ]);
 
         DB::beginTransaction();
@@ -302,6 +303,7 @@ class SaleController extends Controller
                 'currency_id' => $currencyId,
                 'exchange_rate' => $exchangeRate,
                 'total_foreign' => $totalForeign,
+                'payment_terms' => $request->input('payment_terms'),
             ]);
 
             // Create sale items with cost price and project
@@ -512,6 +514,7 @@ class SaleController extends Controller
             'expenses.*.amount' => ['nullable', 'numeric'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
+            'payment_terms' => ['nullable', 'array'],
         ]);
 
         DB::beginTransaction();
@@ -559,6 +562,7 @@ class SaleController extends Controller
                 'currency_id' => $currencyId,
                 'exchange_rate' => $exchangeRate,
                 'total_foreign' => $totalForeign,
+                'payment_terms' => $request->input('payment_terms'),
             ]);
 
             // 1. Thu thập dữ liệu P&L từ request 'items' (đã thêm các input ẩn trong pnl-tab)

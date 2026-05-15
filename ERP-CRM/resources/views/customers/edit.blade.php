@@ -43,11 +43,21 @@
         updateFullName(index) {
             this.contacts[index].name = (this.contacts[index].first_name + ' ' + (this.contacts[index].last_name || '')).trim();
         },
+        milestones: {{ json_encode($customer->payment_terms ?: [['label' => 'Cọc', 'percent' => 30, 'days' => 5], ['label' => 'Thanh toán đợt 1', 'percent' => 70, 'days' => 30]]) }},
+        addMilestone() {
+            this.milestones.push({ label: '', percent: 0, days: 0 });
+        },
+        removeMilestone(index) {
+            if (this.milestones.length > 0) {
+                this.milestones.splice(index, 1);
+            }
+        },
+        debtLimitType: '{{ old('debt_limit_type', $customer->debt_limit_type ?: 'amount') }}',
         errors: {{ json_encode($errors->toArray()) }}
     }">
         @csrf
         @method('PUT')
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="">
             <!-- Main Content -->
             <div class="lg:col-span-2 space-y-4">
                 <!-- Thông tin cơ bản -->
@@ -187,6 +197,69 @@
                     </div>
                 </div>
 
+                    </div>
+                </div>
+
+                <!-- Điều khoản thanh toán mặc định -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <h2 class="text-base font-semibold text-gray-800">
+                            <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>Điều khoản thanh toán mặc định
+                        </h2>
+                        <button type="button" @click="addMilestone()" class="px-3 py-1 bg-primary text-white rounded-md hover:bg-primary-dark text-xs transition-colors">
+                            <i class="fas fa-plus mr-1"></i>Thêm đợt
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left text-gray-500">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-2">Đợt thanh toán</th>
+                                        <th class="px-3 py-2 w-24">%</th>
+                                        <th class="px-3 py-2 w-32">Thời hạn (ngày)</th>
+                                        <th class="px-3 py-2 w-16 text-center">Xóa</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(ms, index) in milestones" :key="index">
+                                        <tr class="bg-white border-b hover:bg-gray-50">
+                                            <td class="px-3 py-2">
+                                                <input type="text" :name="`payment_terms[${index}][label]`" x-model="ms.label" required
+                                                       placeholder="VD: Cọc, Đợt 1..."
+                                                       class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary focus:border-primary">
+                                            </td>
+                                            <td class="px-3 py-2">
+                                                <input type="number" :name="`payment_terms[${index}][percent]`" x-model="ms.percent" min="0" max="100" required
+                                                       class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary focus:border-primary">
+                                            </td>
+                                            <td class="px-3 py-2">
+                                                <input type="number" :name="`payment_terms[${index}][days]`" x-model="ms.days" min="0" required
+                                                       class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary focus:border-primary">
+                                            </td>
+                                            <td class="px-3 py-2 text-center">
+                                                <button type="button" @click="removeMilestone(index)" class="text-red-500 hover:text-red-700">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="bg-gray-50 font-semibold text-gray-900">
+                                        <td class="px-3 py-2">Tổng cộng</td>
+                                        <td class="px-3 py-2" x-text="milestones.reduce((acc, ms) => acc + parseInt(ms.percent || 0), 0) + '%'"></td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500 italic">
+                            * Các thiết lập này sẽ tự động gợi ý khi tạo đơn hàng mới cho khách hàng này.
+                        </p>
+                    </div>
+                </div>
+
                 <!-- Ghi chú chung -->
                 <div class="bg-white rounded-lg shadow-sm">
                     <div class="px-4 py-3 border-b border-gray-200">
@@ -220,12 +293,41 @@
                     <div class="px-4 py-3 border-b border-gray-200">
                         <h2 class="text-base font-semibold text-gray-800"><i class="fas fa-credit-card mr-2 text-primary"></i>Công nợ</h2>
                     </div>
-                    <div class="p-4 space-y-3">
+                    <div class="p-4 space-y-4">
                         <div>
-                            <label for="debt_limit" class="block text-sm font-medium text-gray-700 mb-1">Hạn mức nợ (VNĐ)</label>
-                            <input type="text" name="debt_limit" id="debt_limit" value="{{ old('debt_limit', $customer->debt_limit) }}"
-                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Loại hạn mức</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="debt_limit_type" value="amount" x-model="debtLimitType" class="form-radio text-primary">
+                                    <span class="ml-2 text-sm text-gray-600">Số tiền (VNĐ)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="debt_limit_type" value="percent" x-model="debtLimitType" class="form-radio text-primary">
+                                    <span class="ml-2 text-sm text-gray-600">Phần trăm (%)</span>
+                                </label>
+                            </div>
                         </div>
+
+                        <div x-show="debtLimitType === 'amount'">
+                            <label for="debt_limit_val_amount" class="block text-sm font-medium text-gray-700 mb-1">Hạn mức nợ (VNĐ)</label>
+                            <input type="text" name="debt_limit_value_amount" id="debt_limit_val_amount"
+                                   value="{{ old('debt_limit_value', $customer->debt_limit_type === 'amount' ? (int)$customer->debt_limit_value : 0) }}"
+                                   placeholder="VD: 50,000,000"
+                                   class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary debt-format-input">
+                        </div>
+
+                        <div x-show="debtLimitType === 'percent'">
+                            <label for="debt_limit_val_percent" class="block text-sm font-medium text-gray-700 mb-1">Hạn mức nợ (%)</label>
+                            <div class="relative">
+                                <input type="number" name="debt_limit_value_percent" id="debt_limit_val_percent" step="0.1" min="0" max="1000"
+                                       value="{{ old('debt_limit_value', $customer->debt_limit_type === 'percent' ? floatval($customer->debt_limit_value) : '') }}"
+                                       placeholder="VD: 10"
+                                       class="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                            </div>
+                            <p class="mt-1 text-[10px] text-gray-500 italic">Tính trên tổng doanh số đã duyệt.</p>
+                        </div>
+
                         <div>
                             <label for="debt_days" class="block text-sm font-medium text-gray-700 mb-1">Số ngày nợ cho phép</label>
                             <input type="number" name="debt_days" id="debt_days" value="{{ old('debt_days', $customer->debt_days) }}" min="0"
@@ -269,28 +371,18 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const debtLimitInput = document.getElementById('debt_limit');
-        if (!debtLimitInput) return;
-        
-        const form = debtLimitInput.closest('form');
-
         // Initial format if value exists
-        if (debtLimitInput.value) {
-            formatDebtLimit(debtLimitInput);
+        const debtLimitValAmount = document.getElementById('debt_limit_val_amount');
+        if (debtLimitValAmount && debtLimitValAmount.value) {
+            formatDebtLimit(debtLimitValAmount);
         }
 
         // Format on input
-        debtLimitInput.addEventListener('input', function() {
-            formatDebtLimit(this);
-        });
-
-        // Strip commas before form submisssion
-        if (form) {
-            form.addEventListener('submit', function() {
-                let val = debtLimitInput.value.replace(/,/g, '');
-                debtLimitInput.value = val === '' ? '0' : val;
+        document.querySelectorAll('.debt-format-input').forEach(el => {
+            el.addEventListener('input', function() {
+                formatDebtLimit(this);
             });
-        }
+        });
 
         function formatDebtLimit(input) {
             let value = input.value.replace(/\D/g, '');

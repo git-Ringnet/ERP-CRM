@@ -14,9 +14,10 @@
         $expectedMinDate = $orderDate->copy()->addWeeks(4);
         $expectedMaxDate = $orderDate->copy()->addWeeks(6);
 
-        // Status indicators
-        $isOverdue = $purchaseOrder->expected_delivery && now()->gt($purchaseOrder->expected_delivery);
-        $isNearDelivery = $purchaseOrder->expected_delivery && now()->diffInDays($purchaseOrder->expected_delivery, false) <= 7 && now()->diffInDays($purchaseOrder->expected_delivery, false) >= 0;
+        // Status indicators - ưu tiên expected_arrival_date từ tracking
+        $deliveryDate = $purchaseOrder->expected_arrival_date ?? $purchaseOrder->expected_delivery;
+        $isOverdue = $deliveryDate && now()->gt($deliveryDate);
+        $isNearDelivery = $deliveryDate && now()->diffInDays($deliveryDate, false) <= 7 && now()->diffInDays($deliveryDate, false) >= 0;
         $isLongWaiting = $daysElapsed > 42; // More than 6 weeks
     @endphp
 
@@ -73,7 +74,11 @@
                         </button>
                     </form>
                 @endif
-                @if($purchaseOrder->status == 'approved')
+                @php
+                    $hasOrderedItems = $purchaseOrder->items->where('status', 'ordered')->count() > 0;
+                    $hasShippingItems = $purchaseOrder->items->where('status', 'shipping')->count() > 0;
+                @endphp
+                @if($hasOrderedItems)
                     <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit"
@@ -98,22 +103,22 @@
                         @endif
                     </form>
                 @endif
-                @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
-                    <div class="inline-flex items-center space-x-2">
-                        <input type="hidden" name="warehouse_id" form="receive-form" value="{{ $warehouses->first()->id ?? '' }}">
-                        <button type="button" onclick="fillAllRemaining()" 
-                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-check-double mr-2"></i> Nhận hết
-                        </button>
-                        <button type="button" onclick="document.getElementById('receive-form').submit()"
+                @if($hasShippingItems)
+                    <form action="{{ route('purchase-orders.confirm-received', $purchaseOrder) }}" method="POST" class="inline">
+                        @csrf
+                        <button type="submit" onclick="return confirm('Xác nhận nhận hàng cho tất cả sản phẩm đang ở trạng thái Đang về?')"
                             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
-                            <i class="fas fa-box mr-2"></i> Xác nhận nhận hàng
+                            <i class="fas fa-box-open mr-2"></i> Xác nhận nhận hàng
                         </button>
-                    </div>
+                    </form>
                 @endif
                 <a href="{{ route('purchase-orders.print', $purchaseOrder) }}"
                     class="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-all duration-200" target="_blank">
                     <i class="fas fa-print mr-2"></i> In PO
+                </a>
+                <a href="{{ route('purchase-orders.export-single', $purchaseOrder) }}"
+                    class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 transform hover:scale-105">
+                    <i class="fas fa-file-excel mr-2"></i> Xuất Excel
                 </a>
 
                 @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
@@ -166,7 +171,8 @@
                     @endif
                 </div>
 
-                <!-- Expected Arrival -->
+                <!-- Expected Arrival - chỉ hiển khi có expected_arrival_date từ tracking -->
+                @if($purchaseOrder->expected_arrival_date)
                 <div
                     class="bg-white rounded-lg shadow p-4 {{ $isOverdue ? 'border-l-4 border-red-500' : ($isNearDelivery ? 'border-l-4 border-green-500' : 'border-l-4 border-gray-300') }}">
                     <div class="flex items-center">
@@ -176,27 +182,21 @@
                         </div>
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Dự kiến hàng về</p>
-                            @if($purchaseOrder->expected_delivery)
-                                <p
-                                    class="text-xl font-bold {{ $isOverdue ? 'text-red-600' : ($isNearDelivery ? 'text-green-600' : 'text-gray-800') }}">
-                                    {{ $purchaseOrder->expected_delivery->format('d/m/Y') }}
+                            <p
+                                class="text-xl font-bold {{ $isOverdue ? 'text-red-600' : ($isNearDelivery ? 'text-green-600' : 'text-gray-800') }}">
+                                {{ \Carbon\Carbon::parse($deliveryDate)->format('d/m/Y') }}
+                            </p>
+                            <p class="text-[10px] text-gray-400">Từ theo dõi đơn hàng</p>
+                            @if($isOverdue)
+                                <p class="text-xs text-red-500">
+                                    <i class="fas fa-exclamation-circle mr-1"></i> Đã quá hạn
+                                    {{ now()->diffInDays($deliveryDate) }} ngày
                                 </p>
-                                @if($isOverdue)
-                                    <p class="text-xs text-red-500">
-                                        <i class="fas fa-exclamation-circle mr-1"></i> Đã quá hạn
-                                        {{ now()->diffInDays($purchaseOrder->expected_delivery) }} ngày
-                                    </p>
-                                @elseif($isNearDelivery)
-                                    <p class="text-xs text-green-500">
-                                        <i class="fas fa-clock mr-1"></i> Còn
-                                        {{ now()->diffInDays($purchaseOrder->expected_delivery, false) }} ngày
-                                    </p>
-                                @endif
-                            @else
-                                <p class="text-sm text-gray-600">{{ $expectedMinDate->format('d/m') }} -
-                                    {{ $expectedMaxDate->format('d/m/Y') }}
+                            @elseif($isNearDelivery)
+                                <p class="text-xs text-green-500">
+                                    <i class="fas fa-clock mr-1"></i> Còn
+                                    {{ now()->diffInDays($deliveryDate, false) }} ngày
                                 </p>
-                                <p class="text-xs text-gray-400">4-6 tuần từ ngày đặt</p>
                             @endif
                         </div>
                     </div>
@@ -210,6 +210,7 @@
                         </div>
                     @endif
                 </div>
+                @endif
 
                 <!-- Order Value Summary -->
                 <div class="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
@@ -414,9 +415,7 @@
             $totalForeign = $purchaseOrder->total_foreign ?? ($isForeign ? round($subtotalForeign - $discountForeign + $shippingForeign + $otherForeign + $vatForeign, $decimals) : $purchaseOrder->total);
             $totalVnd = $purchaseOrder->total;
         @endphp
-        <form id="receive-form" action="{{ route('purchase-orders.receive', $purchaseOrder) }}" method="POST">
-            @csrf
-            <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gray-50">
                 <h3 class="font-semibold">Chi tiết sản phẩm</h3>
             </div>
@@ -427,10 +426,9 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL Nhận</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá nhập kho</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá nhập kho (USD)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế (USD)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền (USD)</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Status</th>
                     </tr>
                 </thead>
@@ -457,24 +455,15 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right font-medium">{{ number_format($item->quantity) }}</td>
-                            <td class="px-4 py-3 text-right">
-                                @if($item->remaining_quantity > 0)
-                                    <div class="flex items-center justify-end space-x-1">
-                                        <input type="number" name="items[{{ $item->id }}]" 
-                                            class="receive-input w-20 px-2 py-1 text-right border border-blue-300 rounded focus:ring-1 focus:ring-blue-500"
-                                            placeholder="0" step="1" min="0" max="{{ $item->remaining_quantity }}"
-                                            data-remaining="{{ $item->remaining_quantity }}">
-                                        <button type="button" onclick="fillRemaining(this)" class="text-blue-500 hover:text-blue-700" title="Nhận hết">
-                                            <i class="fas fa-arrow-alt-circle-right"></i>
-                                        </button>
-                                    </div>
-                                @else
-                                    <span class="text-xs text-green-600 font-bold"><i class="fas fa-check"></i> Đủ</span>
-                                @endif
-                            </td>
                             <td class="px-4 py-3 text-right text-gray-500">
-                                @if($item->warehouse_unit_price > 0)
-                                    {{ number_format($item->warehouse_unit_price, $decimals) }} {{ $symbol }}
+                                @php
+                                    $pnlCostUsd = null;
+                                    if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleItem) {
+                                        $pnlCostUsd = $item->saleOrderRequestItem->saleItem->estimated_cost_usd;
+                                    }
+                                @endphp
+                                @if($pnlCostUsd && $pnlCostUsd > 0)
+                                    {{ number_format($pnlCostUsd, 2) }} $
                                 @else
                                     -
                                 @endif
@@ -483,12 +472,12 @@
                                 <div class="flex items-center justify-end group">
                                     <input type="number" step="0.01" value="{{ $item->unit_price }}" 
                                         onchange="updateItemPrice({{ $item->id }}, this.value)"
-                                        class="w-24 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
-                                    <span class="text-blue-700 ml-0.5">{{ $symbol }}</span>
+                                        class="w-36 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
+                                    <span class="text-blue-700 ml-0.5">$</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-right font-bold text-gray-900">
-                                <span id="item-total-{{ $item->id }}">{{ number_format($item->total, $decimals) }}</span> {{ $symbol }}
+                                <span id="item-total-{{ $item->id }}">{{ number_format($item->total, 2) }}</span> $
                             </td>
                             <td class="px-2 py-3">
                                 <div class="flex flex-col items-center space-y-1">
@@ -527,16 +516,12 @@
                 </tbody>
                 <tfoot class="bg-gray-50">
                     @php 
-                        $footerColspan = 7; 
+                        $footerColspan = 6;
                     @endphp
                     <tr>
                         <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
                         <td class="px-4 py-2 text-right">
-                            @if($isForeign)
-                                <div class="font-medium text-gray-900">{{ number_format($subtotalForeign, (floor($subtotalForeign) == $subtotalForeign) ? 0 : $decimals) }} $</div>
-                            @else
-                                <div class="font-medium text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
-                            @endif
+                            <div class="font-medium text-gray-900">{{ number_format($subtotalVnd, 2) }} $</div>
                         </td>
                         <td></td>
                     </tr>
@@ -545,11 +530,7 @@
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chiết khấu
                                 ({{ $purchaseOrder->discount_percent }}%):</td>
                             <td class="px-4 py-2 text-right text-red-600">
-                                @if($isForeign)
-                                    <div>-{{ number_format($discountForeign, (floor($discountForeign) == $discountForeign) ? 0 : $decimals) }} $</div>
-                                @else
-                                    -{{ number_format($discountVnd) }} đ
-                                @endif
+                                <div>-{{ number_format($discountVnd, 2) }} $</div>
                             </td>
                             <td></td>
                         </tr>
@@ -558,11 +539,7 @@
                         <tr>
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
                             <td class="px-4 py-2 text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ number_format($shippingForeign, (floor($shippingForeign) == $shippingForeign) ? 0 : $decimals) }} $</div>
-                                @else
-                                    {{ number_format($shippingVnd) }} đ
-                                @endif
+                                <div class="font-medium text-gray-900">{{ number_format($shippingVnd, 2) }} $</div>
                             </td>
                             <td></td>
                         </tr>
@@ -571,11 +548,7 @@
                         <tr>
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
                             <td class="px-4 py-2 text-right">
-                                @if($isForeign)
-                                    <div class="font-medium text-gray-900">{{ number_format($otherForeign, (floor($otherForeign) == $otherForeign) ? 0 : $decimals) }} $</div>
-                                @else
-                                    {{ number_format($otherVnd) }} đ
-                                @endif
+                                <div class="font-medium text-gray-900">{{ number_format($otherVnd, 2) }} $</div>
                             </td>
                             <td></td>
                         </tr>
@@ -583,18 +556,13 @@
                     <tr class="border-t bg-gray-100">
                         <td colspan="{{ $footerColspan }}" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
                         <td class="px-4 py-3 text-right text-primary">
-                            @if($isForeign)
-                                <div class="text-lg font-bold">{{ number_format($totalForeign, (floor($totalForeign) == $totalForeign) ? 0 : $decimals) }} $</div>
-                            @else
-                                <div class="text-lg font-bold">{{ number_format($totalVnd) }} đ</div>
-                            @endif
+                            <div class="text-lg font-bold">{{ number_format($totalVnd, 2) }} $</div>
                         </td>
                         <td></td>
                     </tr>
                 </tfoot>
             </table>
         </div>
-        </form>
 
         @if($purchaseOrder->note)
             <div class="bg-white rounded-lg shadow p-6">
@@ -700,23 +668,6 @@
 
     @push('scripts')
         <script>
-            // JS for Receipt Logic
-            window.fillRemaining = function(btn) {
-                const parent = btn.parentElement;
-                const input = parent.querySelector('.receive-input');
-                if (input && input.dataset.remaining) {
-                    input.value = input.dataset.remaining;
-                }
-            };
-
-            window.fillAllRemaining = function() {
-                document.querySelectorAll('.receive-input').forEach(input => {
-                    if (input.dataset.remaining) {
-                        input.value = input.dataset.remaining;
-                    }
-                });
-            };
-
             // Check if coming from a successful approval
             @if(session('success') && str_contains(session('success'), 'duyệt'))
                 // Show success animation
@@ -771,21 +722,51 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
-                    body: JSON.stringify({ unit_price: price })
+                    body: JSON.stringify({ unit_price: parseFloat(price) })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Cập nhật lại giao diện (tùy chọn)
                         if (window.Toast) {
                             Toast.fire({ icon: 'success', title: 'Đã cập nhật giá mua' });
                         }
-                        location.reload(); // Reload để cập nhật tổng tiền footer
+                        location.reload();
                     }
                 })
                 .catch(error => console.error('Error:', error));
             }
             function updateItemStatus(itemId, status) {
+                // Nếu cancel → xác nhận trước
+                if (status === 'cancelled') {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'Hủy sản phẩm',
+                            text: 'Sản phẩm sẽ bị xóa khỏi PO và trả về Gom đơn cần đặt. Tiếp tục?',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#ef4444',
+                            cancelButtonColor: '#6b7280',
+                            confirmButtonText: 'Xác nhận hủy',
+                            cancelButtonText: 'Giữ lại',
+                            reverseButtons: true
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                doUpdateItemStatus(itemId, status);
+                            } else {
+                                location.reload(); // Reload to reset dropdown
+                            }
+                        });
+                    } else if (confirm('Sản phẩm sẽ bị xóa khỏi PO và trả về Gom đơn cần đặt. Tiếp tục?')) {
+                        doUpdateItemStatus(itemId, status);
+                    } else {
+                        location.reload();
+                    }
+                    return;
+                }
+                doUpdateItemStatus(itemId, status);
+            }
+
+            function doUpdateItemStatus(itemId, status) {
                 fetch(`/purchase-orders/items/${itemId}/update-status`, {
                     method: 'POST',
                     headers: {
@@ -797,8 +778,20 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        if (window.Toast) {
-                            Toast.fire({ icon: 'success', title: 'Đã cập nhật trạng thái' });
+                        if (data.po_status_updated) {
+                            // PO status changed - reload to reflect
+                            if (window.Toast) {
+                                Toast.fire({ icon: 'success', title: data.message || 'Đã cập nhật!' });
+                            }
+                            setTimeout(() => location.reload(), 1000);
+                        } else {
+                            if (window.Toast) {
+                                Toast.fire({ icon: 'success', title: data.message || 'Đã cập nhật trạng thái' });
+                            }
+                            // Reload for cancelled items since they get deleted
+                            if (status === 'cancelled') {
+                                setTimeout(() => location.reload(), 800);
+                            }
                         }
                     }
                 })

@@ -280,6 +280,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/items/{item}/update-status', [PurchaseOrderController::class, 'updateItemStatus'])->name('purchase-orders.items.update-status');
     Route::post('/purchase-orders/items/{item}/update-price', [PurchaseOrderController::class, 'updateItemPrice'])->name('purchase-orders.items.update-price');
     Route::post('/purchase-orders/items/{item}/upload-license', [PurchaseOrderController::class, 'uploadItemLicense'])->name('purchase-orders.items.upload-license');
+    Route::post('/purchase-orders/{purchaseOrder}/confirm-received', [PurchaseOrderController::class, 'confirmReceived'])->name('purchase-orders.confirm-received');
+    Route::get('/purchase-orders/{purchaseOrder}/export-excel', [PurchaseOrderController::class, 'exportSingle'])->name('purchase-orders.export-single');
 
 
     // Purchasing Management (Flow sau khi gửi PR)
@@ -288,6 +290,8 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
     Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
+    Route::post('/purchase-requests/items/{itemId}/cancel', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'cancelItem'])->name('purchase-requests.items.cancel');
+    Route::post('/purchase-requests/items/{itemId}/restore', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'restoreItem'])->name('purchase-requests.items.restore');
 
     // Shipping Allocation routes (Phân bổ chi phí vận chuyển)
     Route::resource('shipping-allocations', ShippingAllocationController::class);

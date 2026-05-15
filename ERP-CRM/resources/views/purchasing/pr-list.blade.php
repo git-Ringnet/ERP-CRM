@@ -159,7 +159,12 @@
                                     @foreach($request->items as $item)
                                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                                         <td class="border-r border-gray-200 p-2">{{ $item->vendor->name ?? $item->vendor }}</td>
-                                        <td class="border-r border-gray-200 p-2 font-medium text-teal-700">{{ $item->part_number }}</td>
+                                        <td class="border-r border-gray-200 p-2 font-medium text-teal-700">
+                                            {{ $item->part_number }}
+                                            @if($item->is_cancelled)
+                                                <span class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ HỦY</span>
+                                            @endif
+                                        </td>
                                         <td class="border-r border-gray-200 p-2 text-center font-bold">{{ $item->quantity + 0 }}</td>
                                         <td class="border-r border-gray-200 p-2 text-center text-blue-600">
                                             {{ number_format($item->saleItem->profit_percent ?? 0, 2) }}%
