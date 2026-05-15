@@ -484,7 +484,8 @@
                                     {{-- Status Selector --}}
                                     <div class="relative inline-block w-24">
                                         <select onchange="updateItemStatus({{ $item->id }}, this.value)" 
-                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all cursor-pointer
+                                            {{ $item->status == 'received' ? 'disabled' : '' }}
+                                            class="appearance-none w-full text-[9px] font-bold border-none rounded-full px-2 py-1 focus:ring-1 focus:ring-offset-1 transition-all {{ $item->status == 'received' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer' }}
                                             {{ $item->status == 'ordered' ? 'bg-gray-100 text-gray-600 focus:ring-gray-400' : '' }}
                                             {{ $item->status == 'shipping' ? 'bg-blue-100 text-blue-600 focus:ring-blue-400' : '' }}
                                             {{ $item->status == 'received' ? 'bg-green-100 text-green-600 focus:ring-green-400' : '' }}

@@ -230,8 +230,8 @@
                                                 <tr>
                                                     <td class="border p-2 font-medium">{{ $item->product->name ?? 'N/A' }} ({{ $item->product->code ?? 'N/A' }})</td>
                                                     <td class="border p-2 text-center">{{ number_format($item->quantity) }}</td>
-                                                    <td class="border p-2 text-right">{{ number_format($item->cost) }} đ</td>
-                                                    <td class="border p-2 text-right text-blue-600 font-medium">{{ number_format($item->quantity * $item->cost) }} đ</td>
+                                                    <td class="border p-2 text-right">{{ number_format($item->cost, 2) }} $</td>
+                                                    <td class="border p-2 text-right text-blue-600 font-medium">{{ number_format($item->quantity * $item->cost, 2) }} $</td>
                                                     <td class="border p-2 text-center">{{ $item->expiry_date ? $item->expiry_date->format('d/m/Y') : '-' }}</td>
                                                     <td class="border p-2 text-center">{{ $item->warranty_months ? $item->warranty_months . ' tháng' : '-' }}</td>
                                                 </tr>

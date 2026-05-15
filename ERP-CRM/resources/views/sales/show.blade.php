@@ -740,6 +740,28 @@
                             </div>
                         </div>
 
+                        {{-- Thông tin công nợ --}}
+                        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 shadow-sm">
+                            <div class="flex justify-between items-center text-xs text-amber-700 uppercase font-bold tracking-wider mb-2">
+                                <span>Tóm tắt công nợ</span>
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Tổng giá trị:</span>
+                                    <span class="font-bold text-gray-900" x-text="formatMoney(orderTotal) + ' ' + (currentCurrencySymbol || 'đ')"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Đã thanh toán:</span>
+                                    <span class="font-bold text-green-600" x-text="formatMoney(paidAmount) + ' ' + (currentCurrencySymbol || 'đ')"></span>
+                                </div>
+                                <div class="border-t border-amber-200 my-1 pt-1 flex justify-between text-base">
+                                    <span class="font-bold text-amber-800">CÒN NỢ:</span>
+                                    <span class="font-black text-red-600" x-text="formatMoney(orderTotal - paidAmount) + ' ' + (currentCurrencySymbol || 'đ')"></span>
+                                </div>
+                            </div>
+                        </div>
+
                         {{-- Nội dung thanh toán --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung thanh toán</label>
@@ -797,11 +819,10 @@
                                 <input type="number" x-model="fixedAmount" @input="calcPercent()" min="0" step="0.01"
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-primary text-right"
                                        placeholder="0">
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₫</span>
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" x-text="currentCurrencySymbol || '₫'"></span>
                             </div>
                             <div class="mt-1 flex justify-between items-center text-xs text-gray-500">
                                 <span>Tương đương: <span class="font-medium text-purple-600" x-text="calculatedPercent + '%'"></span></span>
-                                <span>Còn nợ: <span id="payment_debt_display">{{ number_format($sale->debt_amount) }}</span> đ</span>
                             </div>
                         </div>
 
@@ -886,6 +907,8 @@ function paymentForm() {
         calculatedAmount: 0,
         calculatedPercent: '0.0',
         orderTotal: {{ $sale->total ?: 0 }},
+        paidAmount: {{ $sale->paid_amount ?: 0 }},
+        currentCurrencySymbol: 'đ',
         paymentLabel: '',
         selectedMilestoneIndex: '',
         milestones: allMilestones,
@@ -981,25 +1004,48 @@ function confirmSendEmail() {
 function handlePaymentCurrencyChange() {
     const select = document.getElementById('payment_currency_id');
     const currencyId = select.value;
+    const symbol = select.options[select.selectedIndex].text.split('(')[0].trim();
     const baseCurrencyId = @json($baseCurrencyId);
     const container = document.getElementById('payment_exchange_rate_container');
     const rateInput = document.getElementById('payment_exchange_rate');
     
-    if (currencyId == baseCurrencyId) {
-        container.classList.add('hidden');
-        rateInput.value = 1;
-    } else {
-        container.classList.remove('hidden');
-        // If it matches the sale currency, use sale rate, otherwise fetch latest
-        if (currencyId == @json($sale->currency_id ?? null)) {
-            rateInput.value = @json($sale->exchange_rate ?? 1);
+    // Update Alpine.js data via dispatch if needed, or direct access
+    const alpineData = document.querySelector('[x-data="paymentForm()"]');
+    if (alpineData && alpineData.__x) {
+        alpineData.__x.$data.currentCurrencySymbol = (currencyId == baseCurrencyId) ? 'đ' : '$';
+        
+        // If switching to USD, recalculate values based on exchange rate
+        const updateValues = (rate) => {
+            if (currencyId != baseCurrencyId) {
+                alpineData.__x.$data.orderTotal = {{ $sale->total }} / rate;
+                alpineData.__x.$data.paidAmount = {{ $sale->paid_amount }} / rate;
+            } else {
+                alpineData.__x.$data.orderTotal = {{ $sale->total }};
+                alpineData.__x.$data.paidAmount = {{ $sale->paid_amount }};
+            }
+            alpineData.__x.$data.calcAmount();
+            alpineData.__x.$data.calcPercent();
+        };
+
+        if (currencyId == baseCurrencyId) {
+            container.classList.add('hidden');
+            rateInput.value = 1;
+            updateValues(1);
         } else {
-            // Fetch current rate
-            fetch(`/exchange-rates/latest/${currencyId}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.rate) rateInput.value = data.rate;
-                });
+            container.classList.remove('hidden');
+            if (currencyId == @json($sale->currency_id ?? null)) {
+                rateInput.value = @json($sale->exchange_rate ?? 1);
+                updateValues(rateInput.value);
+            } else {
+                fetch(`/exchange-rates/latest/${currencyId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.rate) {
+                            rateInput.value = data.rate;
+                            updateValues(data.rate);
+                        }
+                    });
+            }
         }
     }
 }

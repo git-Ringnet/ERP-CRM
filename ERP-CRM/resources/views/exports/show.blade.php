@@ -25,7 +25,7 @@
                     <i class="fas fa-times mr-1"></i>Từ chối
                 </button>
             @endif
-            <a href="{{ route('exports.index') }}" 
+            <a href="{{ url()->previous() }}" 
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại
             </a>
