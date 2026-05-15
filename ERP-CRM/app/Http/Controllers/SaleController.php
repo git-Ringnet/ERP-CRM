@@ -1533,7 +1533,7 @@ class SaleController extends Controller
             ];
             if ($existing) {
                 $existing->update($payload);
-            } else {
+            } elseif ($amount > 0 || ($percent !== null && $percent > 0)) {
                 SaleExpense::create(array_merge([
                     'sale_id' => $sale->id,
                     'type' => $type,
