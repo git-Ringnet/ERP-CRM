@@ -84,7 +84,10 @@ class SaleReportController extends Controller
             // Use margin from Sale table for consistency
             $margin = (float) $sale->margin;
             $revenueTotal = (float) $sale->total;
-            $marginPercent = $revenueTotal > 0 ? ($margin / $revenueTotal) * 100 : 0;
+            
+            // Calculate margin % based on revenue before tax (matches list view)
+            $netRevenue = (float) $sale->subtotal - ((float) $sale->subtotal * ((float) $sale->discount / 100));
+            $marginPercent = $netRevenue > 0 ? ($margin / $netRevenue) * 100 : 0;
 
             // Payment info
             $paidAmount = (float) $sale->paid_amount;
@@ -132,11 +135,20 @@ class SaleReportController extends Controller
         $totalOrders = $query->count();
         $totalRevenue = $query->sum('total');
         $totalMargin = $query->sum('margin');
+        
+        // Calculate total net revenue for percent calculation
+        $totalNetRevenue = Sale::whereBetween('date', [$dateFrom, $dateTo])
+            ->whereIn('status', ['approved', 'shipping', 'completed'])
+            ->when($customerId, fn($q) => $q->where('customer_id', $customerId))
+            ->get()
+            ->sum(function($s) {
+                return (float)$s->subtotal * (1 - (float)$s->discount / 100);
+            });
 
         // Cost = Revenue - Margin (margin already net of COGS + expenses)
         $totalCalculatedCost = $totalRevenue - $totalMargin;
 
-        $marginPercent = $totalRevenue > 0 ? ($totalMargin / $totalRevenue) * 100 : 0;
+        $marginPercent = $totalNetRevenue > 0 ? ($totalMargin / $totalNetRevenue) * 100 : 0;
 
         return [
             'total_orders' => $totalOrders,
@@ -167,8 +179,15 @@ class SaleReportController extends Controller
         $results = $query->orderByDesc('total_revenue')->get();
 
         return $results->map(function ($item) {
-            $marginPercent = $item->total_revenue > 0 
-                ? ($item->total_profit / $item->total_revenue) * 100 
+            // Get net revenue sum for this customer in this range
+            $netRevenueSum = Sale::where('customer_id', $item->customer_id)
+                ->whereBetween('date', [request('date_from'), request('date_to')])
+                ->whereIn('status', ['approved', 'shipping', 'completed'])
+                ->get()
+                ->sum(fn($s) => (float)$s->subtotal * (1 - (float)$s->discount / 100));
+
+            $marginPercent = $netRevenueSum > 0 
+                ? ($item->total_profit / $netRevenueSum) * 100 
                 : 0;
 
             return [
@@ -204,6 +223,7 @@ class SaleReportController extends Controller
         $results = $query->orderByDesc('total_revenue')->get();
 
         return $results->map(function ($item) {
+            // Product report is already based on unit_price (excl VAT) * qty
             $marginPercent = $item->total_revenue > 0 
                 ? ($item->total_profit / $item->total_revenue) * 100 
                 : 0;
@@ -248,8 +268,14 @@ class SaleReportController extends Controller
                 // Let's simpler: just calculate margin %
             }
 
-            $marginPercent = $item->total_revenue > 0 
-                ? ($item->total_profit / $item->total_revenue) * 100 
+            // Calculate monthly net revenue for percent
+            $monthlyNetRevenue = Sale::whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$item->month])
+                ->whereIn('status', ['approved', 'shipping', 'completed'])
+                ->get()
+                ->sum(fn($s) => (float)$s->subtotal * (1 - (float)$s->discount / 100));
+
+            $marginPercent = $monthlyNetRevenue > 0 
+                ? ($item->total_profit / $monthlyNetRevenue) * 100 
                 : 0;
 
             $report[] = [

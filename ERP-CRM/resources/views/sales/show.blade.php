@@ -657,13 +657,15 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @php
-                                $allPoItems = $sale->purchaseOrders->flatMap(function($po) {
+                                $allPoItems = $sale->all_purchase_orders->flatMap(function($po) {
                                     return $po->items;
                                 });
                             @endphp
                             @forelse($allPoItems as $item)
                             <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product_name }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                                    {{ $item->product_name ?: ($item->saleOrderRequestItem->part_number ?? ($item->product->name ?? 'N/A')) }}
+                                </td>
                                 <td class="px-4 py-3 text-sm">
                                     <span class="font-bold text-blue-600">{{ $item->purchaseOrder->code }}</span>
                                 </td>

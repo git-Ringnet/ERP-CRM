@@ -783,6 +783,11 @@ class SaleController extends Controller
     {
         $this->authorize('delete', $sale);
 
+        // Chặn xóa nếu đơn hàng đã được duyệt hoặc ở các trạng thái sau đó
+        if ($sale->status !== 'pending') {
+            return back()->with('error', 'Không thể xóa đơn hàng đã duyệt hoặc đang trong quá trình thực hiện.');
+        }
+
         DB::beginTransaction();
         try {
             $sale->items()->delete();

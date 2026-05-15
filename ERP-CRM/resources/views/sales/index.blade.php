@@ -388,6 +388,7 @@
                                         title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    @if($sale->status === 'pending')
                                     <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
@@ -398,6 +399,7 @@
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -445,6 +447,7 @@
                             class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
+                        @if($sale->status === 'pending')
                         <form action="{{ route('sales.destroy', $sale) }}" method="POST"
                             class="flex-1">
                             @csrf
@@ -455,6 +458,7 @@
                                 <i class="fas fa-trash mr-1"></i>Xóa
                             </button>
                         </form>
+                        @endif
                     </div>
                 </div>
             @empty
