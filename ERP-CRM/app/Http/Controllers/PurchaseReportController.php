@@ -21,18 +21,38 @@ class PurchaseReportController extends Controller
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $supplierId = $request->input('supplier_id');
         $productId = $request->input('product_id');
+        $productSearch = $request->input('product_search');
+
+        // If product_id is provided but product_search doesn't match it, reset product_id
+        if ($productId && !empty($productSearch)) {
+            $selectedProduct = \App\Models\Product::find($productId);
+            if ($selectedProduct && !str_contains($productSearch, $selectedProduct->code)) {
+                $productId = null;
+            }
+        }
+
+        // If product_id is empty but product_search is filled, try to resolve matching product
+        if (empty($productId) && !empty($productSearch)) {
+            $resolvedProduct = \App\Models\Product::where('code', $productSearch)
+                ->orWhere('code', 'like', "%{$productSearch}%")
+                ->orWhere('name', 'like', "%{$productSearch}%")
+                ->first();
+            if ($resolvedProduct) {
+                $productId = $resolvedProduct->id;
+            }
+        }
 
         // Summary statistics
         $stats = $this->getSummaryStats($dateFrom, $dateTo, $supplierId, $productId);
 
         // Supplier report
-        $supplierReport = $this->getSupplierReport($dateFrom, $dateTo, $supplierId);
+        $supplierReport = $this->getSupplierReport($dateFrom, $dateTo, $supplierId, $productId);
 
         // Product report
-        $productReport = $this->getProductReport($dateFrom, $dateTo, $productId);
+        $productReport = $this->getProductReport($dateFrom, $dateTo, $productId, $supplierId);
 
         // Monthly report
-        $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo);
+        $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo, $supplierId, $productId);
 
         // Tracking report (Theo dõi hàng về)
         $trackingReport = $this->getTrackingReport($request);
@@ -52,7 +72,7 @@ class PurchaseReportController extends Controller
         return view('purchase-reports.index', compact(
             'stats', 'supplierReport', 'productReport', 'monthlyReport',
             'trackingReport', 'suppliers', 'products',
-            'dateFrom', 'dateTo', 'supplierId', 'productId'
+            'dateFrom', 'dateTo', 'supplierId', 'productId', 'productSearch'
         ));
     }
 
@@ -62,6 +82,12 @@ class PurchaseReportController extends Controller
 
         if ($supplierId) {
             $query->where('supplier_id', $supplierId);
+        }
+
+        if ($productId) {
+            $query->whereHas('items', function($q) use ($productId) {
+                $q->where('product_id', $productId);
+            });
         }
 
         $stats = $query->selectRaw('
@@ -84,7 +110,7 @@ class PurchaseReportController extends Controller
         ];
     }
 
-    private function getSupplierReport($dateFrom, $dateTo, $supplierId = null): array
+    private function getSupplierReport($dateFrom, $dateTo, $supplierId = null, $productId = null): array
     {
         $query = PurchaseOrder::select(
                 'supplier_id',
@@ -106,14 +132,60 @@ class PurchaseReportController extends Controller
             $query->where('supplier_id', $supplierId);
         }
 
+        if ($productId) {
+            $query->whereHas('items', function($q) use ($productId) {
+                $q->where('product_id', $productId);
+            });
+        }
+
         $results = $query->get();
 
-        return $results->map(function ($item) {
+        // Eager-load individual orders with relevant relationships to avoid N+1 queries
+        $allOrdersQuery = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
+            ->with(['currency', 'items.saleOrderRequestItem.saleOrderRequest.sale.user', 'sale.user'])
+            ->orderBy('order_date', 'desc');
+
+        if ($supplierId) {
+            $allOrdersQuery->where('supplier_id', $supplierId);
+        }
+
+        if ($productId) {
+            $allOrdersQuery->whereHas('items', function($q) use ($productId) {
+                $q->where('product_id', $productId);
+            });
+        }
+
+        $allOrders = $allOrdersQuery->get()->groupBy('supplier_id');
+
+        return $results->map(function ($item) use ($allOrders) {
             $discountRate = $item->total_subtotal > 0 
                 ? ($item->total_discount / $item->total_subtotal) * 100 
                 : 0;
 
+            $supplierOrders = $allOrders->get($item->supplier_id, collect())->map(function($po) {
+                $val = $po->total_foreign ?? ($po->total / ($po->exchange_rate ?: 1));
+                $decimals = (floor($val) == $val) ? 0 : ($po->currency->decimal_places ?? 2);
+
+                return [
+                    'id' => $po->id,
+                    'code' => $po->code,
+                    'order_date' => $po->order_date ? $po->order_date->format('d/m/Y') : 'N/A',
+                    'linked_so_codes' => $po->linked_so_codes,
+                    'linked_salesperson_names' => $po->linked_salesperson_names,
+                    'total_usd' => number_format($val, $decimals),
+                    'total_vnd' => number_format($po->total, 0, ',', '.'),
+                    'discount_vnd' => number_format($po->discount_amount, 0, ',', '.'),
+                    'shipping_cost_vnd' => number_format($po->shipping_cost, 0, ',', '.'),
+                    'paid_vnd' => number_format($po->paid_amount, 0, ',', '.'),
+                    'status_label' => $po->status_label,
+                    'status_color' => $po->status_color,
+                    'payment_status_label' => $po->payment_status_label,
+                    'payment_status_color' => $po->payment_status_color,
+                ];
+            })->toArray();
+
             return [
+                'supplier_id' => $item->supplier_id,
                 'supplier' => $item->supplier->name ?? 'N/A',
                 'order_count' => $item->order_count,
                 'total_amount' => $item->total_amount,
@@ -124,11 +196,12 @@ class PurchaseReportController extends Controller
                 'total_paid' => $item->total_paid,
                 'total_paid_usd' => $item->total_paid_usd,
                 'discount_rate' => round($discountRate, 1),
+                'orders' => $supplierOrders,
             ];
         })->toArray();
     }
 
-    private function getProductReport($dateFrom, $dateTo, $productId = null): array
+    private function getProductReport($dateFrom, $dateTo, $productId = null, $supplierId = null): array
     {
         $query = ImportItem::query()
             ->join('imports', 'import_items.import_id', '=', 'imports.id')
@@ -156,20 +229,46 @@ class PurchaseReportController extends Controller
             $query->where('import_items.product_id', $productId);
         }
 
+        if ($supplierId) {
+            $query->where('imports.supplier_id', $supplierId);
+        }
+
         $results = $query->get();
 
-        return $results->map(function ($item) {
+        return $results->map(function ($item) use ($supplierId) {
             // Get unique suppliers for this product
-            $supplierCount = ImportItem::where('product_id', $item->product_id)
-                ->whereHas('import', function($q) use ($item) {
+            $supplierCountQuery = ImportItem::where('product_id', $item->product_id)
+                ->whereHas('import', function($q) use ($item, $supplierId) {
                     $q->where('status', 'completed');
+                    if ($supplierId) {
+                        $q->where('supplier_id', $supplierId);
+                    }
                 })
                 ->join('imports', 'import_items.import_id', '=', 'imports.id')
-                ->distinct('imports.supplier_id')
-                ->count('imports.supplier_id');
+                ->distinct('imports.supplier_id');
+
+            $supplierCount = $supplierCountQuery->count('imports.supplier_id');
+
+            $supplierNamesList = ImportItem::where('product_id', $item->product_id)
+                ->whereHas('import', function($q) use ($supplierId) {
+                    $q->where('status', 'completed');
+                    if ($supplierId) {
+                        $q->where('supplier_id', $supplierId);
+                    }
+                })
+                ->join('imports', 'import_items.import_id', '=', 'imports.id')
+                ->join('suppliers', 'imports.supplier_id', '=', 'suppliers.id')
+                ->distinct('suppliers.name')
+                ->pluck('suppliers.name')
+                ->toArray();
+
+            $supplierNames = implode(', ', $supplierNamesList) ?: 'N/A';
 
             return [
-                'product' => $item->product->name ?? 'N/A',
+                'product_code' => $item->product->code ?? 'N/A',
+                'product_name' => $item->product->name ?? 'N/A',
+                'supplier_names' => $supplierNames,
+                'product' => $item->product->code ?? 'N/A',
                 'total_quantity' => $item->total_quantity,
                 'avg_purchase_price' => $item->avg_purchase_price,
                 'avg_purchase_price_usd' => $item->avg_purchase_price_usd,
@@ -183,9 +282,21 @@ class PurchaseReportController extends Controller
         })->toArray();
     }
 
-    private function getMonthlyReport($dateFrom, $dateTo): array
+    private function getMonthlyReport($dateFrom, $dateTo, $supplierId = null, $productId = null): array
     {
-        $results = PurchaseOrder::select(
+        $query = PurchaseOrder::query();
+
+        if ($supplierId) {
+            $query->where('supplier_id', $supplierId);
+        }
+
+        if ($productId) {
+            $query->whereHas('items', function($q) use ($productId) {
+                $q->where('product_id', $productId);
+            });
+        }
+
+        $results = $query->select(
                 DB::raw("DATE_FORMAT(order_date, '%Y-%m') as period"),
                 DB::raw('COUNT(*) as order_count'),
                 DB::raw('SUM(total) as total_amount'),
@@ -235,6 +346,11 @@ class PurchaseReportController extends Controller
     {
         $query = \App\Models\SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
 
+        // Filter by Date
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+        $query->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+
         // Filter by Sales Order Code
         if ($request->filled('sale_code')) {
             $query->whereHas('saleOrderRequest.sale', function($q) use ($request) {
@@ -242,8 +358,15 @@ class PurchaseReportController extends Controller
             });
         }
 
-        // Filter by Part Number
-        if ($request->filled('part_number')) {
+        // Filter by Part Number (From Direct input or resolved product_id)
+        if ($request->filled('product_id')) {
+            $product = \App\Models\Product::find($request->product_id);
+            if ($product) {
+                $query->where('part_number', $product->code);
+            }
+        } elseif ($request->filled('product_search')) {
+            $query->where('part_number', 'like', '%' . $request->product_search . '%');
+        } elseif ($request->filled('part_number')) {
             $query->where('part_number', 'like', '%' . $request->part_number . '%');
         }
 

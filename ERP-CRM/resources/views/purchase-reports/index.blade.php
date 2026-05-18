@@ -11,10 +11,10 @@
                 <i class="fas fa-info-circle mr-1"></i>Phân tích chi tiết hoạt động mua hàng: theo NCC, sản phẩm, thời gian
             </div>
             <div class="flex gap-2">
-                <button onclick="window.location.reload()"
+                <a href="{{ route('purchase-reports.index') }}"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
                     <i class="fas fa-sync mr-2"></i>Làm mới
-                </button>
+                </a>
                 <a href="{{ route('purchase-reports.export', ['report_type' => 'tracking'] + request()->all()) }}"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600">
                     <i class="fas fa-file-export mr-2"></i>Xuất Excel
@@ -54,6 +54,7 @@
                             <i class="fas fa-search text-gray-400 text-xs"></i>
                         </div>
                         <input type="text" 
+                            name="product_search"
                             x-model="searchQuery" 
                             @input.debounce.300ms="performSearch()"
                             @focus="showDropdown = true"
@@ -61,7 +62,7 @@
                             class="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                         
                         <input type="hidden" name="product_id" x-model="selectedProductId">
-
+                        
                         <!-- Clear button -->
                         <button type="button" x-show="selectedProductId || searchQuery" @click="clearSelection()" 
                             class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
@@ -97,11 +98,19 @@
                 <script>
                     function productSearchHandler() {
                         return {
-                            searchQuery: '{{ $products->first() ? $products->first()->code . " - " . Str::limit($products->first()->name, 30) : "" }}',
+                            searchQuery: '{{ $products->first() ? $products->first()->code . " - " . Str::limit($products->first()->name, 30) : ($productSearch ?? "") }}',
                             selectedProductId: '{{ $productId }}',
                             searchResults: [],
                             showDropdown: false,
                             isSearching: false,
+                            
+                            init() {
+                                this.$watch('searchQuery', value => {
+                                    if (!value.includes(' - ')) {
+                                        this.selectedProductId = '';
+                                    }
+                                });
+                            },
                             
                             performSearch() {
                                 if (this.searchQuery.length < 2) {
@@ -315,26 +324,109 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @forelse($supplierReport as $row)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['supplier'] }}</td>
-                                    <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right">
+                                <tr class="hover:bg-gray-50 cursor-pointer supplier-row transition-all duration-150" data-supplier-id="{{ $row['supplier_id'] }}">
+                                    <td class="px-3 py-3 font-medium">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 transition-colors duration-200 toggle-btn-wrapper">
+                                                <i class="fas fa-chevron-right text-[10px] transition-transform duration-200 toggle-icon" id="icon-{{ $row['supplier_id'] }}"></i>
+                                            </span>
+                                            <span class="text-gray-900 font-bold hover:text-indigo-600">{{ $row['supplier'] }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-3 text-center">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                            {{ $row['order_count'] }} đơn
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-3 text-right">
                                         <div class="font-bold text-indigo-600">${{ number_format($row['total_amount_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
+                                        <div class="text-[10px] text-gray-400 font-medium">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
-                                    <td class="px-3 py-2 text-right text-green-600">
-                                        <div class="font-medium">${{ number_format(($row['total_discount'] / 25000), 2) }}</div> <!-- Approximate USD for discount if not calculated -->
-                                        <div class="text-[10px] opacity-70">{{ number_format($row['total_discount'], 0, ',', '.') }}đ</div>
+                                    <td class="px-3 py-3 text-right text-green-600">
+                                        <div class="font-bold">${{ number_format(($row['total_discount'] / 25000), 2) }}</div> <!-- Approximate USD for discount if not calculated -->
+                                        <div class="text-[10px] opacity-70 font-medium">{{ number_format($row['total_discount'], 0, ',', '.') }}đ</div>
                                     </td>
-                                    <td class="px-3 py-2 text-right">
+                                    <td class="px-3 py-3 text-right text-gray-700 font-semibold">
                                         {{ number_format($row['total_shipping'], 0, ',', '.') }}đ
                                     </td>
-                                    <td class="px-3 py-2 text-right">
+                                    <td class="px-3 py-3 text-right">
                                         <div class="font-bold text-gray-900">${{ number_format($row['total_paid_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
+                                        <div class="text-[10px] text-gray-400 font-medium">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
                                     </td>
-                                    <td class="px-3 py-2 text-center"><span
-                                            class="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">{{ $row['discount_rate'] }}%</span>
+                                    <td class="px-3 py-3 text-center">
+                                        <span class="inline-block px-2.5 py-0.5 text-xs font-bold bg-green-100 text-green-800 rounded-full">{{ $row['discount_rate'] }}%</span>
+                                    </td>
+                                </tr>
+                                <!-- Sub row for PO orders details -->
+                                <tr id="orders-{{ $row['supplier_id'] }}" class="hidden bg-gray-50/40">
+                                    <td colspan="7" class="px-4 py-3">
+                                        <div class="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm p-4">
+                                            <div class="flex justify-between items-center mb-3">
+                                                <h4 class="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center">
+                                                    <i class="fas fa-list-alt mr-2 text-indigo-500 text-sm"></i>
+                                                    Danh sách đơn mua hàng (PO) – {{ $row['supplier'] }}
+                                                </h4>
+                                                <span class="text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded border border-indigo-100">
+                                                    Tổng cộng: {{ count($row['orders']) }} đơn
+                                                </span>
+                                            </div>
+                                            <div class="overflow-x-auto">
+                                                <table class="min-w-full divide-y divide-gray-150 text-xs">
+                                                    <thead class="bg-gray-50/70 text-gray-500 uppercase font-bold tracking-wider">
+                                                        <tr>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">Mã PO</th>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">Ngày đặt</th>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">Mã SO liên quan</th>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">Salesperson</th>
+                                                            <th class="px-3 py-2.5 text-right text-[10px]">Tổng tiền (USD)</th>
+                                                            <th class="px-3 py-2.5 text-right text-[10px]">Tổng tiền (VND)</th>
+                                                            <th class="px-3 py-2.5 text-right text-[10px]">Chiết khấu</th>
+                                                            <th class="px-3 py-2.5 text-right text-[10px]">CP Vận chuyển</th>
+                                                            <th class="px-3 py-2.5 text-right text-[10px]">Thực trả (VND)</th>
+                                                            <th class="px-3 py-2.5 text-center text-[10px]">Trạng thái PO</th>
+                                                            <th class="px-3 py-2.5 text-center text-[10px]">Thanh toán</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="divide-y divide-gray-100 text-gray-700 bg-white">
+                                                        @forelse($row['orders'] as $po)
+                                                            <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                                <td class="px-3 py-3 font-bold text-blue-600">
+                                                                    <a href="{{ route('purchase-orders.show', $po['id']) }}" class="hover:underline flex items-center gap-1.5" target="_blank">
+                                                                        <i class="fas fa-external-link-alt text-[9px] opacity-60"></i>
+                                                                        {{ $po['code'] }}
+                                                                    </a>
+                                                                </td>
+                                                                <td class="px-3 py-3 text-gray-500 font-medium">{{ $po['order_date'] }}</td>
+                                                                <td class="px-3 py-3 font-bold text-gray-700">{{ $po['linked_so_codes'] }}</td>
+                                                                <td class="px-3 py-3 text-gray-600 font-semibold">{{ $po['linked_salesperson_names'] }}</td>
+                                                                <td class="px-3 py-3 text-right font-bold text-indigo-600">${{ $po['total_usd'] }}</td>
+                                                                <td class="px-3 py-3 text-right text-gray-500 font-medium">{{ $po['total_vnd'] }}đ</td>
+                                                                <td class="px-3 py-3 text-right text-emerald-600 font-bold">{{ $po['discount_vnd'] }}đ</td>
+                                                                <td class="px-3 py-3 text-right text-gray-500 font-medium">{{ $po['shipping_cost_vnd'] }}đ</td>
+                                                                <td class="px-3 py-3 text-right font-bold text-gray-900">{{ $po['paid_vnd'] }}đ</td>
+                                                                <td class="px-3 py-3 text-center">
+                                                                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full {{ $po['status_color'] }} border border-transparent">
+                                                                        {{ $po['status_label'] }}
+                                                                    </span>
+                                                                </td>
+                                                                <td class="px-3 py-3 text-center">
+                                                                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full {{ $po['payment_status_color'] }} border border-transparent">
+                                                                        {{ $po['payment_status_label'] }}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="11" class="px-4 py-6 text-center text-gray-400">
+                                                                    <i class="fas fa-folder-open text-2xl mb-2 opacity-35"></i>
+                                                                    <p>Không có đơn mua hàng nào trong khoảng thời gian này.</p>
+                                                                </td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -355,7 +447,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Sản phẩm</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Sản phẩm (Part #)</th>
                                 <th class="px-3 py-2 text-center font-medium text-gray-700">SL nhập</th>
                                 <th class="px-3 py-2 text-right font-medium text-gray-700">Giá TB (USD)</th>
                                 <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng giá trị (USD)</th>
@@ -366,8 +458,10 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @forelse($productReport as $row)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['product'] }}</td>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-3 py-3 font-medium">
+                                        <div class="font-bold text-gray-900" title="{{ $row['product_name'] }}">{{ $row['product_code'] }}</div>
+                                    </td>
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
                                     <td class="px-3 py-2 text-right">
                                         <div class="font-bold text-indigo-600">${{ number_format($row['avg_purchase_price_usd'] ?? 0, 2) }}</div>
@@ -474,6 +568,29 @@
                     // Update content
                     tabContents.forEach(c => c.classList.add('hidden'));
                     document.getElementById('tab-' + tabId).classList.remove('hidden');
+                });
+            });
+
+            // Toggle supplier orders sub-row
+            const supplierRows = document.querySelectorAll('.supplier-row');
+            supplierRows.forEach(row => {
+                row.addEventListener('click', function () {
+                    const supplierId = this.dataset.supplierId;
+                    const subRow = document.getElementById('orders-' + supplierId);
+                    const icon = document.getElementById('icon-' + supplierId);
+                    const btnWrapper = this.querySelector('.toggle-btn-wrapper');
+                    
+                    if (subRow.classList.contains('hidden')) {
+                        subRow.classList.remove('hidden');
+                        icon.classList.add('rotate-90');
+                        btnWrapper.classList.remove('bg-indigo-50', 'text-indigo-600');
+                        btnWrapper.classList.add('bg-indigo-600', 'text-white');
+                    } else {
+                        subRow.classList.add('hidden');
+                        icon.classList.remove('rotate-90');
+                        btnWrapper.classList.remove('bg-indigo-600', 'text-white');
+                        btnWrapper.classList.add('bg-indigo-50', 'text-indigo-600');
+                    }
                 });
             });
         });
