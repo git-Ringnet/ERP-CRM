@@ -249,9 +249,25 @@ class PurchaseReportController extends Controller
 
             $supplierCount = $supplierCountQuery->count('imports.supplier_id');
 
+            $supplierNamesList = ImportItem::where('product_id', $item->product_id)
+                ->whereHas('import', function($q) use ($supplierId) {
+                    $q->where('status', 'completed');
+                    if ($supplierId) {
+                        $q->where('supplier_id', $supplierId);
+                    }
+                })
+                ->join('imports', 'import_items.import_id', '=', 'imports.id')
+                ->join('suppliers', 'imports.supplier_id', '=', 'suppliers.id')
+                ->distinct('suppliers.name')
+                ->pluck('suppliers.name')
+                ->toArray();
+
+            $supplierNames = implode(', ', $supplierNamesList) ?: 'N/A';
+
             return [
                 'product_code' => $item->product->code ?? 'N/A',
                 'product_name' => $item->product->name ?? 'N/A',
+                'supplier_names' => $supplierNames,
                 'product' => $item->product->code ?? 'N/A',
                 'total_quantity' => $item->total_quantity,
                 'avg_purchase_price' => $item->avg_purchase_price,

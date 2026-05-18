@@ -460,10 +460,7 @@
                             @forelse($productReport as $row)
                                 <tr class="hover:bg-gray-50 transition-colors">
                                     <td class="px-3 py-3 font-medium">
-                                        <div class="font-bold text-gray-900">{{ $row['product_code'] }}</div>
-                                        <div class="text-[10px] text-gray-400 font-normal mt-0.5 max-w-[400px] truncate" title="{{ $row['product_name'] }}">
-                                            {{ $row['product_name'] }}
-                                        </div>
+                                        <div class="font-bold text-gray-900" title="{{ $row['product_name'] }}">{{ $row['product_code'] }}</div>
                                     </td>
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
                                     <td class="px-3 py-2 text-right">
