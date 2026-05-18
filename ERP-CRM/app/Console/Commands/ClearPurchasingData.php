@@ -48,13 +48,15 @@ class ClearPurchasingData extends Command
 
         // Ask for manual confirmation
         if (!$this->option('force')) {
-            if (!$this->confirm('Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu phân hệ Mua hàng không?', false)) {
+            $confirm1 = $this->ask('Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu phân hệ Mua hàng không? (yes/no)', 'no');
+            if (!in_array(strtolower(trim($confirm1)), ['yes', 'y'])) {
                 $this->warn('❌ Đã hủy thao tác xóa dữ liệu.');
                 return self::SUCCESS;
             }
 
             // Double confirmation for extreme safety
-            if (!$this->confirm('CẢNH BÁO LẦN 2: Hành động này KHÔNG THỂ HOÀN TÁC! Bạn có chắc chắn 100% không?', false)) {
+            $confirm2 = $this->ask('CẢNH BÁO LẦN 2: Hành động này KHÔNG THỂ HOÀN TÁC! Bạn có chắc chắn 100% không? (yes/no)', 'no');
+            if (!in_array(strtolower(trim($confirm2)), ['yes', 'y'])) {
                 $this->warn('❌ Đã hủy thao tác xóa dữ liệu.');
                 return self::SUCCESS;
             }
