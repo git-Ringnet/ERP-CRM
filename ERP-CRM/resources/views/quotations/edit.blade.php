@@ -315,6 +315,12 @@
             });
 
             calculateTotal();
+
+            $('#productList').on('input', '.price-input, .quantity-input, .vat-input', function () {
+                const name = $(this).closest('.product-item').find('.quantity-input').attr('name');
+                const match = name && name.match(/products\[(\d+)\]/);
+                if (match) calculateRowTotal(match[1]);
+            });
         });
 
         function initProductSelect(element) {

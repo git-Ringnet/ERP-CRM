@@ -471,6 +471,9 @@
                             <td class="px-4 py-3 text-right">
                                 <div class="flex items-center justify-end group">
                                     <input type="number" step="0.01" value="{{ $item->unit_price }}" 
+                                        data-item-id="{{ $item->id }}"
+                                        data-quantity="{{ $item->quantity }}"
+                                        oninput="calculateItemTotal({{ $item->id }}, this.value, {{ $item->quantity }})"
                                         onchange="updateItemPrice({{ $item->id }}, this.value)"
                                         class="w-36 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
                                     <span class="text-blue-700 ml-0.5">$</span>
@@ -716,6 +719,22 @@
                     this.classList.remove('flex');
                 }, 500);
             });
+            
+            // Tính toán real-time Thành tiền (USD) khi nhập Giá mua thực tế
+            function calculateItemTotal(itemId, unitPrice, quantity) {
+                const price = parseFloat(unitPrice) || 0;
+                const qty = parseFloat(quantity) || 0;
+                const total = price * qty;
+                
+                const totalElement = document.getElementById(`item-total-${itemId}`);
+                if (totalElement) {
+                    totalElement.textContent = total.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                }
+            }
+            
             function updateItemPrice(itemId, price) {
                 fetch(`/purchase-orders/items/${itemId}/update-price`, {
                     method: 'POST',

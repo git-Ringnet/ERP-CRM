@@ -649,6 +649,10 @@ function setupMoneyInput(input) {
         const newLength = this.value.length;
         const diff = newLength - oldLength;
         this.setSelectionRange(cursorPos + diff, cursorPos + diff);
+
+        if (this.classList.contains('price-input')) {
+            calculateRowTotal();
+        }
     });
     
     input.addEventListener('blur', function() {
@@ -719,9 +723,21 @@ function initAllSearchableSelects() {
     });
 }
 
+function initProductRowLiveCalc() {
+    const productList = document.getElementById('productList');
+    if (!productList || productList.dataset.liveCalcInit) return;
+    productList.addEventListener('input', function(e) {
+        if (e.target.classList.contains('quantity-input')) {
+            calculateRowTotal();
+        }
+    });
+    productList.dataset.liveCalcInit = 'true';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     initAllSearchableSelects();
     initMoneyInputs();
+    initProductRowLiveCalc();
     if (document.getElementById('saleType')) {
         toggleProjectSelect();
     }
