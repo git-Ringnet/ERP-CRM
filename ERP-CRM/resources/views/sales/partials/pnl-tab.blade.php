@@ -108,6 +108,7 @@
             other_p: {{ ($otherSupportExpense && $otherSupportExpense->input_mode === 'percent') ? (float) ($otherSupportExpense->percent_value ?? 0) : 0 }},
             
             finance_amt: {{ (float) ($financeExpense->amount ?? 0) }},
+            overdue_amt: {{ (float) ($overdueExpense->amount ?? 0) }},
             mgmt_amt: {{ (float) ($managementExpense->amount ?? 0) }},
             support_amt: {{ (float) ($supportExpense->amount ?? 0) }},
             other_amt: {{ (float) ($otherSupportExpense->amount ?? 0) }},
@@ -241,6 +242,7 @@
             finance_allocated: data.finance_allocated || 0,
             overdue_na: data.overdue_na,
             overdue_mode: data.overdue_mode || 'percent',
+            overdue_allocated: data.overdue_allocated || 0,
             mgmt_na: data.mgmt_na,
             mgmt_mode: data.mgmt_mode || 'percent',
             mgmt_allocated: data.mgmt_allocated || 0,
@@ -346,7 +348,7 @@
                 this.gross_p = this.net_revenue > 0 ? ((this.gross_profit / this.net_revenue) * 100).toFixed(1) : 0;
 
                 this.finance_v = this.finance_na ? 0 : (this.finance_mode === 'fixed' ? Math.round(calcShareFromTotal(this.finance_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.finance_p / 100)));
-                this.overdue_v = this.overdue_na ? 0 : (this.overdue_mode === 'fixed' ? (unformat(this.oic) || 0) : Math.round(this.cost_total * (this.overdue_p / 100)));
+                this.overdue_v = this.overdue_na ? 0 : (this.overdue_mode === 'fixed' ? Math.round(unformat(this.oic)) : Math.round(this.cost_total * (this.overdue_p / 100)));
                 this.mgmt_v = this.mgmt_na ? 0 : (this.mgmt_mode === 'fixed' ? Math.round(calcShareFromTotal(this.mgmt_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.mgmt_p / 100)));
                 this.support_v = this.support_na ? 0 : (this.support_mode === 'fixed' ? Math.round(calcShareFromTotal(this.support_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.support_p / 100)));
                 this.other_v = this.other_na ? 0 : (this.other_mode === 'fixed' ? Math.round(calcShareFromTotal(this.other_amt, this.cost_total, this.revenue_total, this.row_index)) : Math.round(this.cost_total * (this.other_p / 100)));
@@ -720,6 +722,12 @@
                             $hasOtherInExpenses = (bool) $findExpenseByTypes(['Other Support']);
                             $overdueExpenseRow = $findExpenseByTypes(['Lãi vay phát sinh do nợ quá hạn']);
                             $overdueMode = $overdueExpenseRow->input_mode ?? 'percent';
+                            $overdueAllocated = 0;
+                            if ($overdueExpenseRow && $overdueExpenseRow->input_mode === 'fixed') {
+                                $totalCostBaseRow = $sale->items->sum('cost_total') ?: 1;
+                                $share = $item->cost_total / $totalCostBaseRow;
+                                $overdueAllocated = round($overdueExpenseRow->amount * $share);
+                            }
                             $financeExpenseRow = $findExpenseByTypes(['Chi phí Tài chính']);
                             $financeMode = $financeExpenseRow->input_mode ?? 'percent';
                             $financeAllocated = 0;
@@ -779,6 +787,7 @@
                             $getExpIdx = fn($type) => $allExpensesList->search(fn($e) => $e->type === $type);
                             
                             $fIdx = $getExpIdx('Chi phí Tài chính');
+                            $odIdx = $getExpIdx('Lãi vay phát sinh do nợ quá hạn');
                             $mIdx = $getExpIdx('Chi phí Quản lí, Back Office & kỹ thuật');
                             $sIdx = $getExpIdx('24x7 Support cost');
                             $oIdx = $getExpIdx('Other Support');
@@ -799,8 +808,13 @@
                                 finance_na: {{ (!is_null($item->finance_cost_percent) && floatval($item->finance_cost_percent) <= 0) ? 'true' : 'false' }},
                                 finance_mode: '{{ $financeMode }}',
                                 finance_allocated: {{ $financeAllocated }},
-                                overdue_na: {{ (!is_null($item->overdue_interest_percent) && floatval($item->overdue_interest_percent) <= 0 && (!is_null($item->overdue_interest_cost) && floatval($item->overdue_interest_cost) <= 0)) ? 'true' : 'false' }},
+                                overdue_na: {{ 
+                                    $overdueMode === 'fixed' 
+                                        ? 'false'
+                                        : ((!is_null($item->overdue_interest_percent) && floatval($item->overdue_interest_percent) <= 0) ? 'true' : 'false')
+                                }},
                                 overdue_mode: '{{ $overdueMode }}',
+                                overdue_allocated: {{ $overdueAllocated }},
                                 mgmt_na: {{ (!is_null($item->management_cost_percent) && floatval($item->management_cost_percent) <= 0) ? 'true' : 'false' }},
                                 mgmt_mode: '{{ $managementMode }}',
                                 mgmt_allocated: {{ $managementAllocated }},
@@ -974,12 +988,28 @@
                             </td>
                             @endif
                             @if($hasOverdueInterest)
-                            <!-- Lãi vay phát sinh (% như các trường khác) -->
-                            <td class="px-2 py-2 text-right border border-gray-400 text-xs cursor-pointer hover:bg-yellow-50" 
-                                @click="if($sale_editable) { overdue_na = !overdue_na; calculate() }" :title="overdue_na ? 'Click để bật chi phí' : 'Click để tắt (n/a)'">
+                            <!-- Lãi vay phát sinh -->
+                            <td class="px-2 py-2 text-right border border-gray-400 text-xs bg-orange-50/10">
                                 <input type="hidden" name="items[{{ $index }}][overdue_interest_percent]" :value="overdue_na || overdue_mode !== 'percent' ? '' : overdue_p">
-                                <input type="hidden" name="items[{{ $index }}][overdue_interest_cost]" :value="overdue_na || overdue_mode !== 'fixed' ? 0 : oic">
-                                <span x-text="overdue_na ? 'n/a' : formatNumber(overdue_v)" :class="overdue_na ? 'text-gray-400' : ''"></span>
+                                <input type="hidden" name="items[{{ $index }}][overdue_interest_cost]" :value="overdue_na || overdue_mode !== 'fixed' ? 0 : overdue_v">
+                                
+                                <div class="flex flex-col items-end space-y-1">
+                                    {{-- Percent mode: show calculated value --}}
+                                    <span x-show="overdue_mode === 'percent'"
+                                        @click="if($sale_editable) { overdue_na = !overdue_na; calculate() }"
+                                        class="cursor-pointer hover:bg-yellow-50 px-1 rounded block w-full"
+                                        x-text="overdue_na ? 'n/a' : formatNumber(overdue_v)" 
+                                        :class="overdue_na ? 'text-gray-400' : ''"></span>
+                                    
+                                    {{-- Fixed mode: editable per-row input --}}
+                                    <div x-show="overdue_mode === 'fixed'" class="w-full">
+                                        <input type="text" inputmode="numeric" 
+                                            class="w-full text-xs p-1 border border-gray-300 rounded text-right extra-expense-money {{ !$sale->isPlEditable() ? 'bg-gray-100' : '' }}"
+                                            x-model="oic"
+                                            @input="calculate(); $dispatch('pnl-recalc')"
+                                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    </div>
+                                </div>
                             </td>
                             @endif
                             @if($hasManagementCost)
