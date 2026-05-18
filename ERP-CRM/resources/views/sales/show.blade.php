@@ -528,7 +528,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">SL</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá bán</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá vốn</th>
@@ -542,7 +542,7 @@
                             @foreach($sale->items as $index => $item)
                             <tr>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product_name }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product->code ?? $item->product_name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->quantity) }}</td>
                                 <td class="px-4 py-3 text-right">
                                     @if($isForeign)
