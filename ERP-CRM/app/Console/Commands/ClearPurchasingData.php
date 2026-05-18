@@ -46,15 +46,17 @@ class ClearPurchasingData extends Command
             return self::FAILURE;
         }
 
-        // Ask for manual confirmation
+        // Ask for manual confirmation using extremely robust blocking console reader
         if (!$this->option('force')) {
-            if (!$this->confirm('Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu phân hệ Mua hàng không?', false)) {
+            $confirm1 = $this->readConsoleInput('Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu phân hệ Mua hàng không? (yes/no) [no]: ');
+            if (!in_array(strtolower(trim($confirm1)), ['yes', 'y'])) {
                 $this->warn('❌ Đã hủy thao tác xóa dữ liệu.');
                 return self::SUCCESS;
             }
 
             // Double confirmation for extreme safety
-            if (!$this->confirm('CẢNH BÁO LẦN 2: Hành động này KHÔNG THỂ HOÀN TÁC! Bạn có chắc chắn 100% không?', false)) {
+            $confirm2 = $this->readConsoleInput('CẢNH BÁO LẦN 2: Hành động này KHÔNG THỂ HOÀN TÁC! Bạn có chắc chắn 100% không? (yes/no) [no]: ');
+            if (!in_array(strtolower(trim($confirm2)), ['yes', 'y'])) {
                 $this->warn('❌ Đã hủy thao tác xóa dữ liệu.');
                 return self::SUCCESS;
             }
@@ -135,5 +137,22 @@ class ClearPurchasingData extends Command
                 DB::statement('SET FOREIGN_KEY_CHECKS=1;');
             }
         }
+    }
+
+    /**
+     * Read interactive console input reliably with blocking enabled.
+     */
+    private function readConsoleInput(string $prompt): string
+    {
+        if (function_exists('readline')) {
+            $input = readline($prompt);
+            if ($input !== false) {
+                return $input;
+            }
+        }
+        
+        $this->output->write($prompt);
+        @stream_set_blocking(STDIN, true);
+        return fgets(STDIN) ?: '';
     }
 }
