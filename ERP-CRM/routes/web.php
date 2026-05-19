@@ -280,6 +280,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/items/{item}/update-status', [PurchaseOrderController::class, 'updateItemStatus'])->name('purchase-orders.items.update-status');
     Route::post('/purchase-orders/items/{item}/update-price', [PurchaseOrderController::class, 'updateItemPrice'])->name('purchase-orders.items.update-price');
     Route::post('/purchase-orders/items/{item}/upload-license', [PurchaseOrderController::class, 'uploadItemLicense'])->name('purchase-orders.items.upload-license');
+    Route::post('/purchase-orders/items/{item}/delete-license', [PurchaseOrderController::class, 'deleteItemLicense'])->name('purchase-orders.items.delete-license');
+    Route::get('/purchase-orders/items/{item}/preview-license/{index}', [PurchaseOrderController::class, 'previewItemLicense'])->name('purchase-orders.items.preview-license');
     Route::post('/purchase-orders/{purchaseOrder}/confirm-received', [PurchaseOrderController::class, 'confirmReceived'])->name('purchase-orders.confirm-received');
     Route::get('/purchase-orders/{purchaseOrder}/export-excel', [PurchaseOrderController::class, 'exportSingle'])->name('purchase-orders.export-single');
 

@@ -292,51 +292,90 @@
     document.addEventListener('DOMContentLoaded', function() {
         const dateInputs = document.querySelectorAll('.update-expected-delivery');
         
-        dateInputs.forEach(input => {
-            input.addEventListener('change', function() {
-                const poId = this.dataset.id;
-                const date = this.value;
-                const originalValue = this.defaultValue;
-                
-                // Show loading state
-                this.classList.add('opacity-50');
-                this.disabled = true;
-
-                fetch(`/purchase-orders/${poId}/update-expected-delivery`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        expected_delivery: date
-                    })
+        let activeRequests = {};
+        let debounceTimers = {};
+        
+        function saveDate(input) {
+            const poId = input.dataset.id;
+            const date = input.value;
+            const originalValue = input.defaultValue;
+            
+            // If the value hasn't changed from the last saved default value, do nothing
+            if (date === originalValue) {
+                return;
+            }
+            
+            // Clear any pending debounce timer for this input
+            if (debounceTimers[poId]) {
+                clearTimeout(debounceTimers[poId]);
+                delete debounceTimers[poId];
+            }
+            
+            // Abort any ongoing fetch request for this input
+            if (activeRequests[poId]) {
+                activeRequests[poId].abort();
+            }
+            
+            // Create a new AbortController for this request
+            const controller = new AbortController();
+            activeRequests[poId] = controller;
+            
+            // Show loading state (opacity) without disabling, so it doesn't lose focus
+            input.classList.add('opacity-50');
+            
+            fetch(`/purchase-orders/${poId}/update-expected-delivery`, {
+                method: 'POST',
+                signal: controller.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    expected_delivery: date
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.defaultValue = date;
-                        // Optional: show toast notification
-                        if (window.Toast) {
-                            Toast.fire({
-                                icon: 'success',
-                                title: 'Cập nhật ngày giao hàng thành công'
-                            });
-                        }
-                    } else {
-                        alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
-                        this.value = originalValue;
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    input.defaultValue = date;
+                    if (window.Toast) {
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Cập nhật ngày giao hàng thành công'
+                        });
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
+                } else {
                     alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
-                    this.value = originalValue;
-                })
-                .finally(() => {
-                    this.classList.remove('opacity-50');
-                    this.disabled = false;
-                });
+                    input.value = originalValue;
+                }
+            })
+            .catch(error => {
+                if (error.name === 'AbortError') {
+                    return; // Request was aborted, do nothing
+                }
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
+                input.value = originalValue;
+            })
+            .finally(() => {
+                if (activeRequests[poId] === controller) {
+                    input.classList.remove('opacity-50');
+                    delete activeRequests[poId];
+                }
+            });
+        }
+        
+        dateInputs.forEach(input => {
+            // When the user leaves the input (blur), save immediately
+            input.addEventListener('blur', function() {
+                saveDate(this);
+            });
+            
+            // Save immediately on pressing Enter
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    this.blur(); // Triggers blur which will save immediately
+                }
             });
         });
     });

@@ -1052,20 +1052,33 @@ class PurchaseOrderController extends Controller
     }
 
     /**
-     * Tải lên file license cho từng món hàng
+     * Tải lên file license cho từng món hàng (hỗ trợ nhiều file)
      */
     public function uploadItemLicense(Request $request, PurchaseOrderItem $item)
     {
         $request->validate([
-            'license_file' => 'required|file|max:10240', // 10MB
+            'license_files' => 'required|array',
+            'license_files.*' => 'file|max:10240', // 10MB per file
         ]);
 
-        if ($request->hasFile('license_file')) {
-            $file = $request->file('license_file');
-            $filename = time() . '_' . $file->getClientOriginalName();
-            $path = $file->storeAs('po-licenses', $filename, 'public');
+        if ($request->hasFile('license_files')) {
+            $existingFiles = [];
+            if ($item->license_file) {
+                $decoded = json_decode($item->license_file, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $existingFiles = $decoded;
+                } else {
+                    $existingFiles = [$item->license_file];
+                }
+            }
+
+            foreach ($request->file('license_files') as $file) {
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $path = $file->storeAs('po-licenses', $filename, 'public');
+                $existingFiles[] = $path;
+            }
             
-            $item->update(['license_file' => $path]);
+            $item->update(['license_file' => json_encode($existingFiles)]);
 
             // Notify Sales
             if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale) {
@@ -1086,6 +1099,78 @@ class PurchaseOrderController extends Controller
         }
 
         return back()->with('success', 'Đã tải lên license cho sản phẩm ' . $item->product_name);
+    }
+
+    /**
+     * Xóa một file license của món hàng theo index
+     */
+    public function deleteItemLicense(Request $request, PurchaseOrderItem $item)
+    {
+        $request->validate([
+            'file_index' => 'required|integer',
+        ]);
+
+        $index = (int) $request->input('file_index');
+
+        if ($item->license_file) {
+            $decoded = json_decode($item->license_file, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $files = $decoded;
+            } else {
+                $files = [$item->license_file];
+            }
+
+            if (isset($files[$index])) {
+                $filePath = $files[$index];
+                // Xóa file khỏi storage
+                if (Storage::disk('public')->exists($filePath)) {
+                    Storage::disk('public')->delete($filePath);
+                }
+
+                // Xóa khỏi mảng và reindex
+                unset($files[$index]);
+                $files = array_values($files);
+
+                // Cập nhật database
+                if (empty($files)) {
+                    $item->update(['license_file' => null]);
+                } else {
+                    $item->update(['license_file' => json_encode($files)]);
+                }
+
+                return back()->with('success', 'Đã xóa file license thành công.');
+            }
+        }
+
+        return back()->with('error', 'Không tìm thấy file để xóa.');
+    }
+
+    /**
+     * Preview license file for a purchase order item
+     */
+    public function previewItemLicense(PurchaseOrderItem $item, $index)
+    {
+        $index = (int) $index;
+
+        if ($item->license_file) {
+            $decoded = json_decode($item->license_file, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $files = $decoded;
+            } else {
+                $files = [$item->license_file];
+            }
+
+            if (isset($files[$index])) {
+                $filePath = $files[$index];
+                $path = Storage::disk('public')->path($filePath);
+
+                if (file_exists($path)) {
+                    return response()->file($path);
+                }
+            }
+        }
+
+        abort(404, 'File không tồn tại.');
     }
 
     /**

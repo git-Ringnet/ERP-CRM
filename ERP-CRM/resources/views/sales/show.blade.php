@@ -682,10 +682,25 @@
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($item->license_file)
-                                    <a href="{{ asset('storage/' . $item->license_file) }}" target="_blank" 
-                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95">
-                                        <i class="fas fa-download"></i> Tải License
-                                    </a>
+                                        @php
+                                            $licenseFiles = [];
+                                            $decoded = json_decode($item->license_file, true);
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                $licenseFiles = $decoded;
+                                            } else {
+                                                $licenseFiles = [$item->license_file];
+                                            }
+                                        @endphp
+                                        <div class="flex flex-wrap justify-center gap-1.5">
+                                            @foreach($licenseFiles as $index => $file)
+                                                <a href="javascript:void(0)" onclick="openFilePreviewModal('{{ route('purchase-orders.items.preview-license', [$item->id, $index]) }}', '{{ basename($file) }}')" 
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                    title="{{ basename($file) }}">
+                                                    <i class="fas fa-eye text-[10px]"></i> 
+                                                    {{ count($licenseFiles) > 1 ? 'Lic ' . ($index + 1) : 'Xem License' }}
+                                                </a>
+                                            @endforeach
+                                        </div>
                                     @else
                                     <span class="text-xs text-gray-400 italic">Chờ upload...</span>
                                     @endif

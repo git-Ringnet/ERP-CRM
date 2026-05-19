@@ -501,15 +501,37 @@
                                     </div>
 
                                     {{-- License Upload & Link --}}
-                                    <div class="flex items-center justify-center space-x-1">
-                                        @if($item->license_file)
-                                            <a href="{{ asset('storage/' . $item->license_file) }}" target="_blank" 
-                                                class="flex items-center justify-center w-5 h-5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors" title="Xem License">
-                                                <i class="fas fa-file-contract text-[10px]"></i>
-                                            </a>
-                                        @endif
+                                    <div class="flex flex-wrap items-center justify-center gap-1.5">
+                                        @php
+                                            $licenseFiles = [];
+                                            if ($item->license_file) {
+                                                $decoded = json_decode($item->license_file, true);
+                                                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                    $licenseFiles = $decoded;
+                                                } else {
+                                                    $licenseFiles = [$item->license_file];
+                                                }
+                                            }
+                                        @endphp
+                                        
+                                        @foreach($licenseFiles as $index => $file)
+                                            <div class="relative group inline-block">
+                                                <a href="javascript:void(0)" onclick="openFilePreviewModal('{{ route('purchase-orders.items.preview-license', [$item->id, $index]) }}', '{{ basename($file) }}')" 
+                                                    class="flex items-center justify-center w-5 h-5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm cursor-pointer" 
+                                                    title="Xem License {{ count($licenseFiles) > 1 ? $index + 1 : '' }} ({{ basename($file) }})">
+                                                    <i class="fas fa-file-contract text-[10px]"></i>
+                                                </a>
+                                                <!-- Delete button on hover -->
+                                                <button type="button" onclick="confirmDeleteLicenseFile({{ $item->id }}, {{ $index }}, '{{ basename($file) }}')" 
+                                                    class="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all border border-white text-[8px] font-black cursor-pointer shadow animate-fade-in" 
+                                                    title="Xóa file này">
+                                                    &times;
+                                                </button>
+                                            </div>
+                                        @endforeach
+                                        
                                         <button type="button" onclick="document.getElementById('license-upload-{{ $item->id }}').click()"
-                                            class="flex items-center gap-1 px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded text-[9px] font-bold hover:bg-teal-100 transition-all border border-teal-100" title="Upload License">
+                                            class="flex items-center gap-1 px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded text-[9px] font-bold hover:bg-teal-100 transition-all border border-teal-100" title="Upload License (Có thể chọn nhiều file)">
                                             <i class="fas fa-upload"></i> Up
                                         </button>
                                     </div>
@@ -666,9 +688,15 @@
         <form id="license-form-{{ $item->id }}" action="{{ route('purchase-orders.items.upload-license', $item) }}" 
             method="POST" enctype="multipart/form-data" style="display: none;">
             @csrf
-            <input type="file" id="license-upload-{{ $item->id }}" name="license_file" onchange="this.form.submit()">
+            <input type="file" id="license-upload-{{ $item->id }}" name="license_files[]" multiple onchange="this.form.submit()">
         </form>
     @endforeach
+
+    {{-- Hidden form for License Deletion --}}
+    <form id="delete-license-form" action="" method="POST" style="display: none;">
+        @csrf
+        <input type="hidden" name="file_index" id="delete-license-file-index">
+    </form>
 
     @push('scripts')
         <script>
@@ -816,6 +844,38 @@
                     }
                 })
                 .catch(error => console.error('Error:', error));
+            }
+
+            function confirmDeleteLicenseFile(itemId, fileIndex, fileName) {
+                const deleteUrl = `/purchase-orders/items/${itemId}/delete-license`;
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Xác nhận xóa file?',
+                        text: `Bạn có chắc chắn muốn xóa file license "${fileName}" không?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: '#6b7280',
+                        confirmButtonText: 'Đồng ý xóa!',
+                        cancelButtonText: 'Hủy bỏ',
+                        reverseButtons: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const form = document.getElementById('delete-license-form');
+                            form.action = deleteUrl;
+                            document.getElementById('delete-license-file-index').value = fileIndex;
+                            form.submit();
+                        }
+                    });
+                } else {
+                    if (confirm(`Bạn có chắc chắn muốn xóa file license "${fileName}" không?`)) {
+                        const form = document.getElementById('delete-license-form');
+                        form.action = deleteUrl;
+                        document.getElementById('delete-license-file-index').value = fileIndex;
+                        form.submit();
+                    }
+                }
             }
         </script>
     @endpush
