@@ -264,9 +264,28 @@
     </div>
     @endif
 
+    @php
+        $euInfos = collect();
+        if ($sale->orderRequests && $sale->orderRequests->isNotEmpty()) {
+            $euInfos = $sale->orderRequests->flatMap(function($req) {
+                return $req->items->map(function($item) {
+                    return [
+                        'si_name' => $item->si_name,
+                        'eu_name_mst' => $item->eu_name_mst,
+                        'address' => $item->address,
+                    ];
+                });
+            })->filter(function($eu) {
+                return !empty($eu['si_name']) || !empty($eu['eu_name_mst']);
+            })->unique(function($eu) {
+                return $eu['si_name'] . '|' . $eu['eu_name_mst'] . '|' . $eu['address'];
+            })->values();
+        }
+    @endphp
+
     <!-- Sale Info -->
     <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 {{ $euInfos->isNotEmpty() ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-6">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin đơn hàng</h3>
                 <dl class="space-y-2">
@@ -329,6 +348,21 @@
                         <dt class="w-32 text-gray-500">Khách hàng:</dt>
                         <dd class="font-medium text-gray-900">{{ $sale->customer_name }}</dd>
                     </div>
+                    <div class="flex border-b border-gray-50 pb-2 mb-1">
+                        <dt class="w-32 text-gray-500">Người phụ trách:</dt>
+                        <dd class="font-medium text-indigo-700">
+                             @if($sale->contact)
+                                {{ $sale->contact->name }} 
+                                @if($sale->contact->position) <span class="text-xs text-gray-500">({{ $sale->contact->position }})</span> @endif
+                                <div class="text-xs text-gray-500 font-normal mt-1">
+                                    <i class="fas fa-envelope mr-1 text-gray-400"></i>{{ $sale->contact->email ?: 'N/A' }} | 
+                                    <i class="fas fa-phone mr-1.5 ml-1 text-gray-400"></i>{{ $sale->contact->phone ?: 'N/A' }}
+                                </div>
+                            @else
+                                <span class="text-red-500 font-medium">Chưa chọn P.I.C</span>
+                            @endif
+                        </dd>
+                    </div>
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Salesperson:</dt>
                         <dd class="font-medium text-primary">{{ $sale->user->name ?? 'N/A' }}</dd>
@@ -351,6 +385,33 @@
                     @endif
                 </dl>
             </div>
+
+            @if($euInfos->isNotEmpty())
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin End User (EU)</h3>
+                @foreach($euInfos as $index => $eu)
+                    @if($euInfos->count() > 1)
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Đối tác / EU #{{ $index + 1 }}</div>
+                    @endif
+                    <dl class="space-y-2 {{ !$loop->last ? 'border-b border-gray-100 pb-4 mb-4' : '' }}">
+                        <div class="flex">
+                            <dt class="w-32 text-gray-500">SI Name:</dt>
+                            <dd class="font-medium text-gray-900">{{ $eu['si_name'] ?: 'N/A' }}</dd>
+                        </div>
+                        <div class="flex">
+                            <dt class="w-32 text-gray-500">EU Name - MST:</dt>
+                            <dd class="font-medium text-gray-900">{{ $eu['eu_name_mst'] ?: 'N/A' }}</dd>
+                        </div>
+                        @if($eu['address'])
+                        <div class="flex">
+                            <dt class="w-32 text-gray-500">Địa chỉ:</dt>
+                            <dd class="text-gray-900">{{ $eu['address'] }}</dd>
+                        </div>
+                        @endif
+                    </dl>
+                @endforeach
+            </div>
+            @endif
         </div>
 
         {{-- Shipment Tracking Info --}}

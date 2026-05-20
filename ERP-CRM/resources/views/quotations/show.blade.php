@@ -41,6 +41,21 @@
                         @endif
                     </span>
                 </div>
+                <div class="col-span-2 border-t border-gray-150 pt-2 mt-1">
+                    <span class="text-gray-500">Người phụ trách (P.I.C):</span>
+                    @if($quotation->contact)
+                        <span class="font-medium ml-2">{{ $quotation->contact->name }}</span>
+                        @if($quotation->contact->position)
+                            <span class="text-xs text-gray-500 ml-1">({{ $quotation->contact->position }})</span>
+                        @endif
+                        <span class="text-xs text-gray-500 ml-4">
+                            <i class="fas fa-envelope mr-1 text-gray-400"></i>{{ $quotation->contact->email ?: 'N/A' }}
+                            <i class="fas fa-phone ml-3 mr-1 text-gray-400"></i>{{ $quotation->contact->phone ?: 'N/A' }}
+                        </span>
+                    @else
+                        <span class="text-red-500 ml-2 font-medium">Chưa chọn P.I.C</span>
+                    @endif
+                </div>
                 <div class="col-span-2">
                     <span class="text-gray-500">Tiêu đề:</span>
                     <span class="font-medium ml-2">{{ $quotation->title }}</span>
@@ -299,6 +314,14 @@
                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
                     <i class="fas fa-print mr-2"></i> In & Gửi báo giá chính thức
                 </a>
+
+                <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="redirect_to" value="show">
+                    <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-copy mr-2"></i> Nhân bản báo giá
+                    </button>
+                </form>
 
                 @if(!$quotation->converted_to_sale_id && !$quotation->isExpired())
                     <form action="{{ route('quotations.convert', $quotation) }}" method="POST">

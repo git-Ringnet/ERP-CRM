@@ -65,6 +65,7 @@ Route::middleware(['auth'])->group(function () {
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);
     Route::get('/ajax/customers/search', [CustomerController::class, 'ajaxSearch'])->name('customers.ajax-search');
+    Route::get('/ajax/customers/{customer}/contacts', [CustomerController::class, 'getContacts'])->name('customers.contacts');
     Route::resource('suppliers', SupplierController::class);
     Route::resource('employees', EmployeeController::class);
     Route::resource('products', ProductController::class);
@@ -224,6 +225,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/quotations/export/excel', [QuotationController::class, 'export'])->name('quotations.export');
     Route::resource('quotations', QuotationController::class);
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
+    Route::post('/quotations/{quotation}/duplicate', [QuotationController::class, 'duplicate'])->name('quotations.duplicate');
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
 
     // Approval Workflow routes

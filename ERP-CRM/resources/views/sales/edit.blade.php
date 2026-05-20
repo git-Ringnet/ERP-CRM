@@ -78,16 +78,26 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Khách hàng <span class="text-red-500">*</span>
                     </label>
                     <div class="searchable-select {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}" id="customerSelect">
+                        @php
+                            $oldCustomerId = old('customer_id', $sale->customer_id);
+                            $oldCustomerName = '';
+                            if ($oldCustomerId) {
+                                $c = $customers->firstWhere('id', $oldCustomerId);
+                                if ($c) {
+                                    $oldCustomerName = $c->name . ' (' . $c->code . ')';
+                                }
+                            }
+                        @endphp
                         <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}" 
                                placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                               value="{{ $sale->customer->name }} ({{ $sale->customer->code }})" {{ $isLocked ? 'readonly' : '' }}>
-                        <input type="hidden" name="customer_id" required value="{{ $sale->customer_id }}">
+                               value="{{ $oldCustomerName }}" {{ $isLocked ? 'readonly' : '' }}>
+                        <input type="hidden" name="customer_id" required value="{{ $oldCustomerId }}">
                         @if(!$isLocked)
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
@@ -104,6 +114,27 @@
                     @error('customer_id')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                     @enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Người phụ trách (P.I.C) <span class="text-red-500">*</span>
+                    </label>
+                    <select name="contact_id" id="contact_id" required {{ $isLocked ? 'disabled' : '' }}
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('contact_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}">
+                        <option value="">Chọn người phụ trách</option>
+                    </select>
+                    @if($isLocked) <input type="hidden" name="contact_id" value="{{ $sale->contact_id }}"> @endif
+                    @error('contact_id')
+                        <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                    @enderror
+
+                    <div id="pic_details" class="hidden mt-2 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs text-gray-600 space-y-1">
+                        <p class="font-medium text-gray-700 mb-1"><span id="pic_name"></span></p>
+                        <p><i class="fas fa-envelope text-gray-400 mr-1.5 w-4"></i><span id="pic_email"></span></p>
+                        <p><i class="fas fa-phone text-gray-400 mr-1.5 w-4"></i><span id="pic_phone"></span></p>
+                        <p><i class="fas fa-briefcase text-gray-400 mr-1.5 w-4"></i><span id="pic_position"></span></p>
+                    </div>
                 </div>
                 
                 <div>
@@ -595,6 +626,9 @@ function handleProjectSelection() {
         
         input.value = customerName;
         hiddenInput.value = customerId;
+        
+        // Load contacts for the project customer
+        loadContacts(customerId);
     }
 }
 
@@ -682,6 +716,9 @@ function initAllSearchableSelects() {
                     console.error('Error parsing milestones:', e);
                 }
             }
+            
+            // Load contacts for chosen customer
+            loadContacts(opt.dataset.value);
         });
         customerSelect.dataset.initialized = 'true';
     }
@@ -747,6 +784,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const customerHiddenInput = document.querySelector('input[name="customer_id"]');
     if (projectSelect && projectSelect.value && (!customerHiddenInput || !customerHiddenInput.value)) {
         handleProjectSelection();
+    } else {
+        // Load contacts if customer is already populated on load
+        const initialCustomerId = customerHiddenInput ? customerHiddenInput.value : '';
+        const oldContactId = '{{ old('contact_id', $sale->contact_id) }}';
+        if (initialCustomerId) {
+            loadContacts(initialCustomerId, oldContactId);
+        }
     }
 
     // Load existing milestones
@@ -757,6 +801,65 @@ document.addEventListener('DOMContentLoaded', function() {
     
     calculateTotal();
 });
+
+// PIC Selection logic
+const contactSelect = document.getElementById('contact_id');
+const picDetails = document.getElementById('pic_details');
+const picName = document.getElementById('pic_name');
+const picEmail = document.getElementById('pic_email');
+const picPhone = document.getElementById('pic_phone');
+const picPosition = document.getElementById('pic_position');
+
+let contactsData = [];
+
+async function loadContacts(customerId, selectedContactId = null) {
+    if (!customerId) {
+        if (contactSelect) {
+            contactSelect.innerHTML = '<option value="">Chọn người phụ trách</option>';
+        }
+        picDetails.classList.add('hidden');
+        contactsData = [];
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/ajax/customers/${customerId}/contacts`);
+        contactsData = await response.json();
+        
+        if (contactSelect) {
+            let options = '<option value="">Chọn người phụ trách</option>';
+            contactsData.forEach(contact => {
+                const isSelected = selectedContactId == contact.id || (!selectedContactId && contact.is_primary) ? 'selected' : '';
+                options += `<option value="${contact.id}" ${isSelected}>${contact.name} ${contact.is_primary ? '(Mặc định)' : ''}</option>`;
+            });
+            contactSelect.innerHTML = options;
+        }
+        
+        // Trigger update of PIC details
+        updatePicDetails();
+    } catch (e) {
+        console.error('Error fetching contacts:', e);
+    }
+}
+
+function updatePicDetails() {
+    if (!contactSelect) return;
+    const val = contactSelect.value;
+    const contact = contactsData.find(c => c.id == val);
+    if (contact) {
+        picName.textContent = contact.name;
+        picEmail.textContent = contact.email || 'N/A';
+        picPhone.textContent = contact.phone || 'N/A';
+        picPosition.textContent = contact.position || 'N/A';
+        picDetails.classList.remove('hidden');
+    } else {
+        picDetails.classList.add('hidden');
+    }
+}
+
+if (contactSelect) {
+    contactSelect.addEventListener('change', updatePicDetails);
+}
 
 function addPaymentMilestone(data = null) {
     const list = document.getElementById('milestoneList');
