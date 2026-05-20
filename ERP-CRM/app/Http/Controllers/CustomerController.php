@@ -100,6 +100,15 @@ class CustomerController extends Controller
     }
 
     /**
+     * AJAX fetch contacts for a customer.
+     */
+    public function getContacts(Customer $customer)
+    {
+        $this->authorize('view', $customer);
+        return response()->json($customer->contacts()->orderBy('is_primary', 'desc')->get());
+    }
+
+    /**
      * Show the form for creating a new customer.
      * Requirements: 1.2
      */

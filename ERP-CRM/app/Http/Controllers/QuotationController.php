@@ -97,6 +97,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:quotations,code'],
             'customer_id' => ['required', 'exists:customers,id'],
+            'contact_id' => ['required', 'exists:contacts,id'],
             'title' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
             'valid_until' => ['required', 'date', 'after_or_equal:date'],
@@ -118,6 +119,7 @@ class QuotationController extends Controller
             'code.unique' => 'Mã báo giá đã tồn tại.',
             'code.required' => 'Vui lòng nhập mã báo giá.',
             'customer_id.required' => 'Vui lòng chọn khách hàng.',
+            'contact_id.required' => 'Vui lòng chọn người phụ trách (P.I.C).',
             'title.required' => 'Vui lòng nhập tiêu đề.',
             'products.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'products.*.product_name.required' => 'Vui lòng nhập tên sản phẩm.',
@@ -146,6 +148,7 @@ class QuotationController extends Controller
             $quotation = Quotation::create([
                 'code' => $validated['code'],
                 'customer_id' => $validated['customer_id'],
+                'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
                 'title' => $validated['title'],
                 'date' => $validated['date'],
@@ -178,8 +181,9 @@ class QuotationController extends Controller
                 $productName = $item['product_name'];
                 $productCode = null;
 
-                if (!empty($item['product_id'])) {
-                    $product = $this->getOrSyncProduct($item['product_id'], $item['product_name']);
+                $syncKey = !empty($item['product_id']) ? $item['product_id'] : $item['product_name'];
+                if (!empty($syncKey)) {
+                    $product = $this->getOrSyncProduct($syncKey, $item['product_name']);
                     if ($product) {
                         $productId = $product->id;
                         $productName = $product->name;
@@ -256,6 +260,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('quotations')->ignore($quotation->id)],
             'customer_id' => ['required', 'exists:customers,id'],
+            'contact_id' => ['required', 'exists:contacts,id'],
             'title' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
             'valid_until' => ['required', 'date', 'after_or_equal:date'],
@@ -277,6 +282,7 @@ class QuotationController extends Controller
             'code.unique' => 'Mã báo giá đã tồn tại.',
             'code.required' => 'Vui lòng nhập mã báo giá.',
             'customer_id.required' => 'Vui lòng chọn khách hàng.',
+            'contact_id.required' => 'Vui lòng chọn người phụ trách (P.I.C).',
             'title.required' => 'Vui lòng nhập tiêu đề.',
             'products.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'products.*.product_name.required' => 'Vui lòng nhập tên sản phẩm.',
@@ -305,6 +311,7 @@ class QuotationController extends Controller
             $quotation->update([
                 'code' => $validated['code'],
                 'customer_id' => $validated['customer_id'],
+                'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
                 'title' => $validated['title'],
                 'date' => $validated['date'],
@@ -325,9 +332,9 @@ class QuotationController extends Controller
                     : null,
                 'currency_id' => $validated['currency_id'] ?? Currency::getBaseCurrencyId(),
                 'exchange_rate' => $validated['exchange_rate'] ?? 1,
-                'payment_terms' => $validated['payment_terms'],
-                'delivery_time' => $validated['delivery_time'],
-                'note' => $validated['note'],
+                'payment_terms' => $validated['payment_terms'] ?? null,
+                'delivery_time' => $validated['delivery_time'] ?? null,
+                'note' => $validated['note'] ?? null,
                 'status' => 'draft',
             ]);
 
@@ -338,8 +345,9 @@ class QuotationController extends Controller
                 $productName = $item['product_name'];
                 $productCode = null;
 
-                if (!empty($item['product_id'])) {
-                    $product = $this->getOrSyncProduct($item['product_id'], $item['product_name']);
+                $syncKey = !empty($item['product_id']) ? $item['product_id'] : $item['product_name'];
+                if (!empty($syncKey)) {
+                    $product = $this->getOrSyncProduct($syncKey, $item['product_name']);
                     if ($product) {
                         $productId = $product->id;
                         $productName = $product->name;
@@ -494,6 +502,7 @@ class QuotationController extends Controller
                 'code' => $saleCode,
                 'type' => 'retail',
                 'customer_id' => $quotation->customer_id,
+                'contact_id' => $quotation->contact_id,
                 'customer_name' => $quotation->customer_name,
                 'date' => now(),
                 'subtotal' => $quotation->subtotal,
@@ -548,6 +557,77 @@ class QuotationController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Duplicate quotation
+     */
+    public function duplicate(Quotation $quotation)
+    {
+        $this->authorize('create', Quotation::class);
+
+        DB::beginTransaction();
+        try {
+            // Generate a new unique code
+            $code = $this->generateCode();
+
+            // Create duplicated quotation
+            $newQuotation = Quotation::create([
+                'code' => $code,
+                'customer_id' => $quotation->customer_id,
+                'contact_id' => $quotation->contact_id,
+                'customer_name' => $quotation->customer_name,
+                'title' => $quotation->title . ' (Bản sao)',
+                'date' => now(),
+                'valid_until' => now()->addDays(30),
+                'subtotal' => $quotation->subtotal,
+                'discount' => $quotation->discount,
+                'vat' => $quotation->vat,
+                'vat_amount' => $quotation->vat_amount,
+                'total' => $quotation->total,
+                'total_foreign' => $quotation->total_foreign,
+                'currency_id' => $quotation->currency_id,
+                'exchange_rate' => $quotation->exchange_rate,
+                'payment_terms' => $quotation->payment_terms,
+                'delivery_time' => $quotation->delivery_time,
+                'note' => $quotation->note,
+                'status' => 'draft',
+                'created_by' => auth()->id(),
+            ]);
+
+            // Duplicate items
+            foreach ($quotation->items as $item) {
+                QuotationItem::create([
+                    'quotation_id' => $newQuotation->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product_name,
+                    'product_code' => $item->product_code,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'vat' => $item->vat,
+                    'vat_amount' => $item->vat_amount,
+                    'total' => $item->total,
+                ]);
+            }
+
+            DB::commit();
+
+            $redirectTo = request('redirect_to', 'edit');
+
+            if ($redirectTo === 'index') {
+                return redirect()->route('quotations.index')
+                    ->with('success', 'Nhân bản báo giá ' . $newQuotation->code . ' thành công.');
+            } elseif ($redirectTo === 'show') {
+                return redirect()->route('quotations.show', $newQuotation)
+                    ->with('success', 'Nhân bản báo giá thành công. Bạn đang xem chi tiết bản sao.');
+            }
+
+            return redirect()->route('quotations.edit', $newQuotation)
+                ->with('success', 'Nhân bản báo giá thành công. Bạn đang chỉnh sửa bản sao.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra khi nhân bản báo giá: ' . $e->getMessage());
         }
     }
 
@@ -639,8 +719,21 @@ class QuotationController extends Controller
 
         // Create new product if not found
         try {
+            $baseSlug = strtoupper(Str::slug($name));
+            $baseSlug = substr($baseSlug, 0, 45);
+            $code = $baseSlug;
+
+            // Ensure unique code
+            $count = 1;
+            while (Product::where('code', $code)->exists()) {
+                $suffix = '-' . $count;
+                $maxBaseLength = 50 - strlen($suffix);
+                $code = substr($baseSlug, 0, $maxBaseLength) . $suffix;
+                $count++;
+            }
+
             return Product::create([
-                'code' => 'M-' . strtoupper(Str::random(6)),
+                'code' => $code,
                 'name' => $name,
                 'unit' => 'Bộ',
                 'category' => 'Z',

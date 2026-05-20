@@ -121,6 +121,15 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     @endif
+                                    <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST" class="inline-block">
+                                        @csrf
+                                        <input type="hidden" name="redirect_to" value="index">
+                                        <button type="submit"
+                                            class="p-2 text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 hover:text-purple-700 transition-colors"
+                                            title="Nhân bản">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </form>
                                     @if($quotation->canBeDeleted())
                                         <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
                                             class="inline-block">
@@ -191,6 +200,13 @@
                                 <i class="fas fa-edit mr-1"></i>Sửa
                             </a>
                         @endif
+                        <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST" class="flex-1">
+                            @csrf
+                            <input type="hidden" name="redirect_to" value="index">
+                            <button type="submit" class="w-full text-center px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm" title="Nhân bản">
+                                <i class="fas fa-copy mr-1"></i>Nhân bản
+                            </button>
+                        </form>
                         @if($quotation->canBeDeleted())
                             <form action="{{ route('quotations.destroy', $quotation) }}" method="POST"
                                 class="flex-1">

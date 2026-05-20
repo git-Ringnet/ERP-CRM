@@ -16,6 +16,7 @@ class Sale extends Model
         'type',
         'project_id',
         'customer_id',
+        'contact_id',
         'customer_name',
         'user_id',
         'date',
@@ -80,6 +81,14 @@ class Sale extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Relationship with Contact
+     */
+    public function contact()
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     /**

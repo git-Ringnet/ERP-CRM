@@ -14,6 +14,7 @@ class Quotation extends Model
     protected $fillable = [
         'code',
         'customer_id',
+        'contact_id',
         'customer_name',
         'title',
         'date',
@@ -56,6 +57,11 @@ class Quotation extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function contact()
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     public function items()
