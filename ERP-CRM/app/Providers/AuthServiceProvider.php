@@ -47,6 +47,7 @@ class AuthServiceProvider extends ServiceProvider
         // Purchasing
         \App\Models\SupplierPriceList::class => \App\Policies\SupplierPriceListPolicy::class,
         \App\Models\PurchaseRequest::class => \App\Policies\PurchaseRequestPolicy::class,
+        \App\Models\SaleOrderRequest::class => \App\Policies\PurchaseRequestPolicy::class,
         \App\Models\SupplierQuotation::class => \App\Policies\SupplierQuotationPolicy::class,
         \App\Models\PurchaseOrder::class => \App\Policies\PurchaseOrderPolicy::class,
         \App\Models\ShippingAllocation::class => \App\Policies\ShippingAllocationPolicy::class,

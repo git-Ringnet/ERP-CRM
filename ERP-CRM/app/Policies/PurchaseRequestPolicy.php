@@ -12,7 +12,7 @@ class PurchaseRequestPolicy extends BasePolicy
         return $this->checkPermission($user, 'view_purchase_requests');
     }
 
-    public function view(User $user, PurchaseRequest $purchaseRequest): bool
+    public function view(User $user, $purchaseRequest): bool
     {
         return $this->checkPermission($user, 'view_purchase_requests');
     }
@@ -22,12 +22,12 @@ class PurchaseRequestPolicy extends BasePolicy
         return $this->checkPermission($user, 'create_purchase_requests');
     }
 
-    public function update(User $user, PurchaseRequest $purchaseRequest): bool
+    public function update(User $user, $purchaseRequest): bool
     {
         return $this->checkPermission($user, 'edit_purchase_requests') || $this->checkPermission($user, 'approve_purchase_requests');
     }
 
-    public function delete(User $user, PurchaseRequest $purchaseRequest): bool
+    public function delete(User $user, $purchaseRequest): bool
     {
         return $this->checkPermission($user, 'delete_purchase_requests');
     }

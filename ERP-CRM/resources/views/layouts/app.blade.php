@@ -547,6 +547,7 @@
                                     <i class="fas fa-clipboard-check w-6 text-yellow-400"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Duyệt yêu cầu (PR)</span>
                                 </a>
+
                                 <a href="{{ route('purchase-requests.needs-ordering') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.needs-ordering') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-layer-group w-6 text-teal-400"></i>

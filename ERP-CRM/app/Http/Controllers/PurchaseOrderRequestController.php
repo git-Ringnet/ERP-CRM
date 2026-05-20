@@ -380,4 +380,86 @@ class PurchaseOrderRequestController extends Controller
 
         return back()->with('success', 'Đã khôi phục sản phẩm "' . $item->part_number . '" về danh sách cần đặt.');
     }
+
+    /**
+     * Xóa mềm PR (SaleOrderRequest)
+     */
+    public function destroy($id, Request $request)
+    {
+        $pr = SaleOrderRequest::findOrFail($id);
+        
+        $this->authorize('delete', $pr);
+
+        if (!in_array($pr->status, [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_NEED_INFO])) {
+            return back()->with('error', 'Không thể xóa yêu cầu đặt hàng đã được duyệt hoặc đang xử lý!');
+        }
+
+        DB::transaction(function () use ($pr, $request) {
+            $pr->delete_reason = $request->input('reason');
+            $pr->save(); // Save the delete reason to the database
+            $pr->delete();
+        });
+
+        return redirect()->route('purchase-requests.index')
+            ->with('success', 'Đã xóa yêu cầu đặt hàng #' . $pr->code . '!');
+    }
+
+    /**
+     * Danh sách PR đã bị xóa mềm
+     */
+    public function deletedList(Request $request)
+    {
+        $code = $request->input('code');
+        $sale_code = $request->input('sale_code');
+        $note = $request->input('note');
+
+        $query = SaleOrderRequest::onlyTrashed()->with(['deleteLog', 'sale', 'creator', 'items.vendor', 'attachments']);
+
+        if ($code) {
+            $query->where('code', 'like', '%' . $code . '%');
+        }
+
+        if ($sale_code) {
+            $query->whereHas('sale', function ($q) use ($sale_code) {
+                $q->where('code', 'like', '%' . $sale_code . '%');
+            });
+        }
+
+        if ($note) {
+            $query->where('note', 'like', '%' . $note . '%');
+        }
+
+        $requests = $query->orderBy('deleted_at', 'desc')->paginate(20);
+        $statusLabels = SaleOrderRequest::getStatusLabels();
+
+        return view('purchasing.pr-deleted-list', compact('requests', 'statusLabels'));
+    }
+
+    /**
+     * Khôi phục PR đã bị xóa mềm
+     */
+    public function restore($id)
+    {
+        $pr = SaleOrderRequest::onlyTrashed()->findOrFail($id);
+        
+        $this->authorize('delete', $pr);
+
+        DB::transaction(function () use ($pr) {
+            // Xóa lý do xóa khi khôi phục
+            $pr->delete_reason = null;
+            $pr->save();
+            $pr->restore();
+
+            // Ghi nhận audit log qua ActivityLogService
+            app(\App\Services\ActivityLogService::class)->log(
+                'restored',
+                $pr,
+                null,
+                "Khôi phục Yêu cầu đặt hàng #{$pr->code}"
+            );
+        });
+
+        return redirect()->route('purchase-requests.index')
+            ->with('success', 'Đã khôi phục thành công yêu cầu đặt hàng #' . $pr->code . '!');
+    }
 }

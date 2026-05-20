@@ -46,6 +46,9 @@
             <a href="{{ route('purchase-requests.index') }}" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm">
                 Xóa lọc
             </a>
+            <a href="{{ route('purchase-requests.deleted') }}" class="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm flex items-center shadow-sm ml-auto">
+                <i class="fas fa-trash-alt mr-2"></i> PR đã xóa
+            </a>
         </form>
     </div>
 
@@ -130,6 +133,19 @@
                                 <i class="fas fa-times-circle text-lg"></i>
                             </button>
                             @endif
+
+                            @can('delete', $request)
+                                @if(in_array($request->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_SUBMITTED, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]))
+                                <form action="{{ route('purchase-requests.destroy', $request->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="button" onclick="confirmDeleteWithReason(this.form, 'yêu cầu đặt hàng')" class="text-red-600 hover:text-red-800 p-1" title="Xóa PR">
+                                        <i class="fas fa-trash-alt text-lg"></i>
+                                    </button>
+                                </form>
+                                @endif
+                            @endcan
+
                             <button type="button" onclick="toggleDetails('{{ $request->id }}')" class="text-gray-400 hover:text-gray-600 p-1">
                                 <i class="fas fa-chevron-down"></i>
                             </button>

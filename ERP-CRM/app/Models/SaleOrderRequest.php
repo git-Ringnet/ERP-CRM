@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -10,7 +11,7 @@ use App\Traits\LogsActivity;
 
 class SaleOrderRequest extends Model
 {
-    use LogsActivity;
+    use SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'code',
@@ -20,6 +21,7 @@ class SaleOrderRequest extends Model
         'sent_at',
         'status',
         'rejection_note',
+        'delete_reason',
     ];
 
     protected $casts = [
@@ -112,6 +114,14 @@ class SaleOrderRequest extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(SaleOrderRequestAttachment::class);
+    }
+
+    public function deleteLog(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ActivityLog::class, 'subject_id')
+            ->where('subject_type', get_class($this))
+            ->where('action', 'deleted')
+            ->latest('id');
     }
 
     /**

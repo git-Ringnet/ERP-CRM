@@ -288,6 +288,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Purchasing Management (Flow sau khi gửi PR)
     Route::get('/purchase-requests', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'index'])->name('purchase-requests.index');
+    Route::get('/purchase-requests/deleted', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'deletedList'])->name('purchase-requests.deleted');
+    Route::delete('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'destroy'])->name('purchase-requests.destroy');
+    Route::post('/purchase-requests/{id}/restore', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'restore'])->name('purchase-requests.restore');
     Route::post('/purchase-requests/{id}/verify', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'verify'])->name('purchase-requests.verify');
     Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');

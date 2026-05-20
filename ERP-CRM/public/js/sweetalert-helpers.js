@@ -151,6 +151,60 @@ async function confirmDelete(form, documentName = 'bản ghi') {
 }
 
 /**
+ * Confirm và xóa bản ghi với lý do
+ */
+async function confirmDeleteWithReason(form, documentName = 'bản ghi') {
+    const result = await Swal.fire({
+        title: 'Xác nhận xóa',
+        text: `Bạn có chắc chắn muốn xóa ${documentName} này không? Hành động này không thể hoàn tác!`,
+        input: 'text',
+        inputPlaceholder: 'Nhập lý do xóa (không bắt buộc)...',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Xóa ngay',
+        cancelButtonText: 'Hủy',
+        reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+        let actualForm = form;
+        if (typeof form === 'string') {
+            actualForm = document.createElement('form');
+            actualForm.method = 'POST';
+            actualForm.action = form;
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = '_token';
+            csrf.value = document.querySelector('meta[name="csrf-token"]').content;
+            actualForm.appendChild(csrf);
+            
+            const methodInput = document.createElement('input');
+            methodInput.type = 'hidden';
+            methodInput.name = '_method';
+            methodInput.value = 'DELETE';
+            actualForm.appendChild(methodInput);
+            
+            document.body.appendChild(actualForm);
+        }
+        
+        // Add reason field
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = result.value || '';
+        actualForm.appendChild(reasonInput);
+        
+        if (actualForm instanceof HTMLFormElement) {
+            HTMLFormElement.prototype.submit.call(actualForm);
+        } else {
+            console.error('confirmDeleteWithReason: Invalid form/URL provided', form);
+        }
+    }
+}
+
+/**
  * Confirm và thực hiện một hành động (submit form)
  */
 async function confirmAction(form, title = 'Xác nhận', text = 'Bạn có chắc chắn muốn thực hiện hành động này?', icon = 'question', confirmButtonText = 'Đồng ý', confirmButtonColor = '#3085d6') {

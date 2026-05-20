@@ -75,11 +75,21 @@ class ActivityLogService
     public function logDeleted(Model $model, ?string $description = null): ActivityLog
     {
         $modelName = class_basename($model);
-        $desc = $description ?? "Xóa {$modelName}: " . $this->getModelLabel($model);
+        $reason = $model->delete_reason ?? null;
         
-        return $this->log('deleted', $model, [
+        $desc = $description ?? "Xóa {$modelName}: " . $this->getModelLabel($model);
+        if ($reason) {
+            $desc .= " (Lý do: {$reason})";
+        }
+        
+        $properties = [
             'attributes' => $model->getAttributes(),
-        ], $desc);
+        ];
+        if ($reason) {
+            $properties['delete_reason'] = $reason;
+        }
+        
+        return $this->log('deleted', $model, $properties, $desc);
     }
 
     /**
