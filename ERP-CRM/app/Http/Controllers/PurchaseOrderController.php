@@ -157,10 +157,10 @@ class PurchaseOrderController extends Controller
                 'supplier_id' => $validated['supplier_id'],
                 'supplier_quotation_id' => $request->supplier_quotation_id,
                 'sale_id' => $request->sale_id,
-                'order_date' => $validated['order_date'],
-                'expected_delivery' => $request->expected_delivery,
-                'expected_arrival_date' => $request->expected_arrival_date,
-                'manufacturer_release_date' => $request->manufacturer_release_date,
+                'order_date' => $this->parseDate($validated['order_date']),
+                'expected_delivery' => $this->parseDate($request->expected_delivery),
+                'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
+                'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
                 'delivery_address' => $request->delivery_address,
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
@@ -266,9 +266,9 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $purchaseOrder->update([
-                'expected_delivery' => $request->expected_delivery,
-                'expected_arrival_date' => $request->expected_arrival_date,
-                'manufacturer_release_date' => $request->manufacturer_release_date,
+                'expected_delivery' => $this->parseDate($request->expected_delivery),
+                'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
+                'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
                 'delivery_address' => $request->delivery_address,
                 'discount_percent' => $request->discount_percent ?? 0,
                 'shipping_cost' => $request->shipping_cost ?? 0,
@@ -871,8 +871,11 @@ class PurchaseOrderController extends Controller
             'expected_delivery' => 'nullable|date',
         ]);
 
-        $oldArrival = $purchaseOrder->expected_arrival_date;
-        $purchaseOrder->update($validated);
+        $purchaseOrder->update([
+            'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
+            'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
+            'expected_delivery' => $this->parseDate($request->expected_delivery),
+        ]);
 
         // Gửi thông báo cho sales khi cập nhật thông tin theo dõi
         if ($request->filled('expected_arrival_date') || $request->filled('manufacturer_release_date') || $request->filled('expected_delivery')) {
@@ -927,7 +930,7 @@ class PurchaseOrderController extends Controller
         ]);
 
         $purchaseOrder->update([
-            'expected_delivery' => $request->expected_delivery,
+            'expected_delivery' => $this->parseDate($request->expected_delivery),
         ]);
 
         return response()->json(['success' => true]);
@@ -1314,5 +1317,25 @@ class PurchaseOrderController extends Controller
 
         $filename = $purchaseOrder->code . '-' . date('Y-m-d') . '.xlsx';
         return Excel::download(new SinglePurchaseOrderExport($purchaseOrder), $filename);
+    }
+
+    /**
+     * Đồng nhất múi giờ và format ngày tháng trước khi lưu vào Database
+     */
+    private function parseDate(?string $dateString): ?string
+    {
+        if (empty($dateString)) {
+            return null;
+        }
+
+        try {
+            // Parse chuỗi ngày và chuyển đổi sang múi giờ 'Asia/Ho_Chi_Minh'
+            return \Carbon\Carbon::parse($dateString)
+                ->timezone('Asia/Ho_Chi_Minh')
+                ->format('Y-m-d');
+        } catch (\Exception $e) {
+            \Log::warning('Không thể parse ngày: ' . $dateString . '. Lỗi: ' . $e->getMessage());
+            return null;
+        }
     }
 }

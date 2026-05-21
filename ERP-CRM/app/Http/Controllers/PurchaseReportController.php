@@ -31,31 +31,30 @@ class PurchaseReportController extends Controller
             }
         }
 
-        // If product_id is empty but product_search is filled, try to resolve matching product
-        if (empty($productId) && !empty($productSearch)) {
-            $resolvedProduct = \App\Models\Product::where('code', $productSearch)
-                ->orWhere('code', 'like', "%{$productSearch}%")
-                ->orWhere('name', 'like', "%{$productSearch}%")
-                ->first();
-            if ($resolvedProduct) {
-                $productId = $resolvedProduct->id;
+        $productIds = [];
+        if ($productId) {
+            $productIds = [$productId];
+        } elseif (!empty($productSearch)) {
+            $productIds = \App\Models\Product::search($productSearch)->pluck('id')->toArray();
+            if (empty($productIds)) {
+                $productIds = [-1]; // Ensure empty results when search fails to match
             }
         }
 
         // Summary statistics
-        $stats = $this->getSummaryStats($dateFrom, $dateTo, $supplierId, $productId);
+        $stats = $this->getSummaryStats($dateFrom, $dateTo, $supplierId, $productIds);
 
         // Supplier report
-        $supplierReport = $this->getSupplierReport($dateFrom, $dateTo, $supplierId, $productId);
+        $supplierReport = $this->getSupplierReport($dateFrom, $dateTo, $supplierId, $productIds);
 
         // Product report
-        $productReport = $this->getProductReport($dateFrom, $dateTo, $productId, $supplierId);
+        $productReport = $this->getProductReport($dateFrom, $dateTo, $productIds, $supplierId);
 
         // Monthly report
-        $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo, $supplierId, $productId);
+        $monthlyReport = $this->getMonthlyReport($dateFrom, $dateTo, $supplierId, $productIds);
 
         // Tracking report (Theo dõi hàng về)
-        $trackingReport = $this->getTrackingReport($request);
+        $trackingReport = $this->getTrackingReport($request, $productIds);
 
         // Get suppliers for filter dropdown
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
@@ -76,7 +75,7 @@ class PurchaseReportController extends Controller
         ));
     }
 
-    private function getSummaryStats($dateFrom, $dateTo, $supplierId = null, $productId = null): array
+    private function getSummaryStats($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
     {
         $query = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo]);
 
@@ -84,9 +83,9 @@ class PurchaseReportController extends Controller
             $query->where('supplier_id', $supplierId);
         }
 
-        if ($productId) {
-            $query->whereHas('items', function($q) use ($productId) {
-                $q->where('product_id', $productId);
+        if (!empty($productIds)) {
+            $query->whereHas('items', function($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds);
             });
         }
 
@@ -110,7 +109,7 @@ class PurchaseReportController extends Controller
         ];
     }
 
-    private function getSupplierReport($dateFrom, $dateTo, $supplierId = null, $productId = null): array
+    private function getSupplierReport($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
     {
         $query = PurchaseOrder::select(
                 'supplier_id',
@@ -132,9 +131,9 @@ class PurchaseReportController extends Controller
             $query->where('supplier_id', $supplierId);
         }
 
-        if ($productId) {
-            $query->whereHas('items', function($q) use ($productId) {
-                $q->where('product_id', $productId);
+        if (!empty($productIds)) {
+            $query->whereHas('items', function($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds);
             });
         }
 
@@ -149,9 +148,9 @@ class PurchaseReportController extends Controller
             $allOrdersQuery->where('supplier_id', $supplierId);
         }
 
-        if ($productId) {
-            $allOrdersQuery->whereHas('items', function($q) use ($productId) {
-                $q->where('product_id', $productId);
+        if (!empty($productIds)) {
+            $allOrdersQuery->whereHas('items', function($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds);
             });
         }
 
@@ -201,7 +200,7 @@ class PurchaseReportController extends Controller
         })->toArray();
     }
 
-    private function getProductReport($dateFrom, $dateTo, $productId = null, $supplierId = null): array
+    private function getProductReport($dateFrom, $dateTo, $productIds = [], $supplierId = null): array
     {
         $query = ImportItem::query()
             ->join('imports', 'import_items.import_id', '=', 'imports.id')
@@ -225,8 +224,8 @@ class PurchaseReportController extends Controller
             ->groupBy('import_items.product_id')
             ->with('product');
 
-        if ($productId) {
-            $query->where('import_items.product_id', $productId);
+        if (!empty($productIds)) {
+            $query->whereIn('import_items.product_id', $productIds);
         }
 
         if ($supplierId) {
@@ -282,7 +281,7 @@ class PurchaseReportController extends Controller
         })->toArray();
     }
 
-    private function getMonthlyReport($dateFrom, $dateTo, $supplierId = null, $productId = null): array
+    private function getMonthlyReport($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
     {
         $query = PurchaseOrder::query();
 
@@ -290,9 +289,9 @@ class PurchaseReportController extends Controller
             $query->where('supplier_id', $supplierId);
         }
 
-        if ($productId) {
-            $query->whereHas('items', function($q) use ($productId) {
-                $q->where('product_id', $productId);
+        if (!empty($productIds)) {
+            $query->whereHas('items', function($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds);
             });
         }
 
@@ -342,7 +341,7 @@ class PurchaseReportController extends Controller
 
 
 
-    private function getTrackingReport(Request $request): array
+    private function getTrackingReport(Request $request, $productIds = []): array
     {
         $query = \App\Models\SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
 
@@ -358,11 +357,16 @@ class PurchaseReportController extends Controller
             });
         }
 
-        // Filter by Part Number (From Direct input or resolved product_id)
-        if ($request->filled('product_id')) {
-            $product = \App\Models\Product::find($request->product_id);
-            if ($product) {
-                $query->where('part_number', $product->code);
+        // Filter by Part Number (From Direct input or resolved product_ids)
+        if (!empty($productIds)) {
+            if (in_array(-1, $productIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function($q) use ($productIds) {
+                    $productCodes = \App\Models\Product::whereIn('id', $productIds)->pluck('code')->toArray();
+                    $q->whereIn('product_id', $productIds)
+                      ->orWhereIn('part_number', $productCodes);
+                });
             }
         } elseif ($request->filled('product_search')) {
             $query->where('part_number', 'like', '%' . $request->product_search . '%');
@@ -470,7 +474,27 @@ class PurchaseReportController extends Controller
         $type = $request->input('report_type', 'tracking');
         
         if ($type === 'tracking') {
-            $data = $this->getTrackingReport($request);
+            $productId = $request->input('product_id');
+            $productSearch = $request->input('product_search');
+
+            if ($productId && !empty($productSearch)) {
+                $selectedProduct = \App\Models\Product::find($productId);
+                if ($selectedProduct && !str_contains($productSearch, $selectedProduct->code)) {
+                    $productId = null;
+                }
+            }
+
+            $productIds = [];
+            if ($productId) {
+                $productIds = [$productId];
+            } elseif (!empty($productSearch)) {
+                $productIds = \App\Models\Product::search($productSearch)->pluck('id')->toArray();
+                if (empty($productIds)) {
+                    $productIds = [-1];
+                }
+            }
+
+            $data = $this->getTrackingReport($request, $productIds);
             return \Maatwebsite\Excel\Facades\Excel::download(
                 new \App\Exports\PurchaseTrackingExport($data), 
                 'bao-cao-theo-doi-hang-ve-' . date('Ymd') . '.xlsx'

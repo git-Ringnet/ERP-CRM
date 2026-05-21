@@ -37,7 +37,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
-                    <select name="supplier_id"
+                    <select name="supplier_id" onchange="this.form.submit()"
                         class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                         <option value="">Tất cả NCC</option>
                         @foreach($suppliers as $supplier)

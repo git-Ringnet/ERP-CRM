@@ -53,7 +53,7 @@
     </div>
 
     <!-- PR Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-gray-50 border-b border-gray-100">
@@ -64,12 +64,12 @@
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Ngày gửi</th>
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Note</th>
                     <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Trạng thái</th>
-                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Thao tác</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right sticky right-0 bg-gray-50 z-20 shadow-[-8px_0_10px_-8px_rgba(0,0,0,0.15)]">Thao tác</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($requests as $request)
-                <tr class="hover:bg-gray-50 transition-colors">
+                <tr class="hover:bg-gray-50 transition-colors group">
                     <td class="px-6 py-4 font-bold text-teal-700">#{{ $request->code }}</td>
                     <td class="px-6 py-4">
                         <a href="{{ route('sales.show', $request->sale_id) }}" class="text-blue-600 hover:underline font-medium">
@@ -119,7 +119,7 @@
                             {{ $request->status_label }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-gray-50 z-10 shadow-[-8px_0_10px_-8px_rgba(0,0,0,0.15)] transition-colors">
                         <div class="flex justify-end gap-2">
                             @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
                             <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST" onsubmit="return confirm('Duyệt yêu cầu này?')">
@@ -152,87 +152,6 @@
                         </div>
                     </td>
                 </tr>
-                <!-- Details Row (Hidden by default) -->
-                <tr id="details-{{ $request->id }}" class="hidden bg-gray-50">
-                    <td colspan="8" class="px-6 py-4">
-                        <div class="bg-white p-4 rounded-lg border border-gray-200">
-                            <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
-                            <table class="w-full text-[10px] border-collapse border border-gray-200">
-                                <thead class="bg-yellow-100">
-                                    <tr class="border-b border-gray-300">
-                                        <th class="border-r border-gray-300 p-2 text-left">Hãng</th>
-                                        <th class="border-r border-gray-300 p-2 text-left">Sản phẩm</th>
-                                        <th class="border-r border-gray-300 p-2 text-center">Số lượng</th>
-                                        <th class="border-r border-gray-300 p-2 text-center">% Lợi nhuận</th>
-                                        <th class="border-r border-gray-300 p-2 text-left">S/N (Nếu có)</th>
-                                        <th class="border-r border-gray-300 p-2 text-left">Ngày Exp (Nếu có)</th>
-                                        <th class="border-r border-gray-300 p-2 text-left">SI Name</th>
-                                        <th class="border-r border-gray-300 p-2 text-left">EU Name</th>
-                                        <th class="p-2 text-left">Note</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($request->items as $item)
-                                    <tr class="border-b border-gray-200 hover:bg-gray-50">
-                                        <td class="border-r border-gray-200 p-2">{{ $item->vendor->name ?? $item->vendor }}</td>
-                                        <td class="border-r border-gray-200 p-2 font-medium text-teal-700">
-                                            {{ $item->part_number }}
-                                            @if($item->is_cancelled)
-                                                <span class="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-600 rounded font-bold">ĐÃ HỦY</span>
-                                            @endif
-                                        </td>
-                                        <td class="border-r border-gray-200 p-2 text-center font-bold">{{ $item->quantity + 0 }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-center text-blue-600">
-                                            {{ number_format($item->saleItem->profit_percent ?? 0, 2) }}%
-                                        </td>
-                                        <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->serial_number ?: '-' }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-gray-500">{{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-gray-700">{{ $item->si_name }}</td>
-                                        <td class="border-r border-gray-200 p-2 text-gray-600">{{ $item->eu_name_mst }}</td>
-                                        <td class="p-2 text-gray-500">{{ $item->note ?: '-' }}</td>
-                                    </tr>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm whitespace-nowrap">{{ $request->creator->name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $request->sent_at ? $request->sent_at->format('d/m/Y H:i') : 'N/A' }}</td>
-                        <td class="px-6 py-4 text-sm max-w-xs">
-                            <div class="flex items-center group">
-                                <div class="truncate text-gray-600 mr-2" title="{{ $request->note }}">
-                                    {{ $request->note ?: '-' }}
-                                </div>
-                                <button type="button" onclick="showNoteModal('{{ $request->id }}', '{{ $request->code }}', '{{ addslashes($request->note) }}')" 
-                                        class="text-teal-500 hover:text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-center whitespace-nowrap">
-                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-{{ $request->status_color }}-100 text-{{ $request->status_color }}-700 uppercase">
-                                {{ $request->status_label }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-right whitespace-nowrap">
-                            <div class="flex justify-end gap-2">
-                                @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
-                                <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST" onsubmit="return confirm('Duyệt yêu cầu này?')">
-                                    @csrf
-                                    <input type="hidden" name="action" value="approve">
-                                    <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt">
-                                        <i class="fas fa-check-circle text-lg"></i>
-                                    </button>
-                                </form>
-                                <button type="button" onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')" class="text-red-600 hover:text-red-800 p-1" title="Trả về">
-                                    <i class="fas fa-times-circle text-lg"></i>
-                                </button>
-                                @endif
-                                <button type="button" onclick="toggleDetails('{{ $request->id }}')" class="text-gray-400 hover:text-gray-600 p-1">
-                                    <i class="fas fa-chevron-down"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
                     <!-- Details Row (Hidden by default) -->
                     <tr id="details-{{ $request->id }}" class="hidden bg-gray-50">
                         <td colspan="8" class="px-6 py-4">

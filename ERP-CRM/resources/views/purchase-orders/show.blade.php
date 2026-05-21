@@ -16,12 +16,12 @@
 
         // Status indicators - ưu tiên expected_arrival_date từ tracking
         $deliveryDate = $purchaseOrder->expected_arrival_date ?? $purchaseOrder->expected_delivery;
-        $isOverdue = $deliveryDate && now()->gt($deliveryDate);
-        $isNearDelivery = $deliveryDate && now()->diffInDays($deliveryDate, false) <= 7 && now()->diffInDays($deliveryDate, false) >= 0;
-        $isLongWaiting = $daysElapsed > 42; // More than 6 weeks
+        $isOverdue = $deliveryDate && now()->startOfDay()->gt($deliveryDate) && $purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled';
+        $isNearDelivery = $deliveryDate && now()->startOfDay()->diffInDays($deliveryDate, false) <= 7 && now()->startOfDay()->diffInDays($deliveryDate, false) >= 0 && $purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled';
+        $isLongWaiting = $daysElapsed > 42 && $purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled'; // More than 6 weeks
     @endphp
 
-    <div class="w-full space-y-6">
+    <div class="w-full space-y-6 pb-20 md:pb-0">
         <!-- Success Animation Overlay (hidden by default) -->
         <div id="approval-success" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
             <div class="bg-white rounded-2xl p-8 transform scale-0 transition-all duration-500 ease-out" id="success-card">
@@ -65,7 +65,7 @@
                             <i class="fas fa-check mr-2"></i> Xác nhận Đã đặt
                         </button>
                     </form>
-                    <form action="{{ route('purchase-orders.reject', $purchaseOrder) }}" method="POST" class="inline">
+                    <form action="{{ route('purchase-orders.reject', $purchaseOrder) }}" method="POST" class="inline" id="reject-form">
                         @csrf
                         <button type="submit"
                             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105"
@@ -79,7 +79,7 @@
                     $hasShippingItems = $purchaseOrder->items->where('status', 'shipping')->count() > 0;
                 @endphp
                 @if($hasOrderedItems)
-                    <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline">
+                    <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline" id="ship-form">
                         @csrf
                         <button type="submit"
                             class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 transform hover:scale-105">
@@ -104,7 +104,7 @@
                     </form>
                 @endif
                 @if($hasShippingItems)
-                    <form action="{{ route('purchase-orders.confirm-received', $purchaseOrder) }}" method="POST" class="inline">
+                    <form action="{{ route('purchase-orders.confirm-received', $purchaseOrder) }}" method="POST" class="inline" id="confirm-received-form">
                         @csrf
                         <button type="submit" onclick="return confirm('Xác nhận nhận hàng cho tất cả sản phẩm đang ở trạng thái Đang về?')"
                             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
@@ -122,7 +122,7 @@
                 </a>
 
                 @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
-                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="inline delete-form">
+                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="inline delete-form" id="cancel-form">
                         @csrf
                         <button type="button" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all duration-200 transform hover:scale-105"
                             onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')">
@@ -132,7 +132,7 @@
                 @endif
 
                 @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
-                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="inline delete-form">
+                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="inline delete-form" id="destroy-form">
                         @csrf
                         @method('DELETE')
                         <button type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105"
@@ -877,6 +877,132 @@
                     }
                 }
             }
+
+            function toggleMobileMoreMenu() {
+                const menu = document.getElementById('mobile-more-menu');
+                const card = menu.querySelector('.mobile-menu-card');
+                if (menu.classList.contains('hidden')) {
+                    menu.classList.remove('hidden');
+                    setTimeout(() => {
+                        menu.classList.remove('opacity-0');
+                        card.classList.remove('translate-y-full');
+                    }, 50);
+                } else {
+                    menu.classList.add('opacity-0');
+                    card.classList.add('translate-y-full');
+                    setTimeout(() => {
+                        menu.classList.add('hidden');
+                    }, 300);
+                }
+            }
         </script>
     @endpush
+
+    <!-- Bottom Action Bar for Mobile/Tablet -->
+    <div class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-100 px-4 py-3 shadow-[0_-8px_30px_rgb(0,0,0,0.08)] md:hidden flex items-center justify-between gap-3 rounded-t-2xl">
+        <!-- Back button -->
+        <a href="{{ url()->previous() }}" class="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <i class="fas fa-arrow-left text-sm"></i>
+        </a>
+
+        <div class="flex-1 flex items-center justify-end gap-2">
+            @if($purchaseOrder->status == 'draft')
+                <a href="{{ route('purchase-orders.edit', $purchaseOrder) }}"
+                    class="flex-1 max-w-[100px] text-center px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-xs transition-all shadow-sm">
+                    <i class="fas fa-edit mr-1"></i>Sửa
+                </a>
+                <button type="button" onclick="document.getElementById('submit-approval-form')?.querySelector('button[type=submit]')?.click()"
+                    class="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold rounded-xl text-xs transition-all shadow-md">
+                    <i class="fas fa-paper-plane mr-1"></i>Gửi duyệt
+                </button>
+            @endif
+
+            @if($purchaseOrder->status == 'pending_approval')
+                <button type="button" onclick="document.getElementById('reject-form')?.querySelector('button[type=submit]')?.click()"
+                    class="flex-1 max-w-[100px] px-3 py-2 bg-rose-50 border border-rose-200 text-rose-600 font-semibold rounded-xl text-xs transition-all hover:bg-rose-100">
+                    <i class="fas fa-times mr-1"></i>Từ chối
+                </button>
+                <button type="button" onclick="document.getElementById('approve-form')?.querySelector('button[type=submit]')?.click()"
+                    class="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl text-xs transition-all shadow-md">
+                    <i class="fas fa-check mr-1"></i>Xác nhận Đặt
+                </button>
+            @endif
+
+            @if($hasOrderedItems)
+                <button type="button" onclick="document.getElementById('ship-form')?.querySelector('button[type=submit]')?.click()"
+                    class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs transition-all shadow-md">
+                    <i class="fas fa-truck-moving mr-1"></i>Đang về
+                </button>
+            @endif
+
+            @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
+                @if($purchaseOrder->is_hold)
+                    <button type="button" onclick="document.getElementById('hold-form')?.querySelector('button[type=submit]')?.click()"
+                        class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-xl text-xs transition-all">
+                        <i class="fas fa-play mr-1"></i>Gỡ Hold
+                    </button>
+                @else
+                    <button type="button" onclick="document.getElementById('hold-form')?.querySelector('button[type=button]')?.click()"
+                        class="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl text-xs transition-all">
+                        <i class="fas fa-pause mr-1"></i>Hold
+                    </button>
+                @endif
+            @endif
+
+            @if($hasShippingItems)
+                <button type="button" onclick="document.getElementById('confirm-received-form')?.querySelector('button[type=submit]')?.click()"
+                    class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-xs transition-all">
+                    <i class="fas fa-box-open mr-1"></i>Nhận hàng
+                </button>
+            @endif
+            
+            <!-- More action trigger -->
+            <button type="button" onclick="toggleMobileMoreMenu()"
+                class="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile More Menu Popup -->
+    <div id="mobile-more-menu" class="fixed inset-0 z-50 hidden bg-black/40 backdrop-blur-sm transition-opacity duration-300" onclick="toggleMobileMoreMenu()">
+        <div class="mobile-menu-card absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 space-y-4 shadow-[0_-10px_40px_rgba(0,0,0,0.12)] transform translate-y-full transition-transform duration-300 ease-out" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                <h4 class="font-bold text-gray-800 text-sm">Hành động khác</h4>
+                <button type="button" onclick="toggleMobileMoreMenu()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <a href="{{ route('purchase-orders.print', $purchaseOrder) }}" target="_blank"
+                    class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors text-gray-700">
+                    <i class="fas fa-print text-lg text-blue-500 mb-1"></i>
+                    <span class="text-[10px] font-semibold">In PO</span>
+                </a>
+                
+                <a href="{{ route('purchase-orders.export-single', $purchaseOrder) }}"
+                    class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors text-gray-700">
+                    <i class="fas fa-file-excel text-lg text-green-600 mb-1"></i>
+                    <span class="text-[10px] font-semibold">Xuất Excel</span>
+                </a>
+
+                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                    <button type="button" onclick="toggleMobileMoreMenu(); document.getElementById('cancel-form')?.querySelector('button')?.click()"
+                        class="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors text-gray-700">
+                        <i class="fas fa-ban text-lg text-amber-500 mb-1"></i>
+                        <span class="text-[10px] font-semibold">Hủy đơn</span>
+                    </button>
+                @endif
+
+                @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
+                    <button type="button" onclick="toggleMobileMoreMenu(); document.getElementById('destroy-form')?.querySelector('button')?.click()"
+                        class="flex flex-col items-center justify-center p-3 bg-red-50 hover:bg-red-100 rounded-2xl transition-colors text-red-700">
+                        <i class="fas fa-trash text-lg text-red-500 mb-1"></i>
+                        <span class="text-[10px] font-semibold">Xóa PO</span>
+                    </button>
+                @endif
+            </div>
+        </div>
+    </div>
 @endsection

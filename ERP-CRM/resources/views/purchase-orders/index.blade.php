@@ -46,7 +46,7 @@
         <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm..." 
                 class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-            <select name="status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+            <select name="status" onchange="this.form.submit()" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả trạng thái --</option>
                 <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Chờ đặt</option>
                 <option value="pending_approval" {{ request('status') == 'pending_approval' ? 'selected' : '' }}>Chờ duyệt</option>
@@ -56,7 +56,7 @@
                 <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
 
             </select>
-            <select name="supplier_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+            <select name="supplier_id" onchange="this.form.submit()" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
                 <option value="">-- Tất cả NCC --</option>
                 @foreach($suppliers as $supplier)
                     <option value="{{ $supplier->id }}" {{ request('supplier_id') == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
@@ -97,8 +97,8 @@
                         $expectedMaxDate = $orderDate->copy()->addWeeks(6);
                         
                         // Status indicators
-                        $isOverdue = $order->expected_delivery && now()->gt($order->expected_delivery) && $order->status !== 'received' && $order->status !== 'cancelled';
-                        $isNearDelivery = $order->expected_delivery && now()->diffInDays($order->expected_delivery, false) <= 7 && now()->diffInDays($order->expected_delivery, false) >= 0 && $order->status !== 'received' && $order->status !== 'cancelled';
+                        $isOverdue = $order->expected_delivery && now()->startOfDay()->gt($order->expected_delivery) && $order->status !== 'received' && $order->status !== 'cancelled';
+                        $isNearDelivery = $order->expected_delivery && now()->startOfDay()->diffInDays($order->expected_delivery, false) <= 7 && now()->startOfDay()->diffInDays($order->expected_delivery, false) >= 0 && $order->status !== 'received' && $order->status !== 'cancelled';
                         $isLongWaiting = $daysElapsed > 42 && $order->status !== 'received' && $order->status !== 'cancelled';
                         
                         // Row class

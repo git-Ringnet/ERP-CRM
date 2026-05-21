@@ -36,27 +36,50 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Confirm navigation away from unsaved forms
-    const formInputs = document.querySelectorAll('form input, form textarea, form select');
     window.formChanged = false;
-    
-    formInputs.forEach(input => {
-        input.addEventListener('change', function() {
-            window.formChanged = true;
-        });
-    });
+    window.isSubmitting = false;
 
-    window.addEventListener('beforeunload', function(e) {
-        if (window.formChanged) {
-            e.preventDefault();
-            e.returnValue = '';
+    // Use event delegation for input changes to support dynamic forms
+    document.addEventListener('change', function(e) {
+        const input = e.target;
+        if (input && input.closest) {
+            const form = input.closest('form');
+            if (form) {
+                // Ignore GET forms (filters/search) and forms with data-no-dirty-check attribute
+                const method = (form.getAttribute('method') || 'GET').toUpperCase();
+                const isGetForm = method === 'GET';
+                const hasNoDirtyCheck = form.hasAttribute('data-no-dirty-check') || form.classList.contains('no-dirty-check');
+                
+                if (!isGetForm && !hasNoDirtyCheck) {
+                    window.formChanged = true;
+                }
+            }
         }
     });
 
-    // Reset form changed flag on submit
-    forms.forEach(form => {
-        form.addEventListener('submit', function() {
-            window.formChanged = false;
-        });
+    // Support tracking standard submits with event delegation
+    document.addEventListener('submit', function(e) {
+        window.isSubmitting = true;
+        // Fallback: if submit is prevented, reset the flag in the next tick
+        setTimeout(() => {
+            if (e.defaultPrevented) {
+                window.isSubmitting = false;
+            }
+        }, 0);
+    });
+
+    // Override HTMLFormElement.prototype.submit to track programmatic submits
+    const originalSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function() {
+        window.isSubmitting = true;
+        originalSubmit.apply(this, arguments);
+    };
+
+    window.addEventListener('beforeunload', function(e) {
+        if (window.formChanged && !window.isSubmitting) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
     });
 
     // Add tooltips to truncated text
