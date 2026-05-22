@@ -30,6 +30,7 @@
         });
     };
     $standardExpenses = $allExpenses->whereIn('type', $standardTypes);
+    // Include all non-standard expenses as columns in the P&L grid (allocated or unallocated)
     $extraExpenses = $allExpenses->whereNotIn('type', $standardTypes);
     $financeExpense = $findExpenseByTypes(['Chi phí Tài chính']);
     $financeInputMode = $financeExpense->input_mode ?? 'percent';
@@ -96,11 +97,63 @@
     if ($hasContractorTax) $visibleStandardCols++;
     
     $totalColspan = $visibleStandardCols + $extraExpenses->count();
+
+    // Pre-compute PNL extra costs data for JavaScript — include ALL expenses (standard + extra)
+    $pnlExtraCostsData = $allExpenses
+        ->values()
+        ->map(function($e) use ($totalCostBase, $standardTypes) {
+            $calcAmount = ($e->input_mode === 'percent') 
+                ? round($totalCostBase * ($e->percent_value ?? 0) / 100)
+                : (float)($e->amount ?? 0);
+            return [
+                'id' => $e->id,
+                'type' => $e->type,
+                'input_mode' => $e->input_mode ?? 'fixed',
+                'input_value' => ($e->input_mode === 'percent') ? (float)($e->percent_value ?? 0) : (float)($e->amount ?? 0),
+                'calculated_amount' => $calcAmount,
+                'description' => $e->description ?? '',
+                'is_new' => false,
+                'is_standard' => in_array($e->type, $standardTypes),
+            ];
+        })->toArray();
+    $pnlSuggestedTypes = \App\Models\SaleExpense::pnlSuggestedTypes();
 @endphp
 
 <script>
     function pnlEditor() {
         return {
+            payment_term: '{{ $sale->payment_term ?? 'customer_default' }}',
+            payment_due_date: '{{ $sale->payment_due_date ? \Carbon\Carbon::parse($sale->payment_due_date)->format('Y-m-d') : '' }}',
+            order_date: '{{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('Y-m-d') : '' }}',
+            customer_debt_days: {{ $sale->customer->debt_days ?? 0 }},
+
+            calculateDueDate() {
+                if (!this.order_date || this.payment_term === 'custom' || this.payment_term === '') {
+                    return;
+                }
+                let daysToAdd = 0;
+                switch (this.payment_term) {
+                    case 'customer_default':
+                        daysToAdd = parseInt(this.customer_debt_days) || 0;
+                        break;
+                    case 'NET 30':
+                        daysToAdd = 30;
+                        break;
+                    case 'NET 45':
+                        daysToAdd = 45;
+                        break;
+                    case 'prepaid':
+                        daysToAdd = 0;
+                        break;
+                }
+                const date = new Date(this.order_date);
+                date.setDate(date.getDate() + daysToAdd);
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                this.payment_due_date = `${yyyy}-${mm}-${dd}`;
+            },
+
             finance_p: {{ ($financeExpense && $financeExpense->input_mode === 'percent') ? (float) ($financeExpense->percent_value ?? 0) : 0 }},
             overdue_p: {{ ($overdueExpense && $overdueExpense->input_mode === 'percent') ? (float) ($overdueExpense->percent_value ?? 0) : 0 }},
             mgmt_p: {{ ($managementExpense && $managementExpense->input_mode === 'percent') ? (float) ($managementExpense->percent_value ?? 0) : 0 }},
@@ -181,10 +234,188 @@
                 return { totalCost, totalRevenue, itemCount };
             },
 
-            global_cost: 0,
-            global_revenue: 0,
-            global_profit: 0,
-            global_margin_p: 0,
+            global_cost: {{ (float) ($sale->items->sum('cost_total') ?? 0) }},
+            global_revenue: {{ (float) ($sale->items->sum('total') ?? 0) }},
+            global_profit: {{ (float) ($sale->margin ?? 0) }},
+            global_margin_p: {{ (float) ($sale->margin_percent ?? 0) }},
+
+            // Chi phí bổ sung PNL (deal-level, not allocated to items)
+            pnl_extra_costs: (@json($pnlExtraCostsData) || []).map(exp => ({ ...exp, is_custom: false })),
+            pnl_suggested_types: @json($pnlSuggestedTypes),
+            standard_types: @json($standardTypes),
+
+            // Check if an expense is already deducted as a column in the top P&L grid
+            isColumnExpense(exp) {
+                // Standard types are always grid columns (finance, mgmt, support, etc.)
+                if (exp.is_standard || this.standard_types.includes(exp.type)) return true;
+                // Extra expenses that have a grid column (existing DB records with extra_modes entry)
+                if (exp.id && this.extra_modes[exp.id]) return true;
+                return false;
+            },
+
+            get totalPnlExtraCosts() {
+                let total = 0;
+                const costBase = this.global_cost;
+                (this.pnl_extra_costs || []).forEach(exp => {
+                    // Only deduct in global_profit if it is NOT already a grid column
+                    if (!this.isColumnExpense(exp)) {
+                        if (exp.input_mode === 'percent') {
+                            total += Math.round(costBase * (parseFloat(exp.input_value) || 0) / 100);
+                        } else {
+                            total += Math.round(parseFloat(exp.input_value) || 0);
+                        }
+                    }
+                });
+                return total;
+            },
+
+            addPnlExpense() {
+                this.pnl_extra_costs.push({
+                    id: null,
+                    type: '',
+                    input_mode: 'fixed',
+                    input_value: 0,
+                    calculated_amount: 0,
+                    description: '',
+                    is_new: true,
+                    is_custom: false,
+                });
+            },
+
+            removePnlExpense(idx) {
+                const exp = this.pnl_extra_costs[idx];
+                if (exp && exp.id && !exp.is_new) {
+                    // AJAX delete existing expense
+                    if (!confirm('Xóa chi phí "' + (exp.type || '') + '"?')) return;
+                    fetch('/sales/{{ $sale->id }}/pnl-expenses/' + exp.id, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    }).then(r => r.json()).then(data => {
+                        if (data.success) {
+                            this.pnl_extra_costs.splice(idx, 1);
+                            this.updateGlobalTotals();
+                        } else {
+                            alert(data.message || 'Lỗi khi xóa.');
+                        }
+                    }).catch(() => alert('Lỗi kết nối.'));
+                } else {
+                    this.pnl_extra_costs.splice(idx, 1);
+                    this.updateGlobalTotals();
+                }
+            },
+
+            recalcPnlExpense(idx) {
+                const exp = this.pnl_extra_costs[idx];
+                if (!exp) return;
+                const val = parseFloat(exp.input_value) || 0;
+                if (exp.input_mode === 'percent') {
+                    exp.calculated_amount = Math.round(this.global_cost * val / 100);
+                } else {
+                    exp.calculated_amount = Math.round(val);
+                }
+
+                // Sync change from bottom table to top grid column/header live
+                if (exp.id && this.extra_modes[exp.id]) {
+                    this.extra_modes[exp.id] = exp.input_mode;
+
+                    const modeSelect = document.querySelector(`.extra-expense-mode[data-expense-id="${exp.id}"]`);
+                    if (modeSelect && modeSelect.value !== exp.input_mode) {
+                        modeSelect.value = exp.input_mode;
+                        modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    
+                    if (exp.input_mode === 'percent') {
+                        const headerInput = document.querySelector(`.extra-expense-input[data-expense-id="${exp.id}"][data-mode="percent"]`);
+                        if (headerInput) {
+                            headerInput.value = val;
+                            headerInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    } else {
+                        const rowInputs = document.querySelectorAll(`.extra-item-input[data-expense-id="${exp.id}"]`);
+                        if (rowInputs.length > 0) {
+                            rowInputs.forEach((el, rIdx) => {
+                                el.value = (rIdx === 0) ? val : 0;
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                                el.dispatchEvent(new Event('blur', { bubbles: true }));
+                            });
+                        }
+                    }
+                }
+
+                // Sync standard expenses from bottom table to top grid variables
+                if (exp.is_standard || this.standard_types.includes(exp.type)) {
+                    const stdSyncMap = {
+                        'Chi phí Tài chính': { p: 'finance_p', amt: 'finance_amt' },
+                        'Lãi vay phát sinh do nợ quá hạn': { p: 'overdue_p', amt: 'overdue_amt' },
+                        'Chi phí Quản lí, Back Office & kỹ thuật': { p: 'mgmt_p', amt: 'mgmt_amt' },
+                        '24x7 Support cost': { p: 'support_p', amt: 'support_amt' },
+                        'Other Support': { p: 'other_p', amt: 'other_amt' },
+                    };
+                    const mapping = stdSyncMap[exp.type];
+                    if (mapping) {
+                        if (exp.input_mode === 'percent') {
+                            this[mapping.p] = val;
+                        } else {
+                            this[mapping.amt] = val;
+                        }
+                    }
+                    // POC: sync to row-level poc_p or poc
+                    if (exp.type === 'Technical support/POC' || exp.type === 'Technical support/POC 30%') {
+                        document.querySelectorAll('tr[x-data]').forEach(row => {
+                            try {
+                                const rd = Alpine.$data(row);
+                                if (rd && typeof rd.poc_v !== 'undefined') {
+                                    if (exp.input_mode === 'percent') {
+                                        rd.poc_mode = 'percent';
+                                        rd.poc_p = val;
+                                    } else {
+                                        rd.poc_mode = 'fixed';
+                                        rd.poc = val;
+                                    }
+                                    rd.calculate();
+                                }
+                            } catch(e) {}
+                        });
+                    }
+                    // Implementation: sync to row-level imp_p or imp
+                    if (exp.type === 'Chi phí triển khai hợp đồng') {
+                        document.querySelectorAll('tr[x-data]').forEach(row => {
+                            try {
+                                const rd = Alpine.$data(row);
+                                if (rd && typeof rd.imp_v !== 'undefined') {
+                                    if (exp.input_mode === 'percent') {
+                                        rd.imp_mode = 'percent';
+                                        rd.imp_p = val;
+                                    } else {
+                                        rd.imp_mode = 'fixed';
+                                        rd.imp = val;
+                                    }
+                                    rd.calculate();
+                                }
+                            } catch(e) {}
+                        });
+                    }
+                    // Contractor Tax: sync to row-level
+                    if (exp.type === 'Thuế nhà thầu') {
+                        document.querySelectorAll('tr[x-data]').forEach(row => {
+                            try {
+                                const rd = Alpine.$data(row);
+                                if (rd && typeof rd.tax_v !== 'undefined') {
+                                    rd.tax_enabled = val > 0;
+                                    rd.calculate();
+                                }
+                            } catch(e) {}
+                        });
+                    }
+                }
+
+                this.updateGlobalTotals();
+                this.$dispatch('pnl-recalc');
+            },
 
             updateGlobalTotals() {
                 let cost = 0;
@@ -197,16 +428,124 @@
                 
                 this.global_cost = cost;
                 this.global_revenue = rev;
-                this.global_profit = profit;
+
+                // Sync bottom table values from the grid headers/totals live
+                (this.pnl_extra_costs || []).forEach(exp => {
+                    // Sync non-standard extra expenses that have grid columns
+                    if (exp.id && this.extra_modes[exp.id]) {
+                        exp.input_mode = this.extra_modes[exp.id];
+                        if (exp.input_mode === 'percent') {
+                            const headerInput = document.querySelector(`.extra-expense-input[data-expense-id="${exp.id}"][data-mode="percent"]`);
+                            if (headerInput) {
+                                exp.input_value = parseFloat(headerInput.value) || 0;
+                            }
+                        } else {
+                            exp.input_value = this.extra_amts[exp.id] || 0;
+                        }
+                    }
+
+                    // Sync standard expenses from the top grid variables
+                    if (exp.is_standard || this.standard_types.includes(exp.type)) {
+                        const typeMap = {
+                            'Chi phí Tài chính': { p: 'finance_p', amt: 'finance_amt', mode: '{{ $financeInputMode }}' },
+                            'Lãi vay phát sinh do nợ quá hạn': { p: 'overdue_p', amt: 'overdue_amt', mode: '{{ $overdueInputMode }}' },
+                            'Chi phí Quản lí, Back Office & kỹ thuật': { p: 'mgmt_p', amt: 'mgmt_amt', mode: '{{ $managementInputMode }}' },
+                            '24x7 Support cost': { p: 'support_p', amt: 'support_amt', mode: '{{ $supportInputMode }}' },
+                            'Other Support': { p: 'other_p', amt: 'other_amt', mode: '{{ $otherSupportInputMode }}' },
+                        };
+                        const mapping = typeMap[exp.type];
+                        if (mapping) {
+                            exp.input_mode = mapping.mode;
+                            if (mapping.mode === 'percent') {
+                                exp.input_value = parseFloat(this[mapping.p]) || 0;
+                            } else {
+                                exp.input_value = parseFloat(this[mapping.amt]) || 0;
+                            }
+                            // Compute calculated_amount by summing row-level values
+                            const rowVarMap = {
+                                'Chi phí Tài chính': 'finance_v',
+                                'Lãi vay phát sinh do nợ quá hạn': 'overdue_v',
+                                'Chi phí Quản lí, Back Office & kỹ thuật': 'mgmt_v',
+                                '24x7 Support cost': 'support_v',
+                                'Other Support': 'other_v',
+                            };
+                            const rowVar = rowVarMap[exp.type];
+                            if (rowVar) {
+                                let rowSum = 0;
+                                document.querySelectorAll('tr[x-data]').forEach(row => {
+                                    try {
+                                        const rd = Alpine.$data(row);
+                                        if (rd && typeof rd[rowVar] !== 'undefined') rowSum += rd[rowVar] || 0;
+                                    } catch(e) {}
+                                });
+                                exp.calculated_amount = Math.round(rowSum);
+                            }
+                        }
+                        // For POC, Implementation, Contractor Tax — sum from row values
+                        if (exp.type === 'Technical support/POC' || exp.type === 'Technical support/POC 30%') {
+                            let pocSum = 0;
+                            document.querySelectorAll('.row-net-profit-input').forEach((el, i) => {
+                                const row = el.closest('tr');
+                                if (row && row.__x) {
+                                    pocSum += row.__x.$data.poc_v || 0;
+                                }
+                            });
+                            // Fallback: read from Alpine row data via DOM
+                            if (pocSum === 0) {
+                                document.querySelectorAll('tr[x-data]').forEach(row => {
+                                    try {
+                                        const rd = Alpine.$data(row);
+                                        if (rd && typeof rd.poc_v !== 'undefined') pocSum += rd.poc_v || 0;
+                                    } catch(e) {}
+                                });
+                            }
+                            exp.calculated_amount = Math.round(pocSum);
+                        } else if (exp.type === 'Chi phí triển khai hợp đồng') {
+                            let impSum = 0;
+                            document.querySelectorAll('tr[x-data]').forEach(row => {
+                                try {
+                                    const rd = Alpine.$data(row);
+                                    if (rd && typeof rd.imp_v !== 'undefined') impSum += rd.imp_v || 0;
+                                } catch(e) {}
+                            });
+                            exp.calculated_amount = Math.round(impSum);
+                        } else if (exp.type === 'Thuế nhà thầu') {
+                            let taxSum = 0;
+                            document.querySelectorAll('tr[x-data]').forEach(row => {
+                                try {
+                                    const rd = Alpine.$data(row);
+                                    if (rd && typeof rd.tax_v !== 'undefined') taxSum += rd.tax_v || 0;
+                                } catch(e) {}
+                            });
+                            exp.calculated_amount = Math.round(taxSum);
+                        }
+                    }
+                });
+
+                // Recalc calculated amounts for bottom list (non-standard only, standard handled above)
+                (this.pnl_extra_costs || []).forEach(exp => {
+                    if (exp.is_standard || this.standard_types.includes(exp.type)) return;
+                    const val = parseFloat(exp.input_value) || 0;
+                    if (exp.input_mode === 'percent') {
+                        exp.calculated_amount = Math.round(cost * val / 100);
+                    } else {
+                        exp.calculated_amount = Math.round(val);
+                    }
+                });
+
+                // Deduct only non-column extra costs from profit
+                this.global_profit = profit - this.totalPnlExtraCosts;
                 
                 // Net Revenue tổng = Tổng doanh thu các dòng * (1 - chiết khấu đơn hàng)
                 let netRevTotal = rev * (1 - {{ $sale->discount ?? 0 }} / 100);
-                this.global_margin_p = netRevTotal > 0 ? ((profit / netRevTotal) * 100).toFixed(1) : 0;
+                this.global_margin_p = netRevTotal > 0 ? ((this.global_profit / netRevTotal) * 100).toFixed(1) : 0;
             },
 
             init() {
                 // Listen for row extra expense changes and sync totals
-                this.$watch('extra_amts', () => {}, { deep: true });
+                this.$watch('extra_amts', () => {
+                    this.updateGlobalTotals();
+                }, { deep: true });
                 
                 // Listen for row updates to refresh global totals
                 window.addEventListener('pnl-row-updated', () => {
@@ -218,6 +557,10 @@
                     this.syncExtraAmtsFromRows();
                     this.updateGlobalTotals();
                 }, 500);
+
+                if (this.payment_term && this.payment_term !== 'custom') {
+                    this.calculateDueDate();
+                }
             }
         }
     }
@@ -265,6 +608,7 @@
             tax_p: data.tax_p || 0,
             tax_allocated: data.tax_allocated || 0,
             has_tax: data.has_tax || false,
+            tax_enabled: data.tax_enabled || false,
             
             extra_costs: data.extra_costs || [],
             extra_vals: [],
@@ -366,7 +710,7 @@
                 }
 
                 // Thuế nhà thầu: Formula = Cost / (1 - 10%) * 10% (only if enabled)
-                this.tax_v = this.has_tax ? Math.round(this.cost_total / 0.9 * 0.1) : 0;
+                this.tax_v = this.tax_enabled ? Math.round(this.cost_total / 0.9 * 0.1) : 0;
                 
                 let extraSum = 0;
                 this.extra_vals = [];
@@ -489,7 +833,7 @@
     </div>
 
 
-    <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST">
+    <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST" enctype="multipart/form-data">
         @csrf
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
@@ -838,6 +1182,7 @@
                                 tax_p: {{ $taxPercentRow }},
                                 tax_allocated: {{ $contractorTaxAllocated }},
                                 has_tax: {{ $hasContractorTax ? 'true' : 'false' }},
+                                tax_enabled: {{ $item->contractor_tax_enabled ? 'true' : 'false' }},
                                 extra_costs: [
                                     @foreach($extraExpenses as $extra)
                                         {
@@ -914,6 +1259,7 @@
                                 @if(!$hasContractorTax)
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax]" value="0">
                                 <input type="hidden" name="items[{{ $index }}][contractor_tax_percent]" value="">
+                                <input type="hidden" name="items[{{ $index }}][contractor_tax_enabled]" value="0">
                                 @endif
                             </td>
                             <td class="px-2 py-2 text-center border border-gray-400">{{ number_format($item->quantity) }}</td>
@@ -1114,11 +1460,15 @@
                             </td>
                             @endif
                             @if($hasContractorTax)
-                            <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-right text-xs">
-                                {{-- Contractor tax is now purely formula-based: Cost / 0.9 * 0.1 --}}
-                                <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
-                                <div class="flex flex-col items-end">
-                                    <span class="block px-1 py-1 font-bold text-blue-700" x-text="formatNumber(tax_v)"></span>
+                            <td class="px-1 py-1 border border-gray-400 bg-orange-50 text-center text-xs">
+                                <div class="flex flex-col items-center justify-center gap-1 min-w-[80px]">
+                                    <input type="hidden" name="items[{{ $index }}][contractor_tax_enabled]" :value="tax_enabled ? '1' : '0'">
+                                    <input type="checkbox" x-model="tax_enabled" @change="calculate()"
+                                           class="w-4 h-4 rounded border-2 border-indigo-600 text-indigo-600 shadow-sm focus:border-indigo-700 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 cursor-pointer"
+                                           style="border: 2px solid #4f46e5 !important; background-color: #ffffff !important; width: 16px; height: 16px; min-width: 16px; min-height: 16px; cursor: pointer; -webkit-appearance: checkbox; appearance: checkbox;"
+                                           {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    <input type="hidden" name="items[{{ $index }}][contractor_tax]" :value="tax_v">
+                                    <span class="block px-1 font-bold text-blue-700 text-right w-full" x-text="formatNumber(tax_v)"></span>
                                 </div>
                             </td>
                             @endif
@@ -1174,39 +1524,360 @@
                         
                         <td class="px-2 py-3 text-right bg-yellow-600"></td> {{-- Tổng chi phí dòng --}}
                         
-                        <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)"></td>
-                        <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'"></td>
+                        <td class="px-2 py-3 text-right bg-green-700" x-text="formatNumber(global_profit)">{{ number_format($sale->margin) }}</td>
+                        <td class="px-2 py-3 text-center bg-green-700" x-text="global_margin_p + '%'">{{ number_format($sale->margin_percent, 1) }}%</td>
                     </tr>
                 </tfoot>
 
             </table>
         </div>
 
+        <!-- Payment Term & Due Date Configuration -->
+        <div class="mt-4 p-4 bg-blue-50/40 rounded-lg border border-blue-200">
+            <h4 class="text-xs font-semibold text-blue-700 uppercase flex items-center gap-1.5 mb-3">
+                <i class="fas fa-calendar-check text-blue-500"></i> Thiết lập hạn thanh toán (Áp dụng riêng cho đơn hàng này)
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn thanh toán (Payment Term)</label>
+                    <select name="payment_term" x-model="payment_term" @change="calculateDueDate()"
+                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                        <option value="">-- Chọn hạn thanh toán --</option>
+                        <option value="customer_default">Mặc định khách hàng</option>
+                        <option value="NET 30">NET 30 (30 ngày)</option>
+                        <option value="NET 45">NET 45 (45 ngày)</option>
+                        <option value="prepaid">Thanh toán trước giao hàng</option>
+                        <option value="custom">Tùy chỉnh</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn ngày thanh toán (Due Date)</label>
+                    <input type="date" name="payment_due_date" x-model="payment_due_date" @input="payment_term = 'custom'"
+                           {{ !$sale->isPlEditable() ? 'readonly' : '' }}
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                    <p class="text-[10px] text-gray-500 mt-1" x-show="payment_term && payment_term !== 'custom'">
+                        Hỗ trợ tính hạn: <span x-text="payment_term === 'customer_default' ? `Mặc định KH (${customer_debt_days} ngày)` : (payment_term === 'prepaid' ? 'Thanh toán trước giao hàng (0 ngày)' : (payment_term === 'NET 30' ? 'NET 30 (30 ngày)' : 'NET 45 (45 ngày)'))"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PNL Extra Costs Section -->
+        <div class="mt-4 p-4 bg-rose-50/50 rounded-lg border border-rose-200">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-xs font-semibold text-rose-700 uppercase flex items-center gap-1.5">
+                    <i class="fas fa-coins"></i> Chi phí bổ sung P&L
+                </h4>
+                @if($sale->isPlEditable())
+                <div class="flex items-center gap-2">
+                    <button type="submit" form="pnlForm"
+                            class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-medium shadow-sm">
+                        <i class="fas fa-save mr-1.5"></i> Lưu chi phí
+                    </button>
+                    <button type="button" @click="addPnlExpense()"
+                            class="inline-flex items-center px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors text-xs font-medium">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm chi phí
+                    </button>
+                </div>
+                @endif
+            </div>
+
+            {{-- Header --}}
+            <div class="hidden md:grid grid-cols-12 gap-2 px-3 py-2 bg-rose-100 border border-rose-200 rounded-t-lg text-[10px] font-bold text-rose-800 uppercase">
+                <div class="col-span-3">Tên chi phí</div>
+                <div class="col-span-2 text-center">Kiểu nhập</div>
+                <div class="col-span-2 text-center">Tỷ lệ / Giá trị</div>
+                <div class="col-span-3 text-right">Thành tiền (VND)</div>
+                <div class="col-span-1 text-center">Ghi chú</div>
+                <div class="col-span-1 text-center"><i class="fas fa-cog"></i></div>
+            </div>
+
+            {{-- Expense rows --}}
+            <div class="border-x border-b border-rose-200 rounded-b-lg divide-y divide-rose-100">
+                <template x-for="(exp, idx) in pnl_extra_costs" :key="idx">
+                    <div class="px-3 py-2 hover:bg-rose-50 transition-colors"
+                         :class="idx % 2 === 0 ? 'bg-white' : 'bg-rose-50/30'">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                            {{-- Tên chi phí --}}
+                            <div class="col-span-3">
+                                <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Tên chi phí</label>
+                                <template x-if="exp.is_new">
+                                    <div>
+                                        <div x-show="!exp.is_custom">
+                                            <select x-model="exp.type"
+                                                    class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white"
+                                                    @change="if(exp.type === '__custom__') { exp.is_custom = true; exp.type = ''; $nextTick(() => { $el.closest('.col-span-3').querySelector('input[type=text]')?.focus(); }) }">
+                                                <option value="">-- Chọn loại chi phí --</option>
+                                                <template x-for="stype in pnl_suggested_types" :key="stype">
+                                                    <option :value="stype" x-text="stype"></option>
+                                                </template>
+                                                <option value="__custom__">✏️ Nhập tên khác...</option>
+                                            </select>
+                                        </div>
+                                        <div x-show="exp.is_custom" class="relative">
+                                            <input x-ref="customType"
+                                                   type="text" x-model="exp.type" placeholder="Nhập tên chi phí..."
+                                                   class="w-full border border-gray-300 rounded-lg pl-2 pr-8 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white">
+                                            <button type="button" @click="exp.is_custom = false; exp.type = '';"
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-colors"
+                                                    title="Chọn từ danh sách">
+                                                <i class="fas fa-list text-xs"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="!exp.is_new">
+                                    <div class="flex items-center gap-2 py-1.5">
+                                        <span class="text-xs font-medium text-gray-800" x-text="exp.type"></span>
+                                        <span x-show="isColumnExpense(exp)" 
+                                              class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600 border border-blue-100 whitespace-nowrap"
+                                              title="Chi phí này cũng hiển thị như cột trong bảng P&L phía trên">
+                                            <i class="fas fa-link mr-0.5"></i> Liên kết P&L
+                                        </span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {{-- Kiểu nhập --}}
+                            <div class="col-span-2">
+                                <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
+                                <select x-model="exp.input_mode" @change="recalcPnlExpense(idx)"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white cursor-pointer {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                                    <option value="percent">% (Phần trăm)</option>
+                                    <option value="fixed">VND (Số tiền)</option>
+                                </select>
+                            </div>
+
+                            {{-- Giá trị --}}
+                            <div class="col-span-2">
+                                <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Giá trị</label>
+                                <div class="relative">
+                                    <input type="text" inputmode="numeric"
+                                           x-model="exp.input_value"
+                                           @input="recalcPnlExpense(idx)"
+                                           @blur="exp.input_value = parseFloat((exp.input_value || '0').toString().replace(/,/g, '')) || 0"
+                                           :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
+                                           {{ !$sale->isPlEditable() ? 'readonly' : '' }}
+                                           class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-xs text-right focus:outline-none focus:ring-2 focus:ring-rose-400 {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                                    <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400"
+                                          x-text="exp.input_mode === 'percent' ? '%' : '₫'"></span>
+                                </div>
+                            </div>
+
+                            {{-- Thành tiền --}}
+                            <div class="col-span-3">
+                                <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                                <div class="text-right font-semibold text-xs px-2 py-1.5 bg-white rounded-lg border border-rose-100"
+                                     :class="exp.calculated_amount > 0 ? 'text-rose-700' : 'text-gray-400'">
+                                    <span x-text="formatNumber(exp.calculated_amount) + ' ₫'"></span>
+                                </div>
+                            </div>
+
+                            {{-- Ghi chú --}}
+                            <div class="col-span-1">
+                                <input type="text" x-model="exp.description" placeholder="..."
+                                       {{ !$sale->isPlEditable() ? 'readonly' : '' }}
+                                       class="w-full border border-gray-200 rounded px-1 py-1 text-[10px] {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
+                            </div>
+
+                            {{-- Xóa --}}
+                            <div class="col-span-1 flex justify-center">
+                                @if($sale->isPlEditable())
+                                <button type="button" @click="removePnlExpense(idx)"
+                                        class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Xóa chi phí">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </button>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- Hidden inputs for form submission --}}
+                        <div x-show="exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][type]'" :value="exp.type" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][amount]'" :value="exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][description]'" :value="exp.description" :disabled="!exp.is_new">
+                        </div>
+                        <div x-show="!exp.is_new && exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][id]'" :value="exp.id" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][amount]'" :value="exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][description]'" :value="exp.description" :disabled="exp.is_new || !exp.id">
+                        </div>
+                    </div>
+                </template>
+
+                {{-- Empty state --}}
+                <div x-show="pnl_extra_costs.length === 0" class="px-3 py-6 text-center text-gray-400 text-xs">
+                    <i class="fas fa-inbox text-xl mb-2"></i>
+                    <p>Chưa có chi phí bổ sung. Nhấn "+ Thêm chi phí" để thêm.</p>
+                </div>
+            </div>
+
+            {{-- Total --}}
+            <div x-show="pnl_extra_costs.length > 0" class="mt-3 flex justify-between items-center px-3 py-2.5 bg-rose-100 rounded-lg border border-rose-200">
+                <span class="text-xs font-bold text-rose-800 uppercase">Tổng chi phí bổ sung:</span>
+                <span class="text-sm font-bold text-rose-800" x-text="formatNumber(totalPnlExtraCosts) + ' ₫'"></span>
+            </div>
+
+            {{-- Net profit after extra costs --}}
+            <div x-show="pnl_extra_costs.length > 0" class="mt-2 flex justify-between items-center px-3 py-2 bg-gray-800 rounded-lg">
+                <span class="text-xs font-bold text-white uppercase">Lợi nhuận ròng sau chi phí bổ sung:</span>
+                <div class="flex items-center gap-3">
+                    <span class="text-sm font-bold" :class="global_profit >= 0 ? 'text-green-400' : 'text-red-400'" x-text="formatNumber(global_profit) + ' ₫'"></span>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded" :class="global_profit >= 0 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'" x-text="global_margin_p + '%'"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PNL Approval Attachments Section -->
+        <div class="mt-4 p-4 bg-white rounded-lg border border-gray-200">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase mb-3">
+                <i class="fas fa-paperclip mr-1"></i> Hồ sơ đính kèm phê duyệt P&L
+            </h4>
+
+            <!-- Danh sách file đã upload (chỉ hiện file nháp chưa gửi duyệt) -->
+            @php
+                $currentPnlAttachments = $sale->pnlAttachments->where('approval_history_id', null);
+            @endphp
+            @if($currentPnlAttachments->isNotEmpty())
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    @foreach($currentPnlAttachments as $attachment)
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition duration-150">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <span class="text-xl flex-shrink-0">
+                                    <i class="{{ $attachment->file_icon }}"></i>
+                                </span>
+                                <div class="overflow-hidden">
+                                    <a href="{{ route('sales.pnl-attachments.download', [$sale, $attachment]) }}" 
+                                       class="text-xs font-semibold text-indigo-600 hover:text-indigo-900 truncate block" 
+                                       title="Tải xuống: {{ $attachment->file_name }}">
+                                        {{ $attachment->file_name }}
+                                    </a>
+                                    <span class="text-[10px] text-gray-400 block">{{ $attachment->file_size_human }} — bởi {{ $attachment->uploader->name ?? 'N/A' }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" 
+                                        onclick="openFilePreviewModal('{{ route('sales.pnl-attachments.preview', [$sale, $attachment]) }}', '{{ $attachment->file_name }}')"
+                                        class="text-gray-400 hover:text-indigo-600 p-1 rounded transition duration-150"
+                                        title="Xem trước">
+                                    <i class="fas fa-eye text-xs"></i>
+                                </button>
+                                @if($sale->isPlEditable())
+                                    <button type="button" 
+                                            onclick="deletePnlAttachment('{{ route('sales.pnl-attachments.delete', [$sale, $attachment]) }}', this)"
+                                            class="text-gray-400 hover:text-red-600 p-1 rounded transition duration-150"
+                                            title="Xóa file">
+                                        <i class="fas fa-trash-alt text-xs"></i>
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="text-xs text-gray-400 italic mb-3">Chưa có tài liệu đính kèm.</p>
+            @endif
+
+            <!-- Khu vực tải lên file mới (chỉ hiện khi chỉnh sửa được) -->
+            @if($sale->isPlEditable())
+                <div class="pnl-upload-zone border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-indigo-50/30 hover:border-indigo-400 transition cursor-pointer flex flex-col items-center justify-center gap-2"
+                     onclick="document.getElementById('pnlAttachmentsInput').click()">
+                    <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 hover:text-indigo-500 transition"></i>
+                    <p class="text-xs font-semibold text-gray-600">Kéo thả file hoặc <span class="text-indigo-600 hover:underline">chọn file từ máy tính</span> để đính kèm</p>
+                    <p class="text-[10px] text-gray-400">Hỗ trợ file: PDF, Word, Excel, PowerPoint, Zip, Rar, Hình ảnh (Tối đa 20MB/file)</p>
+                    <input type="file" name="pnl_attachments[]" multiple class="hidden" id="pnlAttachmentsInput"
+                           onchange="handleSelectedPnlFiles(this)">
+                </div>
+                
+                <!-- Danh sách file đang chờ upload -->
+                <div id="pnlFilesQueue" class="mt-3 space-y-2 hidden">
+                    <h5 class="text-[10px] font-semibold text-gray-400 uppercase">Tệp chuẩn bị tải lên:</h5>
+                    <div id="pnlFilesQueueList" class="space-y-1"></div>
+                </div>
+            @endif
+        </div>
+
     </form>
-    <div class="p-6 bg-gray-50 border-t border-gray-200" x-data="{ showRejectForm: false }">
+    <div class="p-6 bg-gray-50 border-t border-gray-200" x-data="{ showRejectForm: false, showRevisionForm: false }">
             {{-- Lịch sử duyệt P&L --}}
             @php
                 $pnlHistory = \App\Models\ApprovalHistory::where('document_type', 'sale_pnl')
                     ->where('document_id', $sale->id)
-                    ->orderBy('level')->orderBy('created_at')
+                    ->where('action', '!=', 'submitted')
+                    ->orderBy('created_at')
+                    ->orderBy('id')
                     ->get();
             @endphp
 
             @if($pnlHistory->isNotEmpty())
             <div class="mb-4 p-4 bg-white rounded-lg border border-gray-200">
                 <h4 class="text-xs font-semibold text-gray-500 uppercase mb-2"><i class="fas fa-history mr-1"></i> Lịch sử duyệt P&L</h4>
-                <div class="space-y-2">
+                <div class="space-y-3">
                     @foreach($pnlHistory as $h)
-                    <div class="flex items-start gap-3 text-xs">
-                        <span class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
-                            {{ $h->action === 'approved' ? 'bg-green-100 text-green-600' : ($h->action === 'rejected' ? 'bg-red-100 text-red-600' : ($h->action === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-500')) }}">
-                            <i class="fas fa-{{ $h->action === 'approved' ? 'check' : ($h->action === 'rejected' ? 'times' : ($h->action === 'pending' ? 'clock' : 'forward')) }} text-[10px]"></i>
+                    <div class="flex items-start gap-3 text-xs border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+                        <span class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
+                            {{ $h->action === 'approved' ? 'bg-green-100 text-green-600' : ($h->action === 'rejected' ? 'bg-red-100 text-red-600' : ($h->action === 'need_revision' ? 'bg-amber-100 text-amber-600' : ($h->action === 'pending' ? 'bg-yellow-100 text-yellow-600' : ($h->action === 'submitted' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500')))) }}">
+                            <i class="fas fa-{{ $h->action === 'approved' ? 'check' : ($h->action === 'rejected' ? 'times' : ($h->action === 'need_revision' ? 'pen' : ($h->action === 'pending' ? 'clock' : ($h->action === 'submitted' ? 'paper-plane' : 'forward')))) }} text-[10px]"></i>
                         </span>
-                        <div>
-                            <span class="font-medium text-gray-700">Cấp {{ $h->level }}: {{ $h->level_name }}</span>
-                            — <span class="text-gray-500">{{ $h->approver_name }}</span>
-                            @if($h->action_at) <span class="text-gray-400">– {{ $h->action_at->format('d/m/Y H:i') }}</span>@endif
-                            @if($h->comment) <div class="italic text-gray-500 mt-0.5">"{{ $h->comment }}"</div>@endif
+                        <div class="flex-1">
+                            <div class="flex items-center flex-wrap gap-1.5">
+                                <span class="font-semibold text-gray-800">Cấp {{ $h->level }}: {{ $h->level_name }}</span>
+                                @if($h->action === 'submitted')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-indigo-50 text-indigo-700 rounded border border-indigo-200">Yêu cầu duyệt</span>
+                                @elseif($h->action === 'approved')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-green-50 text-green-700 rounded border border-green-200">Đã duyệt</span>
+                                @elseif($h->action === 'rejected')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-red-50 text-red-700 rounded border border-red-200">Từ chối</span>
+                                @elseif($h->action === 'need_revision')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-amber-50 text-amber-700 rounded border border-amber-200">Yêu cầu chỉnh sửa</span>
+                                @elseif($h->action === 'pending')
+                                    <span class="px-1.5 py-0.5 text-[9px] font-semibold bg-yellow-50 text-yellow-700 rounded border border-yellow-200">Chờ duyệt</span>
+                                @endif
+                                <span class="text-gray-400">—</span>
+                                <span class="text-gray-600 font-medium">{{ $h->approver_name }}</span>
+                                @if($h->action_at)
+                                    <span class="text-gray-400 text-[10px]">({{ $h->action_at->format('d/m/Y H:i') }})</span>
+                                @endif
+                            </div>
+                            @if($h->comment)
+                                <div class="italic text-gray-500 mt-1 bg-gray-50 p-2 rounded border border-gray-100">"{{ $h->comment }}"</div>
+                            @endif
+
+                            @if($h->pnlAttachments && $h->pnlAttachments->isNotEmpty())
+                                <div class="mt-2 pl-2 border-l-2 border-indigo-200">
+                                    <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Tài liệu đã gửi kèm:</p>
+                                    <div class="flex flex-wrap gap-2">
+                                        @foreach($h->pnlAttachments as $att)
+                                            <div class="inline-flex items-center gap-2 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 text-indigo-950 rounded px-2.5 py-1 text-[11px] transition">
+                                                <i class="{{ $att->file_icon }}"></i>
+                                                <span class="font-medium truncate max-w-[180px]" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                                <span class="text-gray-400 text-[10px]">({{ $att->file_size_human }})</span>
+                                                <div class="flex items-center gap-2 ml-1 border-l border-indigo-200 pl-2">
+                                                    <!-- Preview -->
+                                                    <a href="javascript:void(0)" 
+                                                       onclick="openFilePreviewModal('{{ route('sales.pnl-attachments.preview', [$sale, $att]) }}', '{{ $att->file_name }}')"
+                                                       class="text-indigo-600 hover:text-indigo-900 transition flex items-center" 
+                                                       title="Xem trực tiếp">
+                                                        <i class="fas fa-eye text-xs"></i>
+                                                    </a>
+                                                    <!-- Download -->
+                                                    <a href="{{ route('sales.pnl-attachments.download', [$sale, $att]) }}" 
+                                                       class="text-indigo-600 hover:text-indigo-900 transition flex items-center" 
+                                                       title="Tải về máy">
+                                                        <i class="fas fa-download text-xs"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     </div>
                     @endforeach
@@ -1226,7 +1897,7 @@
                     @if($sale->pl_status !== null && $sale->pl_status !== 'pending')
                         <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', 'Gửi duyệt P&L này?')"
                             class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150">
-                            <i class="fas fa-paper-plane mr-2"></i> {{ $sale->pl_status === 'rejected' ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
+                            <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'need_revision']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
                         </button>
                     @endif
                 @endif
@@ -1264,11 +1935,18 @@
                     </form>
 
                     {{-- Reject --}}
-                    <button type="button" @click="showRejectForm = !showRejectForm"
+                    <button type="button" @click="showRejectForm = !showRejectForm; showRevisionForm = false"
                         class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 transition ease-in-out duration-150">
                         <i class="fas fa-times mr-2"></i> Từ chối
                     </button>
 
+                    {{-- Request Revision --}}
+                    <button type="button" @click="showRevisionForm = !showRevisionForm; showRejectForm = false"
+                        class="inline-flex items-center px-4 py-2 bg-amber-500 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-amber-600 transition ease-in-out duration-150">
+                        <i class="fas fa-pen mr-2"></i> Yêu cầu chỉnh sửa
+                    </button>
+
+                    {{-- Reject Form --}}
                     <div x-show="showRejectForm" x-transition class="w-full mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <form action="{{ route('sales.rejectPnL', $sale) }}" method="POST">
                             @csrf
@@ -1277,6 +1955,19 @@
                                 class="w-full border border-red-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-400"></textarea>
                             <button type="submit" class="px-4 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700">
                                 Xác nhận từ chối
+                            </button>
+                        </form>
+                    </div>
+
+                    {{-- Revision Form --}}
+                    <div x-show="showRevisionForm" x-transition class="w-full mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <form action="{{ route('sales.requestRevisionPnL', $sale) }}" method="POST">
+                            @csrf
+                            <label class="block text-xs font-medium text-amber-700 mb-1">Nội dung cần chỉnh sửa (bắt buộc):</label>
+                            <textarea name="comment" rows="2" required placeholder="Mô tả những điểm cần chỉnh sửa..."
+                                class="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-400"></textarea>
+                            <button type="submit" class="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-xs hover:bg-amber-600">
+                                Gửi yêu cầu chỉnh sửa
                             </button>
                         </form>
                     </div>
@@ -1291,6 +1982,73 @@
             </div>
         </div>
     </div>
+
+<script>
+    function handleSelectedPnlFiles(input) {
+        const queue = document.getElementById('pnlFilesQueue');
+        const list = document.getElementById('pnlFilesQueueList');
+        if (!queue || !list) return;
+
+        list.innerHTML = '';
+        if (input.files && input.files.length > 0) {
+            queue.classList.remove('hidden');
+            Array.from(input.files).forEach((file, index) => {
+                let size = file.size;
+                let sizeStr = size >= 1048576 ? (size / 1048576).toFixed(1) + ' MB' : (size / 1024).toFixed(1) + ' KB';
+                
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-2 bg-indigo-50 rounded border border-indigo-100 text-xs';
+                item.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <i class="fas fa-file text-indigo-500"></i>
+                        <span class="font-medium text-indigo-900 truncate">${file.name}</span>
+                        <span class="text-indigo-400 text-[10px]">(${sizeStr})</span>
+                    </div>
+                    <span class="text-[10px] text-indigo-500 font-semibold uppercase">Sẵn sàng</span>
+                `;
+                list.appendChild(item);
+            });
+        } else {
+            queue.classList.add('hidden');
+        }
+    }
+
+    function deletePnlAttachment(url, buttonEl) {
+        if (confirm('Bạn chắc chắn muốn xóa tệp đính kèm này?')) {
+            buttonEl.disabled = true;
+            buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
+            
+            const formData = new FormData();
+            formData.append('_method', 'DELETE');
+            formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    buttonEl.closest('.flex.items-center.justify-between').remove();
+                } else {
+                    alert(data.message || 'Lỗi khi xóa tệp đính kèm.');
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = '<i class="fas fa-trash-alt text-xs"></i>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Lỗi kết nối hoặc hệ thống.');
+                buttonEl.disabled = false;
+                buttonEl.innerHTML = '<i class="fas fa-trash-alt text-xs"></i>';
+            });
+        }
+    }
+</script>
 
 <style>
     .table-pnl-editor th {

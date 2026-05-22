@@ -47,6 +47,7 @@ class SaleItem extends Model
         'implementation_cost_percent',
         'contractor_tax',
         'contractor_tax_percent',
+        'contractor_tax_enabled',
         'extra_expenses_data',
     ];
 
@@ -75,6 +76,7 @@ class SaleItem extends Model
         'implementation_cost_percent' => 'decimal:2',
         'contractor_tax' => 'decimal:2',
         'contractor_tax_percent' => 'decimal:2',
+        'contractor_tax_enabled' => 'boolean',
         'extra_expenses_data' => 'array',
     ];
 

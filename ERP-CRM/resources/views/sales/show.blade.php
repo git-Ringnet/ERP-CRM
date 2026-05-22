@@ -69,14 +69,14 @@
             ->where('document_id', $sale->id)
             ->orderBy('created_at', 'desc')
             ->get();
-        $latestReject = $pnlHistory->where('action', 'rejected')->first();
+        $latestReject = $pnlHistory->whereIn('action', ['rejected', 'need_revision'])->first();
         $pendingHist = $pnlHistory->where('action', 'pending')->sortBy('level')->first();
     @endphp
 
     @if($pnlWorkflow || $sale->status !== 'cancelled')
     <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
         {{-- P&L Workflow Header --}}
-        <div class="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 {{ $sale->pl_status === 'approved' ? 'bg-green-50/50' : ($sale->pl_status === 'rejected' ? 'bg-red-50/50' : 'bg-blue-50/50') }}">
+        <div class="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 {{ $sale->pl_status === 'approved' ? 'bg-green-50/50' : ($sale->pl_status === 'rejected' ? 'bg-red-50/50' : ($sale->pl_status === 'need_revision' ? 'bg-amber-50/50' : 'bg-blue-50/50')) }}">
             <div class="flex items-center gap-4">
                 <div class="flex flex-col">
                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quy trình duyệt P&L</span>
@@ -92,6 +92,8 @@
                                 <span class="text-green-600 font-bold">Đã duyệt hoàn tất</span>
                             @elseif($sale->pl_status === 'rejected')
                                 <span class="text-red-600 font-bold">Bị từ chối - Chờ Sales sửa</span>
+                            @elseif($sale->pl_status === 'need_revision')
+                                <span class="text-amber-600 font-bold">Yêu cầu chỉnh sửa - Chờ Sales sửa</span>
                             @else
                                 <span class="text-gray-400 italic">Bản nháp</span>
                             @endif
@@ -100,13 +102,13 @@
                 </div>
             </div>
 
-            @if($sale->pl_status === 'rejected' && $latestReject)
-            <div class="flex-1 max-w-xl bg-white/60 p-2 rounded border border-red-100 flex items-start gap-2">
-                <i class="fas fa-exclamation-circle text-red-500 mt-1"></i>
+            @if(in_array($sale->pl_status, ['rejected', 'need_revision']) && $latestReject)
+            <div class="flex-1 max-w-xl bg-white/60 p-2 rounded border {{ $sale->pl_status === 'rejected' ? 'border-red-100' : 'border-amber-100' }} flex items-start gap-2">
+                <i class="fas fa-{{ $sale->pl_status === 'rejected' ? 'exclamation-circle text-red-500' : 'pen text-amber-500' }} mt-1"></i>
                 <div class="text-xs">
-                    <span class="font-bold text-red-700">Lý do từ chối:</span>
-                    <span class="text-red-600">"{{ $latestReject->comment }}"</span>
-                    <span class="text-[10px] text-red-400 ml-1">({{ $latestReject->approver_name }})</span>
+                    <span class="font-bold {{ $sale->pl_status === 'rejected' ? 'text-red-700' : 'text-amber-700' }}">{{ $sale->pl_status === 'rejected' ? 'Lý do từ chối:' : 'Nội dung cần chỉnh sửa:' }}</span>
+                    <span class="{{ $sale->pl_status === 'rejected' ? 'text-red-600' : 'text-amber-600' }}">"{{ $latestReject->comment }}"</span>
+                    <span class="text-[10px] {{ $sale->pl_status === 'rejected' ? 'text-red-400' : 'text-amber-400' }} ml-1">({{ $latestReject->approver_name }})</span>
                 </div>
             </div>
             @endif
@@ -119,8 +121,24 @@
                 <div class="flex items-center text-[10px] sm:text-[11px] overflow-x-auto pb-1 no-scrollbar">
                     @php
                         $currentStep = $sale->dashboard_step;
+                        $dashStatus = $sale->dashboard_status;
+                        
+                        // Nhãn bước đầu tiên thay đổi theo trạng thái PNL
+                        $firstStepLabel = match($dashStatus) {
+                            'pnl_rejected' => 'PNL Từ chối',
+                            'pnl_need_revision' => 'Yêu cầu chỉnh sửa',
+                            'pnl_pending' => 'Chờ duyệt PNL',
+                            default => 'Chờ duyệt',
+                        };
+                        $firstStepColor = match($dashStatus) {
+                            'pnl_rejected' => 'red',
+                            'pnl_need_revision' => 'amber',
+                            'pnl_pending' => 'orange',
+                            default => 'yellow',
+                        };
+
                         $steps = [
-                            ['label' => 'Chờ duyệt', 'color' => 'yellow'],
+                            ['label' => $firstStepLabel, 'color' => $firstStepColor],
                             ['label' => 'Đã duyệt', 'color' => 'blue'],
                             ['label' => 'Đã đặt hàng', 'color' => 'indigo'],
                             ['label' => 'Chờ hàng về', 'color' => 'purple'],
@@ -316,6 +334,38 @@
                         <dt class="w-32 text-gray-500">Ngày tạo:</dt>
                         <dd class="text-gray-900">{{ $sale->date->format('d/m/Y') }}</dd>
                     </div>
+                    @if($sale->payment_term)
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Hạn thanh toán:</dt>
+                        <dd class="font-medium text-gray-900">
+                            @if($sale->payment_term === 'customer_default')
+                                Mặc định khách hàng ({{ $sale->customer->debt_days ?? 0 }} ngày)
+                            @elseif($sale->payment_term === 'prepaid')
+                                Thanh toán trước giao hàng
+                            @elseif($sale->payment_term === 'custom')
+                                Tùy chỉnh
+                            @else
+                                {{ $sale->payment_term }}
+                            @endif
+                        </dd>
+                    </div>
+                    @endif
+                    @if($sale->payment_due_date)
+                    @php
+                        $isOverdue = \Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid';
+                    @endphp
+                    <div class="flex">
+                        <dt class="w-32 text-gray-500">Hạn ngày thanh toán:</dt>
+                        <dd class="font-medium {{ $isOverdue ? 'text-red-600 font-bold flex items-center gap-1' : 'text-gray-900' }}">
+                            {{ \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y') }}
+                            @if($isOverdue)
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800" title="Đã quá hạn thanh toán!">
+                                    <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
+                                </span>
+                            @endif
+                        </dd>
+                    </div>
+                    @endif
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Trạng thái:</dt>
                         <dd>
@@ -837,6 +887,37 @@
                                     <span class="font-bold text-amber-800">CÒN NỢ:</span>
                                     <span class="font-black text-red-600" x-text="formatMoney(orderTotal - paidAmount) + ' ' + (currentCurrencySymbol || 'đ')"></span>
                                 </div>
+                                @if($sale->payment_term || $sale->payment_due_date)
+                                <div class="border-t border-dashed border-amber-200 my-2 pt-2 space-y-1 text-xs">
+                                    @if($sale->payment_term)
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">Hạn thanh toán đơn hàng:</span>
+                                        <span class="font-semibold text-gray-800">
+                                            @if($sale->payment_term === 'customer_default')
+                                                Mặc định KH ({{ $sale->customer->debt_days ?? 0 }} ngày)
+                                            @elseif($sale->payment_term === 'prepaid')
+                                                Thanh toán trước giao hàng
+                                            @elseif($sale->payment_term === 'custom')
+                                                Tùy chỉnh
+                                            @else
+                                                {{ $sale->payment_term }}
+                                            @endif
+                                        </span>
+                                    </div>
+                                    @endif
+                                    @if($sale->payment_due_date)
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">Hạn ngày thanh toán:</span>
+                                        <span class="font-bold {{ \Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid' ? 'text-red-600' : 'text-gray-800' }}">
+                                            {{ \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y') }}
+                                            @if(\Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid')
+                                                (Quá hạn)
+                                            @endif
+                                        </span>
+                                    </div>
+                                    @endif
+                                </div>
+                                @endif
                             </div>
                         </div>
 
@@ -847,7 +928,7 @@
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
                                 <option value="">-- Chọn --</option>
                                 <template x-for="(ms, idx) in availableMilestones" :key="idx">
-                                    <option :value="ms.label" x-text="ms.label + ' (' + ms.percent + '%)'" :data-percent="ms.percent"></option>
+                                    <option :value="ms.label" x-text="ms.label + ' (' + ms.percent + '%)' + (ms.due_date ? ' - Hạn: ' + ms.due_date : '')" :data-percent="ms.percent"></option>
                                 </template>
                                 <option value="Khác">Khác</option>
                             </select>
@@ -991,18 +1072,31 @@ function paymentForm() {
         selectedMilestoneIndex: '',
         milestones: allMilestones,
         paidLabels: paidLabels,
+        orderDate: '{{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('Y-m-d') : '' }}',
 
         get availableMilestones() {
-            if (allMilestones.length === 0) {
-                // Fallback defaults
-                return [
-                    { label: 'Cọc', percent: 0, days: 0 },
-                    { label: 'Thanh toán đợt 1', percent: 0, days: 0 },
-                    { label: 'Thanh toán cuối', percent: 0, days: 0 },
-                    { label: 'Thanh toán toàn bộ', percent: 0, days: 0 },
-                ].filter(ms => !this.paidLabels.includes(ms.label));
-            }
-            return allMilestones.filter(ms => !this.paidLabels.includes(ms.label));
+            const list = allMilestones.length === 0 ? [
+                { label: 'Cọc', percent: 0, days: 0 },
+                { label: 'Thanh toán đợt 1', percent: 0, days: 0 },
+                { label: 'Thanh toán cuối', percent: 0, days: 0 },
+                { label: 'Thanh toán toàn bộ', percent: 0, days: 0 },
+            ] : allMilestones;
+
+            return list.filter(ms => !this.paidLabels.includes(ms.label)).map(ms => {
+                let dueDateStr = '';
+                if (this.orderDate && typeof ms.days !== 'undefined') {
+                    const d = new Date(this.orderDate);
+                    d.setDate(d.getDate() + parseInt(ms.days));
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    dueDateStr = `${day}/${month}/${year}`;
+                }
+                return {
+                    ...ms,
+                    due_date: dueDateStr
+                };
+            });
         },
 
         onLabelChange() {

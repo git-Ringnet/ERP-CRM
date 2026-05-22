@@ -50,6 +50,19 @@ class SaleExpense extends Model
     }
 
     /**
+     * Suggested expense types for PNL tab (direct costs, not allocated to items).
+     */
+    public static function pnlSuggestedTypes(): array
+    {
+        return [
+            'Chi phí tiếp khách',
+            'Chi phí dự án',
+            'Hợp đồng dịch vụ',
+            'Chi phí phát sinh khác',
+        ];
+    }
+
+    /**
      * Get type label — just return the type itself since it's now freeform
      */
     public function getTypeLabelAttribute(): string

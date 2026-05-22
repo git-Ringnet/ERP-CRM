@@ -167,10 +167,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/submit-pnl', [SaleController::class, 'submitPnL'])->name('sales.submitPnL');
     Route::post('/sales/{sale}/approve-pnl', [SaleController::class, 'approvePnL'])->name('sales.approvePnL');
     Route::post('/sales/{sale}/reject-pnl', [SaleController::class, 'rejectPnL'])->name('sales.rejectPnL');
+    Route::post('/sales/{sale}/request-revision-pnl', [SaleController::class, 'requestRevisionPnL'])->name('sales.requestRevisionPnL');
     Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
+
+    // PNL Approval Attachment routes (File đính kèm duyệt P&L)
+    Route::post('/sales/{sale}/pnl-attachments', [SaleController::class, 'uploadPnlAttachment'])->name('sales.pnl-attachments.upload');
+    Route::delete('/sales/{sale}/pnl-attachments/{attachment}', [SaleController::class, 'deletePnlAttachment'])->name('sales.pnl-attachments.delete');
+    Route::get('/sales/{sale}/pnl-attachments/{attachment}/download', [SaleController::class, 'downloadPnlAttachment'])->name('sales.pnl-attachments.download');
+    Route::get('/sales/{sale}/pnl-attachments/{attachment}/preview', [SaleController::class, 'previewPnlAttachment'])->name('sales.pnl-attachments.preview');
+    Route::delete('/sales/{sale}/pnl-expenses/{expense}', [SaleController::class, 'deletePnlExpense'])->name('sales.deletePnlExpense');
 
     // Invoice Request routes
     Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');

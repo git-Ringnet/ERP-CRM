@@ -68,6 +68,33 @@ function buildSelectOptions(list, isObject = false) {
     return html;
 }
 
+function applyGlobalVendorType(context) {
+    const vendorId = `global_vendor_id_${context}`;
+    const typeId = `global_type_${context}`;
+    const globalVendor = document.getElementById(vendorId).value;
+    const globalType = document.getElementById(typeId).value;
+
+    if (!globalVendor && !globalType) {
+        alert('Vui lòng chọn Vendor hoặc Type trước khi áp dụng.');
+        return;
+    }
+
+    const tbody = document.getElementById('orderRequestRows');
+    if (!tbody) return;
+
+    if (globalVendor) {
+        tbody.querySelectorAll('select[name$="[vendor_id]"]').forEach(select => {
+            select.value = globalVendor;
+        });
+    }
+
+    if (globalType) {
+        tbody.querySelectorAll('select[name$="[type]"]').forEach(select => {
+            select.value = globalType;
+        });
+    }
+}
+
 function addOrderRequestRow(data = null) {
     const i = orderRequestRowIndex++;
     const tbody = document.getElementById('orderRequestRows');
@@ -76,6 +103,22 @@ function addOrderRequestRow(data = null) {
     const suppliers = window.OR_SUPPLIERS || [];
     const types = window.OR_TYPES || [];
 
+    let selectedVendor = '';
+    let selectedType = '';
+
+    const modalVendorEl = document.getElementById('global_vendor_id_modal');
+    const formVendorEl = document.getElementById('global_vendor_id_form');
+
+    if (modalVendorEl) {
+        selectedVendor = modalVendorEl.value;
+        const typeEl = document.getElementById('global_type_modal');
+        if (typeEl) selectedType = typeEl.value;
+    } else if (formVendorEl) {
+        selectedVendor = formVendorEl.value;
+        const typeEl = document.getElementById('global_type_form');
+        if (typeEl) selectedType = typeEl.value;
+    }
+
     const tr = document.createElement('tr');
     tr.className = 'order-request-row border-b border-gray-100 hover:bg-gray-50';
     tr.dataset.index = i;
@@ -83,13 +126,13 @@ function addOrderRequestRow(data = null) {
         <td class="px-1 py-1.5">
             <select name="order_request_items[${i}][vendor_id]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                 <option value="">-- Chọn --</option>
-                ${suppliers.map(s => `<option value="${s.id}" ${data && data.vendor_id == s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                ${suppliers.map(s => `<option value="${s.id}" ${data ? (data.vendor_id == s.id ? 'selected' : '') : (selectedVendor == s.id ? 'selected' : '')}>${s.name}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5">
             <select name="order_request_items[${i}][type]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
                 <option value="">-- Chọn --</option>
-                ${types.map(t => `<option value="${t}" ${data && data.type == t ? 'selected' : (t === 'Hardware' ? 'selected' : '')}>${t}</option>`).join('')}
+                ${types.map(t => `<option value="${t}" ${data ? (data.type == t ? 'selected' : '') : (selectedType ? (selectedType == t ? 'selected' : '') : (t === 'Hardware' ? 'selected' : ''))}>${t}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5">

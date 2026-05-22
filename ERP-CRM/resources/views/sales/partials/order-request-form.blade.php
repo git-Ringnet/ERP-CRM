@@ -25,6 +25,34 @@
     {{-- Collapsible Section --}}
     <div id="orderRequestSection" class="{{ $existingItems->count() > 0 ? '' : 'hidden' }} mt-3 space-y-4">
 
+        {{-- Global Vendor/Type Selector Panel --}}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 items-end">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Vendor (Chung)</label>
+                <select id="global_vendor_id_form" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white">
+                    <option value="">-- Chọn Vendor --</option>
+                    @foreach($suppliers ?? [] as $s)
+                        <option value="{{ $s->id }}">{{ $s->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Type (Chung)</label>
+                <select id="global_type_form" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white">
+                    <option value="">-- Chọn Type --</option>
+                    @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
+                        <option value="{{ $t }}">{{ $t }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <button type="button" onclick="applyGlobalVendorType('form')"
+                    class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                    <i class="fas fa-check-double"></i> Áp dụng cho tất cả hàng
+                </button>
+            </div>
+        </div>
+
         {{-- Items Table --}}
         <div class="border border-gray-200 rounded-lg overflow-hidden">
             <div class="bg-gray-50 px-4 py-2 flex items-center justify-between">

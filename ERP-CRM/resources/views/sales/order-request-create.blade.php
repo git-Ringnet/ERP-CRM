@@ -46,6 +46,34 @@
                 </div>
             </div>
 
+            {{-- Global Vendor/Type Selector Panel --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 items-end">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Vendor (Chung)</label>
+                    <select id="global_vendor_id" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white">
+                        <option value="">-- Chọn Vendor --</option>
+                        @foreach($suppliers as $s)
+                            <option value="{{ $s->id }}">{{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Type (Chung)</label>
+                    <select id="global_type" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white">
+                        <option value="">-- Chọn Type --</option>
+                        @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
+                            <option value="{{ $t }}">{{ $t }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <button type="button" onclick="applyGlobalVendorType()"
+                        class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                        <i class="fas fa-check-double"></i> Áp dụng cho tất cả hàng
+                    </button>
+                </div>
+            </div>
+
             {{-- Items Table --}}
             <div class="border border-gray-200 rounded-lg overflow-hidden">
                 <div class="bg-gray-50 px-4 py-2 flex items-center justify-between border-b border-gray-200">
@@ -195,19 +223,44 @@
     document.getElementById('global_si_name').addEventListener('input', syncGlobalToRows);
     document.getElementById('global_eu_name').addEventListener('input', syncGlobalToRows);
 
+    function applyGlobalVendorType() {
+        const globalVendor = document.getElementById('global_vendor_id').value;
+        const globalType = document.getElementById('global_type').value;
+
+        if (!globalVendor && !globalType) {
+            alert('Vui lòng chọn Vendor hoặc Type trước khi áp dụng.');
+            return;
+        }
+
+        if (globalVendor) {
+            document.querySelectorAll('select[name$="[vendor_id]"]').forEach(select => {
+                select.value = globalVendor;
+            });
+        }
+
+        if (globalType) {
+            document.querySelectorAll('select[name$="[type]"]').forEach(select => {
+                select.value = globalType;
+            });
+        }
+    }
+
     function addRow() {
         const tbody = document.getElementById('itemRows');
         const tr = document.createElement('tr');
         tr.className = 'item-row border-b border-gray-100 hover:bg-gray-50';
         
+        const globalVendor = document.getElementById('global_vendor_id').value;
+        const globalType = document.getElementById('global_type').value;
+
         let supplierOptions = '<option value="">-- Chọn --</option>';
         suppliers.forEach(s => {
-            supplierOptions += `<option value="${s.id}">${s.name}</option>`;
+            supplierOptions += `<option value="${s.id}" ${globalVendor == s.id ? 'selected' : ''}>${s.name}</option>`;
         });
 
         let typeOptions = '<option value="">-- Chọn --</option>';
         orderTypes.forEach(t => {
-            typeOptions += `<option value="${t}">${t}</option>`;
+            typeOptions += `<option value="${t}" ${globalType == t ? 'selected' : ''}>${t}</option>`;
         });
         const siGlobal = document.getElementById('global_si_name').value;
         const euGlobal = document.getElementById('global_eu_name').value;

@@ -44,6 +44,7 @@ class Sale extends Model
         'pl_approved_by',
         'invoice_date',
         'payment_terms',
+        'payment_term',
     ];
 
     protected $casts = [
@@ -148,6 +149,14 @@ class Sale extends Model
     }
 
     /**
+     * Relationship with PnlApprovalAttachment (file đính kèm duyệt P&L)
+     */
+    public function pnlAttachments()
+    {
+        return $this->hasMany(PnlApprovalAttachment::class);
+    }
+
+    /**
      * Relationship with SaleOrderRequest (yêu cầu đặt hàng)
      */
     public function orderRequests()
@@ -229,6 +238,14 @@ class Sale extends Model
      */
     public function getStatusLabelAttribute(): string
     {
+        // Ưu tiên đồng bộ với pl_status khi trạng thái đơn chưa tiến xa
+        if ($this->status === 'pending' && $this->pl_status === 'rejected') {
+            return 'PNL Từ chối';
+        }
+        if ($this->status === 'pending' && $this->pl_status === 'need_revision') {
+            return 'Yêu cầu chỉnh sửa';
+        }
+
         return match($this->status) {
             'pending' => 'Chờ duyệt',
             'approved' => 'Đã duyệt',
@@ -248,6 +265,7 @@ class Sale extends Model
             'draft' => 'Nháp (P&L)',
             'pending' => 'Chờ duyệt (P&L)',
             'approved' => 'Đã duyệt (P&L)',
+            'need_revision' => 'Yêu cầu chỉnh sửa (P&L)',
             'rejected' => 'Từ chối (P&L)',
             default => 'Chưa lập',
         };
@@ -262,6 +280,7 @@ class Sale extends Model
             'draft' => 'bg-gray-100 text-gray-800',
             'pending' => 'bg-yellow-100 text-yellow-800',
             'approved' => 'bg-green-100 text-green-800',
+            'need_revision' => 'bg-amber-100 text-amber-800',
             'rejected' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
         };
@@ -272,7 +291,7 @@ class Sale extends Model
      */
     public function isPlEditable(): bool
     {
-        return in_array($this->pl_status, ['draft', 'rejected', null, '']);
+        return in_array($this->pl_status, ['draft', 'rejected', 'need_revision', null, '']);
     }
 
     /**
@@ -316,6 +335,15 @@ class Sale extends Model
      */
     public function getStatusColorAttribute(): string
     {
+        // PNL rejected → hiển thị màu đỏ dù status = pending
+        if ($this->status === 'pending' && $this->pl_status === 'rejected') {
+            return 'bg-red-100 text-red-800';
+        }
+        // PNL need_revision → hiển thị màu cam
+        if ($this->status === 'pending' && $this->pl_status === 'need_revision') {
+            return 'bg-amber-100 text-amber-800';
+        }
+
         return match($this->status) {
             'pending' => 'bg-yellow-100 text-yellow-800',
             'approved' => 'bg-blue-100 text-blue-800',
@@ -332,17 +360,35 @@ class Sale extends Model
      */
     public function getDashboardStatusAttribute(): string
     {
-        // 1. Cancelled / Pending
+        // 1. Cancelled
         if ($this->status === 'cancelled') return 'cancelled';
-        if ($this->status === 'pending') return 'pending';
 
-        // 2. Completed
+        // 2. PNL Rejected → luôn hiển thị "PNL Từ chối" bất kể status
+        if ($this->pl_status === 'rejected') {
+            return 'pnl_rejected';
+        }
+
+        // 2b. PNL Need Revision → hiển thị "Yêu cầu chỉnh sửa"
+        if ($this->pl_status === 'need_revision') {
+            return 'pnl_need_revision';
+        }
+
+        // 3. Pending (bao gồm cả khi PNL đang chờ duyệt)
+        if ($this->status === 'pending') {
+            // PNL đang chờ duyệt → hiển thị trạng thái riêng
+            if ($this->pl_status === 'pending') {
+                return 'pnl_pending';
+            }
+            return 'pending';
+        }
+
+        // 4. Completed
         if ($this->status === 'completed') return 'completed';
 
-        // 3. Xuất hóa đơn (shipping to customer)
+        // 5. Xuất hóa đơn (shipping to customer)
         if ($this->status === 'shipping') return 'invoiced';
 
-        // 4. Check linked PO status
+        // 6. Check linked PO status
         $associatedPos = $this->all_purchase_orders;
         
         if ($associatedPos->isEmpty()) {
@@ -388,6 +434,9 @@ class Sale extends Model
     {
         return match($this->dashboard_status) {
             'pending' => 'Chờ duyệt',
+            'pnl_pending' => 'Chờ duyệt PNL',
+            'pnl_rejected' => 'PNL Từ chối',
+            'pnl_need_revision' => 'Yêu cầu chỉnh sửa',
             'waiting_order' => 'Đã duyệt',
             'ordered' => 'Đã đặt hàng',
             'in_transit' => 'Chờ hàng về',
@@ -408,6 +457,9 @@ class Sale extends Model
     {
         return match($this->dashboard_status) {
             'pending' => 'bg-yellow-100 text-yellow-800',
+            'pnl_pending' => 'bg-orange-100 text-orange-800',
+            'pnl_rejected' => 'bg-red-100 text-red-800',
+            'pnl_need_revision' => 'bg-amber-100 text-amber-800',
             'waiting_order' => 'bg-blue-100 text-blue-800',
             'ordered' => 'bg-indigo-100 text-indigo-800',
             'in_transit' => 'bg-purple-100 text-purple-800',
@@ -428,6 +480,9 @@ class Sale extends Model
     {
         return match($this->dashboard_status) {
             'pending' => 0,
+            'pnl_pending' => 0,
+            'pnl_rejected' => 0,
+            'pnl_need_revision' => 0,
             'waiting_order' => 1,
             'ordered' => 2,
             'in_transit' => 3,
@@ -706,8 +761,19 @@ class Sale extends Model
             if ($expense->input_mode === 'percent') {
                 // Percent-based expenses: tính trên giá vốn tổng
                 $totalNetProfit -= round($costBaseTotal * ($expense->percent_value / 100));
+            } else {
+                // Fixed-mode extra expenses: kiểm tra đã tính qua extra_expenses_data chưa
+                $sumFromItems = 0;
+                foreach ($this->items as $saleItem) {
+                    $extraData = $saleItem->extra_expenses_data ?? [];
+                    $sumFromItems += (float) ($extraData[(string) $expense->id] ?? 0);
+                }
+                // Nếu chưa phân bổ per-item (tổng = 0), tính trực tiếp từ sale_expenses.amount
+                if ($sumFromItems <= 0) {
+                    $totalNetProfit -= round((float) ($expense->amount ?? 0));
+                }
+                // Nếu sumFromItems > 0 thì đã tính trong vòng lặp item phía trên
             }
-            // Fixed-mode extra expenses: đã tính qua extra_expenses_data ở trên
         }
 
         $this->margin = round($totalNetProfit);

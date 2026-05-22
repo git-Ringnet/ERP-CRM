@@ -20,6 +20,9 @@ class Kernel extends ConsoleKernel
 
         // Fetch tỷ giá hối đoái từ Vietcombank mỗi ngày lúc 8h sáng
         $schedule->command('exchange-rates:fetch')->dailyAt('08:00');
+
+        // Kiểm tra hạn thanh toán đơn hàng và thông báo mỗi ngày lúc 8h sáng
+        $schedule->command('sales:check-payment-due')->dailyAt('08:00');
     }
 
     /**

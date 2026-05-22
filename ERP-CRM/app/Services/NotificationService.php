@@ -378,4 +378,63 @@ class NotificationService
             );
         }
     }
+
+    /**
+     * Tạo thông báo khi đơn hàng sắp tới hạn thanh toán (hoặc tới hạn hôm nay)
+     */
+    public function notifyPaymentDueSoon(\App\Models\Sale $sale): void
+    {
+        if (!$sale->user_id) {
+            return;
+        }
+        $title = 'Đơn hàng sắp tới hạn thanh toán';
+        $dueDateFormatted = \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y');
+        $message = "Đơn hàng #{$sale->code} sắp tới hạn thanh toán (Hạn: {$dueDateFormatted})";
+        $link = route('sales.show', $sale->id);
+
+        $this->createNotification(
+            $sale->user_id,
+            'payment_due_soon',
+            $title,
+            $message,
+            $link,
+            'clock',
+            'orange',
+            [
+                'sale_id' => $sale->id,
+                'sale_code' => $sale->code,
+                'payment_due_date' => $sale->payment_due_date,
+            ]
+        );
+    }
+
+    /**
+     * Tạo thông báo khi đơn hàng quá hạn thanh toán
+     */
+    public function notifyPaymentOverdue(\App\Models\Sale $sale, int $overdueDays): void
+    {
+        if (!$sale->user_id) {
+            return;
+        }
+        $title = 'Đơn hàng quá hạn thanh toán!';
+        $dueDateFormatted = \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y');
+        $message = "Đơn hàng #{$sale->code} đã quá hạn thanh toán {$overdueDays} ngày (Hạn: {$dueDateFormatted})";
+        $link = route('sales.show', $sale->id);
+
+        $this->createNotification(
+            $sale->user_id,
+            'payment_overdue',
+            $title,
+            $message,
+            $link,
+            'exclamation-triangle',
+            'red',
+            [
+                'sale_id' => $sale->id,
+                'sale_code' => $sale->code,
+                'payment_due_date' => $sale->payment_due_date,
+                'overdue_days' => $overdueDays,
+            ]
+        );
+    }
 }

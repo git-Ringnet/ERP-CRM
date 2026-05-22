@@ -107,7 +107,8 @@
                                 <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
                                      data-value="{{ $customer->id }}" 
                                      data-text="{{ $customer->name }} ({{ $customer->code }})"
-                                     data-milestones="{{ json_encode($customer->payment_terms) }}">
+                                     data-milestones="{{ json_encode($customer->payment_terms) }}"
+                                     data-debt-days="{{ $customer->debt_days ?? '' }}">
                                     {{ $customer->name }} ({{ $customer->code }})
                                 </div>
                             @endforeach
@@ -197,10 +198,11 @@
                 
                 <!-- Product List Header (Desktop) -->
                 <div class="hidden md:grid grid-cols-12 gap-3 px-4 py-2 bg-gray-100 border border-gray-200 rounded-t-lg font-bold text-gray-700">
-                    <div class="md:col-span-4">Sản phẩm <span class="text-red-500">*</span></div>
+                    <div class="md:col-span-3 product-name-header">Sản phẩm <span class="text-red-500">*</span></div>
                     <div class="md:col-span-1">Số lượng <span class="text-red-500">*</span></div>
                     <div class="md:col-span-2">Đơn giá (<span class="currency-symbol">₫</span>) <span class="text-red-500">*</span></div>
                     <div class="md:col-span-2">Bảo hành (tháng)</div>
+                    <div class="md:col-span-1 text-center product-tax-header">Thuế nhà thầu</div>
                     <div class="md:col-span-2 text-right">Thành tiền</div>
                     <div class="md:col-span-1 text-center"><i class="fas fa-cog"></i></div>
                 </div>
@@ -208,7 +210,7 @@
                 <div id="productList" class="space-y-0 border-x border-b border-gray-200 rounded-b-lg">
                     <div class="product-item bg-white p-4 border-b last:border-b-0 border-gray-100">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div class="md:col-span-4">
+                            <div class="md:col-span-3 product-name-col">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                                 <div class="searchable-select product-searchable" data-index="0" data-ajax-url="{{ route('api.products.search') }}">
                                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
@@ -236,6 +238,12 @@
                                 <input type="number" name="products[0][warranty_months]" min="0" max="120" value=""
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
                                        placeholder="0">
+                            </div>
+                            <div class="md:col-span-1 text-center product-tax-col">
+                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
+                                <input type="hidden" name="products[0][contractor_tax_enabled]" value="0">
+                                <input type="checkbox" name="products[0][contractor_tax_enabled]" value="1"
+                                       class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
@@ -342,14 +350,55 @@
                 </div>
             </div>
 
+            <!-- Payment Term & Due Date -->
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 bg-blue-50">
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">
+                        <i class="fas fa-calendar-check mr-2 text-blue-500"></i>Hạn thanh toán
+                    </h3>
+                </div>
+                <div class="p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hạn thanh toán (Payment Term)</label>
+                            <select name="payment_term" id="paymentTermSelect"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                <option value="">-- Chọn hạn thanh toán --</option>
+                                <option value="customer_default">Mặc định khách hàng</option>
+                                <option value="NET 30">NET 30 (30 ngày)</option>
+                                <option value="NET 45">NET 45 (45 ngày)</option>
+                                <option value="prepaid">Thanh toán trước giao hàng</option>
+                                <option value="custom">Tùy chỉnh</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hạn ngày thanh toán (Due Date)</label>
+                            <input type="date" name="payment_due_date" id="paymentDueDateInput" value="{{ old('payment_due_date') }}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                            <p class="text-xs text-gray-500 mt-1" id="paymentDueDateHint"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">
                         <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>Điều khoản thanh toán & Lộ trình
                     </h3>
-                    <button type="button" onclick="addPaymentMilestone()" class="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark transition-colors">
-                        <i class="fas fa-plus mr-1"></i>Thêm đợt
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <select id="milestonePresetSelect" class="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">-- Preset tỷ lệ --</option>
+                            <option value="customer_default">Mặc định KH</option>
+                            <option value="30-70">30% - 70%</option>
+                            <option value="50-50">50% - 50%</option>
+                            <option value="100-prepaid">100% prepaid</option>
+                            <option value="custom">Tùy chỉnh</option>
+                        </select>
+                        <button type="button" onclick="addPaymentMilestone(); switchMilestonePresetToCustom();" class="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark transition-colors">
+                            <i class="fas fa-plus mr-1"></i>Thêm đợt
+                        </button>
+                    </div>
                 </div>
                 <div class="p-0">
                     <table class="w-full text-sm text-left">
@@ -435,7 +484,19 @@
 @endpush
 
 @push('scripts')
+@php
+    $initialExpenses = old('expenses', \App\Models\SaleExpense::defaultExpenses());
+    $hasContractorTax = false;
+    foreach ($initialExpenses as $exp) {
+        $type = is_array($exp) ? ($exp['type'] ?? '') : $exp->type;
+        if ($type === 'Thuế nhà thầu') {
+            $hasContractorTax = true;
+            break;
+        }
+    }
+@endphp
 <script>
+window.initialHasContractorTax = @json($hasContractorTax);
 let productIndex = {{ count(old('products', [])) ?: 1 }};
 let expenseIndex = {{ count(old('expenses', [])) ?: 0 }};
 let milestoneIndex = 0;
@@ -736,6 +797,9 @@ function initAllSearchableSelects() {
     const customerSelect = document.getElementById('customerSelect');
     if (customerSelect) {
         initSearchableSelect(customerSelect, (opt) => {
+            // Store customer debt days for payment term calculation
+            window.selectedCustomerDebtDays = parseInt(opt.dataset.debtDays) || 0;
+            
             // Load milestones if available
             const milestonesJson = opt.dataset.milestones;
             if (milestonesJson) {
@@ -747,9 +811,21 @@ function initAllSearchableSelects() {
                     
                     if (milestones && milestones.length > 0) {
                         milestones.forEach(ms => addPaymentMilestone(ms));
+                        // Set milestone preset to customer_default
+                        const presetSelect = document.getElementById('milestonePresetSelect');
+                        if (presetSelect) presetSelect.value = 'customer_default';
                     }
                 } catch (e) {
                     console.error('Error parsing milestones:', e);
+                }
+            }
+            
+            // Auto-set payment term to customer_default if debt_days exist
+            if (window.selectedCustomerDebtDays > 0) {
+                const ptSelect = document.getElementById('paymentTermSelect');
+                if (ptSelect) {
+                    ptSelect.value = 'customer_default';
+                    calculatePaymentDueDate();
                 }
             }
             
@@ -1009,7 +1085,7 @@ function addProductRow() {
     newRow.className = `product-item ${productIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} p-4 border-b last:border-b-0 border-gray-100`;
     newRow.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            <div class="md:col-span-4">
+            <div class="md:col-span-3 product-name-col">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
                 <div class="searchable-select product-searchable" data-index="${productIndex}" data-ajax-url="{{ route('api.products.search') }}">
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
@@ -1038,6 +1114,12 @@ function addProductRow() {
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
                        placeholder="0">
             </div>
+            <div class="md:col-span-1 text-center product-tax-col">
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
+                <input type="hidden" name="products[${productIndex}][contractor_tax_enabled]" value="0">
+                <input type="checkbox" name="products[${productIndex}][contractor_tax_enabled]" value="1"
+                       class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
+            </div>
             <div class="md:col-span-2">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
                 <input type="text" readonly
@@ -1057,6 +1139,9 @@ function addProductRow() {
     // Initialize searchable select and money inputs for new row
     initAllSearchableSelects();
     initMoneyInputs();
+    
+    // Apply current contractor tax visibility state
+    updateContractorTaxVisibility(window.hasContractorTaxActive);
 }
 
 function removeProductRow(btn) {
@@ -1553,6 +1638,62 @@ function updateDualPriceDisplay(foreignTotal) {
     display.innerHTML = `<span class="font-semibold">${symbol}${formatMoney(foreignTotal)}</span> × ${formatMoney(exchangeRate)} = <span class="font-bold text-blue-900">${formatMoney(vndTotal)} ₫</span>`;
 }
 
+function updateContractorTaxVisibility(hasTax) {
+    const nameHeader = document.querySelector('.product-name-header');
+    const taxHeader = document.querySelector('.product-tax-header');
+    if (nameHeader) {
+        if (hasTax) {
+            nameHeader.classList.remove('md:col-span-4');
+            nameHeader.classList.add('md:col-span-3');
+        } else {
+            nameHeader.classList.remove('md:col-span-3');
+            nameHeader.classList.add('md:col-span-4');
+        }
+    }
+    if (taxHeader) {
+        if (hasTax) {
+            taxHeader.classList.remove('hidden');
+        } else {
+            taxHeader.classList.add('hidden');
+        }
+    }
+
+    document.querySelectorAll('.product-item').forEach(row => {
+        const nameCol = row.querySelector('.product-name-col');
+        const taxCol = row.querySelector('.product-tax-col');
+        const checkbox = row.querySelector('.contractor-tax-checkbox');
+
+        if (nameCol) {
+            if (hasTax) {
+                nameCol.classList.remove('md:col-span-4');
+                nameCol.classList.add('md:col-span-3');
+            } else {
+                nameCol.classList.remove('md:col-span-3');
+                nameCol.classList.add('md:col-span-4');
+            }
+        }
+        if (taxCol) {
+            if (hasTax) {
+                taxCol.classList.remove('hidden');
+                taxCol.classList.add('md:col-span-1');
+            } else {
+                taxCol.classList.add('hidden');
+                taxCol.classList.remove('md:col-span-1');
+            }
+        }
+        if (!hasTax && checkbox) {
+            checkbox.checked = false;
+        }
+    });
+}
+
+window.hasContractorTaxActive = false;
+window.addEventListener('expense-updated', function(e) {
+    const expenses = e.detail.expenses || [];
+    window.hasContractorTaxActive = expenses.some(exp => exp.type === 'Thuế nhà thầu');
+    updateContractorTaxVisibility(window.hasContractorTaxActive);
+});
+
 // Re-fetch rate when date changes
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.querySelector('input[name="date"]');
@@ -1567,7 +1708,156 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Initialize currency display on page load
     onCurrencyChange();
+    
+    // Initialize contractor tax visibility state synchronously
+    window.hasContractorTaxActive = window.initialHasContractorTax;
+    updateContractorTaxVisibility(window.hasContractorTaxActive);
+
+    // --- Payment Term & Milestone Preset Event Listeners ---
+    const paymentTermSelect = document.getElementById('paymentTermSelect');
+    if (paymentTermSelect) {
+        paymentTermSelect.addEventListener('change', function() {
+            calculatePaymentDueDate();
+        });
+    }
+
+    const paymentDueDateInput = document.getElementById('paymentDueDateInput');
+    if (paymentDueDateInput) {
+        paymentDueDateInput.addEventListener('change', function() {
+            // When user manually picks a date, switch dropdown to 'custom'
+            const ptSelect = document.getElementById('paymentTermSelect');
+            if (ptSelect && ptSelect.value !== 'custom') {
+                ptSelect.value = 'custom';
+            }
+        });
+    }
+
+    const dateInput2 = document.querySelector('input[name="date"]');
+    if (dateInput2) {
+        dateInput2.addEventListener('change', function() {
+            calculatePaymentDueDate();
+        });
+    }
+
+    const milestonePresetSelect = document.getElementById('milestonePresetSelect');
+    if (milestonePresetSelect) {
+        milestonePresetSelect.addEventListener('change', function() {
+            onMilestonePresetChange(this.value);
+        });
+    }
+
+    // Detect manual changes on milestone inputs -> switch preset to 'custom'
+    const milestoneList = document.getElementById('milestoneList');
+    if (milestoneList) {
+        milestoneList.addEventListener('input', function(e) {
+            if (e.target.tagName === 'INPUT') {
+                switchMilestonePresetToCustom();
+            }
+        });
+    }
 });
+
+// --- Payment Term & Due Date Functions ---
+window.selectedCustomerDebtDays = 0;
+
+function calculatePaymentDueDate() {
+    const ptSelect = document.getElementById('paymentTermSelect');
+    const dueDateInput = document.getElementById('paymentDueDateInput');
+    const dateInput = document.querySelector('input[name="date"]');
+    const hint = document.getElementById('paymentDueDateHint');
+    
+    if (!ptSelect || !dueDateInput || !dateInput) return;
+    
+    const term = ptSelect.value;
+    const orderDate = dateInput.value;
+    
+    if (!orderDate || term === 'custom' || term === '') {
+        if (hint) hint.textContent = term === 'custom' ? 'Chọn ngày hạn thanh toán thủ công' : '';
+        return;
+    }
+    
+    let daysToAdd = 0;
+    let label = '';
+    
+    switch (term) {
+        case 'customer_default':
+            daysToAdd = window.selectedCustomerDebtDays || 0;
+            label = `Mặc định KH: ${daysToAdd} ngày`;
+            break;
+        case 'NET 30':
+            daysToAdd = 30;
+            label = 'NET 30: 30 ngày kể từ ngày đơn hàng';
+            break;
+        case 'NET 45':
+            daysToAdd = 45;
+            label = 'NET 45: 45 ngày kể từ ngày đơn hàng';
+            break;
+        case 'prepaid':
+            daysToAdd = 0;
+            label = 'Thanh toán trước giao hàng';
+            break;
+    }
+    
+    const date = new Date(orderDate);
+    date.setDate(date.getDate() + daysToAdd);
+    
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    dueDateInput.value = `${yyyy}-${mm}-${dd}`;
+    
+    if (hint) hint.textContent = label;
+}
+
+function onMilestonePresetChange(preset) {
+    const list = document.getElementById('milestoneList');
+    if (!list) return;
+    
+    // Clear existing milestones
+    list.innerHTML = '';
+    milestoneIndex = 0;
+    
+    switch (preset) {
+        case 'customer_default':
+            // Load from selected customer's data
+            const customerHidden = document.querySelector('input[name="customer_id"]');
+            if (customerHidden && customerHidden.value) {
+                const customerOpt = document.querySelector(`#customerSelect .searchable-option[data-value="${customerHidden.value}"]`);
+                if (customerOpt && customerOpt.dataset.milestones) {
+                    try {
+                        const milestones = JSON.parse(customerOpt.dataset.milestones);
+                        if (milestones && milestones.length > 0) {
+                            milestones.forEach(ms => addPaymentMilestone(ms));
+                        }
+                    } catch (e) {
+                        console.error('Error parsing milestones:', e);
+                    }
+                }
+            }
+            break;
+        case '30-70':
+            addPaymentMilestone({ label: 'Cọc', percent: 30, days: 5 });
+            addPaymentMilestone({ label: 'Thanh toán cuối', percent: 70, days: 30 });
+            break;
+        case '50-50':
+            addPaymentMilestone({ label: 'Cọc', percent: 50, days: 5 });
+            addPaymentMilestone({ label: 'Thanh toán cuối', percent: 50, days: 30 });
+            break;
+        case '100-prepaid':
+            addPaymentMilestone({ label: 'Thanh toán toàn bộ', percent: 100, days: 0 });
+            break;
+        case 'custom':
+            // Keep empty for manual entry
+            break;
+    }
+}
+
+function switchMilestonePresetToCustom() {
+    const presetSelect = document.getElementById('milestonePresetSelect');
+    if (presetSelect && presetSelect.value !== 'custom' && presetSelect.value !== '') {
+        presetSelect.value = 'custom';
+    }
+}
 </script>
 <script src="{{ asset('js/order-request.js') }}"></script>
 @endpush

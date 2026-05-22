@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Models\PnlApprovalAttachment;
 
 class SaleController extends Controller
 {
@@ -237,6 +238,7 @@ class SaleController extends Controller
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
             'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
@@ -246,6 +248,8 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
+            'payment_term' => ['nullable', 'string', 'max:100'],
+            'payment_due_date' => ['nullable', 'date'],
         ]);
 
         DB::beginTransaction();
@@ -306,6 +310,8 @@ class SaleController extends Controller
                 'exchange_rate' => $exchangeRate,
                 'total_foreign' => $totalForeign,
                 'payment_terms' => $request->input('payment_terms'),
+                'payment_term' => $validated['payment_term'] ?? null,
+                'payment_due_date' => $validated['payment_due_date'] ?? null,
             ]);
 
             // Create sale items with cost price and project
@@ -335,6 +341,7 @@ class SaleController extends Controller
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
+                    'contractor_tax_enabled' => isset($item['contractor_tax_enabled']) ? (bool) $item['contractor_tax_enabled'] : false,
                 ]);
             }
 
@@ -509,6 +516,7 @@ class SaleController extends Controller
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
             'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
@@ -518,6 +526,8 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
+            'payment_term' => ['nullable', 'string', 'max:100'],
+            'payment_due_date' => ['nullable', 'date'],
         ]);
 
         DB::beginTransaction();
@@ -567,6 +577,8 @@ class SaleController extends Controller
                 'exchange_rate' => $exchangeRate,
                 'total_foreign' => $totalForeign,
                 'payment_terms' => $request->input('payment_terms'),
+                'payment_term' => $validated['payment_term'] ?? null,
+                'payment_due_date' => $validated['payment_due_date'] ?? null,
             ]);
 
             // 1. Thu thập dữ liệu P&L từ request 'items' (đã thêm các input ẩn trong pnl-tab)
@@ -773,6 +785,11 @@ class SaleController extends Controller
                     'contractor_tax' => $getVal('contractor_tax', 'contractor_tax', 0),
                     'contractor_tax_percent' => $getPercentVal('contractor_tax_percent', 'contractor_tax_percent'),
                     'extra_expenses_data' => !empty($newExtraData) ? $newExtraData : null,
+                    'contractor_tax_enabled' => isset($item['contractor_tax_enabled']) 
+                        ? (bool) $item['contractor_tax_enabled'] 
+                        : (isset($reqPnl['contractor_tax_enabled']) 
+                            ? (bool) $reqPnl['contractor_tax_enabled'] 
+                            : (isset($oldPnl['contractor_tax_enabled']) ? (bool) $oldPnl['contractor_tax_enabled'] : false)),
                 ]);
             }
 
@@ -1358,6 +1375,7 @@ class SaleController extends Controller
             'items.*.implementation_cost_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.contractor_tax' => ['nullable', 'numeric', 'min:0'],
             'items.*.contractor_tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'items.*.usd_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.discount_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.import_cost_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -1376,10 +1394,33 @@ class SaleController extends Controller
             'expenses.*.description' => ['nullable', 'string'],
             'items.*.extra_expenses_data' => ['nullable', 'array'],
             'items.*.extra_expenses_data.*' => ['nullable', 'numeric', 'min:0'],
+            'new_expenses' => ['nullable', 'array'],
+            'new_expenses.*.type' => ['nullable', 'string', 'max:200'],
+            'new_expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
+            'new_expenses.*.percent_value' => ['nullable', 'numeric', 'min:0'],
+            'new_expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'new_expenses.*.description' => ['nullable', 'string', 'max:500'],
+            'pnl_extra_expenses' => ['nullable', 'array'],
+            'pnl_extra_expenses.*.id' => ['required', 'exists:sale_expenses,id'],
+            'pnl_extra_expenses.*.input_mode' => ['required', 'in:percent,fixed'],
+            'pnl_extra_expenses.*.percent_value' => ['nullable', 'numeric', 'min:0'],
+            'pnl_extra_expenses.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'pnl_extra_expenses.*.description' => ['nullable', 'string', 'max:500'],
+            'pnl_attachments' => ['nullable', 'array'],
+            'pnl_attachments.*' => ['file', 'max:20480'],
+            'payment_term' => ['nullable', 'string', 'max:100'],
+            'payment_due_date' => ['nullable', 'date'],
         ]);
 
         DB::beginTransaction();
         try {
+            if ($request->has('payment_term')) {
+                $sale->payment_term = $validated['payment_term'] ?? null;
+            }
+            if ($request->has('payment_due_date')) {
+                $sale->payment_due_date = $validated['payment_due_date'] ?? null;
+            }
+
             foreach ($validated['items'] as $itemData) {
                 $item = SaleItem::where('id', $itemData['id'])->where('sale_id', $sale->id)->firstOrFail();
                 // N/A từ UI thường gửi chuỗi rỗng; ép về giá trị an toàn theo schema DB.
@@ -1431,8 +1472,13 @@ class SaleController extends Controller
                     $itemData['extra_expenses_data'] = !empty($cleanExtra) ? $cleanExtra : null;
                 }
 
+                $itemData['contractor_tax_enabled'] = (bool)($itemData['contractor_tax_enabled'] ?? false);
+
                 $item->update($itemData);
             }
+
+            // Xử lý upload file đính kèm P&L
+            $this->handlePnlAttachmentsUpload($request, $sale);
 
             // Simple update for general expenses if provided
             if (isset($validated['expenses'])) {
@@ -1484,6 +1530,51 @@ class SaleController extends Controller
             $sale->load(['items', 'expenses']);
             $this->syncPnlItemsToOrderExpenses($sale);
 
+            // Xử lý chi phí bổ sung PNL — tạo mới
+            $standardTypes = [
+                'Chi phí Tài chính',
+                'Lãi vay phát sinh do nợ quá hạn',
+                'Chi phí Quản lí, Back Office & kỹ thuật',
+                '24x7 Support cost',
+                'Other Support',
+                'Technical support/POC',
+                'Technical support/POC 30%',
+                'Chi phí triển khai hợp đồng',
+                'Thuế nhà thầu',
+            ];
+
+            foreach ($validated['new_expenses'] ?? [] as $newExpense) {
+                $type = trim($newExpense['type'] ?? '');
+                if (empty($type)) continue;
+
+                $inputMode = $newExpense['input_mode'] ?? 'fixed';
+                $sale->expenses()->create([
+                    'type' => $type,
+                    'input_mode' => $inputMode,
+                    'percent_value' => $inputMode === 'percent' ? ($newExpense['percent_value'] ?? 0) : null,
+                    'amount' => $inputMode === 'fixed' ? ($newExpense['amount'] ?? 0) : 0,
+                    'description' => $newExpense['description'] ?? '',
+                ]);
+            }
+
+            // Xử lý chi phí bổ sung PNL — cập nhật existing
+            foreach ($validated['pnl_extra_expenses'] ?? [] as $extraData) {
+                $expense = SaleExpense::where('id', $extraData['id'])->where('sale_id', $sale->id)->first();
+                if (!$expense) continue;
+                // Chỉ cập nhật loại ngoài standard
+                if (in_array($expense->type, $standardTypes)) continue;
+
+                $inputMode = $extraData['input_mode'] ?? $expense->input_mode;
+                $expense->update([
+                    'input_mode' => $inputMode,
+                    'percent_value' => $inputMode === 'percent' ? ($extraData['percent_value'] ?? 0) : null,
+                    'amount' => $inputMode === 'fixed' ? ($extraData['amount'] ?? 0) : 0,
+                    'description' => $extraData['description'] ?? ($expense->description ?? ''),
+                ]);
+            }
+
+            $sale->load('expenses');
+
             // Nếu có flag gửi duyệt → chuyển thẳng sang quy trình duyệt thay vì lưu nháp
             $submitForApproval = $request->input('_submit_for_approval') == '1';
 
@@ -1492,12 +1583,19 @@ class SaleController extends Controller
                 $sale->calculateMargin();
                 $sale->save();
 
-                // Xóa lịch sử duyệt cũ (nếu đang resubmit)
+                // Xóa lịch sử duyệt đang chờ cũ để tránh xung đột
                 ApprovalHistory::where('document_type', 'sale_pnl')
                     ->where('document_id', $sale->id)
+                    ->where('action', 'pending')
                     ->delete();
 
                 $result = $this->approvalService->submit($sale, 'sale_pnl');
+
+                if ($result['success'] || !str_contains($result['message'] ?? '', 'Lỗi hệ thống')) {
+                    // File đính kèm giữ nguyên approval_history_id = NULL
+                    // → hiển thị trong "Hồ sơ đính kèm" khi đang chờ duyệt
+                    // → sẽ được gán vào bản ghi lịch sử khi cấp duyệt phê duyệt/từ chối
+                }
 
                 if (!$result['success']) {
                     $isSystemError = str_contains($result['message'] ?? '', 'Lỗi hệ thống');
@@ -1550,6 +1648,42 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Lỗi khi cập nhật P&L: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Delete a PNL extra expense (AJAX) — only non-standard types allowed.
+     */
+    public function deletePnlExpense(Request $request, Sale $sale, SaleExpense $expense)
+    {
+        $this->authorize('update', $sale);
+
+        if ($expense->sale_id !== $sale->id) {
+            return response()->json(['success' => false, 'message' => 'Chi phí không thuộc đơn hàng này.'], 404);
+        }
+
+        if (!$sale->isPlEditable() && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
+            return response()->json(['success' => false, 'message' => 'P&L hiện không thể chỉnh sửa.'], 403);
+        }
+
+        // Cho phép xóa tất cả chi phí (bao gồm cả chi phí tiêu chuẩn) từ PNL
+
+        // Xóa per-item extra_expenses_data cho expense này
+        foreach ($sale->items as $item) {
+            $extraData = $item->extra_expenses_data ?? [];
+            if (isset($extraData[(string) $expense->id])) {
+                unset($extraData[(string) $expense->id]);
+                $item->update(['extra_expenses_data' => !empty($extraData) ? $extraData : null]);
+            }
+        }
+
+        $expense->delete();
+
+        // Recalculate margin
+        $sale->load(['items', 'expenses']);
+        $sale->calculateMargin();
+        $sale->save();
+
+        return response()->json(['success' => true, 'message' => 'Đã xóa chi phí.']);
     }
 
     /**
@@ -1802,11 +1936,13 @@ class SaleController extends Controller
                 }
             }
 
-            // Contractor Tax - Use fixed formula only if not manually set
-            if ($contractorTax && is_null($item->contractor_tax)) {
-                $item->contractor_tax_percent = null;
-                $item->contractor_tax = round($costTotal / 0.9 * 0.1);
-            } elseif (!$contractorTax) {
+            // Contractor Tax - Use fixed formula only if contractor_tax_enabled is true
+            if ($item->contractor_tax_enabled && $contractorTax) {
+                if (is_null($item->contractor_tax) || $item->contractor_tax == 0) {
+                    $item->contractor_tax_percent = null;
+                    $item->contractor_tax = round($costTotal / 0.9 * 0.1);
+                }
+            } else {
                 $item->contractor_tax_percent = null;
                 $item->contractor_tax = 0;
             }
@@ -1827,13 +1963,34 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
-        // Xóa lịch sử duyệt cũ (nếu đang resubmit)
+        // Xóa lịch sử duyệt đang chờ cũ để tránh xung đột
         ApprovalHistory::where('document_type', 'sale_pnl')
             ->where('document_id', $sale->id)
+            ->where('action', 'pending')
             ->delete();
 
         // Thử dùng ApprovalWorkflow nếu đã cấu hình
         $result = $this->approvalService->submit($sale, 'sale_pnl');
+
+        if ($result['success'] || !str_contains($result['message'] ?? '', 'Lỗi hệ thống')) {
+            // Tạo bản ghi history cho sự kiện Gửi duyệt
+            $submitHistory = ApprovalHistory::create([
+                'document_type' => 'sale_pnl',
+                'document_id' => $sale->id,
+                'level' => 0,
+                'level_name' => 'Yêu cầu duyệt',
+                'approver_id' => auth()->id(),
+                'approver_name' => auth()->user()->name,
+                'action' => 'submitted',
+                'comment' => request()->input('comment') ?: 'Gửi duyệt P&L',
+                'action_at' => now(),
+            ]);
+
+            // Liên kết các file đính kèm nháp hiện tại với bản ghi gửi duyệt này
+            PnlApprovalAttachment::where('sale_id', $sale->id)
+                ->whereNull('approval_history_id')
+                ->update(['approval_history_id' => $submitHistory->id]);
+        }
 
         if (!$result['success']) {
             $isSystemError = str_contains($result['message'] ?? '', 'Lỗi hệ thống');
@@ -1881,6 +2038,18 @@ class SaleController extends Controller
             return back()->with('error', $result['message']);
         }
 
+        // Liên kết file đính kèm nháp với bản ghi duyệt mới nhất (approved) của cấp này
+        $latestApproveHistory = ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->where('action', 'approved')
+            ->orderByDesc('id')
+            ->first();
+        if ($latestApproveHistory) {
+            PnlApprovalAttachment::where('sale_id', $sale->id)
+                ->whereNull('approval_history_id')
+                ->update(['approval_history_id' => $latestApproveHistory->id]);
+        }
+
         // Đồng bộ pl_status (sửa bug: dùng $sale->pl_status thay vì $sale->status)
         $sale->refresh();
         if ($sale->pl_status !== 'approved') {
@@ -1921,10 +2090,66 @@ class SaleController extends Controller
             return back()->with('error', $result['message']);
         }
 
-        $sale->update(['pl_status' => 'rejected']);
+        // Liên kết file đính kèm nháp với bản ghi từ chối mới nhất của cấp này
+        $latestRejectHistory = ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->where('action', 'rejected')
+            ->orderByDesc('id')
+            ->first();
+        if ($latestRejectHistory) {
+            PnlApprovalAttachment::where('sale_id', $sale->id)
+                ->whereNull('approval_history_id')
+                ->update(['approval_history_id' => $latestRejectHistory->id]);
+        }
+
+        $sale->update([
+            'pl_status' => 'rejected',
+            'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt" khi PNL bị từ chối
+        ]);
 
         return redirect()->route('sales.show', $sale->id)
             ->with('success', 'P&L đã bị từ chối.')
+            ->withFragment('pnl');
+    }
+
+    /**
+     * Request revision for P&L (Yêu cầu chỉnh sửa - softer than reject)
+     */
+    public function requestRevisionPnL(Request $request, Sale $sale)
+    {
+        $this->authorize('approvePnl', $sale);
+
+        $request->validate(['comment' => 'required|string|min:3|max:500']);
+
+        $result = $this->approvalService->reject($sale, 'sale_pnl', $request->comment);
+
+        if (!$result['success']) {
+            return back()->with('error', $result['message']);
+        }
+
+        // Liên kết file đính kèm nháp với bản ghi yêu cầu chỉnh sửa mới nhất
+        $latestHistory = ApprovalHistory::where('document_type', 'sale_pnl')
+            ->where('document_id', $sale->id)
+            ->where('action', 'rejected')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($latestHistory) {
+            // Cập nhật action thành need_revision để phân biệt với rejected
+            $latestHistory->update(['action' => 'need_revision']);
+
+            PnlApprovalAttachment::where('sale_id', $sale->id)
+                ->whereNull('approval_history_id')
+                ->update(['approval_history_id' => $latestHistory->id]);
+        }
+
+        $sale->update([
+            'pl_status' => 'need_revision',
+            'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt"
+        ]);
+
+        return redirect()->route('sales.show', $sale->id)
+            ->with('success', 'P&L đã được yêu cầu chỉnh sửa.')
             ->withFragment('pnl');
     }
 
@@ -2254,6 +2479,151 @@ class SaleController extends Controller
             'rows' => $paginator,
             'vendors' => $vendors,
         ]);
+    }
+
+    /**
+     * Upload PNL attachment dynamically
+     */
+    public function uploadPnlAttachment(Request $request, Sale $sale)
+    {
+        $this->authorize('update', $sale);
+
+        $request->validate([
+            'file' => 'required|file|max:20480',
+        ]);
+
+        if ($request->hasFile('file') && $request->file('file')->isValid()) {
+            $file = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+            $path = $file->storeAs(
+                'pnl-attachments/' . $sale->id,
+                time() . '_' . Str::random(5) . '_' . $originalName,
+                'public'
+            );
+
+            $attachment = PnlApprovalAttachment::create([
+                'sale_id' => $sale->id,
+                'uploaded_by' => auth()->id(),
+                'file_name' => $originalName,
+                'file_path' => $path,
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'attachment' => [
+                    'id' => $attachment->id,
+                    'file_name' => $attachment->file_name,
+                    'size' => $attachment->file_size_human,
+                    'icon' => $attachment->file_icon,
+                    'download_url' => route('sales.pnl-attachments.download', [$sale, $attachment]),
+                    'delete_url' => route('sales.pnl-attachments.delete', [$sale, $attachment]),
+                ]
+            ]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'File không hợp lệ.'], 400);
+    }
+
+    /**
+     * Delete PNL attachment
+     */
+    public function deletePnlAttachment(Sale $sale, PnlApprovalAttachment $attachment)
+    {
+        $this->authorize('update', $sale);
+
+        if ($attachment->sale_id !== $sale->id) {
+            abort(403);
+        }
+
+        // Không cho phép xóa tệp đã gửi duyệt (thuộc lịch sử duyệt)
+        if ($attachment->approval_history_id !== null) {
+            if (request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Không thể xóa tệp đã gửi duyệt trong lịch sử.'], 403);
+            }
+            return back()->with('error', 'Không thể xóa tệp đã gửi duyệt trong lịch sử.');
+        }
+
+        // Xóa file vật lý
+        if (Storage::disk('public')->exists($attachment->file_path)) {
+            Storage::disk('public')->delete($attachment->file_path);
+        }
+
+        $attachment->delete();
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true]);
+        }
+
+        return back()->with('success', 'Đã xóa file đính kèm P&L thành công.');
+    }
+
+    /**
+     * Download PNL attachment
+     */
+    public function downloadPnlAttachment(Sale $sale, PnlApprovalAttachment $attachment)
+    {
+        // Ai được quyền xem đơn hàng hoặc duyệt P&L thì được download
+        $this->authorize('view', $sale);
+
+        if ($attachment->sale_id !== $sale->id) {
+            abort(403);
+        }
+
+        if (!Storage::disk('public')->exists($attachment->file_path)) {
+            abort(404, 'File không tồn tại.');
+        }
+
+        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
+    }
+
+    /**
+     * Preview PNL attachment (serve raw file for in-browser preview)
+     */
+    public function previewPnlAttachment(Sale $sale, PnlApprovalAttachment $attachment)
+    {
+        $this->authorize('view', $sale);
+
+        if ($attachment->sale_id !== $sale->id) {
+            abort(403);
+        }
+
+        $path = Storage::disk('public')->path($attachment->file_path);
+
+        if (!file_exists($path)) {
+            abort(404, 'File không tồn tại.');
+        }
+
+        return response()->file($path);
+    }
+
+    /**
+     * Helper to handle bulk upload of P&L attachments in main P&L form save
+     */
+    private function handlePnlAttachmentsUpload(Request $request, Sale $sale): void
+    {
+        if ($request->hasFile('pnl_attachments')) {
+            foreach ($request->file('pnl_attachments') as $file) {
+                if ($file->isValid()) {
+                    $originalName = $file->getClientOriginalName();
+                    $path = $file->storeAs(
+                        'pnl-attachments/' . $sale->id,
+                        time() . '_' . Str::random(5) . '_' . $originalName,
+                        'public'
+                    );
+
+                    PnlApprovalAttachment::create([
+                        'sale_id' => $sale->id,
+                        'uploaded_by' => auth()->id(),
+                        'file_name' => $originalName,
+                        'file_path' => $path,
+                        'mime_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                    ]);
+                }
+            }
+        }
     }
 }
 

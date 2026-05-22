@@ -72,7 +72,10 @@
                             class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Chọn khách hàng</option>
                             @foreach($customers as $customer)
-                                <option value="{{ $customer->id }}" {{ old('customer_id', $quotation->customer_id) == $customer->id ? 'selected' : '' }}>
+                                <option value="{{ $customer->id }}" 
+                                    data-debt-days="{{ $customer->debt_days }}"
+                                    data-payment-terms="{{ json_encode($customer->payment_terms) }}"
+                                    {{ old('customer_id', $quotation->customer_id) == $customer->id ? 'selected' : '' }}>
                                     {{ $customer->name }} ({{ $customer->code }})
                                 </option>
                             @endforeach
@@ -248,8 +251,25 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
-                            <textarea name="payment_terms" rows="2"
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
+                                <label class="block text-sm font-medium text-gray-700">Điều khoản thanh toán</label>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <select id="paymentMilestoneRatioSelect" class="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+                                        <option value="customer_default">Mặc định khách hàng</option>
+                                        <option value="30-70">30% - 70%</option>
+                                        <option value="50-50">50% - 50%</option>
+                                        <option value="100-prepaid">100% prepaid</option>
+                                        <option value="custom" selected>Tùy chỉnh tỷ lệ</option>
+                                    </select>
+                                    <select id="paymentTermSelect" class="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+                                        <option value="NET 30">NET 30</option>
+                                        <option value="NET 45">NET 45</option>
+                                        <option value="prepaid">Thanh toán trước giao hàng</option>
+                                        <option value="custom" selected>Tùy chỉnh hạn</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <textarea name="payment_terms" id="payment_terms" rows="2"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('payment_terms', $quotation->payment_terms) }}</textarea>
                         </div>
                         <div class="mb-4">
@@ -774,6 +794,73 @@
             if (initialCustomerId) {
                 loadContacts(initialCustomerId, oldContactId);
             }
+        });
+
+        // Payment Terms Generator Logic
+        function updatePaymentTermsText() {
+            const milestoneRatio = $('#paymentMilestoneRatioSelect').val();
+            const term = $('#paymentTermSelect').val();
+
+            if (milestoneRatio === 'custom' && term === 'custom') {
+                return; // Don't overwrite if both are custom
+            }
+
+            let milestoneText = '';
+            if (milestoneRatio === 'customer_default') {
+                const selectedOpt = $('#customer_id option:selected');
+                let rawTerms = selectedOpt.attr('data-payment-terms');
+                if (rawTerms) {
+                    try {
+                        const terms = JSON.parse(rawTerms);
+                        if (Array.isArray(terms) && terms.length > 0) {
+                            milestoneText = terms.map((t, idx) => {
+                                return `Đợt ${idx + 1}: ${t.label || 'Thanh toán'} ${t.percent}% trong vòng ${t.days || 0} ngày`;
+                            }).join('. ');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+                if (!milestoneText) {
+                    milestoneText = 'Theo điều khoản thanh toán mặc định của khách hàng';
+                }
+            } else if (milestoneRatio === '30-70') {
+                milestoneText = 'Đợt 1: Cọc 30% trong vòng 5 ngày. Đợt 2: Thanh toán 70% còn lại trong vòng 30 ngày';
+            } else if (milestoneRatio === '50-50') {
+                milestoneText = 'Đợt 1: Cọc 50% trong vòng 5 ngày. Đợt 2: Thanh toán 50% còn lại trong vòng 30 ngày';
+            } else if (milestoneRatio === '100-prepaid') {
+                milestoneText = 'Thanh toán trả trước 100%';
+            }
+
+            let termText = '';
+            if (term === 'NET 30') {
+                termText = 'Hạn thanh toán: NET 30 (trong vòng 30 ngày)';
+            } else if (term === 'NET 45') {
+                termText = 'Hạn thanh toán: NET 45 (trong vòng 45 ngày)';
+            } else if (term === 'prepaid') {
+                termText = 'Hạn thanh toán: Thanh toán trước khi nhận hàng';
+            } else if (term === 'custom') {
+                termText = 'Hạn thanh toán: Tùy chỉnh theo thỏa thuận';
+            }
+
+            let combined = milestoneText;
+            if (termText) {
+                combined += (combined ? '. ' : '') + termText;
+            }
+
+            $('textarea[name="payment_terms"]').val(combined);
+        }
+
+        $('#paymentMilestoneRatioSelect, #paymentTermSelect').on('change', updatePaymentTermsText);
+        $('#customer_id').on('change', function() {
+            if ($('#paymentMilestoneRatioSelect').val() === 'customer_default') {
+                updatePaymentTermsText();
+            }
+        });
+
+        $('textarea[name="payment_terms"]').on('input', function() {
+            $('#paymentMilestoneRatioSelect').val('custom');
+            $('#paymentTermSelect').val('custom');
         });
     </script>
 @endpush

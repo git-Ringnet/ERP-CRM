@@ -170,12 +170,14 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($sales as $sale)
                         @php
-                            $rowClass = match($sale->status) {
-                                'pending' => 'bg-yellow-50/50 border-l-4 border-l-yellow-400',
-                                'approved' => 'bg-blue-50/50 border-l-4 border-l-blue-400',
-                                'shipping' => 'bg-purple-50/50 border-l-4 border-l-purple-400',
-                                'completed' => 'bg-green-50/50 border-l-4 border-l-green-400',
-                                'cancelled' => 'bg-red-50/50 border-l-4 border-l-red-400',
+                            $rowClass = match(true) {
+                                $sale->status === 'pending' && $sale->pl_status === 'rejected' => 'bg-red-50/50 border-l-4 border-l-red-400',
+                                $sale->status === 'pending' && $sale->pl_status === 'need_revision' => 'bg-amber-50/50 border-l-4 border-l-amber-400',
+                                $sale->status === 'pending' => 'bg-yellow-50/50 border-l-4 border-l-yellow-400',
+                                $sale->status === 'approved' => 'bg-blue-50/50 border-l-4 border-l-blue-400',
+                                $sale->status === 'shipping' => 'bg-purple-50/50 border-l-4 border-l-purple-400',
+                                $sale->status === 'completed' => 'bg-green-50/50 border-l-4 border-l-green-400',
+                                $sale->status === 'cancelled' => 'bg-red-50/50 border-l-4 border-l-red-400',
                                 default => '',
                             };
                         @endphp

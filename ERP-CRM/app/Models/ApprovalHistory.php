@@ -53,6 +53,7 @@ class ApprovalHistory extends Model
             'rejected' => 'Từ chối',
             'skipped' => 'Bỏ qua',
             'delegated' => 'Đã chuyển',
+            'submitted' => 'Yêu cầu duyệt',
             default => $this->action,
         };
     }
@@ -65,8 +66,14 @@ class ApprovalHistory extends Model
             'rejected' => 'bg-red-100 text-red-800',
             'skipped' => 'bg-gray-100 text-gray-500',
             'delegated' => 'bg-blue-100 text-blue-800',
+            'submitted' => 'bg-indigo-100 text-indigo-800',
             default => 'bg-gray-100 text-gray-800',
         };
+    }
+
+    public function pnlAttachments()
+    {
+        return $this->hasMany(PnlApprovalAttachment::class, 'approval_history_id');
     }
 
     public static function getForDocument(string $type, int $id)
