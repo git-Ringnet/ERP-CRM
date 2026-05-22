@@ -177,31 +177,45 @@ class DeleteSales extends Command
                 }
 
                 // 5. Xóa lịch sử phê duyệt P&L
-                ApprovalHistory::where('document_type', 'sale_pnl')
-                    ->where('document_id', $sale->id)
-                    ->delete();
+                if (Schema::hasTable((new ApprovalHistory)->getTable())) {
+                    ApprovalHistory::where('document_type', 'sale_pnl')
+                        ->where('document_id', $sale->id)
+                        ->delete();
+                }
 
                 // 6. Xóa phiếu xuất kho (Exports) & items liên kết
-                $exports = Export::where('reference_type', 'sale')
-                    ->where('reference_id', $sale->id)
-                    ->get();
-                foreach ($exports as $export) {
-                    $export->items()->delete();
-                    $export->delete();
+                if (Schema::hasTable((new Export)->getTable())) {
+                    $exports = Export::where('reference_type', 'sale')
+                        ->where('reference_id', $sale->id)
+                        ->get();
+                    foreach ($exports as $export) {
+                        $export->items()->delete();
+                        $export->delete();
+                    }
                 }
 
                 // 7. Xóa giao dịch tài chính liên quan khớp theo mã đơn
-                FinancialTransaction::where('reference_number', $sale->code)->delete();
+                if (Schema::hasTable((new FinancialTransaction)->getTable())) {
+                    FinancialTransaction::where('reference_number', $sale->code)->delete();
+                }
 
                 // 8. Xóa lịch sử thanh toán công nợ khách hàng
-                PaymentHistory::where('sale_id', $sale->id)->delete();
+                if (Schema::hasTable((new PaymentHistory)->getTable())) {
+                    PaymentHistory::where('sale_id', $sale->id)->delete();
+                }
 
                 // 9. Xóa báo cáo doanh thu bán hàng liên quan
-                SalesRevenue::where('sale_id', $sale->id)->delete();
+                if (Schema::hasTable((new SalesRevenue)->getTable())) {
+                    SalesRevenue::where('sale_id', $sale->id)->delete();
+                }
 
                 // 10. Gỡ liên kết sale_id ở các đơn PO và Báo giá
-                PurchaseOrder::where('sale_id', $sale->id)->update(['sale_id' => null]);
-                Quotation::where('converted_to_sale_id', $sale->id)->update(['converted_to_sale_id' => null]);
+                if (Schema::hasTable((new PurchaseOrder)->getTable())) {
+                    PurchaseOrder::where('sale_id', $sale->id)->update(['sale_id' => null]);
+                }
+                if (Schema::hasTable((new Quotation)->getTable())) {
+                    Quotation::where('converted_to_sale_id', $sale->id)->update(['converted_to_sale_id' => null]);
+                }
 
                 // 11. Xóa chi phí P&L và các sản phẩm trong đơn bán
                 $sale->expenses()->delete();
