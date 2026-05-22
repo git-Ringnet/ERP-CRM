@@ -543,6 +543,15 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/marketing-events/{marketingEvent}/customers/{customer}', [\App\Http\Controllers\MarketingEventController::class, 'removeCustomer'])->name('marketing-events.customers.remove');
     Route::patch('/marketing-events/{marketingEvent}/customers/{customer}/status', [\App\Http\Controllers\MarketingEventController::class, 'updateCustomerStatus'])->name('marketing-events.customers.status');
     Route::patch('/marketing-events/{marketingEvent}/customers/status/bulk', [\App\Http\Controllers\MarketingEventController::class, 'bulkUpdateCustomerStatus'])->name('marketing-events.customers.status.bulk');
+
+    // =========================================================================
+    // Sales Revenue Tracking — Tổng Doanh Số (Theo dõi & Thanh toán)
+    // =========================================================================
+    Route::get('/sales-revenues', [\App\Http\Controllers\SalesRevenueController::class, 'index'])->name('sales-revenues.index');
+    Route::post('/sales-revenues/sync', [\App\Http\Controllers\SalesRevenueController::class, 'syncFromPO'])->name('sales-revenues.sync');
+    Route::patch('/sales-revenues/{salesRevenue}/cell', [\App\Http\Controllers\SalesRevenueController::class, 'updateCell'])->name('sales-revenues.update-cell');
+    Route::delete('/sales-revenues/{salesRevenue}', [\App\Http\Controllers\SalesRevenueController::class, 'destroy'])->name('sales-revenues.destroy');
+    Route::get('/sales-revenues/export/excel', [\App\Http\Controllers\SalesRevenueController::class, 'export'])->name('sales-revenues.export');
 });
 
 // Auth routes (login, logout, etc.)

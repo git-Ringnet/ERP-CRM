@@ -64,6 +64,7 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\MilestoneTemplate::class => \App\Policies\MilestoneTemplatePolicy::class,
         \App\Models\SaleReport::class => \App\Policies\SaleReportPolicy::class,
         \App\Models\PurchaseReport::class => \App\Policies\PurchaseReportPolicy::class,
+        \App\Models\SalesRevenue::class => \App\Policies\SalesRevenuePolicy::class,
         \App\Models\Warranty::class => \App\Policies\WarrantyPolicy::class,
         \App\Models\ExcelImport::class => \App\Policies\ExcelImportPolicy::class,
         
