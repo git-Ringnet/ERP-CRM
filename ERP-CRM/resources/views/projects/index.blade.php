@@ -34,22 +34,19 @@
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-600">Từ</span>
                     <input type="date" name="date_from" value="{{ request('date_from') }}"
-                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                        title="Từ ngày">
+                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-600">Đến</span>
                     <input type="date" name="date_to" value="{{ request('date_to') }}"
-                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                        title="Đến ngày">
+                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div class="w-40">
                     <select name="status"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Tất cả trạng thái</option>
                         <option value="planning" {{ request('status') == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
-                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>Đang thực hiện
-                        </option>
+                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
                         <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
                         <option value="on_hold" {{ request('status') == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
                         <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
@@ -85,11 +82,10 @@
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã dự án</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên dự án</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thời gian</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Dự toán</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Doanh thu</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên EU - MST</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên SI</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Expired Date</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
                         </tr>
                     </thead>
@@ -104,39 +100,46 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-gray-900">{{ $project->name }}</div>
-                                    @if($project->address)
-                                        <div class="text-xs text-gray-500">{{ Str::limit($project->address, 50) }}</div>
-                                    @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    {{ $project->customer_name ?? '-' }}
-                                </td>
-                                <td class="px-4 py-3 text-center text-sm">
-                                    @if($project->start_date)
-                                        <div>{{ $project->start_date->format('d/m/Y') }}</div>
-                                        @if($project->end_date)
-                                            <div class="text-xs text-gray-500">→ {{ $project->end_date->format('d/m/Y') }}</div>
+                                <td class="px-4 py-3">
+                                    @if($project->eu_name_vi)
+                                        <div class="text-sm font-medium text-gray-900">{{ $project->eu_name_vi }}</div>
+                                        @if($project->eu_tax_code)
+                                            <div class="text-xs text-gray-500">MST: {{ $project->eu_tax_code }}</div>
                                         @endif
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-right text-sm font-medium">
-                                    {{ number_format($project->budget) }} đ
+                                <td class="px-4 py-3 text-sm text-gray-700">
+                                    {{ $project->collaborate_company ?? '-' }}
                                 </td>
-                                <td class="px-4 py-3 text-right">
-                                    <div class="text-sm font-medium text-blue-600">{{ number_format($project->total_revenue) }}
-                                        đ</div>
-                                    @if($project->profit != 0)
-                                        <div class="text-xs {{ $project->profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                            LN: {{ number_format($project->profit) }} đ
-                                        </div>
+                                <td class="px-4 py-3 text-center text-sm">
+                                    @if($project->end_date)
+                                        <span class="{{ $project->end_date->isPast() ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
+                                            {{ $project->end_date->format('d/m/Y') }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">-</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $project->status_color }}">
-                                        {{ $project->status_label }}
-                                    </span>
+                                    <select onchange="updateProjectStatus({{ $project->id }}, this.value, this)"
+                                        class="text-xs font-semibold rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-primary
+                                            {{ match($project->status) {
+                                                'planning' => 'bg-yellow-100 text-yellow-800',
+                                                'in_progress' => 'bg-blue-100 text-blue-800',
+                                                'completed' => 'bg-green-100 text-green-800',
+                                                'cancelled' => 'bg-red-100 text-red-800',
+                                                'on_hold' => 'bg-gray-100 text-gray-800',
+                                                default => 'bg-gray-100 text-gray-800',
+                                            } }}">
+                                        <option value="planning" {{ $project->status == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
+                                        <option value="in_progress" {{ $project->status == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
+                                        <option value="completed" {{ $project->status == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                                        <option value="on_hold" {{ $project->status == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
+                                        <option value="cancelled" {{ $project->status == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                                    </select>
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <div class="flex justify-center gap-1">
@@ -150,8 +153,7 @@
                                             title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <form action="{{ route('projects.destroy', $project) }}" method="POST"
-                                            class="inline">
+                                        <form action="{{ route('projects.destroy', $project) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <button type="button" onclick="confirmDelete(this.form, 'dự án {{ $project->name }}')"
@@ -165,7 +167,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                                     <i class="fas fa-folder-open text-4xl mb-2"></i>
                                     <p>Chưa có dự án nào</p>
                                 </td>
@@ -183,4 +185,58 @@
             @endif
         </div>
     </div>
+
+    <script>
+        function updateProjectStatus(projectId, newStatus, selectEl) {
+            const statusColors = {
+                'planning': 'bg-yellow-100 text-yellow-800',
+                'in_progress': 'bg-blue-100 text-blue-800',
+                'completed': 'bg-green-100 text-green-800',
+                'cancelled': 'bg-red-100 text-red-800',
+                'on_hold': 'bg-gray-100 text-gray-800',
+            };
+
+            // Remove old color classes
+            Object.values(statusColors).forEach(cls => {
+                cls.split(' ').forEach(c => selectEl.classList.remove(c));
+            });
+
+            // Add new color classes
+            const newClasses = statusColors[newStatus] || statusColors['planning'];
+            newClasses.split(' ').forEach(c => selectEl.classList.add(c));
+
+            // AJAX update
+            fetch(`/projects/${projectId}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Show toast
+                    showToast(data.message, 'success');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Lỗi khi cập nhật trạng thái', 'error');
+            });
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all transform ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+    </script>
 @endsection

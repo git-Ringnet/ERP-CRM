@@ -65,6 +65,12 @@
                                 @endif
                             </p>
                         </div>
+                        @if($customer->name_en)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Tên tiếng Anh</label>
+                            <p class="text-base text-gray-900">{{ $customer->name_en }}</p>
+                        </div>
+                        @endif
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Email công ty</label>
                             <p class="text-base text-gray-900">

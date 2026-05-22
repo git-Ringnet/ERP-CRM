@@ -13,6 +13,7 @@ class Customer extends Model
 
     protected $fillable = [
         'name',
+        'name_en',
         'abv_name',
         'email',
         'phone',
@@ -47,6 +48,7 @@ class Customer extends Model
 
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
+                ->orWhere('name_en', 'like', "%{$search}%")
                 ->orWhere('tax_code', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%");

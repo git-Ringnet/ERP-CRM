@@ -242,6 +242,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
     Route::get('/projects/export/excel', [ProjectController::class, 'export'])->name('projects.export');
     Route::get('/ajax/projects', [ProjectController::class, 'getList'])->name('projects.list');
+    Route::get('/ajax/projects/check-tax-code', [ProjectController::class, 'checkTaxCode'])->name('projects.check-tax-code');
+    Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
     Route::resource('projects', ProjectController::class);
 
 

@@ -24,12 +24,39 @@ class Project extends Model
         'manager_id',
         'note',
         'marketing_event_id',
+        // Distributor
+        'vendor_id',
+        'distributor_am',
+        // End-User
+        'eu_name_vi',
+        'eu_name_en',
+        'eu_name_abbr',
+        'eu_tax_code',
+        'eu_province',
+        'eu_industry',
+        // Collaboration
+        'collaborate_type',
+        'collaborate_customer_id',
+        'collaborate_company',
+        'collaborate_tax_code',
+        'collaborate_pic_name',
+        'collaborate_pic_title',
+        'collaborate_pic_phone',
+        'collaborate_pic_email',
+        // Project enhancements
+        'estimated_close_months',
+        'bom_file',
+        'bom_data',
+        'net_to_tech_horizon',
+        'stage',
+        'deal_type',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'budget' => 'decimal:2',
+        'net_to_tech_horizon' => 'decimal:2',
     ];
 
     /**
@@ -38,6 +65,22 @@ class Project extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Relationship with Supplier (Vendor)
+     */
+    public function vendor()
+    {
+        return $this->belongsTo(Supplier::class, 'vendor_id');
+    }
+
+    /**
+     * Relationship with Customer (Collaboration Partner)
+     */
+    public function collaborateCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'collaborate_customer_id');
     }
 
     /**
@@ -186,7 +229,11 @@ class Project extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('code', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")
-                ->orWhere('customer_name', 'like', "%{$search}%");
+                ->orWhere('customer_name', 'like', "%{$search}%")
+                ->orWhere('eu_name_vi', 'like', "%{$search}%")
+                ->orWhere('eu_name_en', 'like', "%{$search}%")
+                ->orWhere('eu_tax_code', 'like', "%{$search}%")
+                ->orWhere('collaborate_company', 'like', "%{$search}%");
         });
     }
 
