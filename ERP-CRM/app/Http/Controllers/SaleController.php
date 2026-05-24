@@ -1335,6 +1335,38 @@ class SaleController extends Controller
      */
     public function updatePnL(Request $request, Sale $sale)
     {
+        // Decode JSON payload if sent from frontend to prevent max_input_vars limit issues
+        if ($request->has('items_json') && is_string($request->input('items_json'))) {
+            $decoded = json_decode($request->input('items_json'), true);
+            if (is_array($decoded)) {
+                $request->merge(['items' => $decoded]);
+            }
+        }
+        if ($request->has('expenses_json') && is_string($request->input('expenses_json'))) {
+            $decoded = json_decode($request->input('expenses_json'), true);
+            if (is_array($decoded)) {
+                $request->merge(['expenses' => $decoded]);
+            }
+        }
+        if ($request->has('new_expenses_json') && is_string($request->input('new_expenses_json'))) {
+            $decoded = json_decode($request->input('new_expenses_json'), true);
+            if (is_array($decoded)) {
+                $request->merge(['new_expenses' => $decoded]);
+            }
+        }
+        if ($request->has('pnl_extra_expenses_json') && is_string($request->input('pnl_extra_expenses_json'))) {
+            $decoded = json_decode($request->input('pnl_extra_expenses_json'), true);
+            if (is_array($decoded)) {
+                $request->merge(['pnl_extra_expenses' => $decoded]);
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('updatePnL called', [
+            'sale_id' => $sale->id,
+            'user_id' => auth()->id(),
+            'request' => $request->all(),
+        ]);
+
         $this->authorize('update', $sale);
 
         if (!$sale->isPlEditable() && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
@@ -1354,7 +1386,7 @@ class SaleController extends Controller
         }
         $request->merge(['items' => $itemsPayload]);
 
-        $validated = $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'items' => ['required', 'array'],
             'items.*.id' => ['required', 'exists:sale_items,id'],
             'items.*.product_id' => ['nullable', 'exists:products,id'],
@@ -1412,6 +1444,26 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
         ]);
 
+        if ($validator->fails()) {
+            $errorDetails = [];
+            foreach ($validator->errors()->toArray() as $field => $messages) {
+                $errorDetails[] = $field . ': ' . implode(', ', $messages);
+            }
+            $errorMsg = 'Lỗi xác thực dữ liệu: ' . implode('; ', $errorDetails);
+            
+            Log::error('Validation failed in updatePnL:', [
+                'errors' => $validator->errors()->toArray()
+            ]);
+
+            return back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', $errorMsg)
+                ->withFragment('pnl');
+        }
+
+        $validated = $validator->validated();
+
         DB::beginTransaction();
         try {
             if ($request->has('payment_term')) {
@@ -1423,6 +1475,25 @@ class SaleController extends Controller
 
             foreach ($validated['items'] as $itemData) {
                 $item = SaleItem::where('id', $itemData['id'])->where('sale_id', $sale->id)->firstOrFail();
+
+                // Đảm bảo các trường không được NULL (NOT NULL) trong DB luôn có giá trị mặc định an toàn nếu request gửi lên trống hoặc null
+                $nonNullFieldsWithDefaults = [
+                    'usd_price' => 0,
+                    'exchange_rate' => 1,
+                    'discount_rate' => 0,
+                    'import_cost_rate' => 0,
+                    'estimated_cost_usd' => 0,
+                    'cost_price' => 0,
+                    'total' => 0,
+                    'cost_total' => 0,
+                    'contractor_tax_enabled' => 0,
+                ];
+                foreach ($nonNullFieldsWithDefaults as $field => $defaultVal) {
+                    if (!array_key_exists($field, $itemData) || is_null($itemData[$field]) || $itemData[$field] === '') {
+                        $itemData[$field] = $defaultVal;
+                    }
+                }
+
                 // N/A từ UI thường gửi chuỗi rỗng; ép về giá trị an toàn theo schema DB.
                 // - Các cột percent có thể null
                 // - Các cột amount dạng decimal NOT NULL phải về 0
@@ -1639,14 +1710,22 @@ class SaleController extends Controller
             return redirect()->route('sales.show', $sale->id)->with('success', 'Đã cập nhật chi tiết P&L. Vui lòng nhấn "Gửi duyệt" để hoàn tất.')->withFragment('pnl');
         } catch (\Illuminate\Database\QueryException $e) {
             DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('QueryException in updatePnL: ' . $e->getMessage(), [
+                'sale_id' => $sale->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
             $msg = $e->getMessage();
             if (str_contains($msg, '22003') || str_contains($msg, 'Out of range')) {
-                return back()->with('error', 'Lỗi: Giá trị nhập vào vượt quá giới hạn cho phép của hệ thống. Vui lòng kiểm tra lại các con số (đặc biệt là phần trăm).');
+                return back()->with('error', 'Lỗi: Giá trị nhập vào vượt quá giới hạn cho phép của hệ thống. Vui lòng kiểm tra lại các con số (đặc biệt là phần trăm).')->withFragment('pnl');
             }
-            return back()->with('error', 'Lỗi cơ sở dữ liệu khi cập nhật P&L: ' . $msg);
+            return back()->with('error', 'Lỗi cơ sở dữ liệu khi cập nhật P&L: ' . $msg)->withFragment('pnl');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Lỗi khi cập nhật P&L: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Exception in updatePnL: ' . $e->getMessage(), [
+                'sale_id' => $sale->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Lỗi khi cập nhật P&L: ' . $e->getMessage())->withFragment('pnl');
         }
     }
 

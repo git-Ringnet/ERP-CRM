@@ -4,6 +4,19 @@
 @section('page-title', 'Chi tiết đơn hàng: ' . $sale->code)
 
 @section('content')
+    @if ($errors->any())
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+            <strong class="font-bold">Lỗi nhập liệu:</strong>
+            <ul class="list-disc list-inside text-sm mt-1">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="absolute top-0 bottom-0 right-0 px-4 py-3 focus:outline-none" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    @endif
 <div class="space-y-4 overflow-auto">
     <!-- Actions -->
     <div class="flex flex-wrap gap-2">

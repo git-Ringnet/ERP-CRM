@@ -213,6 +213,10 @@
                 return parseFloat(val.toString().replace(/,/g, '')) || 0;
             },
 
+            cleanMoneyString(val) {
+                return cleanMoneyString(val);
+            },
+
             formatNumber(n) {
                 return new Intl.NumberFormat('en-US').format(Math.round(n));
             },
@@ -747,8 +751,17 @@
                     minimumFractionDigits: decimals,
                     maximumFractionDigits: decimals
                 }).format(n);
+            },
+
+            cleanMoneyString(val) {
+                return cleanMoneyString(val);
             }
         }
+    }
+
+    function cleanMoneyString(val) {
+        if (val === null || val === undefined) return '';
+        return val.toString().replace(/,/g, '');
     }
 
     function formatExpenseMoneyValue(rawValue) {
@@ -776,6 +789,146 @@
         });
     }
 
+    function getAlpineData(el) {
+        if (typeof Alpine !== 'undefined' && Alpine.$data) {
+            return Alpine.$data(el);
+        }
+        return el.__x ? el.__x.$data : null;
+    }
+
+    function preparePnlJsonData(form) {
+        // 1. Gom items
+        const items = [];
+        document.querySelectorAll('tr[x-data]').forEach(row => {
+            try {
+                const rowData = getAlpineData(row);
+                if (rowData && typeof rowData.qty !== 'undefined' && typeof rowData.usd_p !== 'undefined') {
+                    const extra_expenses_data = {};
+                    if (rowData.extra_costs && Array.isArray(rowData.extra_costs)) {
+                        rowData.extra_costs.forEach(ec => {
+                            const editorEl = document.querySelector('[x-data^="pnlEditor"]');
+                            const editorData = editorEl ? getAlpineData(editorEl) : null;
+                            const currentMode = editorData ? editorData.getExtraMode(ec.id) : 'fixed';
+                            if (currentMode === 'percent') {
+                                const expenseInput = document.querySelector(`.extra-expense-input[data-expense-id="${ec.id}"][data-mode="percent"]`);
+                                const ecVal = expenseInput ? parseFloat(expenseInput.value.toString().replace(/,/g, '')) || 0 : (parseFloat(ec.val) || 0);
+                                extra_expenses_data[ec.id] = ecVal;
+                            } else {
+                                extra_expenses_data[ec.id] = parseFloat(rowData.extra_fixed_vals[ec.id]) || 0;
+                            }
+                        });
+                    }
+
+                    items.push({
+                        id: rowData.id,
+                        product_id: rowData.product_id,
+                        finance_na: rowData.finance_na ? 1 : 0,
+                        overdue_na: rowData.overdue_na ? 1 : 0,
+                        management_na: rowData.mgmt_na ? 1 : 0,
+                        support_na: rowData.support_na ? 1 : 0,
+                        other_na: rowData.other_na ? 1 : 0,
+                        cost_price: rowData.cost_price,
+                        cost_total: rowData.cost_total,
+                        total: rowData.revenue_total,
+                        estimated_cost_usd: rowData.est_usd_total,
+                        usd_price: rowData.usd_p,
+                        discount_rate: rowData.disc,
+                        import_cost_rate: rowData.imp_r,
+                        exchange_rate: rowData.rate,
+                        finance_cost_percent: rowData.finance_p,
+                        overdue_interest_percent: rowData.overdue_p,
+                        overdue_interest_cost: rowData.oic,
+                        management_cost_percent: rowData.mgmt_p,
+                        support_247_cost_percent: rowData.support_p,
+                        other_support_cost: rowData.other_p,
+                        technical_poc_percent: rowData.poc_mode === 'percent' ? rowData.poc_p : null,
+                        technical_poc_cost: rowData.poc_v,
+                        implementation_cost_percent: rowData.imp_mode === 'percent' ? rowData.imp_p : null,
+                        implementation_cost: rowData.imp_v,
+                        contractor_tax_enabled: rowData.tax_enabled ? 1 : 0,
+                        contractor_tax: rowData.tax_v,
+                        extra_expenses_data: extra_expenses_data
+                    });
+                }
+            } catch(e) {
+                console.error("Error serializing row:", e);
+            }
+        });
+
+        // 2. Gom expenses
+        const expenses = {};
+        document.querySelectorAll('[name^="expenses["]').forEach(input => {
+            const match = input.name.match(/^expenses\[([^\]]+)\]\[([^\]]+)\]/);
+            if (match) {
+                const idx = match[1];
+                const key = match[2];
+                if (!expenses[idx]) {
+                    expenses[idx] = {};
+                }
+                let val = input.value;
+                if (input.classList.contains('extra-expense-money')) {
+                    val = val.toString().replace(/,/g, '');
+                }
+                expenses[idx][key] = val;
+            }
+        });
+
+        // 3. Gom new_expenses & pnl_extra_expenses
+        const new_expenses = [];
+        const pnl_extra_expenses = [];
+        const editorEl = document.querySelector('[x-data^="pnlEditor"]');
+        if (editorEl) {
+            try {
+                const editorData = getAlpineData(editorEl);
+                if (editorData && editorData.pnl_extra_costs) {
+                    editorData.pnl_extra_costs.forEach((exp, idx) => {
+                        const cleanVal = (exp.input_value || '').toString().replace(/,/g, '');
+                        const calcAmt = (exp.calculated_amount || 0).toString().replace(/,/g, '');
+                        
+                        const expData = {
+                            id: exp.id,
+                            type: exp.type,
+                            input_mode: exp.input_mode,
+                            percent_value: exp.input_mode === 'percent' ? cleanVal : '',
+                            amount: exp.input_mode === 'fixed' ? cleanVal : calcAmt,
+                            description: exp.description
+                        };
+                        
+                        if (exp.is_new) {
+                            new_expenses.push(expData);
+                        } else if (exp.id) {
+                            pnl_extra_expenses.push(expData);
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error("Error serializing extra costs:", e);
+            }
+        }
+
+        // Set JSON strings to hidden inputs
+        setOrHiddenInput(form, 'items_json', JSON.stringify(items));
+        setOrHiddenInput(form, 'expenses_json', JSON.stringify(Object.values(expenses)));
+        setOrHiddenInput(form, 'new_expenses_json', JSON.stringify(new_expenses));
+        setOrHiddenInput(form, 'pnl_extra_expenses_json', JSON.stringify(pnl_extra_expenses));
+
+        // Disable all old inputs to avoid max_input_vars
+        form.querySelectorAll('[name^="items["], [name^="expenses["], [name^="new_expenses["], [name^="pnl_extra_expenses["]').forEach(input => {
+            input.disabled = true;
+        });
+    }
+
+    function setOrHiddenInput(form, name, value) {
+        let input = form.querySelector(`input[name="${name}"]`);
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            form.appendChild(input);
+        }
+        input.value = value;
+    }
+
     function submitPnlFormAction(url, message) {
         if (confirm(message)) {
             const pnlForm = document.getElementById('pnlForm');
@@ -794,6 +947,9 @@
                     pnlForm.appendChild(flag);
                 }
                 flag.value = '1';
+
+                // Đóng gói dữ liệu JSON và disable input con
+                preparePnlJsonData(pnlForm);
                 
                 pnlForm.submit();
             }
@@ -808,6 +964,9 @@
                 document.querySelectorAll('.extra-expense-money').forEach((input) => {
                     input.value = (input.value || '').toString().replace(/,/g, '');
                 });
+                
+                // Đóng gói dữ liệu JSON và disable input con
+                preparePnlJsonData(this);
             });
         }
     });
@@ -1493,7 +1652,7 @@
                                     {{-- Hidden input to submit per-item data --}}
                                     <input type="hidden" 
                                            :name="'items[{{ $index }}][extra_expenses_data][{{ $extra->id }}]'"
-                                           :value="extra_fixed_vals['{{ $extra->id }}'] || 0">
+                                           :value="cleanMoneyString(extra_fixed_vals['{{ $extra->id }}'] || 0)">
                                 </td>
                             @endforeach
                             
@@ -1697,15 +1856,15 @@
                         <div x-show="exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][type]'" :value="exp.type" :disabled="!exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="!exp.is_new">
-                            <input type="hidden" :name="'new_expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''" :disabled="!exp.is_new">
-                            <input type="hidden" :name="'new_expenses['+idx+'][amount]'" :value="exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : '')" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][amount]'" :value="cleanMoneyString(exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount)" :disabled="!exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][description]'" :value="exp.description" :disabled="!exp.is_new">
                         </div>
                         <div x-show="!exp.is_new && exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][id]'" :value="exp.id" :disabled="exp.is_new || !exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="exp.is_new || !exp.id">
-                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][percent_value]'" :value="exp.input_mode === 'percent' ? exp.input_value : ''" :disabled="exp.is_new || !exp.id">
-                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][amount]'" :value="exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : '')" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][amount]'" :value="cleanMoneyString(exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount)" :disabled="exp.is_new || !exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][description]'" :value="exp.description" :disabled="exp.is_new || !exp.id">
                         </div>
                     </div>
