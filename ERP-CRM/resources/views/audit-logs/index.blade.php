@@ -22,16 +22,17 @@
                            id="date_to" name="date_to" value="{{ request('date_to') }}">
                 </div>
                 <div>
-                    <label for="action_type" class="block text-xs font-medium text-gray-700 mb-1">Loại hành động</label>
+                    <label for="action" class="block text-xs font-medium text-gray-700 mb-1">Loại hành động</label>
                     <select class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" 
-                            id="action_type" name="action_type">
+                            id="action" name="action">
                         <option value="">Tất cả</option>
-                        <option value="created" {{ request('action_type') === 'created' ? 'selected' : '' }}>Tạo mới</option>
-                        <option value="updated" {{ request('action_type') === 'updated' ? 'selected' : '' }}>Cập nhật</option>
-                        <option value="deleted" {{ request('action_type') === 'deleted' ? 'selected' : '' }}>Xóa</option>
-                        <option value="assigned" {{ request('action_type') === 'assigned' ? 'selected' : '' }}>Gán</option>
-                        <option value="revoked" {{ request('action_type') === 'revoked' ? 'selected' : '' }}>Gỡ bỏ</option>
-                        <option value="unauthorized_access" {{ request('action_type') === 'unauthorized_access' ? 'selected' : '' }}>Truy cập trái phép</option>
+                        <option value="created" {{ request('action') === 'created' ? 'selected' : '' }}>Tạo mới</option>
+                        <option value="updated" {{ request('action') === 'updated' ? 'selected' : '' }}>Cập nhật</option>
+                        <option value="deleted" {{ request('action') === 'deleted' ? 'selected' : '' }}>Xóa</option>
+                        <option value="assigned" {{ request('action') === 'assigned' ? 'selected' : '' }}>Gán</option>
+                        <option value="removed" {{ request('action') === 'removed' ? 'selected' : '' }}>Gỡ bỏ</option>
+                        <option value="synced" {{ request('action') === 'synced' ? 'selected' : '' }}>Đồng bộ</option>
+                        <option value="unauthorized_access" {{ request('action') === 'unauthorized_access' ? 'selected' : '' }}>Truy cập trái phép</option>
                     </select>
                 </div>
                 <div>
@@ -79,26 +80,37 @@
                         {{ $log->created_at->format('d/m/Y H:i') }}
                     </td>
                     <td class="px-4 py-3">
-                        @if($log->actor)
-                        <div class="text-sm font-medium text-gray-900">{{ $log->actor->name }}</div>
-                        <div class="text-xs text-gray-500">{{ $log->actor->email }}</div>
+                        @if($log->user)
+                        <div class="text-sm font-medium text-gray-900">{{ $log->user->name }}</div>
+                        <div class="text-xs text-gray-500">{{ $log->user->email }}</div>
                         @else
                         <span class="text-xs text-gray-500">Hệ thống</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         @php
-                            $badgeClass = match($log->action_type) {
+                            $badgeClass = match($log->action) {
                                 'created' => 'bg-green-100 text-green-800',
                                 'updated' => 'bg-blue-100 text-blue-800',
                                 'deleted' => 'bg-red-100 text-red-800',
                                 'assigned' => 'bg-purple-100 text-purple-800',
-                                'revoked' => 'bg-yellow-100 text-yellow-800',
+                                'removed' => 'bg-yellow-100 text-yellow-800',
+                                'synced' => 'bg-indigo-100 text-indigo-800',
                                 'unauthorized_access' => 'bg-red-100 text-red-800',
                                 default => 'bg-gray-100 text-gray-800'
                             };
+                            $actionLabel = match($log->action) {
+                                'created' => 'Tạo mới',
+                                'updated' => 'Cập nhật',
+                                'deleted' => 'Xóa',
+                                'assigned' => 'Gán',
+                                'removed' => 'Gỡ bỏ',
+                                'synced' => 'Đồng bộ',
+                                'unauthorized_access' => 'Truy cập trái phép',
+                                default => $log->action
+                            };
                         @endphp
-                        <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $badgeClass }}">{{ $log->action_type }}</span>
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $badgeClass }}">{{ $actionLabel }}</span>
                     </td>
                     <td class="px-4 py-3">
                         <div class="text-sm font-medium text-gray-900">{{ $log->entity_type }}</div>
@@ -114,13 +126,13 @@
                             @if($log->old_value)
                             <div class="mb-2">
                                 <strong class="text-gray-700">Giá trị cũ:</strong>
-                                <pre class="mt-1 p-2 bg-white rounded overflow-x-auto text-xs">{{ json_encode(json_decode($log->old_value), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                <pre class="mt-1 p-2 bg-white rounded overflow-x-auto text-xs">{{ json_encode(is_string($log->old_value) ? json_decode($log->old_value) : $log->old_value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                             </div>
                             @endif
                             @if($log->new_value)
                             <div>
                                 <strong class="text-gray-700">Giá trị mới:</strong>
-                                <pre class="mt-1 p-2 bg-white rounded overflow-x-auto text-xs">{{ json_encode(json_decode($log->new_value), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                <pre class="mt-1 p-2 bg-white rounded overflow-x-auto text-xs">{{ json_encode(is_string($log->new_value) ? json_decode($log->new_value) : $log->new_value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                             </div>
                             @endif
                         </div>
