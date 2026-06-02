@@ -73,6 +73,8 @@ class PermissionSeeder extends Seeder
             'employee_asset_assignments' => ['view', 'create', 'edit', 'delete'],
             'employee_asset_reports' => ['view', 'export'],
             'marketing_events' => ['view', 'create', 'edit', 'delete'],
+            'pr_approvals' => ['view', 'create', 'edit', 'delete'],
+            'needs_ordering' => ['view', 'create'],
         ];
         
         $permissions = [];
@@ -281,6 +283,8 @@ class PermissionSeeder extends Seeder
             'warehouse_journal_entries' => 'Nhật ký kế toán kho',
             'employee_asset_assignments' => 'Cấp phát tài sản',
             'employee_asset_reports' => 'Báo cáo tài sản',
+            'pr_approvals' => 'Duyệt yêu cầu (PR)',
+            'needs_ordering' => 'Gom đơn cần đặt',
         ];
         
         $actionText = $actionMap[$action] ?? ucfirst($action);
@@ -361,6 +365,8 @@ class PermissionSeeder extends Seeder
             'warehouse_journal_entries' => 'nhật ký kế toán kho',
             'employee_asset_assignments' => 'cấp phát tài sản',
             'employee_asset_reports' => 'báo cáo tài sản',
+            'pr_approvals' => 'duyệt yêu cầu (PR)',
+            'needs_ordering' => 'gom đơn cần đặt',
         ];
         
         $actionText = $actionMap[$action] ?? $action;

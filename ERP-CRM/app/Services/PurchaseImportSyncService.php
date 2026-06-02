@@ -220,7 +220,7 @@ class PurchaseImportSyncService
                     'quantity' => $qty,
                     'unit' => $poItem->unit,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
-                    'comments' => "Từ PO {$purchaseOrder->code} (Nhận đợt ngày " . now()->format('d/m/Y') . ")",
+                    'comments' => "[POItem:{$poItem->id}] Từ PO {$purchaseOrder->code} (Nhận đợt ngày " . now()->format('d/m/Y') . ")",
                 ]);
                 $batchQty += $qty;
             }

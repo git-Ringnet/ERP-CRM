@@ -172,6 +172,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
+    Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');
 
     // PNL Approval Attachment routes (File đính kèm duyệt P&L)
     Route::post('/sales/{sale}/pnl-attachments', [SaleController::class, 'uploadPnlAttachment'])->name('sales.pnl-attachments.upload');

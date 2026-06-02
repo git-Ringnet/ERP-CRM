@@ -58,5 +58,7 @@ return [
         'employee_asset_assignments' => 'Cấp phát / Thu hồi Tài sản',
         'employee_asset_reports' => 'Báo cáo Tài sản',
         'marketing_events' => 'Sự kiện Marketing',
+        'pr_approvals' => 'Duyệt yêu cầu (PR)',
+        'needs_ordering' => 'Gom đơn cần đặt',
     ],
 ];

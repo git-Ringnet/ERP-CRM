@@ -2387,6 +2387,126 @@ class SaleController extends Controller
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
     }
+    /**
+     * Update and resubmit an order request that was marked as "Thiếu thông tin"
+     */
+    public function updateOrderRequest(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        // Chỉ cho phép chỉnh sửa khi trạng thái là need_info
+        if ($orderRequest->status !== \App\Models\SaleOrderRequest::STATUS_NEED_INFO) {
+            return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu đặt hàng đang ở trạng thái "Thiếu thông tin".');
+        }
+
+        // Chỉ cho phép người tạo PR, owner Sale, hoặc Admin
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager');
+        if (!$isAdmin && auth()->id() !== $orderRequest->created_by && auth()->id() !== $sale->user_id) {
+            return back()->with('error', 'Bạn không có quyền chỉnh sửa yêu cầu này.');
+        }
+
+        $validated = $request->validate([
+            'order_request_items' => 'required|array|min:1',
+            'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
+            'order_request_items.*.type' => 'required|string|max:100',
+            'order_request_items.*.part_number' => 'required|string|max:255',
+            'order_request_items.*.product_id' => 'nullable|exists:products,id',
+            'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
+            'order_request_items.*.quantity' => 'required|numeric|min:0.01',
+            'order_request_items.*.unit' => 'nullable|string|max:50',
+            'order_request_items.*.serial_number' => 'nullable|string|max:255',
+            'order_request_items.*.exp_date' => 'nullable|date',
+            'order_request_items.*.si_name' => 'required|string|max:255',
+            'order_request_items.*.eu_name_mst' => 'required|string|max:255',
+            'order_request_items.*.address' => 'nullable|string|max:500',
+            'order_request_note' => 'nullable|string|max:2000',
+            'order_request_files.*' => 'nullable|file|max:20480',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            // Xóa items cũ → tạo items mới
+            $orderRequest->items()->delete();
+
+            foreach ($validated['order_request_items'] as $item) {
+                $supplier = \App\Models\Supplier::find($item['vendor_id']);
+                
+                \App\Models\SaleOrderRequestItem::create([
+                    'sale_order_request_id' => $orderRequest->id,
+                    'vendor_id' => $item['vendor_id'],
+                    'vendor' => $supplier?->name,
+                    'type' => $item['type'],
+                    'part_number' => $item['part_number'],
+                    'product_id' => $item['product_id'] ?? null,
+                    'sale_item_id' => $item['sale_item_id'] ?? null,
+                    'quantity' => $item['quantity'],
+                    'unit' => $item['unit'] ?? null,
+                    'serial_number' => $item['serial_number'] ?? null,
+                    'exp_date' => $item['exp_date'] ?? null,
+                    'si_name' => $item['si_name'],
+                    'eu_name_mst' => $item['eu_name_mst'],
+                    'address' => $item['address'] ?? null,
+                ]);
+            }
+
+            // Upload file đính kèm mới (giữ lại file cũ)
+            if ($request->hasFile('order_request_files')) {
+                foreach ($request->file('order_request_files') as $file) {
+                    $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
+                    \App\Models\SaleOrderRequestAttachment::create([
+                        'sale_order_request_id' => $orderRequest->id,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'file_size' => $file->getSize(),
+                        'uploaded_by' => auth()->id(),
+                    ]);
+                }
+            }
+
+            // Cập nhật PR: trạng thái → submitted, xóa rejection_note
+            $orderRequest->update([
+                'status' => \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                'rejection_note' => null,
+                'note' => $request->input('order_request_note'),
+                'sent_at' => now(),
+            ]);
+
+            // Gửi thông báo cho PO team (gửi lại)
+            $poUsers = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'admin')
+                  ->orWhere('slug', 'purchase_manager');
+            })->get();
+
+            if ($poUsers->isEmpty()) {
+                $poUsers = User::whereHas('roles', function ($q) {
+                    $q->where('slug', 'admin');
+                })->get();
+            }
+
+            $senderName = auth()->user()->name ?? 'Sales';
+            foreach ($poUsers as $user) {
+                if ($user->id === auth()->id()) continue;
+
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'order_request',
+                    'title' => 'Yêu cầu đặt hàng đã được gửi lại',
+                    'message' => "{$senderName} đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-redo',
+                    'color' => 'blue',
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('sales.show', $sale->id)->with('success', "Đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Update order request failed: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
 
     /**
      * Download order request attachment

@@ -19,6 +19,14 @@ class PurchaseOrderRequestController extends Controller
     public function __construct(CurrencyService $currencyService)
     {
         $this->currencyService = $currencyService;
+
+        // Phân quyền: Duyệt yêu cầu (PR)
+        $this->middleware('permission:view_pr_approvals')->only(['index', 'deletedList']);
+        $this->middleware('permission:edit_pr_approvals')->only(['verify', 'updateNote', 'destroy', 'restore']);
+
+        // Phân quyền: Gom đơn cần đặt
+        $this->middleware('permission:view_needs_ordering')->only(['needsOrdering']);
+        $this->middleware('permission:create_needs_ordering')->only(['storeFromPr', 'cancelItem', 'restoreItem']);
     }
 
     /**
@@ -75,6 +83,10 @@ class PurchaseOrderRequestController extends Controller
             $pr->status = SaleOrderRequest::STATUS_NEED_INFO;
             $pr->rejection_note = $request->input('rejection_note');
             $pr->save();
+
+            // Gửi thông báo cho Sales (người tạo PR) biết PR bị trả về
+            $this->notifySalesNeedInfo($pr);
+
             return back()->with('success', 'Đã trả yêu cầu #' . $pr->code . ' về cho bộ phận Sales.');
         }
 
@@ -461,5 +473,32 @@ class PurchaseOrderRequestController extends Controller
 
         return redirect()->route('purchase-requests.index')
             ->with('success', 'Đã khôi phục thành công yêu cầu đặt hàng #' . $pr->code . '!');
+    }
+
+    /**
+     * Gửi thông báo cho Sales khi PR bị trả về "Thiếu thông tin"
+     */
+    private function notifySalesNeedInfo(SaleOrderRequest $pr)
+    {
+        $pr->load('sale');
+
+        // Thông báo cho người tạo PR
+        $creatorId = $pr->created_by;
+        if (!$creatorId || $creatorId === auth()->id()) {
+            return;
+        }
+
+        $approverName = auth()->user()->name ?? 'PO Team';
+        $saleCode = $pr->sale->code ?? 'N/A';
+
+        \App\Models\Notification::create([
+            'user_id' => $creatorId,
+            'type' => 'order_request_need_info',
+            'title' => 'Yêu cầu đặt hàng cần bổ sung thông tin',
+            'message' => "{$approverName} đã trả yêu cầu đặt hàng ({$pr->code}) cho đơn {$saleCode} về vì: \"{$pr->rejection_note}\". Vui lòng chỉnh sửa và gửi lại.",
+            'link' => $pr->sale ? route('sales.show', $pr->sale_id) : null,
+            'icon' => 'fas fa-exclamation-triangle',
+            'color' => 'orange',
+        ]);
     }
 }

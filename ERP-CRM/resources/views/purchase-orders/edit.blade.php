@@ -133,6 +133,7 @@
                         <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}"
                             class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
                         <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id ?? '' }}" class="product-id">
+                        <input type="hidden" name="items[{{ $index }}][sale_order_request_item_id]" value="{{ $item->sale_order_request_item_id ?? '' }}" class="sale-order-request-item-id">
                         <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
                     </div>
                     <div class="col-span-1">
@@ -476,6 +477,7 @@ document.getElementById('addItem').addEventListener('click', function() {
             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
             <input type="text" name="items[${itemIndex}][product_name]" class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off" placeholder="Nhập tên sản phẩm...">
             <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id">
+            <input type="hidden" name="items[${itemIndex}][sale_order_request_item_id]" value="" class="sale-order-request-item-id">
             <ul class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden suggestions-list top-full left-0 mt-1"></ul>
         </div>
         <div class="col-span-1">

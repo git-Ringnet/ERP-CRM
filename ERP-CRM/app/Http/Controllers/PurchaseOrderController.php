@@ -293,7 +293,9 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->items()->create([
                     'product_name' => $item['product_name'],
                     'product_id' => $item['product_id'] ?? null,
+                    'sale_order_request_item_id' => $item['sale_order_request_item_id'] ?? null,
                     'quantity' => $item['quantity'],
+                    'ordered_quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
                     'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
@@ -1189,19 +1191,25 @@ class PurchaseOrderController extends Controller
 
         DB::beginTransaction();
         try {
-            // Batch update: chỉ chuyển items đang 'shipping' → 'received'
-            $updated = $purchaseOrder->items()
+            // Lưu lại danh sách item IDs đang ở trạng thái 'shipping' TRƯỚC KHI update
+            $shippingItemIds = $purchaseOrder->items()
                 ->where('status', 'shipping')
-                ->update(['status' => 'received']);
+                ->pluck('id')
+                ->toArray();
 
-            if ($updated === 0) {
+            if (empty($shippingItemIds)) {
                 return back()->with('warning', 'Không có sản phẩm nào ở trạng thái "Đang về" để xác nhận.');
             }
 
-            // Cập nhật received_quantity cho các items vừa chuyển
+            // Batch update: chỉ chuyển items đang 'shipping' → 'received'
+            $updated = $purchaseOrder->items()
+                ->whereIn('id', $shippingItemIds)
+                ->update(['status' => 'received']);
+
+            // Cập nhật received_quantity CHỈ cho các items vừa chuyển (không động vào items đã received trước đó)
             $purchaseOrder->load('items');
             foreach ($purchaseOrder->items as $item) {
-                if ($item->status === 'received' && $item->received_quantity < $item->quantity) {
+                if (in_array($item->id, $shippingItemIds) && $item->received_quantity < $item->quantity) {
                     $item->received_quantity = $item->quantity;
                     $item->save();
                 }
@@ -1220,9 +1228,9 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->update(['status' => 'partial_received']);
             }
 
-            // Sync all 'received' items to Warehouse Receipt
+            // Sync CHỈ các items vừa mới chuyển sang 'received' (không sync lại items đã nhập kho trước đó)
             foreach ($purchaseOrder->items as $item) {
-                if ($item->status === 'received') {
+                if (in_array($item->id, $shippingItemIds)) {
                     $this->syncPoItemToImport($item);
                 }
             }
@@ -1282,12 +1290,28 @@ class PurchaseOrderController extends Controller
             }
 
             // 3. Thêm/Cập nhật item vào phiếu nhập kho
-            // Tìm xem món này đã có trong phiếu nhập chưa
+            // Dùng purchase_order_item_id (comments chứa PO item ID) để phân biệt
+            // từng dòng sản phẩm, kể cả sản phẩm trùng product_id
+            $poItemTag = "[POItem:{$item->id}]";
             $existing = \App\Models\ImportItem::where('import_id', $import->id)
-                ->where('product_id', $item->product_id)
-                ->where('cost', $item->unit_price)
-                ->whereNull('processed_at')
+                ->where('comments', 'like', "%{$poItemTag}%")
                 ->first();
+
+            // Fallback: nếu không tìm thấy bằng tag (dữ liệu cũ), thử tìm bằng product_id + cost
+            // nhưng chỉ khi KHÔNG có tag nào khác (tức là dòng chưa được tag)
+            if (!$existing) {
+                $existing = \App\Models\ImportItem::where('import_id', $import->id)
+                    ->where('product_id', $item->product_id)
+                    ->where('cost', $item->unit_price)
+                    ->whereNull('processed_at')
+                    ->where('comments', 'not like', '%[POItem:%')
+                    ->first();
+            }
+
+            $saleInfo = ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale)
+                ? " (Đơn " . $item->saleOrderRequestItem->saleOrderRequest->sale->code . ")"
+                : "";
+            $comment = "{$poItemTag} Hàng về từ PO " . $po->code . $saleInfo;
 
             if (!$existing) {
                 \App\Models\ImportItem::create([
@@ -1297,10 +1321,13 @@ class PurchaseOrderController extends Controller
                     'quantity' => $item->quantity,
                     'cost' => $item->unit_price, 
                     'warehouse_price' => $item->unit_price,
-                    'comments' => "Hàng về từ PO " . $po->code . ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale ? " (Đơn " . $item->saleOrderRequestItem->saleOrderRequest->sale->code . ")" : ""),
+                    'comments' => $comment,
                 ]);
             } else {
-                $existing->update(['quantity' => $item->quantity]);
+                $existing->update([
+                    'quantity' => $item->quantity,
+                    'comments' => $comment,
+                ]);
             }
 
             // 4. Cập nhật lại tổng số lượng của phiếu nhập

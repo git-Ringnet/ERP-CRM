@@ -41,7 +41,10 @@
                 <i class="fas fa-envelope mr-2"></i> Gửi Email
             </button>
         </form>
-        @if($sale->debt_amount > 0 && in_array($sale->status, ['shipping', 'completed']))
+        @php
+            $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
+        @endphp
+        @if($sale->debt_amount > 0 && ($hasOfficialInvoiceForPayment || in_array($sale->status, ['shipping', 'completed'])))
         <button onclick="openPaymentModal()" 
                 class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
             <i class="fas fa-money-bill mr-2"></i> Ghi nhận thanh toán
@@ -1262,6 +1265,94 @@ window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
 window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
 window.OR_SUPPLIERS = @json($orderRequestSuppliers);
 window.OR_SALE_ITEMS = @json($orderRequestItems);
+
+// === Edit PR (Need Info) functions ===
+var editRowCounters = {};
+
+function addEditRow(prId) {
+    if (!editRowCounters[prId]) {
+        editRowCounters[prId] = document.querySelectorAll('#editItemRows_' + prId + ' .edit-item-row').length;
+    }
+    const idx = editRowCounters[prId]++;
+    const tbody = document.getElementById('editItemRows_' + prId);
+    const tr = document.createElement('tr');
+    tr.className = 'edit-item-row border-b border-gray-100 hover:bg-gray-50';
+    tr.dataset.index = idx;
+
+    let supplierOptions = '<option value="">-- Chọn --</option>';
+    window.OR_SUPPLIERS.forEach(s => {
+        supplierOptions += `<option value="${s.id}">${s.name}</option>`;
+    });
+
+    let typeOptions = '<option value="">-- Chọn --</option>';
+    window.OR_TYPES.forEach(t => {
+        typeOptions += `<option value="${t}">${t}</option>`;
+    });
+
+    tr.innerHTML = `
+        <td class="px-1 py-1">
+            <select name="order_request_items[${idx}][vendor_id]" required
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+                ${supplierOptions}
+            </select>
+        </td>
+        <td class="px-1 py-1">
+            <select name="order_request_items[${idx}][type]" required
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+                ${typeOptions}
+            </select>
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][part_number]" required placeholder="P/N"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+            <input type="hidden" name="order_request_items[${idx}][product_id]" value="">
+            <input type="hidden" name="order_request_items[${idx}][sale_item_id]" value="">
+        </td>
+        <td class="px-1 py-1">
+            <input type="number" name="order_request_items[${idx}][quantity]" required step="0.01" value="1"
+                class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][unit]" placeholder="Đơn vị"
+                class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][serial_number]" placeholder="SN"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+        </td>
+        <td class="px-1 py-1">
+            <input type="date" name="order_request_items[${idx}][exp_date]"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][si_name]" required placeholder="SI Name"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][eu_name_mst]" required placeholder="EU Name - MST"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][address]" placeholder="Địa chỉ"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+        </td>
+        <td class="px-1 py-1 text-center">
+            <button type="button" onclick="removeEditRow(this, '${prId}')" class="text-red-400 hover:text-red-600">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function removeEditRow(btn, prId) {
+    const rows = document.querySelectorAll('#editItemRows_' + prId + ' .edit-item-row');
+    if (rows.length > 1) {
+        btn.closest('.edit-item-row').remove();
+    } else {
+        alert('Yêu cầu đặt hàng phải có ít nhất 1 sản phẩm.');
+    }
+}
 </script>
 <script src="{{ asset('js/order-request.js') }}"></script>
 @endpush
