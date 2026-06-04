@@ -15,7 +15,9 @@ return new class extends Migration
         });
 
         // Change type from enum to varchar to allow custom expense names
-        DB::statement("ALTER TABLE sale_expenses MODIFY COLUMN type VARCHAR(100) NOT NULL DEFAULT 'other'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE sale_expenses MODIFY COLUMN type VARCHAR(100) NOT NULL DEFAULT 'other'");
+        }
     }
 
     public function down(): void
@@ -24,6 +26,8 @@ return new class extends Migration
             $table->dropColumn(['input_mode', 'percent_value']);
         });
 
-        DB::statement("ALTER TABLE sale_expenses MODIFY COLUMN type ENUM('shipping','marketing','commission','other') NOT NULL DEFAULT 'other'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE sale_expenses MODIFY COLUMN type ENUM('shipping','marketing','commission','other') NOT NULL DEFAULT 'other'");
+        }
     }
 };

@@ -29,6 +29,7 @@ class SendActionReminders extends Command
     public function handle()
     {
         $this->info('Checking for actions that need reminders...');
+        $sentCount = 0;
         
         // Find actions due in the next 15 minutes (or up to 5 minutes overdue for grace period)
         $dueActions = CustomerCareStage::query()
@@ -44,34 +45,58 @@ class SendActionReminders extends Command
 
         if ($dueActions->isEmpty()) {
             $this->info('No actions require reminders at this time.');
-            return 0;
+        } else {
+            foreach ($dueActions as $stage) {
+                // Check if we already sent a notification in the last hour (prevent spam)
+                $recentNotification = $stage->assignedTo
+                    ->notifications()
+                    ->where('type', 'App\\Notifications\\ActionDueReminder')
+                    ->where('data->customer_care_stage_id', $stage->id)
+                    ->where('created_at', '>=', now()->subHour())
+                    ->exists();
+
+                if ($recentNotification) {
+                    $this->line("Skipping {$stage->customer->name} - already reminded recently");
+                    continue;
+                }
+
+                try {
+                    // Send notification
+                    $stage->assignedTo->notify(new ActionDueReminder($stage));
+                    $sentCount++;
+                    
+                    $this->info("✓ Sent reminder to {$stage->assignedTo->name} for: {$stage->customer->name}");
+                    
+                } catch (\Exception $e) {
+                    $this->error("✗ Failed to send reminder for {$stage->customer->name}: " . $e->getMessage());
+                }
+            }
         }
 
-        $sentCount = 0;
-
-        foreach ($dueActions as $stage) {
-            // Check if we already sent a notification in the last hour (prevent spam)
-            $recentNotification = $stage->assignedTo
-                ->notifications()
-                ->where('type', 'App\\Notifications\\ActionDueReminder')
-                ->where('data->customer_care_stage_id', $stage->id)
-                ->where('created_at', '>=', now()->subHour())
-                ->exists();
-
-            if ($recentNotification) {
-                $this->line("Skipping {$stage->customer->name} - already reminded recently");
-                continue;
-            }
-
+        // Process general reminders (from 'reminders' table)
+        $dueReminders = \App\Models\Reminder::unsent()->due()->with('user')->get();
+        foreach ($dueReminders as $reminder) {
             try {
-                // Send notification
-                $stage->assignedTo->notify(new ActionDueReminder($stage));
+                // Gửi thông báo hệ thống (Notification)
+                \App\Models\Notification::create([
+                    'user_id' => $reminder->user_id,
+                    'type' => 'opportunity_reminder',
+                    'title' => 'Nhắc nhở hoạt động',
+                    'message' => $reminder->message,
+                    'link' => $reminder->remindable_type === 'App\\Models\\Opportunity' 
+                        ? route('opportunities.show', $reminder->remindable_id) 
+                        : '#',
+                    'icon' => 'fas fa-bell text-warning',
+                    'color' => 'yellow',
+                ]);
+
+                // Đánh dấu đã gửi
+                $reminder->markAsSent();
                 $sentCount++;
                 
-                $this->info("✓ Sent reminder to {$stage->assignedTo->name} for: {$stage->customer->name}");
-                
+                $this->info("✓ Sent general reminder to {$reminder->user->name}: {$reminder->message}");
             } catch (\Exception $e) {
-                $this->error("✗ Failed to send reminder for {$stage->customer->name}: " . $e->getMessage());
+                $this->error("✗ Failed to send general reminder: " . $e->getMessage());
             }
         }
 

@@ -16,6 +16,28 @@ use Maatwebsite\Excel\Facades\Excel;
 class ProjectController extends Controller
 {
     /**
+     * Master data: Danh sách ngành nghề chuẩn.
+     */
+    public const INDUSTRIES = [
+        'banking_finance'     => 'Banking & Finance (Ngân hàng & Tài chính)',
+        'government'          => 'Government & Public Sector (Chính phủ & Công)',
+        'healthcare'          => 'Healthcare (Y tế & Sức khỏe)',
+        'education'           => 'Education (Giáo dục)',
+        'manufacturing'       => 'Manufacturing (Sản xuất)',
+        'retail'              => 'Retail & E-commerce (Bán lẻ & TMĐT)',
+        'telecom'             => 'Telecommunications (Viễn thông)',
+        'energy'              => 'Energy & Utilities (Năng lượng & Tiện ích)',
+        'transportation'      => 'Transportation & Logistics (Vận tải & Logistics)',
+        'real_estate'         => 'Real Estate & Construction (BĐS & Xây dựng)',
+        'media'               => 'Media & Entertainment (Truyền thông & Giải trí)',
+        'technology'          => 'Information Technology (Công nghệ thông tin)',
+        'hospitality'         => 'Hospitality & Tourism (Khách sạn & Du lịch)',
+        'agriculture'         => 'Agriculture (Nông nghiệp)',
+        'insurance'           => 'Insurance (Bảo hiểm)',
+        'legal'               => 'Legal & Consulting (Pháp lý & Tư vấn)',
+        'other'               => 'Others (Khác)',
+    ];
+    /**
      * Display a listing of projects.
      */
     public function index(Request $request)
@@ -71,7 +93,7 @@ class ProjectController extends Controller
         // Auto-fill Distributor AM from logged-in user
         $distributorAm = Auth::user()->name . ' | ' . Auth::user()->email;
 
-        // Handle pre-filling from MarketingEvent
+        // Handle pre-filling from MarketingEvent or Opportunity
         $preFill = [];
         if ($request->filled('marketing_event_id')) {
             $mktEvent = \App\Models\MarketingEvent::find($request->marketing_event_id);
@@ -82,11 +104,29 @@ class ProjectController extends Controller
                 $preFill['description'] = "Dự án phát sinh từ sự kiện: " . $mktEvent->title . "\n" . $mktEvent->description;
             }
         }
+        if ($request->filled('opportunity_id')) {
+            $opp = \App\Models\Opportunity::find($request->opportunity_id);
+            if ($opp) {
+                $preFill['opportunity_id'] = $opp->id;
+                $preFill['customer_type'] = $opp->customer_type;
+                $preFill['customer_id'] = $opp->customer_id;
+                $preFill['contact_id'] = $opp->contact_id;
+                $preFill['name'] = $opp->name;
+                $preFill['description'] = $opp->description;
+                $preFill['eu_name_vi'] = $opp->eu_company_name;
+                $preFill['eu_contact_name'] = $opp->eu_contact_name;
+                $preFill['eu_phone'] = $opp->eu_phone;
+                $preFill['eu_email'] = $opp->eu_email;
+                $preFill['eu_position'] = $opp->eu_position;
+            }
+        }
         if ($request->filled('customer_id')) {
             $preFill['customer_id'] = $request->customer_id;
         }
 
-        return view('projects.create', compact('customers', 'managers', 'suppliers', 'code', 'preFill', 'distributorAm'));
+        $industries = self::INDUSTRIES;
+
+        return view('projects.create', compact('customers', 'managers', 'suppliers', 'code', 'preFill', 'distributorAm', 'industries'));
     }
 
     /**
@@ -181,7 +221,6 @@ class ProjectController extends Controller
     {
         $this->authorize('create', Project::class);
 
-        // Dynamic validation: collaboration fields only required for Partner
         $collabRequired = $request->input('collaborate_type') === 'partner' ? 'required' : 'nullable';
 
         $validated = $request->validate([
@@ -195,6 +234,7 @@ class ProjectController extends Controller
             'manager_id' => ['nullable', 'exists:users,id'],
             'note' => ['nullable', 'string'],
             'marketing_event_id' => ['nullable', 'exists:marketing_events,id'],
+            'opportunity_id' => ['nullable', 'exists:opportunities,id'],
             // Distributor
             'vendor_id' => ['nullable', 'exists:suppliers,id'],
             'distributor_am' => ['nullable', 'string', 'max:255'],
@@ -203,8 +243,9 @@ class ProjectController extends Controller
             'eu_name_en' => ['required', 'string', 'max:500'],
             'eu_name_abbr' => ['nullable', 'string', 'max:100'],
             'eu_tax_code' => ['required', 'string', 'max:100'],
-            'eu_province' => ['nullable', 'string', 'max:100'],
-            'eu_industry' => ['nullable', 'string', 'max:100'],
+            'eu_province' => ['required', 'string', 'max:100'],
+            'eu_industry' => ['required', 'string'],
+            'eu_industry_other' => ['required_if:eu_industry,other', 'nullable', 'string', 'max:255'],
             // Collaboration (dynamic: required only for Partner)
             'collaborate_type' => ['required', 'in:partner,end_user'],
             'collaborate_customer_id' => ['nullable', 'exists:customers,id'],
@@ -214,40 +255,47 @@ class ProjectController extends Controller
             'collaborate_pic_title' => [$collabRequired, 'string', 'max:255'],
             'collaborate_pic_phone' => [$collabRequired, 'string', 'max:50'],
             'collaborate_pic_email' => ['nullable', 'string', 'email', 'max:255'],
-            // Project enhancements
             'estimated_close_months' => ['required', 'in:3,6,9'],
-            'bom_file' => ['nullable', 'file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],
+            'bom_file' => ['nullable', 'array'],
+            'bom_file.*' => ['file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],
             'bom_data' => ['nullable', 'string'],
             'net_to_tech_horizon' => ['nullable', 'numeric', 'min:0'],
             'stage' => ['nullable', 'string', 'max:50'],
             'deal_type' => ['nullable', 'string', 'max:50'],
         ], [], $this->validationAttributes());
 
+        if ($validated['eu_industry'] === 'other') {
+            $validated['eu_industry'] = $request->input('eu_industry_other');
+        } else {
+            if (!array_key_exists($validated['eu_industry'], self::INDUSTRIES)) {
+                return back()->withInput()->withErrors(['eu_industry' => 'Ngành nghề không hợp lệ.']);
+            }
+        }
+
         // Auto-set start_date and calculate end_date from estimated_close_months
         $validated['start_date'] = now()->format('Y-m-d');
         $validated['end_date'] = now()->addMonths((int) $validated['estimated_close_months'])->format('Y-m-d');
 
-        // === Auto-create Customer from End-User info ===
-        $euCustomer = $this->findOrCreateCustomer(
-            $validated['eu_tax_code'],
-            $validated['eu_name_vi'],
-            $validated['eu_name_en'],
-            $validated['eu_name_abbr'] ?? null,
-            $validated['address'] ?? null,
-            'end_user'
-        );
-        $validated['customer_id'] = $euCustomer->id;
-        $validated['customer_name'] = $euCustomer->name;
+        // EU info chỉ lưu trực tiếp trên project (eu_* fields)
+        // KHÔNG tạo Customer record — theo yêu cầu nghiệp vụ
+        $validated['customer_name'] = $validated['eu_name_vi'];
 
         // === Handle Collaboration ===
         if ($validated['collaborate_type'] === 'end_user') {
-            // End-user mode: copy EU info into collaboration fields
+            // End-user mode: copy EU info into collaboration fields, không link customer
             $validated['collaborate_company'] = $validated['eu_name_vi'];
             $validated['collaborate_tax_code'] = $validated['eu_tax_code'];
-            $validated['collaborate_customer_id'] = $euCustomer->id;
+            $validated['collaborate_customer_id'] = null;
         } elseif ($validated['collaborate_type'] === 'partner') {
-            // Partner mode: auto-create customer if not selected from dropdown
+            // Partner mode: chỉ link customer nếu chọn từ dropdown
+            // Nếu tạo mới company, dùng findOrCreateCustomer cho Partner
             if (empty($validated['collaborate_customer_id'])) {
+                // Check duplicate MST
+                $existing = \App\Models\Customer::where('tax_code', $validated['collaborate_tax_code'])->first();
+                if ($existing) {
+                    return back()->withInput()->withErrors(['collaborate_tax_code' => 'MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.']);
+                }
+
                 $partnerCustomer = $this->findOrCreateCustomer(
                     $validated['collaborate_tax_code'],
                     $validated['collaborate_company'],
@@ -257,15 +305,53 @@ class ProjectController extends Controller
                     'partner'
                 );
                 $validated['collaborate_customer_id'] = $partnerCustomer->id;
+
+                // Automatically create a Contact Point for the new partner
+                if (!empty($validated['collaborate_pic_name']) && !empty($validated['collaborate_pic_phone'])) {
+                    $nameParts = explode(' ', trim($validated['collaborate_pic_name']));
+                    $firstName = $nameParts[0];
+                    $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : null;
+
+                    $partnerCustomer->contacts()->create([
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'name' => $validated['collaborate_pic_name'],
+                        'position' => $validated['collaborate_pic_title'] ?? 'PIC',
+                        'title' => 'Mr/Ms',
+                        'phone' => $validated['collaborate_pic_phone'],
+                        'email' => $validated['collaborate_pic_email'] ?? '',
+                        'is_primary' => true,
+                    ]);
+                }
             }
         }
 
         // Handle BOM file upload
         if ($request->hasFile('bom_file')) {
-            $validated['bom_file'] = $request->file('bom_file')->store('bom', 'public');
+            $files = $request->file('bom_file');
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+            $paths = [];
+            foreach ($files as $file) {
+                $originalName = $file->getClientOriginalName();
+                $safeName = time() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $originalName);
+                $paths[] = $file->storeAs('bom', $safeName, 'public');
+            }
+            $validated['bom_file'] = $paths;
+        } else {
+            $validated['bom_file'] = [];
         }
 
-        Project::create($validated);
+        $project = Project::create($validated);
+
+        // Link project to opportunity if opportunity_id is present
+        if ($request->filled('opportunity_id')) {
+            $opp = \App\Models\Opportunity::find($request->opportunity_id);
+            if ($opp) {
+                $opp->update(['project_id' => $project->id]);
+            }
+        }
 
         return redirect()->route('projects.index')
             ->with('success', 'Dự án đã được tạo thành công.');
@@ -278,7 +364,7 @@ class ProjectController extends Controller
     {
         $this->authorize('view', $project);
 
-        $project->load(['customer', 'manager', 'vendor', 'collaborateCustomer', 'sales.items', 'saleItems.sale', 'exports.warehouse']);
+        $project->load(['customer', 'manager', 'vendor', 'collaborateCustomer', 'sales.items', 'saleItems.sale', 'exports.warehouse', 'opportunities']);
 
         // Get sales statistics
         $salesStats = [
@@ -324,7 +410,9 @@ class ProjectController extends Controller
         $managers = User::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
 
-        return view('projects.edit', compact('project', 'customers', 'managers', 'suppliers'));
+        $industries = self::INDUSTRIES;
+
+        return view('projects.edit', compact('project', 'customers', 'managers', 'suppliers', 'industries'));
     }
 
     /**
@@ -335,6 +423,7 @@ class ProjectController extends Controller
         $this->authorize('update', $project);
 
         $collabRequired = $request->input('collaborate_type') === 'partner' ? 'required' : 'nullable';
+        $picRequired = ($request->input('collaborate_type') === 'partner' && $request->filled('collaborate_customer_id')) ? 'required' : 'nullable';
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('projects')->ignore($project->id)],
@@ -354,55 +443,66 @@ class ProjectController extends Controller
             'eu_name_en' => ['required', 'string', 'max:500'],
             'eu_name_abbr' => ['nullable', 'string', 'max:100'],
             'eu_tax_code' => ['required', 'string', 'max:100'],
-            'eu_province' => ['nullable', 'string', 'max:100'],
-            'eu_industry' => ['nullable', 'string', 'max:100'],
+            'eu_province' => ['required', 'string', 'max:100'],
+            'eu_industry' => ['required', 'string'],
+            'eu_industry_other' => ['required_if:eu_industry,other', 'nullable', 'string', 'max:255'],
             // Collaboration (dynamic)
             'collaborate_type' => ['required', 'in:partner,end_user'],
             'collaborate_customer_id' => ['nullable', 'exists:customers,id'],
             'collaborate_company' => [$collabRequired, 'string', 'max:500'],
             'collaborate_tax_code' => [$collabRequired, 'string', 'max:100'],
-            'collaborate_pic_name' => [$collabRequired, 'string', 'max:255'],
-            'collaborate_pic_title' => [$collabRequired, 'string', 'max:255'],
-            'collaborate_pic_phone' => [$collabRequired, 'string', 'max:50'],
+            'collaborate_pic_name' => [$picRequired, 'string', 'max:255'],
+            'collaborate_pic_title' => [$picRequired, 'string', 'max:255'],
+            'collaborate_pic_phone' => [$picRequired, 'string', 'max:50'],
             'collaborate_pic_email' => ['nullable', 'string', 'email', 'max:255'],
             // Project enhancements
             'estimated_close_months' => ['required', 'in:3,6,9'],
-            'bom_file' => ['nullable', 'file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],
+            'bom_file' => ['nullable', 'array'],
+            'bom_file.*' => ['file', 'mimes:xlsx,xls,pdf,doc,docx', 'max:10240'],
+            'keep_bom_files' => ['nullable', 'array'],
+            'keep_bom_files.*' => ['string'],
             'bom_data' => ['nullable', 'string'],
             'net_to_tech_horizon' => ['nullable', 'numeric', 'min:0'],
             'stage' => ['nullable', 'string', 'max:50'],
             'deal_type' => ['nullable', 'string', 'max:50'],
         ], [], $this->validationAttributes());
 
+        if ($validated['eu_industry'] === 'other') {
+            $validated['eu_industry'] = $request->input('eu_industry_other');
+        } else {
+            if (!array_key_exists($validated['eu_industry'], self::INDUSTRIES)) {
+                return back()->withInput()->withErrors(['eu_industry' => 'Ngành nghề không hợp lệ.']);
+            }
+        }
+
         // Recalculate end_date if estimated_close_months changed
         if ($validated['estimated_close_months'] != $project->estimated_close_months) {
             $validated['end_date'] = ($project->start_date ?? now())->copy()->addMonths((int) $validated['estimated_close_months'])->format('Y-m-d');
         }
 
-        // === Auto-create Customer from End-User info ===
-        $euCustomer = $this->findOrCreateCustomer(
-            $validated['eu_tax_code'],
-            $validated['eu_name_vi'],
-            $validated['eu_name_en'],
-            $validated['eu_name_abbr'] ?? null,
-            $validated['address'] ?? null,
-            'end_user'
-        );
-        $validated['customer_id'] = $euCustomer->id;
-        $validated['customer_name'] = $euCustomer->name;
+        // EU info chỉ lưu trực tiếp trên project (eu_* fields)
+        // KHÔNG tạo Customer record — theo yêu cầu nghiệp vụ
+        $validated['customer_name'] = $validated['eu_name_vi'];
 
         // === Handle Collaboration ===
         if ($validated['collaborate_type'] === 'end_user') {
             $validated['collaborate_company'] = $validated['eu_name_vi'];
             $validated['collaborate_tax_code'] = $validated['eu_tax_code'];
-            $validated['collaborate_customer_id'] = $euCustomer->id;
+            $validated['collaborate_customer_id'] = null;
             // Clear partner-specific PIC fields
             $validated['collaborate_pic_name'] = null;
             $validated['collaborate_pic_title'] = null;
             $validated['collaborate_pic_phone'] = null;
             $validated['collaborate_pic_email'] = null;
         } elseif ($validated['collaborate_type'] === 'partner') {
+            // Partner mode: chỉ link customer nếu chọn từ dropdown
             if (empty($validated['collaborate_customer_id'])) {
+                // Check duplicate MST
+                $existing = \App\Models\Customer::where('tax_code', $validated['collaborate_tax_code'])->first();
+                if ($existing) {
+                    return back()->withInput()->withErrors(['collaborate_tax_code' => 'MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.']);
+                }
+
                 $partnerCustomer = $this->findOrCreateCustomer(
                     $validated['collaborate_tax_code'],
                     $validated['collaborate_company'],
@@ -412,16 +512,53 @@ class ProjectController extends Controller
                     'partner'
                 );
                 $validated['collaborate_customer_id'] = $partnerCustomer->id;
+
+                // Automatically create a Contact Point for the new partner
+                if (!empty($validated['collaborate_pic_name']) && !empty($validated['collaborate_pic_phone'])) {
+                    $nameParts = explode(' ', trim($validated['collaborate_pic_name']));
+                    $firstName = $nameParts[0];
+                    $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : null;
+
+                    $partnerCustomer->contacts()->create([
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'name' => $validated['collaborate_pic_name'],
+                        'position' => $validated['collaborate_pic_title'] ?? 'PIC',
+                        'title' => 'Mr/Ms',
+                        'phone' => $validated['collaborate_pic_phone'],
+                        'email' => $validated['collaborate_pic_email'] ?? '',
+                        'is_primary' => true,
+                    ]);
+                }
             }
         }
 
-        // Handle BOM file upload
-        if ($request->hasFile('bom_file')) {
-            if ($project->bom_file) {
-                Storage::disk('public')->delete($project->bom_file);
-            }
-            $validated['bom_file'] = $request->file('bom_file')->store('bom', 'public');
+        // Keep files logic
+        $currentFiles = is_array($project->bom_file) ? $project->bom_file : [];
+        $keepFiles = $request->input('keep_bom_files', []);
+        
+        // Find deleted files and delete them from disk
+        $deletedFiles = array_diff($currentFiles, $keepFiles);
+        foreach ($deletedFiles as $deletedFile) {
+            Storage::disk('public')->delete($deletedFile);
         }
+
+        // Store new uploaded files
+        $newFiles = [];
+        if ($request->hasFile('bom_file')) {
+            $files = $request->file('bom_file');
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+            foreach ($files as $file) {
+                $originalName = $file->getClientOriginalName();
+                $safeName = time() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $originalName);
+                $newFiles[] = $file->storeAs('bom', $safeName, 'public');
+            }
+        }
+
+        // Merge kept files with newly uploaded ones
+        $validated['bom_file'] = array_merge($keepFiles, $newFiles);
 
         $project->update($validated);
 

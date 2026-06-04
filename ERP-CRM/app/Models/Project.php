@@ -57,6 +57,7 @@ class Project extends Model
         'end_date' => 'date',
         'budget' => 'decimal:2',
         'net_to_tech_horizon' => 'decimal:2',
+        'bom_file' => 'array',
     ];
 
     /**
@@ -105,6 +106,14 @@ class Project extends Model
     public function sales()
     {
         return $this->hasMany(Sale::class);
+    }
+
+    /**
+     * Relationship with Opportunities
+     */
+    public function opportunities()
+    {
+        return $this->hasMany(Opportunity::class);
     }
 
     /**

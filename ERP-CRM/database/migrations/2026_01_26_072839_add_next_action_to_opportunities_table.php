@@ -11,7 +11,7 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('opportunities', function (Blueprint $table) {
-            $table->string('next_action')->nullable()->after('description');
+            $table->text('next_action')->nullable()->after('description');
             $table->date('next_action_date')->nullable()->after('next_action');
         });
     }

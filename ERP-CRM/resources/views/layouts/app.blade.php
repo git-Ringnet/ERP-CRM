@@ -416,9 +416,14 @@
                         <div class="dropdown-section" id="dropdown-sales">
                             @can('view_opportunities')
                                 <a href="{{ route('opportunities.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-funnel-dollar w-6 text-yellow-400 flex-shrink-0"></i>
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ (request()->routeIs('opportunities.*') && !request()->routeIs('opportunities.report')) ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-calendar-check w-6 text-blue-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
+                                </a>
+                                <a href="{{ route('opportunities.report') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.report') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-chart-bar w-6 text-indigo-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tần suất gặp</span>
                                 </a>
                             @endcan
 
@@ -574,12 +579,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                                <a href="{{ route('shipping-allocations.index') }}"
-                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                </a>
-                                            @endcan -->
+                                                                                <a href="{{ route('shipping-allocations.index') }}"
+                                                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                </a>
+                                                                            @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"

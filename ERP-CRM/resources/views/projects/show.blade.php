@@ -274,6 +274,20 @@
                         <p class="text-sm text-gray-700">{{ $project->stage }}</p>
                     </div>
                     @endif
+                    @if($project->opportunities && $project->opportunities->count() > 0)
+                    <div class="col-span-2 border-t border-gray-100 pt-3 mt-1">
+                        <p class="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">Cơ hội phát sinh (CRM Origin):</p>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($project->opportunities as $opp)
+                                <a href="{{ route('opportunities.show', $opp->id) }}" 
+                                   class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all">
+                                    <i class="fas fa-calendar-check text-blue-500"></i>
+                                    [{{ $opp->activity_type_label }}] {{ $opp->name }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -282,22 +296,63 @@
     <!-- BOM Section -->
     @if($project->bom_file || $project->bom_data)
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
             <h3 class="text-sm font-semibold text-gray-700 flex items-center">
                 <i class="fas fa-file-alt mr-2 text-blue-500"></i> BOM (Bill of Materials)
             </h3>
+        </div>
+        <div class="p-6 space-y-4">
             @if($project->bom_file)
-                <a href="{{ Storage::url($project->bom_file) }}" target="_blank"
-                    class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium">
-                    <i class="fas fa-download mr-1.5"></i> Tải file BOM
-                </a>
+                @php
+                    $files = is_array($project->bom_file) ? $project->bom_file : [$project->bom_file];
+                @endphp
+                <div class="space-y-3">
+                    @foreach($files as $file)
+                        @if(empty($file)) @continue @endif
+                        @php
+                            $filename = basename($file);
+                            if (preg_match('/^\d+_(.+)$/', $filename, $matches)) {
+                                $displayFilename = $matches[1];
+                            } else {
+                                $displayFilename = $filename;
+                            }
+                            $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                            $icon = 'fa-file-alt';
+                            $color = 'text-blue-500';
+                            if (in_array($ext, ['xls', 'xlsx'])) {
+                                $icon = 'fa-file-excel';
+                                $color = 'text-green-600';
+                            } elseif ($ext === 'pdf') {
+                                $icon = 'fa-file-pdf';
+                                $color = 'text-red-500';
+                            } elseif (in_array($ext, ['doc', 'docx'])) {
+                                $icon = 'fa-file-word';
+                                $color = 'text-blue-600';
+                            }
+                        @endphp
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-100 gap-4">
+                            <div class="flex items-center gap-3">
+                                <i class="fas {{ $icon }} {{ $color }} text-3xl"></i>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">{{ $displayFilename }}</p>
+                                    <p class="text-xs text-gray-500">Định dạng: {{ strtoupper($ext) }}</p>
+                                </div>
+                            </div>
+                            <a href="{{ Storage::url($file) }}" target="_blank"
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap self-stretch sm:self-auto justify-center">
+                                <i class="fas fa-download"></i> Tải file BOM
+                            </a>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+            @if($project->bom_data)
+                <div>
+                    <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Thông tin BOM chi tiết:</h4>
+                    <div class="text-sm bg-gray-50 p-4 rounded-lg border border-gray-200 whitespace-pre-line text-gray-700">{{ $project->bom_data }}</div>
+                </div>
             @endif
         </div>
-        @if($project->bom_data)
-        <div class="p-6">
-            <div class="text-sm bg-gray-50 p-4 rounded-lg border border-gray-200 whitespace-pre-line text-gray-700">{{ $project->bom_data }}</div>
-        </div>
-        @endif
     </div>
     @endif
 

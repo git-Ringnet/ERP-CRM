@@ -11,7 +11,9 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        DB::statement("ALTER TABLE product_items MODIFY COLUMN status ENUM('in_stock', 'sold', 'damaged', 'transferred', 'liquidation') NOT NULL DEFAULT 'in_stock'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE product_items MODIFY COLUMN status ENUM('in_stock', 'sold', 'damaged', 'transferred', 'liquidation') NOT NULL DEFAULT 'in_stock'");
+        }
     }
 
     /**
@@ -28,6 +30,8 @@ return new class extends Migration {
         // Update 'liquidation' items to 'damaged' before reverting schema to avoid truncation error
         DB::table('product_items')->where('status', 'liquidation')->update(['status' => 'damaged']);
 
-        DB::statement("ALTER TABLE product_items MODIFY COLUMN status ENUM('in_stock', 'sold', 'damaged', 'transferred') NOT NULL DEFAULT 'in_stock'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE product_items MODIFY COLUMN status ENUM('in_stock', 'sold', 'damaged', 'transferred') NOT NULL DEFAULT 'in_stock'");
+        }
     }
 };

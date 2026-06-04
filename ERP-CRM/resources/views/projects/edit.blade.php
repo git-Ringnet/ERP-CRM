@@ -5,7 +5,7 @@
 
 @section('content')
     <div class="max-w-8xl">
-        <form action="{{ route('projects.update', $project) }}" method="POST" enctype="multipart/form-data">
+        <form id="project_form" action="{{ route('projects.update', $project) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
@@ -91,14 +91,39 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Tỉnh / Thành phố <span class="text-red-500">*</span></label>
-                                <input type="text" name="eu_province" value="{{ old('eu_province', $project->eu_province) }}" required
+                                <select name="eu_province" id="eu_province" required
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_province') border-red-500 @enderror">
+                                    <option value="">-- Đang tải danh sách... --</option>
+                                </select>
                                 @error('eu_province') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Ngành nghề</label>
-                                <input type="text" name="eu_industry" value="{{ old('eu_industry', $project->eu_industry) }}"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Ngành nghề <span class="text-red-500">*</span></label>
+                                @php
+                                    $isCustomIndustry = !empty($project->eu_industry) && !array_key_exists($project->eu_industry, $industries);
+                                    $selectedIndustryKey = $isCustomIndustry ? 'other' : $project->eu_industry;
+                                    $customIndustryValue = $isCustomIndustry ? $project->eu_industry : '';
+                                @endphp
+                                <select name="eu_industry" id="eu_industry" required
+                                    onchange="toggleIndustryOther()"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_industry') border-red-500 @enderror">
+                                    <option value="">-- Chọn ngành nghề --</option>
+                                    @foreach($industries as $key => $label)
+                                        <option value="{{ $key }}" {{ old('eu_industry', $selectedIndustryKey) == $key ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                @error('eu_industry') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+
+                                <div id="eu_industry_other_container" class="mt-2 {{ old('eu_industry', $selectedIndustryKey) == 'other' ? '' : 'hidden' }}">
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                                        Nhập ngành nghề khác <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" name="eu_industry_other" id="eu_industry_other"
+                                        value="{{ old('eu_industry_other', $customIndustryValue) }}"
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_industry_other') border-red-500 @enderror"
+                                        placeholder="Nhập tên ngành nghề...">
+                                    @error('eu_industry_other') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -124,7 +149,7 @@
                                 <div class="flex items-center gap-4 mb-3">
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="radio" name="partner_input_mode" value="existing"
-                                            {{ $project->collaborate_customer_id ? 'checked' : '' }}
+                                            {{ old('partner_input_mode', $project->collaborate_customer_id ? 'existing' : 'new') === 'existing' ? 'checked' : '' }}
                                             onchange="togglePartnerInputMode('existing')"
                                             class="text-primary focus:ring-primary">
                                         <span class="ml-2 text-sm font-medium text-gray-700">
@@ -133,7 +158,7 @@
                                     </label>
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="radio" name="partner_input_mode" value="new"
-                                            {{ !$project->collaborate_customer_id && $project->collaborate_type == 'partner' ? 'checked' : '' }}
+                                            {{ old('partner_input_mode', $project->collaborate_customer_id ? 'existing' : 'new') === 'new' ? 'checked' : '' }}
                                             onchange="togglePartnerInputMode('new')"
                                             class="text-primary focus:ring-primary">
                                         <span class="ml-2 text-sm font-medium text-gray-700">
@@ -156,6 +181,59 @@
                                     </select>
                                     <p class="text-xs text-gray-400 mt-1"><i class="fas fa-info-circle mr-1"></i>Chọn khách hàng để tự động điền thông tin bên dưới</p>
                                 </div>
+
+                                <!-- Contact Point Dropdown (loaded via AJAX) -->
+                                <div id="contact_point_section" class="hidden mt-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                                        <i class="fas fa-user mr-1 text-indigo-500"></i>Chọn Contact Point
+                                    </label>
+                                    <div class="flex gap-2">
+                                        <select id="contact_point_select" onchange="fillContactData()"
+                                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option value="">-- Chọn người liên hệ --</option>
+                                        </select>
+                                        <button type="button" onclick="toggleNewContactForm()"
+                                            class="px-3 py-2 bg-green-50 text-green-700 border border-green-300 rounded-lg hover:bg-green-100 transition-colors text-sm whitespace-nowrap">
+                                            <i class="fas fa-plus mr-1"></i>Tạo mới
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Inline Create Contact Point Form -->
+                                <div id="new_contact_form" class="hidden mt-3 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                                    <h4 class="text-sm font-semibold text-indigo-800 mb-3"><i class="fas fa-user-plus mr-1"></i>Tạo mới Contact Point</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Họ <span class="text-red-500">*</span></label>
+                                            <input type="text" id="new_contact_first_name" placeholder="Nguyễn Văn" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Tên</label>
+                                            <input type="text" id="new_contact_last_name" placeholder="A" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                            <input type="text" id="new_contact_position" placeholder="VD: Manager, Director..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Chức danh</label>
+                                            <input type="text" id="new_contact_title" placeholder="VD: Mr., Mrs...." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">SĐT <span class="text-red-500">*</span></label>
+                                            <input type="text" id="new_contact_phone" placeholder="09xxxxxxxx" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                                            <input type="email" id="new_contact_email" placeholder="email@company.com" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2 mt-3">
+                                        <button type="button" onclick="saveNewContact()" class="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 transition-colors"><i class="fas fa-save mr-1"></i>Lưu Contact</button>
+                                        <button type="button" onclick="toggleNewContactForm()" class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 transition-colors">Hủy</button>
+                                    </div>
+                                    <div id="new_contact_error" class="hidden mt-2 text-red-600 text-xs"></div>
+                                </div>
                             </div>
 
                             <!-- End-user notice -->
@@ -167,7 +245,7 @@
                                             <p class="text-sm font-medium text-blue-800">Chế độ End-user (trực tiếp)</p>
                                             <p class="text-xs text-blue-600 mt-1">
                                                 Thông tin End-User ở Section B sẽ được sử dụng làm đối tác hợp tác.
-                                                Khách hàng sẽ tự động được tạo/cập nhật trong hệ thống từ MST đã nhập.
+                                                Thông tin EU chỉ lưu trên dự án, không tạo vào database khách hàng.
                                             </p>
                                         </div>
                                     </div>
@@ -178,35 +256,45 @@
                             <div id="collab_company_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Tên công ty <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_company" id="collaborate_company"
-                                    value="{{ old('collaborate_company', $project->collaborate_company) }}" required
+                                    value="{{ old('collaborate_company', $project->collaborate_company) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_company') border-red-500 @enderror">
                                 @error('collaborate_company') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_tax_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_tax_code" id="collaborate_tax_code"
-                                    value="{{ old('collaborate_tax_code', $project->collaborate_tax_code) }}" required
+                                    value="{{ old('collaborate_tax_code', $project->collaborate_tax_code) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_tax_code') border-red-500 @enderror">
                                 @error('collaborate_tax_code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                                <!-- Collab duplicate warning -->
+                                <div id="collab_tax_warning" class="hidden mt-2 bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                                    <div class="flex items-start gap-2">
+                                        <i class="fas fa-exclamation-triangle text-yellow-500 mt-0.5"></i>
+                                        <div class="text-sm">
+                                            <p class="font-semibold text-yellow-800">MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.</p>
+                                            <p class="text-yellow-700 mt-1" id="collab_tax_warning_detail"></p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div id="collab_pic_name_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Tên PIC <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_pic_name" id="collaborate_pic_name"
-                                    value="{{ old('collaborate_pic_name', $project->collaborate_pic_name) }}" required
+                                    value="{{ old('collaborate_pic_name', $project->collaborate_pic_name) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_name') border-red-500 @enderror">
                                 @error('collaborate_pic_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_title_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Chức danh <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_pic_title" id="collaborate_pic_title"
-                                    value="{{ old('collaborate_pic_title', $project->collaborate_pic_title) }}" required
+                                    value="{{ old('collaborate_pic_title', $project->collaborate_pic_title) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_title') border-red-500 @enderror">
                                 @error('collaborate_pic_title') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_phone_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">SĐT PIC <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_pic_phone" id="collaborate_pic_phone"
-                                    value="{{ old('collaborate_pic_phone', $project->collaborate_pic_phone) }}" required
+                                    value="{{ old('collaborate_pic_phone', $project->collaborate_pic_phone) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_phone') border-red-500 @enderror">
                                 @error('collaborate_pic_phone') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
@@ -239,13 +327,32 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">BOM (Bill of Materials)</label>
-                                @if($project->bom_file)
-                                    <div class="mb-2 flex items-center gap-2 text-sm text-blue-600">
-                                        <i class="fas fa-paperclip"></i>
-                                        <a href="{{ Storage::url($project->bom_file) }}" target="_blank" class="hover:underline">File BOM hiện tại</a>
+                                @if($project->bom_file && is_array($project->bom_file) && count($project->bom_file) > 0)
+                                    <div class="mb-3 space-y-2" id="existing_bom_container">
+                                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">File BOM hiện tại:</p>
+                                        @foreach($project->bom_file as $file)
+                                            @php
+                                                $filename = basename($file);
+                                                if (preg_match('/^\d+_(.+)$/', $filename, $matches)) {
+                                                    $displayFilename = $matches[1];
+                                                } else {
+                                                    $displayFilename = $filename;
+                                                }
+                                            @endphp
+                                            <div class="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700 max-w-xl">
+                                                <div class="flex items-center gap-2 overflow-hidden">
+                                                    <i class="fas fa-paperclip flex-shrink-0"></i>
+                                                    <a href="{{ Storage::url($file) }}" target="_blank" class="hover:underline truncate font-medium">{{ $displayFilename }}</a>
+                                                    <input type="hidden" name="keep_bom_files[]" value="{{ $file }}">
+                                                </div>
+                                                <button type="button" onclick="this.closest('.flex').remove()" class="text-red-500 hover:text-red-700 p-1 flex-shrink-0 transition-colors">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @endif
-                                <input type="file" name="bom_file" accept=".xlsx,.xls,.pdf,.doc,.docx"
+                                <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                                 <textarea name="bom_data" rows="3" placeholder="Nhập BOM list..."
                                     class="mt-2 w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('bom_data', $project->bom_data) }}</textarea>
@@ -354,74 +461,194 @@
     </div>
 
     <script>
+        function toggleIndustryOther() {
+            const select = document.getElementById('eu_industry');
+            const otherContainer = document.getElementById('eu_industry_other_container');
+            const otherInput = document.getElementById('eu_industry_other');
+            if (select && otherContainer) {
+                if (select.value === 'other') {
+                    otherContainer.classList.remove('hidden');
+                    if (otherInput) otherInput.required = true;
+                } else {
+                    otherContainer.classList.add('hidden');
+                    if (otherInput) {
+                        otherInput.required = false;
+                        otherInput.value = '';
+                    }
+                }
+            }
+        }
+
         const collabFieldIds = [
             'collab_company_wrap', 'collab_tax_wrap',
             'collab_pic_name_wrap', 'collab_pic_title_wrap',
             'collab_pic_phone_wrap', 'collab_pic_email_wrap'
         ];
 
-        function toggleCollaborateType() {
+        // Provinces API
+        const VN_PROVINCES_FALLBACK = [
+            "Thành phố Hà Nội","Thành phố Hồ Chí Minh","Thành phố Đà Nẵng","Thành phố Hải Phòng","Thành phố Cần Thơ",
+            "Tỉnh An Giang","Tỉnh Bà Rịa - Vũng Tàu","Tỉnh Bạc Liêu","Tỉnh Bắc Giang","Tỉnh Bắc Kạn",
+            "Tỉnh Bắc Ninh","Tỉnh Bến Tre","Tỉnh Bình Dương","Tỉnh Bình Định","Tỉnh Bình Phước",
+            "Tỉnh Bình Thuận","Tỉnh Cà Mau","Tỉnh Cao Bằng","Tỉnh Đắk Lắk","Tỉnh Đắk Nông",
+            "Tỉnh Điện Biên","Tỉnh Đồng Nai","Tỉnh Đồng Tháp","Tỉnh Gia Lai","Tỉnh Hà Giang",
+            "Tỉnh Hà Nam","Tỉnh Hà Tĩnh","Tỉnh Hải Dương","Tỉnh Hậu Giang","Tỉnh Hòa Bình",
+            "Tỉnh Hưng Yên","Tỉnh Khánh Hòa","Tỉnh Kiên Giang","Tỉnh Kon Tum","Tỉnh Lai Châu",
+            "Tỉnh Lâm Đồng","Tỉnh Lạng Sơn","Tỉnh Lào Cai","Tỉnh Long An","Tỉnh Nam Định",
+            "Tỉnh Nghệ An","Tỉnh Ninh Bình","Tỉnh Ninh Thuận","Tỉnh Phú Thọ","Tỉnh Phú Yên",
+            "Tỉnh Quảng Bình","Tỉnh Quảng Nam","Tỉnh Quảng Ngãi","Tỉnh Quảng Ninh","Tỉnh Quảng Trị",
+            "Tỉnh Sóc Trăng","Tỉnh Sơn La","Tỉnh Tây Ninh","Tỉnh Thái Bình","Tỉnh Thái Nguyên",
+            "Tỉnh Thanh Hóa","Tỉnh Thừa Thiên Huế","Tỉnh Tiền Giang","Tỉnh Trà Vinh","Tỉnh Tuyên Quang",
+            "Tỉnh Vĩnh Long","Tỉnh Vĩnh Phúc","Tỉnh Yên Bái"
+        ];
+
+        function loadProvinces() {
+            const select = document.getElementById('eu_province');
+            if (!select) return;
+            const oldValue = @json(old('eu_province', $project->eu_province ?? ''));
+            const cached = localStorage.getItem('vn_provinces');
+            const cachedTime = localStorage.getItem('vn_provinces_time');
+            if (cached && cachedTime && (Date.now() - parseInt(cachedTime)) < 86400000) {
+                populateProvinces(JSON.parse(cached), oldValue);
+                return;
+            }
+            fetch('https://provinces.open-api.vn/api/p/')
+                .then(res => res.json())
+                .then(data => {
+                    const names = data.map(p => p.name).sort();
+                    localStorage.setItem('vn_provinces', JSON.stringify(names));
+                    localStorage.setItem('vn_provinces_time', Date.now().toString());
+                    populateProvinces(names, oldValue);
+                })
+                .catch(() => populateProvinces(VN_PROVINCES_FALLBACK, oldValue));
+        }
+
+        function populateProvinces(provinces, selectedValue) {
+            const select = document.getElementById('eu_province');
+            select.innerHTML = '<option value="">-- Chọn Tỉnh / Thành phố --</option>';
+            provinces.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                if (name === selectedValue) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function toggleCollaborateType(isInit = false) {
             const type = document.getElementById('collaborate_type').value;
             const partnerToggle = document.getElementById('partner_mode_toggle');
             const enduserNotice = document.getElementById('enduser_notice');
+
+            const companyInput = document.getElementById('collaborate_company');
+            const taxInput = document.getElementById('collaborate_tax_code');
+            const phoneInput = document.getElementById('collaborate_pic_phone');
+            const nameInput = document.getElementById('collaborate_pic_name');
+            const titleInput = document.getElementById('collaborate_pic_title');
 
             if (type === 'partner') {
                 partnerToggle.classList.remove('hidden');
                 enduserNotice.classList.add('hidden');
                 showCollabFields();
+
+                if (companyInput) companyInput.required = true;
+                if (taxInput) taxInput.required = true;
+                if (phoneInput) phoneInput.required = true;
+
                 const mode = document.querySelector('input[name="partner_input_mode"]:checked')?.value || 'existing';
-                togglePartnerInputMode(mode);
+                togglePartnerInputMode(mode, isInit);
             } else if (type === 'end_user') {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.remove('hidden');
                 hideCollabFields();
+                hideContactPointSection();
+
+                if (companyInput) companyInput.required = false;
+                if (taxInput) taxInput.required = false;
+                if (phoneInput) phoneInput.required = false;
+                if (nameInput) nameInput.required = false;
+                if (titleInput) titleInput.required = false;
             } else {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.add('hidden');
                 hideCollabFields();
+                hideContactPointSection();
+
+                if (companyInput) companyInput.required = false;
+                if (taxInput) taxInput.required = false;
+                if (phoneInput) phoneInput.required = false;
+                if (nameInput) nameInput.required = false;
+                if (titleInput) titleInput.required = false;
             }
         }
 
         function showCollabFields() {
-            collabFieldIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.remove('hidden');
-            });
+            collabFieldIds.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); });
         }
 
         function hideCollabFields() {
-            collabFieldIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.add('hidden');
-            });
+            collabFieldIds.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
         }
 
-        function togglePartnerInputMode(mode) {
+        function togglePartnerInputMode(mode, isInit = false) {
             const existingSelect = document.getElementById('partner_existing_select');
+            const collabWarningDiv = document.getElementById('collab_tax_warning');
+            const nameInput = document.getElementById('collaborate_pic_name');
+            const titleInput = document.getElementById('collaborate_pic_title');
+            const phoneInput = document.getElementById('collaborate_pic_phone');
+
+            // Always show all PIC wraps in partner mode
+            document.getElementById('collab_pic_name_wrap').classList.remove('hidden');
+            document.getElementById('collab_pic_title_wrap').classList.remove('hidden');
+            document.getElementById('collab_pic_phone_wrap').classList.remove('hidden');
+            document.getElementById('collab_pic_email_wrap').classList.remove('hidden');
+
+            if (nameInput) nameInput.required = true;
+            if (titleInput) titleInput.required = true;
+            if (phoneInput) phoneInput.required = true;
+
             if (mode === 'existing') {
                 existingSelect.classList.remove('hidden');
-                fillPartnerData();
+                if (collabWarningDiv) collabWarningDiv.classList.add('hidden');
+                collabTaxExists = false;
+                fillPartnerData(isInit);
             } else {
                 existingSelect.classList.add('hidden');
                 document.getElementById('collaborate_customer_id').value = '';
+                if (collabWarningDiv) collabWarningDiv.classList.add('hidden');
+                collabTaxExists = false;
+
+                clearCollabFields();
                 enableCollabFields();
+                hideContactPointSection();
+                
+                const currentTax = document.getElementById('collaborate_tax_code').value.trim();
+                if (currentTax.length >= 3) {
+                    checkCollabDuplicateTaxCode(currentTax);
+                }
             }
         }
 
-        function fillPartnerData() {
+        function fillPartnerData(isInit = false) {
             const sel = document.getElementById('collaborate_customer_id');
             const opt = sel.options[sel.selectedIndex];
             if (opt && opt.value) {
                 document.getElementById('collaborate_company').value = opt.dataset.name || '';
                 document.getElementById('collaborate_tax_code').value = opt.dataset.tax || '';
-                document.getElementById('collaborate_pic_phone').value = opt.dataset.phone || '';
-                document.getElementById('collaborate_pic_email').value = opt.dataset.email || '';
+                if (!isInit) {
+                    document.getElementById('collaborate_pic_phone').value = '';
+                    document.getElementById('collaborate_pic_email').value = '';
+                    document.getElementById('collaborate_pic_name').value = '';
+                    document.getElementById('collaborate_pic_title').value = '';
+                }
                 document.getElementById('collaborate_company').readOnly = true;
                 document.getElementById('collaborate_company').classList.add('bg-gray-50');
                 document.getElementById('collaborate_tax_code').readOnly = true;
                 document.getElementById('collaborate_tax_code').classList.add('bg-gray-50');
+                loadContactPoints(opt.value);
             } else {
                 enableCollabFields();
+                hideContactPointSection();
             }
         }
 
@@ -431,6 +658,104 @@
                 const el = document.getElementById(id);
                 if (el) { el.readOnly = false; el.classList.remove('bg-gray-50'); }
             });
+        }
+
+        function clearCollabFields() {
+            ['collaborate_company', 'collaborate_tax_code', 'collaborate_pic_name',
+             'collaborate_pic_title', 'collaborate_pic_phone', 'collaborate_pic_email'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        }
+
+        // Contact Point AJAX
+        function loadContactPoints(customerId) {
+            const section = document.getElementById('contact_point_section');
+            const select = document.getElementById('contact_point_select');
+            section.classList.remove('hidden');
+            select.innerHTML = '<option value="">-- Đang tải... --</option>';
+            fetch(`/ajax/customers/${customerId}/contacts`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(contacts => {
+                select.innerHTML = '<option value="">-- Chọn người liên hệ --</option>';
+                if (contacts.length === 0) select.innerHTML = '<option value="">-- Chưa có contact, hãy tạo mới --</option>';
+                
+                const currentPicName = document.getElementById('collaborate_pic_name').value.trim();
+                const currentPicPhone = document.getElementById('collaborate_pic_phone').value.trim();
+
+                contacts.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c.id;
+                    o.textContent = `${c.name || c.first_name} — ${c.position || ''} — ${c.phone || ''}`;
+                    o.dataset.name = c.name || ''; o.dataset.position = c.position || '';
+                    o.dataset.phone = c.phone || ''; o.dataset.email = c.email || '';
+                    
+                    if ((c.name && c.name === currentPicName) || (c.phone && c.phone === currentPicPhone)) {
+                        o.selected = true;
+                    }
+                    select.appendChild(o);
+                });
+            })
+            .catch(() => { select.innerHTML = '<option value="">-- Lỗi tải contacts --</option>'; });
+        }
+
+        function fillContactData() {
+            const select = document.getElementById('contact_point_select');
+            const opt = select.options[select.selectedIndex];
+            if (opt && opt.value) {
+                document.getElementById('collaborate_pic_name').value = opt.dataset.name || '';
+                document.getElementById('collaborate_pic_title').value = opt.dataset.position || '';
+                document.getElementById('collaborate_pic_phone').value = opt.dataset.phone || '';
+                document.getElementById('collaborate_pic_email').value = opt.dataset.email || '';
+            }
+        }
+
+        function hideContactPointSection() {
+            const section = document.getElementById('contact_point_section');
+            const form = document.getElementById('new_contact_form');
+            if (section) section.classList.add('hidden');
+            if (form) form.classList.add('hidden');
+        }
+
+        function toggleNewContactForm() {
+            document.getElementById('new_contact_form').classList.toggle('hidden');
+        }
+
+        function saveNewContact() {
+            const customerId = document.getElementById('collaborate_customer_id').value;
+            if (!customerId) { alert('Vui lòng chọn khách hàng trước.'); return; }
+            const data = {
+                first_name: document.getElementById('new_contact_first_name').value,
+                last_name: document.getElementById('new_contact_last_name').value,
+                position: document.getElementById('new_contact_position').value,
+                title: document.getElementById('new_contact_title').value,
+                phone: document.getElementById('new_contact_phone').value,
+                email: document.getElementById('new_contact_email').value,
+            };
+            const errorDiv = document.getElementById('new_contact_error');
+            errorDiv.classList.add('hidden');
+            fetch(`/ajax/customers/${customerId}/contacts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    loadContactPoints(customerId);
+                    document.getElementById('collaborate_pic_name').value = result.contact.name || '';
+                    document.getElementById('collaborate_pic_title').value = result.contact.position || '';
+                    document.getElementById('collaborate_pic_phone').value = result.contact.phone || '';
+                    document.getElementById('collaborate_pic_email').value = result.contact.email || '';
+                    ['new_contact_first_name','new_contact_last_name','new_contact_position','new_contact_title','new_contact_phone','new_contact_email'].forEach(id => document.getElementById(id).value = '');
+                    document.getElementById('new_contact_form').classList.add('hidden');
+                    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'success', title: 'Đã tạo contact mới!', timer: 1500, showConfirmButton: false });
+                } else if (result.errors) {
+                    errorDiv.innerHTML = Object.values(result.errors).flat().join('<br>');
+                    errorDiv.classList.remove('hidden');
+                }
+            })
+            .catch(() => { errorDiv.textContent = 'Lỗi kết nối.'; errorDiv.classList.remove('hidden'); });
         }
 
         function updateExpiredPreview(radio) {
@@ -448,15 +773,34 @@
             input.value = value !== '' ? parseInt(value).toLocaleString('en-US') : '';
         }
 
-        // === AJAX: Check duplicate MST/Tax Code ===
         let taxCheckTimer = null;
         const currentTaxCode = @json($project->eu_tax_code);
         function checkDuplicateTaxCode(taxCode) {
             const warningDiv = document.getElementById('eu_tax_warning');
             const warningDetail = document.getElementById('eu_tax_warning_detail');
+            if (!taxCode || taxCode.length < 3 || taxCode === currentTaxCode) { warningDiv.classList.add('hidden'); return; }
+            fetch(`{{ route('projects.check-tax-code') }}?tax_code=${encodeURIComponent(taxCode)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(data => {
+                if (data.exists) {
+                    warningDetail.textContent = `Khách hàng: ${data.customer.name} (MST: ${data.customer.tax_code})${data.customer.address ? ' — ' + data.customer.address : ''}`;
+                    warningDiv.classList.remove('hidden');
+                } else { warningDiv.classList.add('hidden'); }
+            })
+            .catch(() => warningDiv.classList.add('hidden'));
+        }
 
-            if (!taxCode || taxCode.length < 3 || taxCode === currentTaxCode) {
+        // === AJAX: Check duplicate Partner/Company MST/Tax Code ===
+        let collabTaxCheckTimer = null;
+        let collabTaxExists = false;
+        const projectCollabTaxCode = @json($project->collaborate_tax_code ?? '');
+        function checkCollabDuplicateTaxCode(taxCode) {
+            const warningDiv = document.getElementById('collab_tax_warning');
+            const warningDetail = document.getElementById('collab_tax_warning_detail');
+
+            if (!taxCode || taxCode.length < 3 || (projectCollabTaxCode && taxCode.toLowerCase() === projectCollabTaxCode.toLowerCase())) {
                 warningDiv.classList.add('hidden');
+                collabTaxExists = false;
                 return;
             }
 
@@ -468,19 +812,25 @@
                 if (data.exists) {
                     warningDetail.textContent = `Khách hàng: ${data.customer.name} (MST: ${data.customer.tax_code})${data.customer.address ? ' — ' + data.customer.address : ''}`;
                     warningDiv.classList.remove('hidden');
+                    collabTaxExists = true;
                 } else {
                     warningDiv.classList.add('hidden');
+                    collabTaxExists = false;
                 }
             })
-            .catch(() => warningDiv.classList.add('hidden'));
+            .catch(() => {
+                warningDiv.classList.add('hidden');
+                collabTaxExists = false;
+            });
         }
 
-        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const type = document.getElementById('collaborate_type').value;
-            if (type) toggleCollaborateType();
+            loadProvinces();
+            toggleIndustryOther();
 
-            // Bind debounced check to eu_tax_code input
+            const type = document.getElementById('collaborate_type').value;
+            if (type) toggleCollaborateType(true);
+
             const euTaxInput = document.getElementById('eu_tax_code');
             if (euTaxInput) {
                 euTaxInput.addEventListener('input', function() {
@@ -489,7 +839,58 @@
                 });
             }
 
-            // Show SweetAlert2 toast when there are validation errors
+            // Bind debounced check to collaborate_tax_code input
+            const collabTaxInput = document.getElementById('collaborate_tax_code');
+            if (collabTaxInput) {
+                collabTaxInput.addEventListener('input', function() {
+                    clearTimeout(collabTaxCheckTimer);
+                    const collabType = document.getElementById('collaborate_type').value;
+                    const partnerMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value;
+                    if (collabType === 'partner' && partnerMode === 'new') {
+                        collabTaxCheckTimer = setTimeout(() => checkCollabDuplicateTaxCode(this.value.trim()), 500);
+                    } else {
+                        document.getElementById('collab_tax_warning').classList.add('hidden');
+                        collabTaxExists = false;
+                    }
+                });
+                if (collabTaxInput.value.trim().length >= 3) {
+                    const collabType = document.getElementById('collaborate_type').value;
+                    const partnerMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value;
+                    if (collabType === 'partner' && partnerMode === 'new') {
+                        checkCollabDuplicateTaxCode(collabTaxInput.value.trim());
+                    }
+                }
+            }
+
+            // Prevent form submit if duplicate collaborate tax code exists
+            const projectForm = document.getElementById('project_form');
+            if (projectForm) {
+                projectForm.addEventListener('submit', function(e) {
+                    const collabType = document.getElementById('collaborate_type').value;
+                    const partnerMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value;
+                    if (collabType === 'partner' && partnerMode === 'new' && collabTaxExists) {
+                        e.preventDefault();
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Không thể cập nhật dự án!',
+                                text: 'MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.',
+                                confirmButtonText: 'Đã hiểu',
+                                confirmButtonColor: '#3B82F6'
+                            });
+                        } else {
+                            alert('MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.');
+                        }
+                    }
+                });
+            }
+
+            // Auto-load contacts if partner is already selected
+            const collabCustomerId = document.getElementById('collaborate_customer_id');
+            if (collabCustomerId && collabCustomerId.value) {
+                loadContactPoints(collabCustomerId.value);
+            }
+
             @if($errors->any())
                 const errorMessages = @json($errors->all());
                 const errorList = errorMessages.map(msg => `<li class="text-left text-sm">${msg}</li>`).join('');
@@ -501,14 +902,9 @@
                     confirmButtonColor: '#3B82F6',
                     customClass: { popup: 'text-sm' }
                 });
-
-                // Auto-scroll to first error field
                 const firstError = document.querySelector('.border-red-500');
                 if (firstError) {
-                    setTimeout(() => {
-                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        firstError.focus();
-                    }, 500);
+                    setTimeout(() => { firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); firstError.focus(); }, 500);
                 }
             @endif
         });

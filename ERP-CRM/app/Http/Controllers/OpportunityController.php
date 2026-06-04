@@ -2,62 +2,170 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Opportunity;
+use App\Models\OpportunityAttachment;
+use App\Models\Customer;
+use App\Models\User;
+use App\Models\Reminder;
+use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class OpportunityController extends Controller
 {
     /**
-     * Display a listing of the resource (Kanban Board).
+     * Display a listing of the resource (Calendar & List view).
      */
     public function index(Request $request)
     {
-        $this->authorize('viewAny', \App\Models\Opportunity::class);
+        $this->authorize('viewAny', Opportunity::class);
 
-        $query = \App\Models\Opportunity::with('customer', 'assignedTo');
+        $query = Opportunity::with(['customer', 'contact', 'assignedTo', 'technicalUser']);
+
+        // Check permissions: Sales only see their assigned or created opportunities, Managers see all
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            $query->where(function ($q) use ($user) {
+                $q->where('assigned_to', $user->id)
+                  ->orWhere('created_by', $user->id)
+                  ->orWhere('technical_user_id', $user->id);
+            });
+        }
 
         // Apply filters
         if ($request->filled('start_date')) {
-            $query->whereDate('created_at', '>=', $request->start_date);
+            $query->whereDate('activity_date', '>=', $request->start_date);
         }
         if ($request->filled('end_date')) {
-            $query->whereDate('created_at', '<=', $request->end_date);
+            $query->whereDate('activity_date', '<=', $request->end_date);
         }
         if ($request->filled('customer_name')) {
-            $query->whereHas('customer', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->customer_name . '%');
+            $customerName = $request->customer_name;
+            $query->where(function ($q) use ($customerName) {
+                $q->where('eu_company_name', 'like', '%' . $customerName . '%')
+                  ->orWhereHas('customer', function ($cq) use ($customerName) {
+                      $cq->where('name', 'like', '%' . $customerName . '%');
+                  });
             });
         }
-        if ($request->filled('name')) {
-            $query->where('name', 'like', '%' . $request->name . '%');
+        if ($request->filled('activity_type')) {
+            $query->where('activity_type', $request->activity_type);
         }
-        if ($request->filled('notes')) {
-            $query->where('description', 'like', '%' . $request->notes . '%');
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('assigned_to')) {
+            $query->where('assigned_to', $request->assigned_to);
+        }
+        if ($request->filled('technical_user')) {
+            $query->where('technical_user_id', $request->technical_user);
         }
 
-        $viewType = $request->get('view', 'kanban'); // 'kanban' or 'list'
+        $viewType = $request->get('view', 'calendar'); // Default view is calendar
+
+        $users = User::orderBy('name')->get();
+        $customers = Customer::orderBy('name')->get();
+        $activityTypes = Opportunity::ACTIVITY_TYPES;
+        $statuses = Opportunity::STATUSES;
 
         if ($viewType === 'list') {
-            $opportunities = $query->latest()->paginate(20);
-            return view('opportunities.index_list', compact('opportunities'));
+            $opportunities = $query->latest('activity_date')->paginate(20);
+            return view('opportunities.index_list', compact('opportunities', 'users', 'customers', 'activityTypes', 'statuses'));
         }
 
-        // Kanban View grouping
+        return view('opportunities.index', compact('users', 'customers', 'activityTypes', 'statuses'));
+    }
+
+    /**
+     * API returning JSON events for FullCalendar.
+     */
+    public function calendarEvents(Request $request)
+    {
+        $this->authorize('viewAny', Opportunity::class);
+
+        $query = Opportunity::with(['customer', 'assignedTo', 'technicalUser']);
+
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            $query->where(function ($q) use ($user) {
+                $q->where('assigned_to', $user->id)
+                  ->orWhere('created_by', $user->id)
+                  ->orWhere('technical_user_id', $user->id);
+            });
+        }
+
+        // Apply filters
+        if ($request->filled('start_date')) {
+            $query->whereDate('activity_date', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('activity_date', '<=', $request->end_date);
+        }
+        if ($request->filled('customer_name')) {
+            $customerName = $request->customer_name;
+            $query->where(function ($q) use ($customerName) {
+                $q->where('eu_company_name', 'like', '%' . $customerName . '%')
+                  ->orWhereHas('customer', function ($cq) use ($customerName) {
+                      $cq->where('name', 'like', '%' . $customerName . '%');
+                  });
+            });
+        }
+        if ($request->filled('activity_type')) {
+            $query->where('activity_type', $request->activity_type);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('assigned_to')) {
+            $query->where('assigned_to', $request->assigned_to);
+        }
+        if ($request->filled('technical_user')) {
+            $query->where('technical_user_id', $request->technical_user);
+        }
+
+        // FullCalendar request parameters
+        if ($request->filled('start')) {
+            $query->whereDate('activity_date', '>=', Carbon::parse($request->start)->toDateString());
+        }
+        if ($request->filled('end')) {
+            $query->whereDate('activity_date', '<=', Carbon::parse($request->end)->toDateString());
+        }
+
         $opportunities = $query->get();
-        $stages = [
-            'new' => 'Mới',
-            'qualification' => 'Đánh giá',
-            'proposal' => 'Báo giá',
-            'negotiation' => 'Đàm phán',
-            'won' => 'Thành công',
-            'lost' => 'Thất bại',
-        ];
+        $events = [];
 
-        $kanbanData = [];
-        foreach ($stages as $key => $label) {
-            $kanbanData[$key] = $opportunities->where('stage', $key);
+        foreach ($opportunities as $opp) {
+            $startTime = $opp->start_time ?: '09:00:00';
+            $endTime = $opp->end_time ?: '10:00:00';
+            $start = $opp->activity_date->format('Y-m-d') . 'T' . $startTime;
+            $end = $opp->activity_date->format('Y-m-d') . 'T' . $endTime;
+
+            $color = match ($opp->status) {
+                'planned'    => '#3B82F6', // Blue
+                'in_progress' => '#F59E0B', // Amber
+                'completed'  => '#10B981', // Green
+                'cancelled'  => '#EF4444', // Red
+                default      => '#6B7280',
+            };
+
+            $events[] = [
+                'id' => $opp->id,
+                'title' => '[' . $opp->activity_type_label . '] ' . $opp->customer_display_name,
+                'start' => $start,
+                'end' => $end,
+                'color' => $color,
+                'url' => route('opportunities.show', $opp->id),
+                'extendedProps' => [
+                    'status' => $opp->status,
+                    'statusLabel' => $opp->status_label,
+                    'customer' => $opp->customer_display_name,
+                    'assignedTo' => $opp->assignedTo?->name,
+                ]
+            ];
         }
 
-        return view('opportunities.index', compact('kanbanData', 'stages'));
+        return response()->json($events);
     }
 
     /**
@@ -65,17 +173,25 @@ class OpportunityController extends Controller
      */
     public function create(Request $request)
     {
-        $this->authorize('create', \App\Models\Opportunity::class);
+        $this->authorize('create', Opportunity::class);
 
-        $customers = \App\Models\Customer::all();
-        $users = \App\Models\User::all();
-        
+        $customers = Customer::orderBy('name')->get();
+        $users = User::orderBy('name')->get();
+        $activityTypes = Opportunity::ACTIVITY_TYPES;
+
         $prefill = [];
         if ($request->has('customer_id')) {
             $prefill['customer_id'] = $request->get('customer_id');
         }
 
-        return view('opportunities.create', compact('customers', 'users', 'prefill'));
+        $technicalManagerId = User::where(function($q) {
+            $q->where('position', 'like', '%Technical Manager%')
+              ->orWhere('position', 'like', '%Presales Manager%')
+              ->orWhere('position', 'like', '%IT Manager%')
+              ->orWhere('position', 'like', '%System Administrator%');
+        })->first()?->id ?? User::where('email', 'admin@erp.com')->first()?->id ?? null;
+
+        return view('opportunities.create', compact('customers', 'users', 'activityTypes', 'prefill', 'technicalManagerId'));
     }
 
     /**
@@ -83,126 +199,457 @@ class OpportunityController extends Controller
      */
     public function store(Request $request)
     {
-        $this->authorize('create', \App\Models\Opportunity::class);
+        $this->authorize('create', Opportunity::class);
 
-        $validated = $request->validate([
+        $rules = [
+            'customer_type' => 'required|in:si,eu',
+            'customer_id' => 'required_if:customer_type,si|nullable|exists:customers,id',
+            'contact_id' => 'required_if:customer_type,si|nullable|exists:contacts,id',
+            'eu_company_name' => 'required_if:customer_type,eu|nullable|string|max:255',
+            'eu_contact_name' => 'nullable|string|max:255',
+            'eu_phone' => 'nullable|string|max:50',
+            'eu_email' => 'nullable|email|max:255',
+            'eu_position' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
-            'customer_id' => 'required|exists:customers,id',
-            'amount' => 'required|numeric|min:0',
-            'stage' => 'required|string',
-            'expected_close_date' => 'nullable|date',
-            'assigned_to' => 'nullable|exists:users,id',
+            'activity_type' => 'required|string',
+            'activity_type_other' => 'required_if:activity_type,other|nullable|string|max:255',
+            'activity_date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
             'description' => 'nullable|string',
-            'next_action' => 'nullable|string|max:255',
-            'next_action_date' => 'nullable|date',
-        ]);
+            'notes' => 'nullable|string',
+            'materials_required' => 'nullable|string',
+            'giveaway' => 'nullable|string',
+            'needs_technical' => 'nullable|boolean',
+            'technical_user_id' => 'required_if:needs_technical,1|nullable|exists:users,id',
+            'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
+            'cancel_reason' => 'required_if:status,cancelled|nullable|string',
+            'assigned_to' => 'required|exists:users,id',
+        ];
+
+        $validated = $request->validate($rules);
+        $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
+
+        // Backend validation: meeting must have attachments
+        if (in_array($validated['activity_type'], ['meeting', 'project_meeting'])) {
+            if (!$request->hasFile('files') || count($request->file('files')) === 0) {
+                return back()->withInput()->withErrors(['files' => 'Đối với hoạt động "Meeting liên quan đến dự án", bạn bắt buộc phải đính kèm ít nhất một hình ảnh, biên bản meeting hoặc proposal ở phần Tài liệu đính kèm.']);
+            }
+        }
+
+        // Auto-calculate duration_minutes
+        if (!empty($request->start_time) && !empty($request->end_time)) {
+            try {
+                $start = Carbon::createFromFormat('H:i', $request->start_time);
+                $end = Carbon::createFromFormat('H:i', $request->end_time);
+                if ($end->greaterThan($start)) {
+                    $validated['duration_minutes'] = $start->diffInMinutes($end);
+                } else {
+                    $validated['duration_minutes'] = 0;
+                }
+            } catch (\Exception $e) {
+                $validated['duration_minutes'] = 0;
+            }
+        } else {
+            $validated['duration_minutes'] = 0;
+        }
 
         $validated['created_by'] = auth()->id();
 
-        $opportunity = \App\Models\Opportunity::create($validated);
+        if ($validated['status'] === 'completed') {
+            $validated['completed_at'] = now();
+        } else {
+            $validated['completed_at'] = null;
+        }
 
-        // Auto-create task if next_action is provided
-        if (!empty($validated['next_action'])) {
-            \App\Models\Activity::create([
-                'subject' => $validated['next_action'],
-                'type' => 'task',
-                'due_date' => $validated['next_action_date'] ?? null,
-                'opportunity_id' => $opportunity->id,
-                'customer_id' => $opportunity->customer_id,
-                'user_id' => $opportunity->assigned_to ?? auth()->id(),
-                'created_by' => auth()->id(),
+        if ($validated['status'] !== 'cancelled') {
+            $validated['cancel_reason'] = null;
+        }
+
+        $opportunity = Opportunity::create($validated);
+
+        // Upload files
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $path = $file->store('opportunity-attachments', 'public');
+                OpportunityAttachment::create([
+                    'opportunity_id' => $opportunity->id,
+                    'uploaded_by' => auth()->id(),
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'note' => $request->get('file_note'),
+                ]);
+            }
+        }
+
+        // Reminders creation
+        if (in_array($opportunity->status, ['planned', 'in_progress'])) {
+            $activityDateTime = Carbon::parse($opportunity->activity_date->format('Y-m-d') . ' ' . ($opportunity->start_time ?: '09:00:00'));
+            
+            // 1 day reminder
+            $remindAt1Day = $activityDateTime->copy()->subDay();
+            if ($remindAt1Day->isFuture()) {
+                Reminder::create([
+                    'remindable_type' => Opportunity::class,
+                    'remindable_id' => $opportunity->id,
+                    'user_id' => $opportunity->assigned_to,
+                    'remind_at' => $remindAt1Day,
+                    'message' => 'Bạn có hoạt động "' . $opportunity->name . '" diễn ra vào ngày mai lúc ' . ($opportunity->start_time ?: '09:00') . '.',
+                    'is_sent' => false,
+                ]);
+            }
+
+            // 1 hour reminder
+            $remindAt1Hour = $activityDateTime->copy()->subHour();
+            if ($remindAt1Hour->isFuture()) {
+                Reminder::create([
+                    'remindable_type' => Opportunity::class,
+                    'remindable_id' => $opportunity->id,
+                    'user_id' => $opportunity->assigned_to,
+                    'remind_at' => $remindAt1Hour,
+                    'message' => 'Bạn có hoạt động "' . $opportunity->name . '" sẽ bắt đầu sau 1 giờ nữa.',
+                    'is_sent' => false,
+                ]);
+            }
+        }
+
+        // Notifications
+        if ($opportunity->needs_technical && $opportunity->technical_user_id) {
+            Notification::create([
+                'user_id' => $opportunity->technical_user_id,
+                'type' => 'opportunity_technical_assigned',
+                'title' => 'Yêu cầu phối hợp kỹ thuật',
+                'message' => auth()->user()->name . ' đã yêu cầu bạn phối hợp kỹ thuật cho hoạt động: "' . $opportunity->name . '" vào ngày ' . $opportunity->activity_date->format('d/m/Y') . '.',
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => 'fas fa-cogs',
+                'color' => 'blue',
             ]);
         }
 
-        return redirect()->route('opportunities.index')->with('success', 'Đã tạo cơ hội thành công.');
+        // Notify sales managers/admins
+        $managers = User::whereHas('roles', function ($q) {
+            $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+        })->where('id', '!=', auth()->id())->get();
+
+        foreach ($managers as $manager) {
+            Notification::create([
+                'user_id' => $manager->id,
+                'type' => 'opportunity_created',
+                'title' => 'Hoạt động cơ hội mới',
+                'message' => auth()->user()->name . ' đã lên lịch hoạt động mới: "' . $opportunity->name . '" cho khách hàng ' . $opportunity->customer_display_name . '.',
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => 'fas fa-calendar-plus',
+                'color' => 'green',
+            ]);
+        }
+
+        return redirect()->route('opportunities.index')->with('success', 'Đã tạo hoạt động cơ hội thành công.');
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(\App\Models\Opportunity $opportunity)
+    public function show(Opportunity $opportunity)
     {
         $this->authorize('view', $opportunity);
 
-        $opportunity->load(['activities.user', 'activities.createdBy', 'customer', 'assignedTo']);
-        return view('opportunities.show', compact('opportunity'));
+        $opportunity->load(['customer', 'contact', 'assignedTo', 'technicalUser', 'attachments.uploader', 'createdBy']);
+        
+        $users = User::orderBy('name')->get();
+        $statuses = Opportunity::STATUSES;
+        $ratings = Opportunity::POTENTIAL_RATINGS;
+
+        return view('opportunities.show', compact('opportunity', 'users', 'statuses', 'ratings'));
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(\App\Models\Opportunity $opportunity)
+    public function edit(Opportunity $opportunity)
     {
         $this->authorize('update', $opportunity);
 
-        $customers = \App\Models\Customer::all();
-        $users = \App\Models\User::all();
-        return view('opportunities.edit', compact('opportunity', 'customers', 'users'));
+        $customers = Customer::orderBy('name')->get();
+        $users = User::orderBy('name')->get();
+        $activityTypes = Opportunity::ACTIVITY_TYPES;
+
+        $technicalManagerId = User::where(function($q) {
+            $q->where('position', 'like', '%Technical Manager%')
+              ->orWhere('position', 'like', '%Presales Manager%')
+              ->orWhere('position', 'like', '%IT Manager%')
+              ->orWhere('position', 'like', '%System Administrator%');
+        })->first()?->id ?? User::where('email', 'admin@erp.com')->first()?->id ?? null;
+
+        return view('opportunities.edit', compact('opportunity', 'customers', 'users', 'activityTypes', 'technicalManagerId'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, \App\Models\Opportunity $opportunity)
+    public function update(Request $request, Opportunity $opportunity)
     {
         $this->authorize('update', $opportunity);
 
-        $validated = $request->validate([
+        $rules = [
+            'customer_type' => 'required|in:si,eu',
+            'customer_id' => 'required_if:customer_type,si|nullable|exists:customers,id',
+            'contact_id' => 'required_if:customer_type,si|nullable|exists:contacts,id',
+            'eu_company_name' => 'required_if:customer_type,eu|nullable|string|max:255',
+            'eu_contact_name' => 'nullable|string|max:255',
+            'eu_phone' => 'nullable|string|max:50',
+            'eu_email' => 'nullable|email|max:255',
+            'eu_position' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
-            'customer_id' => 'required|exists:customers,id',
-            'amount' => 'required|numeric|min:0',
-            'stage' => 'required|string',
-            'expected_close_date' => 'nullable|date',
-            'assigned_to' => 'nullable|exists:users,id',
+            'activity_type' => 'required|string',
+            'activity_type_other' => 'required_if:activity_type,other|nullable|string|max:255',
+            'activity_date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
             'description' => 'nullable|string',
-            'next_action' => 'nullable|string|max:255',
-            'next_action_date' => 'nullable|date',
-        ]);
+            'notes' => 'nullable|string',
+            'materials_required' => 'nullable|string',
+            'giveaway' => 'nullable|string',
+            'needs_technical' => 'nullable|boolean',
+            'technical_user_id' => 'required_if:needs_technical,1|nullable|exists:users,id',
+            'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
+            'cancel_reason' => 'required_if:status,cancelled|nullable|string',
+            'assigned_to' => 'required|exists:users,id',
+            
+            // Phase 2 reports
+            'customer_feedback' => 'nullable|string',
+            'meeting_result' => 'nullable|string',
+            'pain_points' => 'nullable|string',
+            'next_action' => 'nullable|string',
+            'potential_rating' => 'nullable|string|in:25,50,75,90',
+        ];
 
-        // Check if next_action changed
-        $oldAction = $opportunity->next_action;
-        $opportunity->update($validated);
+        $validated = $request->validate($rules);
+        $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
 
-        // Auto-create task if next_action is provided and changed (or just new)
-        if (!empty($validated['next_action']) && $validated['next_action'] !== $oldAction) {
-            \App\Models\Activity::create([
-                'subject' => $validated['next_action'],
-                'type' => 'task',
-                'due_date' => $validated['next_action_date'] ?? null,
-                'opportunity_id' => $opportunity->id,
-                'customer_id' => $opportunity->customer_id,
-                'user_id' => $opportunity->assigned_to ?? auth()->id(),
-                'created_by' => auth()->id(),
-            ]);
+        // Backend validation: meeting must have attachments
+        if (in_array($validated['activity_type'], ['meeting', 'project_meeting'])) {
+            if (!$request->hasFile('files') && $opportunity->attachments()->count() === 0) {
+                return back()->withInput()->withErrors(['files' => 'Đối với hoạt động "Meeting liên quan đến dự án", bạn bắt buộc phải đính kèm ít nhất một hình ảnh, biên bản meeting hoặc proposal ở phần Tài liệu đính kèm.']);
+            }
         }
 
-        return redirect()->route('opportunities.index')->with('success', 'Đã cập nhật cơ hội thành công.');
+        // Auto-calculate duration_minutes
+        if (!empty($request->start_time) && !empty($request->end_time)) {
+            try {
+                $start = Carbon::createFromFormat('H:i', $request->start_time);
+                $end = Carbon::createFromFormat('H:i', $request->end_time);
+                if ($end->greaterThan($start)) {
+                    $validated['duration_minutes'] = $start->diffInMinutes($end);
+                } else {
+                    $validated['duration_minutes'] = 0;
+                }
+            } catch (\Exception $e) {
+                $validated['duration_minutes'] = 0;
+            }
+        } else {
+            $validated['duration_minutes'] = 0;
+        }
+
+        $oldStatus = $opportunity->status;
+        if ($validated['status'] === 'completed' && $oldStatus !== 'completed') {
+            $validated['completed_at'] = now();
+        } elseif ($validated['status'] !== 'completed') {
+            $validated['completed_at'] = null;
+        }
+
+        if ($validated['status'] !== 'cancelled') {
+            $validated['cancel_reason'] = null;
+        }
+
+        $opportunity->update($validated);
+
+        // Upload files
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $path = $file->store('opportunity-attachments', 'public');
+                OpportunityAttachment::create([
+                    'opportunity_id' => $opportunity->id,
+                    'uploaded_by' => auth()->id(),
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'note' => $request->get('file_note'),
+                ]);
+            }
+        }
+
+        // Notification for completion
+        if ($opportunity->status === 'completed' && $oldStatus !== 'completed') {
+            $managers = User::whereHas('roles', function ($q) {
+                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+            })->where('id', '!=', auth()->id())->get();
+
+            foreach ($managers as $manager) {
+                Notification::create([
+                    'user_id' => $manager->id,
+                    'type' => 'opportunity_completed',
+                    'title' => 'Hoạt động cơ hội hoàn thành',
+                    'message' => auth()->user()->name . ' đã hoàn thành báo cáo hoạt động: "' . $opportunity->name . '" của khách hàng ' . $opportunity->customer_display_name . '.',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-check-circle',
+                    'color' => 'blue',
+                ]);
+            }
+        }
+
+        return redirect()->route('opportunities.show', $opportunity->id)->with('success', 'Đã cập nhật hoạt động cơ hội thành công.');
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(\App\Models\Opportunity $opportunity)
+    public function destroy(Opportunity $opportunity)
     {
         $this->authorize('delete', $opportunity);
 
+        foreach ($opportunity->attachments as $attachment) {
+            Storage::disk('public')->delete($attachment->file_path);
+            $attachment->delete();
+        }
+
         $opportunity->delete();
-        return redirect()->route('opportunities.index')->with('success', 'Đã xóa cơ hội.');
+
+        return redirect()->route('opportunities.index')->with('success', 'Đã xóa hoạt động cơ hội.');
     }
 
     /**
-     * API to update stage via Drag & Drop
+     * API to update status dynamically
      */
-    public function updateStage(Request $request, \App\Models\Opportunity $opportunity)
+    public function updateStatus(Request $request, Opportunity $opportunity)
     {
         $this->authorize('update', $opportunity);
 
         $validated = $request->validate([
-            'stage' => 'required|string',
+            'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
+            'cancel_reason' => 'required_if:status,cancelled|nullable|string',
         ]);
 
-        $opportunity->update(['stage' => $validated['stage']]);
+        $oldStatus = $opportunity->status;
+        $updateData = ['status' => $validated['status']];
 
-        return response()->json(['success' => true, 'message' => 'Cập nhật trạng thái thành công']);
+        if ($validated['status'] === 'cancelled') {
+            $updateData['cancel_reason'] = $validated['cancel_reason'];
+        } else {
+            $updateData['cancel_reason'] = null;
+        }
+
+        if ($validated['status'] === 'completed') {
+            $updateData['completed_at'] = now();
+        } else {
+            $updateData['completed_at'] = null;
+        }
+
+        $opportunity->update($updateData);
+
+        if ($validated['status'] === 'completed' && $oldStatus !== 'completed') {
+            $managers = User::whereHas('roles', function ($q) {
+                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+            })->where('id', '!=', auth()->id())->get();
+
+            foreach ($managers as $manager) {
+                Notification::create([
+                    'user_id' => $manager->id,
+                    'type' => 'opportunity_completed',
+                    'title' => 'Hoạt động cơ hội hoàn thành',
+                    'message' => auth()->user()->name . ' đã hoàn thành hoạt động: "' . $opportunity->name . '" của khách hàng ' . $opportunity->customer_display_name . '.',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-check-circle',
+                    'color' => 'blue',
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cập nhật trạng thái thành công',
+            'status_label' => $opportunity->status_label,
+            'status_color' => $opportunity->status_color
+        ]);
+    }
+
+    /**
+     * API to upload an attachment file
+     */
+    public function uploadAttachment(Request $request, Opportunity $opportunity)
+    {
+        $this->authorize('update', $opportunity);
+
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB limit
+            'note' => 'nullable|string|max:255',
+        ]);
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $path = $file->store('opportunity-attachments', 'public');
+
+            $attachment = OpportunityAttachment::create([
+                'opportunity_id' => $opportunity->id,
+                'uploaded_by' => auth()->id(),
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'note' => $request->get('note'),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'attachment' => [
+                    'id' => $attachment->id,
+                    'file_name' => $attachment->file_name,
+                    'file_size_formatted' => $attachment->file_size_formatted,
+                    'file_icon' => $attachment->file_icon,
+                    'note' => $attachment->note,
+                    'delete_url' => route('opportunities.delete-attachment', $attachment->id),
+                    'download_url' => asset('storage/' . $attachment->file_path),
+                ]
+            ]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Không tìm thấy file để upload.']);
+    }
+
+    /**
+     * API to delete an attachment file
+     */
+    public function deleteAttachment(OpportunityAttachment $attachment)
+    {
+        $this->authorize('update', $attachment->opportunity);
+
+        Storage::disk('public')->delete($attachment->file_path);
+        $attachment->delete();
+
+        return response()->json(['success' => true, 'message' => 'Đã xóa file đính kèm thành công.']);
+    }
+
+    /**
+     * Redirect to project creation pre-filled with opportunity details
+     */
+    public function convertToProject(Opportunity $opportunity)
+    {
+        $this->authorize('update', $opportunity);
+
+        return redirect()->route('projects.create', [
+            'opportunity_id' => $opportunity->id,
+            'customer_type' => $opportunity->customer_type,
+            'customer_id' => $opportunity->customer_id,
+            'contact_id' => $opportunity->contact_id,
+            'eu_name_vi' => $opportunity->eu_company_name,
+            'eu_contact_name' => $opportunity->eu_contact_name,
+            'eu_phone' => $opportunity->eu_phone,
+            'eu_email' => $opportunity->eu_email,
+            'eu_position' => $opportunity->eu_position,
+            'name' => $opportunity->name,
+            'description' => $opportunity->description,
+        ]);
     }
 }

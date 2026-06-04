@@ -1,208 +1,228 @@
 @extends('layouts.app')
 
-@section('title', 'Quản lý Cơ hội')
-@section('page-title', 'Quản lý Cơ hội')
+@section('title', 'Lịch hoạt động cơ hội')
+@section('page-title', 'Lịch hoạt động cơ hội')
 
 @section('content')
-    <div class="h-full flex flex-col">
-        <!-- Header Section -->
-        <div class="bg-white rounded-lg shadow-sm mb-4 shrink-0">
-            <div class="p-4 border-b border-gray-200">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <h2 class="text-lg font-semibold text-gray-800">
-                        <i class="fas fa-funnel-dollar text-yellow-500 mr-2"></i>Quy trình bán hàng (Pipeline)
+    <!-- FullCalendar CDN -->
+    @push('styles')
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+        <style>
+            .fc-event {
+                cursor: pointer;
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
+            }
+            .fc-event:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .fc-header-toolbar {
+                margin-bottom: 1.5rem !important;
+            }
+            .fc-toolbar-title {
+                font-size: 1.125rem !important;
+                font-weight: 700 !important;
+                color: #1f2937 !important;
+            }
+            .fc-button-primary {
+                background-color: #3b82f6 !important;
+                border-color: #3b82f6 !important;
+            }
+            .fc-button-primary:hover {
+                background-color: #2563eb !important;
+                border-color: #2563eb !important;
+            }
+            .fc-button-active {
+                background-color: #1d4ed8 !important;
+                border-color: #1d4ed8 !important;
+            }
+        </style>
+    @endpush
+
+    <div class="max-w-8xl space-y-4">
+        <!-- Header Card -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-calendar-alt text-primary mr-2"></i>Lịch hoạt động cơ hội kinh doanh
                     </h2>
-                    <div class="flex gap-2">
-                        <a href="{{ route('opportunities.index', ['view' => 'list'] + request()->except('view')) }}"
-                            class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                            <i class="fas fa-list mr-2"></i>Dạng danh sách
-                        </a>
-                        <a href="{{ route('opportunities.create') }}"
-                            class="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
-                            <i class="fas fa-plus mr-2"></i>Thêm mới
-                        </a>
-                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Lên lịch và theo dõi các hoạt động tư vấn, họp mặt và demo sản phẩm với khách hàng.</p>
+                </div>
+                
+                <div class="flex gap-2">
+                    <a href="{{ route('opportunities.index', ['view' => 'list'] + request()->except('view')) }}"
+                        class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold">
+                        <i class="fas fa-list mr-2 text-gray-500"></i>Dạng danh sách
+                    </a>
+                    <a href="{{ route('opportunities.create') }}"
+                        class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors text-sm font-semibold shadow-sm">
+                        <i class="fas fa-plus mr-2"></i>Thêm hoạt động mới
+                    </a>
                 </div>
             </div>
         </div>
 
-        <!-- Filter Section -->
-        <div class="bg-white rounded-lg shadow-sm mb-4">
-            <form action="{{ route('opportunities.index') }}" method="GET" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-end">
-                <input type="hidden" name="view" value="kanban">
+        <!-- Filter Card -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <form id="filter_form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Từ ngày</label>
-                    <input type="date" name="start_date" value="{{ request('start_date') }}" 
-                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Khách hàng</label>
+                    <input type="text" name="customer_name" id="filter_customer_name" placeholder="Tên công ty, EU..."
+                        class="w-full border-gray-300 rounded-lg text-sm focus:border-primary focus:ring-primary py-2 px-3">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Đến ngày</label>
-                    <input type="date" name="end_date" value="{{ request('end_date') }}" 
-                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại hoạt động</label>
+                    <select name="activity_type" id="filter_activity_type"
+                        class="w-full border-gray-300 rounded-lg text-sm focus:border-primary focus:ring-primary bg-white py-2 px-3">
+                        <option value="">-- Tất cả --</option>
+                        @foreach($activityTypes as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Khách hàng</label>
-                    <input type="text" name="customer_name" value="{{ request('customer_name') }}" placeholder="Tên khách hàng..."
-                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Trạng thái</label>
+                    <select name="status" id="filter_status"
+                        class="w-full border-gray-300 rounded-lg text-sm focus:border-primary focus:ring-primary bg-white py-2 px-3">
+                        <option value="">-- Tất cả --</option>
+                        @foreach($statuses as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="md:col-span-2 lg:col-span-1 xl:col-span-1">
-                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Tìm theo tên/ghi chú</label>
-                    <div class="flex gap-2">
-                        <input type="text" name="name" value="{{ request('name') }}" placeholder="Tên..."
-                            class="flex-1 min-w-0 border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
-                        <input type="text" name="notes" value="{{ request('notes') }}" placeholder="Ghi chú..."
-                            class="flex-1 min-w-0 border-gray-300 rounded-lg shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-200 text-sm">
-                    </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Sales phụ trách</label>
+                    <select name="assigned_to" id="filter_assigned_to"
+                        class="w-full border-gray-300 rounded-lg text-sm focus:border-primary focus:ring-primary bg-white py-2 px-3">
+                        <option value="">-- Tất cả --</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kỹ thuật phụ trách</label>
+                    <select name="technical_user" id="filter_technical_user"
+                        class="w-full border-gray-300 rounded-lg text-sm focus:border-primary focus:ring-primary bg-white py-2 px-3">
+                        <option value="">-- Tất cả --</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="flex gap-2">
-                    <button type="submit" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm flex-1 sm:flex-none">
-                        <i class="fas fa-filter mr-1"></i> Lọc
+                    <button type="submit" class="flex-1 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors text-sm font-semibold flex items-center justify-center">
+                        <i class="fas fa-filter mr-1.5"></i> Lọc lịch
                     </button>
-                    <a href="{{ route('opportunities.index', ['view' => 'kanban']) }}" 
-                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm flex-1 sm:flex-none text-center">
-                        <i class="fas fa-times mr-1"></i> Xóa
-                    </a>
+                    <button type="button" onclick="clearFilters()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+                        Xóa lọc
+                    </button>
                 </div>
             </form>
         </div>
 
-        <!-- Kanban Board -->
-        <div class="flex-1 overflow-x-auto pb-4 custom-scrollbar">
-            <div class="flex h-full space-x-2 px-2">
-                @foreach ($stages as $key => $label)
-                    <div class="flex-1 min-w-[200px] bg-gray-100 rounded-lg flex flex-col h-full max-h-[calc(100vh-20rem)] shadow-inner">
-                        <!-- Adjusted height to use max-h and flex -->
-                        <div class="p-2.5 bg-gray-200 rounded-t-lg font-semibold text-gray-700 flex justify-between items-center shrink-0 border-b border-gray-300">
-                            <span class="text-xs sm:text-sm truncate">{{ $label }}</span>
-                            <span
-                                class="bg-white text-gray-600 px-2 py-0.5 rounded-full text-[10px] border border-gray-200">{{ $kanbanData[$key]->count() }}</span>
-                        </div>
-                        <div class="p-2 overflow-y-auto flex-1 space-y-2 custom-scrollbar"
-                            id="stage-{{ $key }}" data-stage="{{ $key }}">
-                            @foreach ($kanbanData[$key] as $opportunity)
-                                <div class="bg-white p-3 rounded shadow-sm border border-gray-200 cursor-move hover:shadow-md transition-shadow relative group"
-                                    draggable="true" data-id="{{ $opportunity->id }}">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <a href="{{ route('opportunities.show', $opportunity) }}"
-                                            class="font-medium text-gray-900 truncate pr-6 hover:text-blue-600">
-                                            {{ $opportunity->name }}
-                                        </a>
-                                        <a href="{{ route('opportunities.edit', $opportunity) }}"
-                                            class="opacity-0 group-hover:opacity-100 absolute top-2 right-2 text-gray-400 hover:text-blue-600">
-                                            <i class="fas fa-pencil-alt text-xs"></i>
-                                        </a>
-                                    </div>
-                                    <p class="text-xs text-gray-500 mb-2 truncate"><i class="fas fa-building mr-1"></i>
-                                        {{ $opportunity->customer->name ?? 'N/A' }}</p>
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-semibold text-green-600">{{ number_format($opportunity->amount) }}
-                                            {{ $opportunity->currency }}</span>
-                                        @if($opportunity->probability > 0)
-                                            <span
-                                                class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{{ $opportunity->probability }}%</span>
-                                        @endif
-                                    </div>
-
-                                    @if($opportunity->description)
-                                        <div class="mt-2 text-[11px] text-gray-600 italic bg-gray-50 p-2 rounded border-l-2 {{ $opportunity->stage === 'lost' ? 'border-red-400' : 'border-gray-300' }}">
-                                            <div class="font-medium text-gray-700 mb-0.5 not-italic">Ghi chú:</div>
-                                            <div class="line-clamp-2" title="{{ $opportunity->description }}">
-                                                {{ $opportunity->description }}
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                    <div class="mt-2 text-xs text-gray-400 flex items-center justify-between">
-                                        <span><i class="far fa-user mr-1"></i> {{ $opportunity->assignedTo->name ?? 'N/A' }}</span>
-                                        @if($opportunity->expected_close_date)
-                                            <span class="{{ $opportunity->expected_close_date->isPast() ? 'text-red-500' : '' }}">
-                                                {{ $opportunity->expected_close_date->format('d/m/Y') }}
-                                            </span>
-                                        @endif
-                                    </div>
-                                    @if($opportunity->next_action)
-                                        <div class="mt-2 text-xs border-t pt-2 border-gray-100">
-                                            <div class="font-medium text-gray-700">Tiếp theo:</div>
-                                            <div class="text-gray-600 truncate" title="{{ $opportunity->next_action }}">
-                                                {{ $opportunity->next_action }}
-                                            </div>
-                                            @if($opportunity->next_action_date)
-                                                <div
-                                                    class="{{ $opportunity->next_action_date->isPast() ? 'text-red-500' : 'text-gray-400' }}">
-                                                    {{ $opportunity->next_action_date->format('d/m/Y') }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endif
-
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-            </div>
+        <!-- Calendar Container -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <div id="calendar"></div>
         </div>
     </div>
 
     @push('scripts')
+        <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/vi.js"></script>
         <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                // Simple Drag and Drop Implementation
-                let draggedItem = null;
+            let calendar = null;
 
-                document.querySelectorAll('[draggable="true"]').forEach(item => {
-                    item.addEventListener('dragstart', function (e) {
-                        draggedItem = this;
-                        this.classList.add('opacity-50');
-                        e.dataTransfer.effectAllowed = 'move';
-                    });
+            document.addEventListener('DOMContentLoaded', function() {
+                const calendarEl = document.getElementById('calendar');
+                
+                calendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    locale: 'vi',
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                    },
+                    firstDay: 1, // Thứ 2 là ngày đầu tuần
+                    selectable: true,
+                    select: function(info) {
+                        let datePart = info.startStr.split('T')[0];
+                        let startTime = '';
+                        let endTime = '';
+                        
+                        if (info.startStr.includes('T')) {
+                            startTime = info.startStr.split('T')[1].substring(0, 5);
+                            endTime = info.endStr.split('T')[1].substring(0, 5);
+                        }
+                        
+                        let url = `/opportunities/create?date=${datePart}`;
+                        if (startTime) {
+                            url += `&start_time=${startTime}`;
+                        }
+                        if (endTime) {
+                            url += `&end_time=${endTime}`;
+                        }
+                        window.location.href = url;
+                    },
+                    events: function(info, successCallback, failureCallback) {
+                        // Gọi API lấy sự kiện kèm query params
+                        const params = new URLSearchParams({
+                            start: info.startStr,
+                            end: info.endStr,
+                            customer_name: document.getElementById('filter_customer_name').value,
+                            activity_type: document.getElementById('filter_activity_type').value,
+                            status: document.getElementById('filter_status').value,
+                            assigned_to: document.getElementById('filter_assigned_to').value,
+                            technical_user: document.getElementById('filter_technical_user').value,
+                        });
 
-                    item.addEventListener('dragend', function () {
-                        this.classList.remove('opacity-50');
-                        draggedItem = null;
-                    });
+                        fetch(`/opportunities/calendar-events?${params.toString()}`, {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        })
+                        .then(res => res.json())
+                        .then(events => {
+                            successCallback(events);
+                        })
+                        .catch(err => {
+                            console.error('Lỗi tải dữ liệu lịch:', err);
+                            failureCallback(err);
+                        });
+                    },
+                    eventClick: function(info) {
+                        info.jsEvent.preventDefault(); // Ngăn redirect mặc định để custom
+                        if (info.event.url) {
+                            window.location.href = info.event.url;
+                        }
+                    },
+                    eventDidMount: function(info) {
+                        // Thêm tooltip đơn giản khi hover
+                        const props = info.event.extendedProps;
+                        const tooltip = `Khách hàng: ${props.customer}\nTrạng thái: ${props.statusLabel}\nPhụ trách: ${props.assignedTo || 'Chưa phân công'}`;
+                        info.el.setAttribute('title', tooltip);
+                    }
                 });
 
-                document.querySelectorAll('[id^="stage-"]').forEach(container => {
-                    container.addEventListener('dragover', function (e) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        this.classList.add('bg-gray-200');
-                    });
+                calendar.render();
 
-                    container.addEventListener('dragleave', function () {
-                        this.classList.remove('bg-gray-200');
-                    });
-
-                    container.addEventListener('drop', function (e) {
-                        e.preventDefault();
-                        this.classList.remove('bg-gray-200');
-
-                        if (draggedItem) {
-                            this.appendChild(draggedItem);
-                            const opportunityId = draggedItem.dataset.id;
-                            const newStage = this.dataset.stage;
-
-                            // Update via AJAX
-                            fetch(`/opportunities/${opportunityId}/update-stage`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                                },
-                                body: JSON.stringify({ stage: newStage })
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.success) {
-                                        // Optional: Show toast
-                                    }
-                                })
-                                .catch(error => console.error('Error:', error));
-                        }
-                    });
+                // Lắng nghe sự kiện submit của form filter
+                document.getElementById('filter_form').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    calendar.refetchEvents(); // Refresh calendar events
                 });
             });
+
+            function clearFilters() {
+                document.getElementById('filter_customer_name').value = '';
+                document.getElementById('filter_activity_type').value = '';
+                document.getElementById('filter_status').value = '';
+                document.getElementById('filter_assigned_to').value = '';
+                document.getElementById('filter_technical_user').value = '';
+                if (calendar) {
+                    calendar.refetchEvents();
+                }
+            }
         </script>
     @endpush
 @endsection

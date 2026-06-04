@@ -66,6 +66,8 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('customers', CustomerController::class);
     Route::get('/ajax/customers/search', [CustomerController::class, 'ajaxSearch'])->name('customers.ajax-search');
     Route::get('/ajax/customers/{customer}/contacts', [CustomerController::class, 'getContacts'])->name('customers.contacts');
+    Route::post('/ajax/customers/{customer}/contacts', [CustomerController::class, 'storeContact'])->name('customers.store-contact');
+    Route::post('/ajax/customers', [CustomerController::class, 'storeAjax'])->name('customers.store-ajax');
     Route::resource('suppliers', SupplierController::class);
     Route::resource('employees', EmployeeController::class);
     Route::resource('products', ProductController::class);
@@ -358,8 +360,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-as-read');
 
 
+    Route::get('/opportunities/report', [\App\Http\Controllers\OpportunityReportController::class, 'index'])->name('opportunities.report');
+    Route::get('/opportunities/calendar-events', [\App\Http\Controllers\OpportunityController::class, 'calendarEvents'])->name('opportunities.calendar-events');
+    Route::post('/opportunities/{opportunity}/convert-to-project', [\App\Http\Controllers\OpportunityController::class, 'convertToProject'])->name('opportunities.convert-project');
+    Route::post('/opportunities/{opportunity}/attachments', [\App\Http\Controllers\OpportunityController::class, 'uploadAttachment'])->name('opportunities.upload-attachment');
+    Route::delete('/opportunity-attachments/{attachment}', [\App\Http\Controllers\OpportunityController::class, 'deleteAttachment'])->name('opportunities.delete-attachment');
+    Route::post('/opportunities/{opportunity}/update-status', [\App\Http\Controllers\OpportunityController::class, 'updateStatus'])->name('opportunities.update-status');
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
-    Route::post('/opportunities/{opportunity}/update-stage', [\App\Http\Controllers\OpportunityController::class, 'updateStage'])->name('opportunities.update-stage');
 
     // Activities (Tasks/CRM)
     Route::resource('activities', \App\Http\Controllers\ActivityController::class);

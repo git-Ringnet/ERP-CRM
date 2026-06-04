@@ -110,6 +110,61 @@ class CustomerController extends Controller
     }
 
     /**
+     * AJAX: Tạo mới Contact Point cho Customer.
+     * Được gọi từ form đăng ký dự án khi Partner chưa có contact.
+     */
+    public function storeContact(Request $request, Customer $customer)
+    {
+        $this->authorize('view', $customer);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'nullable|string|max:255',
+            'title'      => 'nullable|string|max:50',
+            'position'   => 'required|string|max:255',
+            'phone'      => 'required|string|max:50',
+            'email'      => 'required|email|max:255',
+        ]);
+
+        $validated['name'] = trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? ''));
+        $validated['is_primary'] = $customer->contacts()->count() === 0;
+
+        $contact = $customer->contacts()->create($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã tạo người liên hệ mới.',
+            'contact' => $contact,
+        ]);
+    }
+
+    /**
+     * AJAX: Tạo mới Customer nhanh.
+     */
+    public function storeAjax(Request $request)
+    {
+        $this->authorize('create', Customer::class);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'tax_code' => 'required|string|max:100|unique:customers,tax_code',
+            'phone' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:255',
+            'address' => 'nullable|string',
+        ]);
+
+        $validated['type'] = 'normal';
+
+        $customer = Customer::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã tạo công ty mới.',
+            'customer' => $customer,
+        ]);
+    }
+
+    /**
      * Show the form for creating a new customer.
      * Requirements: 1.2
      */
