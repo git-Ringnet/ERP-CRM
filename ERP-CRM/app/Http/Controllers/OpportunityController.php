@@ -376,7 +376,7 @@ class OpportunityController extends Controller
             }
         }
 
-        return redirect()->route('opportunities.index')->with('success', 'Đã tạo hoạt động cơ hội thành công.');
+        return redirect()->route('opportunities.index')->with('success_swal', 'Đã tạo hoạt động cơ hội thành công.');
     }
 
     /**
@@ -578,7 +578,7 @@ class OpportunityController extends Controller
             }
         }
 
-        return redirect()->route('opportunities.show', $opportunity->id)->with('success', 'Đã cập nhật hoạt động cơ hội thành công.');
+        return redirect()->route('opportunities.show', $opportunity->id)->with('success_swal', 'Đã cập nhật hoạt động cơ hội thành công.');
     }
 
     /**

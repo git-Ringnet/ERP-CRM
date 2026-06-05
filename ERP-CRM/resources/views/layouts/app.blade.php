@@ -1084,6 +1084,38 @@
     <!-- SweetAlert Helpers -->
     <script src="{{ asset('js/sweetalert-helpers.js') }}"></script>
 
+    @if(session('success_swal'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: {!! json_encode(session('success_swal')) !!},
+                        confirmButtonText: 'Đồng ý',
+                        confirmButtonColor: '#3B82F6'
+                    });
+                }
+            });
+        </script>
+    @endif
+
+    @if(session('error_swal'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Thất bại',
+                        text: {!! json_encode(session('error_swal')) !!},
+                        confirmButtonText: 'Đồng ý',
+                        confirmButtonColor: '#EF4444'
+                    });
+                }
+            });
+        </script>
+    @endif
+
     @include('partials.file-preview-modal')
     @stack('scripts')
 </body>
