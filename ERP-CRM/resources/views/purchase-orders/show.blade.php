@@ -42,11 +42,13 @@
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
             </a>
             <div class="flex space-x-2">
-                @if($purchaseOrder->status == 'draft')
+                @if(in_array($purchaseOrder->status, ['draft', 'pending_approval']))
                     <a href="{{ route('purchase-orders.edit', $purchaseOrder) }}"
                         class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all duration-200 transform hover:scale-105">
                         <i class="fas fa-edit mr-2"></i> Sửa
                     </a>
+                @endif
+                @if($purchaseOrder->status == 'draft')
                     <form action="{{ route('purchase-orders.submit-approval', $purchaseOrder) }}" method="POST" class="inline"
                         id="submit-approval-form">
                         @csrf
@@ -299,6 +301,10 @@
                     <p class="font-semibold text-primary text-lg">{{ $purchaseOrder->code }}</p>
                 </div>
                 <div>
+                    <p class="text-sm text-gray-500">CPQ đơn hàng</p>
+                    <p class="font-medium text-gray-800 text-lg">{{ $purchaseOrder->cpq_number ?: '-' }}</p>
+                </div>
+                <div>
                     <p class="text-sm text-gray-500">Nhà cung cấp</p>
                     <p class="font-medium">{{ $purchaseOrder->supplier->name }}</p>
                 </div>
@@ -339,6 +345,13 @@
                     </div>
                 @endif
             </div>
+
+            @if($purchaseOrder->note)
+            <div class="border-t border-gray-100 mt-6 pt-4">
+                <p class="text-sm text-gray-500 font-medium mb-1">Ghi chú</p>
+                <p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border border-gray-200 whitespace-pre-line">{{ $purchaseOrder->note }}</p>
+            </div>
+            @endif
         </div>
 
         <!-- Tracking Update Form (only show when PO is not received/cancelled) -->
@@ -590,12 +603,6 @@
             </table>
         </div>
 
-        @if($purchaseOrder->note)
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="font-semibold mb-2">Ghi chú</h3>
-                <p class="text-gray-700">{{ $purchaseOrder->note }}</p>
-            </div>
-        @endif
 
         {{-- Yêu cầu đặt hàng từ Sales --}}
         @if($purchaseOrder->sale && $purchaseOrder->sale->orderRequests->count() > 0)
@@ -906,11 +913,13 @@
         </a>
 
         <div class="flex-1 flex items-center justify-end gap-2">
-            @if($purchaseOrder->status == 'draft')
+            @if(in_array($purchaseOrder->status, ['draft', 'pending_approval']))
                 <a href="{{ route('purchase-orders.edit', $purchaseOrder) }}"
                     class="flex-1 max-w-[100px] text-center px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-xs transition-all shadow-sm">
                     <i class="fas fa-edit mr-1"></i>Sửa
                 </a>
+            @endif
+            @if($purchaseOrder->status == 'draft')
                 <button type="button" onclick="document.getElementById('submit-approval-form')?.querySelector('button[type=submit]')?.click()"
                     class="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold rounded-xl text-xs transition-all shadow-md">
                     <i class="fas fa-paper-plane mr-1"></i>Gửi duyệt

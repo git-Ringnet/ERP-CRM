@@ -88,12 +88,13 @@
                                         date</th>
                                     <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">SI
                                         Name <span class="text-red-500">*</span></th>
-                                    <th colspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300">
+                                    <th colspan="3" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300">
                                         Thông tin CQ (Điền tay)</th>
                                     <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                                 </tr>
                                 <tr class="bg-yellow-200 text-xs border-b border-gray-300">
-                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">EU Name - MST <span class="text-red-500">*</span></th>
+                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">EU Name <span class="text-red-500">*</span></th>
+                                    <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px]">MST <span class="text-red-500">*</span></th>
                                     <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">Address</th>
                                 </tr>
                             </thead>
@@ -128,13 +129,16 @@
                                         <input type="text" name="order_request_items[0][serial_number]" placeholder="SN" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="date" name="order_request_items[0][exp_date]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        <input type="text" name="order_request_items[0][exp_date]" placeholder="YYYY-MM-DD" class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
-                                        <input type="text" name="order_request_items[0][eu_name_mst]" required placeholder="EU Name - MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        <input type="text" name="order_request_items[0][eu_name]" required placeholder="EU Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="text" name="order_request_items[0][mst]" required placeholder="MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[0][address]" placeholder="Address" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
@@ -347,7 +351,8 @@
                                                         <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] uppercase">SN</th>
                                                         <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] uppercase">Exp date</th>
                                                         <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[130px] uppercase">SI Name <span class="text-red-500">*</span></th>
-                                                        <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name - MST <span class="text-red-500">*</span></th>
+                                                        <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name <span class="text-red-500">*</span></th>
+                                                        <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] uppercase">MST <span class="text-red-500">*</span></th>
                                                         <th class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">Address</th>
                                                         <th class="px-2 py-2 text-center font-bold text-gray-800 w-10"></th>
                                                     </tr>
@@ -396,18 +401,28 @@
                                                                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
                                                         </td>
                                                         <td class="px-1 py-1">
-                                                            <input type="date" name="order_request_items[{{ $idx }}][exp_date]"
-                                                                value="{{ $item->exp_date ? $item->exp_date->format('Y-m-d') : '' }}"
-                                                                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+                                                            <input type="text" name="order_request_items[{{ $idx }}][exp_date]"
+                                                                value="{{ $item->exp_date ? $item->exp_date->format('Y-m-d') : '' }}" placeholder="YYYY-MM-DD"
+                                                                class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
                                                         </td>
                                                         <td class="px-1 py-1">
                                                             <input type="text" name="order_request_items[{{ $idx }}][si_name]" required
                                                                 value="{{ $item->si_name }}" placeholder="SI Name"
                                                                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
                                                         </td>
+                                                        @php
+                                                            $parts = explode(' - ', $item->eu_name_mst, 2);
+                                                            $euNameVal = $parts[0] ?? '';
+                                                            $mstVal = $parts[1] ?? '';
+                                                        @endphp
                                                         <td class="px-1 py-1">
-                                                            <input type="text" name="order_request_items[{{ $idx }}][eu_name_mst]" required
-                                                                value="{{ $item->eu_name_mst }}" placeholder="EU Name - MST"
+                                                            <input type="text" name="order_request_items[{{ $idx }}][eu_name]" required
+                                                                value="{{ $euNameVal }}" placeholder="EU Name"
+                                                                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+                                                        </td>
+                                                        <td class="px-1 py-1">
+                                                            <input type="text" name="order_request_items[{{ $idx }}][mst]" required
+                                                                value="{{ $mstVal }}" placeholder="MST"
                                                                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
                                                         </td>
                                                         <td class="px-1 py-1">

@@ -36,10 +36,13 @@ class SalePurchaseSyncService
                 return null;
             }
 
+            $supplier = Supplier::find($supplierId);
+            $supplierName = $supplier ? $supplier->name : null;
+
             DB::beginTransaction();
 
             $po = PurchaseOrder::create([
-                'code' => PurchaseOrder::generateCode(),
+                'code' => PurchaseOrder::generateCode($supplierName),
                 'supplier_id' => $supplierId,
                 'sale_id' => $sale->id,
                 'order_date' => now(),

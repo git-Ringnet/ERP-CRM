@@ -149,13 +149,16 @@ function addOrderRequestRow(data = null) {
             <input type="text" name="order_request_items[${i}][serial_number]" placeholder="SN" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5">
-            <input type="date" name="order_request_items[${i}][exp_date]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <input type="text" name="order_request_items[${i}][exp_date]" placeholder="YYYY-MM-DD" class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][si_name]" required placeholder="SI Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5">
-            <input type="text" name="order_request_items[${i}][eu_name_mst]" required placeholder="EU Name - MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <input type="text" name="order_request_items[${i}][eu_name]" required placeholder="EU Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+        </td>
+        <td class="px-1 py-1.5">
+            <input type="text" name="order_request_items[${i}][mst]" required placeholder="MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][address]" placeholder="Address" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
@@ -167,6 +170,14 @@ function addOrderRequestRow(data = null) {
         </td>
     `;
     tbody.appendChild(tr);
+    if (typeof window.initExpDatePicker === 'function') {
+        window.initExpDatePicker(tr.querySelector('.exp-date-picker'));
+    } else if (typeof flatpickr !== 'undefined') {
+        flatpickr(tr.querySelector('.exp-date-picker'), {
+            dateFormat: "Y-m-d",
+            allowInput: true
+        });
+    }
 }
 
 function removeOrderRequestRow(btn) {

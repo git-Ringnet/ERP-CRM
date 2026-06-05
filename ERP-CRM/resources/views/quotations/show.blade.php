@@ -67,78 +67,104 @@
         <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Chi tiết sản phẩm</h3>
             
-            <!-- Desktop Table -->
-            <div class="hidden md:block overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">#</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">VAT (%)</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        @foreach($quotation->items as $index => $item)
-                        <tr>
-                            <td class="px-4 py-3 text-center text-sm">{{ $index + 1 }}</td>
-                            <td class="px-4 py-3">
-                                <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
-                                @if($item->product_code)
-                                    <div class="text-xs text-gray-500">{{ $item->product_code }}</div>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-center">{{ $item->quantity }}</td>
-                            <td class="px-4 py-3 text-right">
-                                @if($quotation->currency && !$quotation->currency->is_base)
-                                    <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->price * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
-                                @else
-                                    {{ number_format($item->price, 0, ',', '.') }} đ
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-center">{{ (float)$item->vat }}%</td>
-                            <td class="px-4 py-3 text-right font-medium">
-                                @if($quotation->currency && !$quotation->currency->is_base)
-                                    <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
-                                @else
-                                    {{ number_format($item->total, 0, ',', '.') }} đ
-                                @endif
-                            </td>
-                        </tr>
+        @php
+            $customColumns = $quotation->custom_columns ?? [];
+            if (!is_array($customColumns)) {
+                $customColumns = [];
+            }
+        @endphp
+        <!-- Desktop Table -->
+        <div class="hidden md:block overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">VAT (%)</th>
+                        @foreach($customColumns as $colName)
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ $colName }}</th>
                         @endforeach
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile Cards -->
-            <div class="md:hidden space-y-3">
-                @foreach($quotation->items as $index => $item)
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
-                    <div class="text-sm text-gray-500 mt-1 flex justify-between">
-                        <span>
-                            @if($quotation->currency && !$quotation->currency->is_base)
-                                SL: {{ $item->quantity }} x {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}
-                            @else
-                                SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @foreach($quotation->items as $index => $item)
+                    <tr>
+                        <td class="px-4 py-3 text-center text-sm">{{ $index + 1 }}</td>
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
+                            @if($item->product_code)
+                                <div class="text-xs text-gray-500">{{ $item->product_code }}</div>
                             @endif
-                        </span>
-                        <span class="text-blue-600">VAT: {{ (float)$item->vat }}%</span>
+                        </td>
+                        <td class="px-4 py-3 text-center">{{ $item->quantity }}</td>
+                        <td class="px-4 py-3 text-right">
+                            @if($quotation->currency && !$quotation->currency->is_base)
+                                <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->price * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
+                            @else
+                                {{ number_format($item->price, 0, ',', '.') }} đ
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-center">{{ (float)$item->vat }}%</td>
+                        @foreach($customColumns as $colName)
+                            <td class="px-4 py-3 text-left text-sm text-gray-600">
+                                {{ $item->custom_fields[$colName] ?? '' }}
+                            </td>
+                        @endforeach
+                        <td class="px-4 py-3 text-right font-medium">
+                            @if($quotation->currency && !$quotation->currency->is_base)
+                                <div class="font-medium text-gray-900">{{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ number_format($item->total * ($quotation->exchange_rate ?: 1), 0, ',', '.') }} đ</div>
+                            @else
+                                {{ number_format($item->total, 0, ',', '.') }} đ
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="md:hidden space-y-3">
+            @foreach($quotation->items as $index => $item)
+            <div class="bg-gray-50 p-3 rounded-lg">
+                <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
+                @if($item->product_code)
+                    <div class="text-xs text-gray-500 mt-0.5">{{ $item->product_code }}</div>
+                @endif
+                @if(!empty($customColumns))
+                    <div class="text-xs text-gray-600 mt-1.5 space-y-0.5 bg-white p-2 rounded border border-gray-100">
+                        @foreach($customColumns as $colName)
+                            @if(!empty($item->custom_fields[$colName]))
+                                <div><span class="font-medium text-gray-500">{{ $colName }}:</span> {{ $item->custom_fields[$colName] }}</div>
+                            @endif
+                        @endforeach
                     </div>
-                    <div class="text-sm font-medium text-right mt-2 border-t pt-1">
+                @endif
+                <div class="text-sm text-gray-500 mt-1 flex justify-between">
+                    <span>
                         @if($quotation->currency && !$quotation->currency->is_base)
-                            = {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}
+                            SL: {{ $item->quantity }} x {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->price, $quotation->currency->decimal_places ?? 2) }}
                         @else
-                            = {{ number_format($item->total, 0, ',', '.') }} đ
+                            SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
                         @endif
-                    </div>
+                    </span>
+                    <span class="text-blue-600">VAT: {{ (float)$item->vat }}%</span>
                 </div>
-                @endforeach
+                <div class="text-sm font-medium text-right mt-2 border-t pt-1">
+                    @if($quotation->currency && !$quotation->currency->is_base)
+                        = {{ $quotation->currency->symbol ?? $quotation->currency->code }} {{ number_format($item->total, $quotation->currency->decimal_places ?? 2) }}
+                    @else
+                        = {{ number_format($item->total, 0, ',', '.') }} đ
+                    @endif
+                </div>
             </div>
+            @endforeach
+        </div>
 
             <!-- Totals -->
             @php

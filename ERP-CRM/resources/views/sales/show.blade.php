@@ -301,19 +301,20 @@
     @php
         $euInfos = collect();
         if ($sale->orderRequests && $sale->orderRequests->isNotEmpty()) {
-            $euInfos = $sale->orderRequests->flatMap(function($req) {
-                return $req->items->map(function($item) {
+            $latestRequest = $sale->orderRequests->sortByDesc('id')->first();
+            if ($latestRequest) {
+                $euInfos = $latestRequest->items->map(function($item) {
                     return [
                         'si_name' => $item->si_name,
                         'eu_name_mst' => $item->eu_name_mst,
                         'address' => $item->address,
                     ];
-                });
-            })->filter(function($eu) {
-                return !empty($eu['si_name']) || !empty($eu['eu_name_mst']);
-            })->unique(function($eu) {
-                return $eu['si_name'] . '|' . $eu['eu_name_mst'] . '|' . $eu['address'];
-            })->values();
+                })->filter(function($eu) {
+                    return !empty($eu['si_name']) || !empty($eu['eu_name_mst']);
+                })->unique(function($eu) {
+                    return $eu['si_name'] . '|' . $eu['eu_name_mst'] . '|' . $eu['address'];
+                })->values();
+            }
         }
     @endphp
 
@@ -454,7 +455,7 @@
 
             @if($euInfos->isNotEmpty())
             <div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin End User (EU)</h3>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Thông tin đặt hàng</h3>
                 @foreach($euInfos as $index => $eu)
                     @if($euInfos->count() > 1)
                         <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Đối tác / EU #{{ $index + 1 }}</div>
@@ -1261,6 +1262,82 @@ document.getElementById('paymentModal')?.addEventListener('click', function(e) {
     })->values();
 @endphp
 <script>
+function initExpDatePicker(selectorOrElement) {
+    if (typeof flatpickr !== 'undefined') {
+        flatpickr(selectorOrElement, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            parseDate: function(datestr, format) {
+                const matches = datestr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (matches) {
+                    return new Date(
+                        parseInt(matches[1], 10),
+                        parseInt(matches[2], 10) - 1,
+                        parseInt(matches[3], 10)
+                    );
+                }
+                const d = new Date(datestr);
+                if (!isNaN(d.getTime())) {
+                    return d;
+                }
+                return null;
+            },
+            formatDate: function(date, format, locale) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        });
+        
+        const elements = (typeof selectorOrElement === 'string') 
+            ? document.querySelectorAll(selectorOrElement) 
+            : [selectorOrElement];
+            
+        elements.forEach(el => {
+            if (el && !el.dataset.maskBound) {
+                el.dataset.maskBound = 'true';
+                
+                let prevValue = el.value || '';
+                
+                el.addEventListener('input', function(e) {
+                    const currentVal = this.value;
+                    if (currentVal.length < prevValue.length) {
+                        prevValue = currentVal;
+                        return;
+                    }
+                    
+                    let digits = currentVal.replace(/\D/g, '');
+                    let formatted = '';
+                    if (digits.length > 0) {
+                        formatted += digits.substring(0, 4);
+                        if (digits.length >= 4) {
+                            formatted += '-';
+                            formatted += digits.substring(4, 6);
+                            if (digits.length >= 6) {
+                                formatted += '-';
+                                formatted += digits.substring(6, 8);
+                            }
+                        }
+                    }
+                    
+                    this.value = formatted;
+                    prevValue = formatted;
+                });
+                
+                el.addEventListener('blur', function() {
+                    prevValue = this.value;
+                });
+                
+                el.addEventListener('change', function() {
+                    prevValue = this.value;
+                });
+            }
+        });
+    }
+}
+window.initExpDatePicker = initExpDatePicker;
+
 window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
 window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
 window.OR_SUPPLIERS = @json($orderRequestSuppliers);
@@ -1321,15 +1398,19 @@ function addEditRow(prId) {
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
         </td>
         <td class="px-1 py-1">
-            <input type="date" name="order_request_items[${idx}][exp_date]"
-                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
+            <input type="text" name="order_request_items[${idx}][exp_date]" placeholder="YYYY-MM-DD"
+                class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400">
         </td>
         <td class="px-1 py-1">
             <input type="text" name="order_request_items[${idx}][si_name]" required placeholder="SI Name"
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>
         <td class="px-1 py-1">
-            <input type="text" name="order_request_items[${idx}][eu_name_mst]" required placeholder="EU Name - MST"
+            <input type="text" name="order_request_items[${idx}][eu_name]" required placeholder="EU Name"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+        </td>
+        <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][mst]" required placeholder="MST"
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>
         <td class="px-1 py-1">
@@ -1343,6 +1424,7 @@ function addEditRow(prId) {
         </td>
     `;
     tbody.appendChild(tr);
+    initExpDatePicker(tr.querySelector('.exp-date-picker'));
 }
 
 function removeEditRow(btn, prId) {
@@ -1353,6 +1435,10 @@ function removeEditRow(btn, prId) {
         alert('Yêu cầu đặt hàng phải có ít nhất 1 sản phẩm.');
     }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    initExpDatePicker(".exp-date-picker");
+});
 </script>
 <script src="{{ asset('js/order-request.js') }}"></script>
 @endpush

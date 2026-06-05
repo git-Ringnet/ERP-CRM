@@ -34,6 +34,7 @@ class Quotation extends Model
         'currency_id',
         'exchange_rate',
         'total_foreign',
+        'custom_columns',
     ];
 
     protected $casts = [
@@ -47,6 +48,7 @@ class Quotation extends Model
         'current_approval_level' => 'integer',
         'exchange_rate' => 'decimal:6',
         'total_foreign' => 'decimal:4',
+        'custom_columns' => 'array',
     ];
 
     public function currency()

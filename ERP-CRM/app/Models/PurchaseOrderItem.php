@@ -13,12 +13,13 @@ class PurchaseOrderItem extends Model
     protected $fillable = [
         'purchase_order_id', 'product_id', 'product_name',
         'sale_order_request_item_id', 'ordered_quantity',
-        'quantity', 'received_quantity', 'unit', 'unit_price', 'warehouse_unit_price', 'total', 'note',
+        'quantity', 'received_quantity', 'unit', 'unit_price', 'warehouse_unit_price', 'discount_percent', 'total', 'note',
         'vat_percent', 'vat_amount', 'status', 'license_file'
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
+        'discount_percent' => 'decimal:2',
         'total' => 'decimal:2',
         'vat_percent' => 'decimal:2',
         'vat_amount' => 'decimal:2',

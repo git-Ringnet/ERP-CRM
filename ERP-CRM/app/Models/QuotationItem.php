@@ -20,6 +20,7 @@ class QuotationItem extends Model
         'vat',
         'vat_amount',
         'note',
+        'custom_fields',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class QuotationItem extends Model
         'total' => 'decimal:2',
         'vat' => 'decimal:2',
         'vat_amount' => 'decimal:2',
+        'custom_fields' => 'array',
     ];
 
     public function quotation()

@@ -83,19 +83,9 @@ class PurchaseOrderController extends Controller
         }
 
         $totalValue = (clone $statsQuery)
-            ->join('purchase_order_items', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
-            ->leftJoin('sale_order_request_items', 'purchase_order_items.sale_order_request_item_id', '=', 'sale_order_request_items.id')
-            ->leftJoin('sale_items', 'sale_order_request_items.sale_item_id', '=', 'sale_items.id')
-            ->whereIn('purchase_orders.status', ['approved', 'shipping', 'received'])
-            ->selectRaw('SUM(
-                CASE 
-                    WHEN sale_items.id IS NOT NULL THEN (
-                        sale_items.usd_price * (1 - COALESCE(sale_items.discount_rate, 0)/100) * (1 + COALESCE(sale_items.import_cost_rate, 0)/100) * purchase_order_items.quantity
-                    )
-                    ELSE (purchase_order_items.unit_price * purchase_order_items.quantity / COALESCE(purchase_orders.exchange_rate, 1))
-                END
-            ) as total_cost_usd')
-            ->value('total_cost_usd') ?? 0;
+            ->whereIn('purchase_orders.status', ['draft', 'pending_approval', 'approved', 'shipping', 'partial_received', 'received'])
+            ->selectRaw('SUM(COALESCE(purchase_orders.total_foreign, purchase_orders.total / COALESCE(NULLIF(purchase_orders.exchange_rate, 0), 1))) as total_val_usd')
+            ->value('total_val_usd') ?? 0;
 
         $stats = [
             'pending' => (clone $statsQuery)->whereIn('status', ['draft', 'pending_approval'])->count(),
@@ -142,12 +132,15 @@ class PurchaseOrderController extends Controller
             'code' => 'required|unique:purchase_orders,code',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
+            'cpq_number' => 'nullable|string|max:255',
+            'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
+            'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         DB::beginTransaction();
@@ -157,6 +150,7 @@ class PurchaseOrderController extends Controller
                 'supplier_id' => $validated['supplier_id'],
                 'supplier_quotation_id' => $request->supplier_quotation_id,
                 'sale_id' => $request->sale_id,
+                'cpq_number' => $validated['cpq_number'] ?? null,
                 'order_date' => $this->parseDate($validated['order_date']),
                 'expected_delivery' => $this->parseDate($request->expected_delivery),
                 'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
@@ -191,6 +185,7 @@ class PurchaseOrderController extends Controller
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
                     'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
+                    'discount_percent' => $item['discount_percent'] ?? 0,
                     'total' => $total,
                     'vat_percent' => $itemVatPercent,
                     'vat_amount' => $itemVatAmount,
@@ -255,18 +250,22 @@ class PurchaseOrderController extends Controller
 
         $validated = $request->validate([
             'expected_delivery' => 'nullable|date',
+            'cpq_number' => 'nullable|string|max:255',
+            'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
+            'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         DB::beginTransaction();
         try {
             $purchaseOrder->update([
                 'expected_delivery' => $this->parseDate($request->expected_delivery),
+                'cpq_number' => $validated['cpq_number'] ?? null,
                 'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),
                 'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
                 'delivery_address' => $request->delivery_address,
@@ -299,6 +298,7 @@ class PurchaseOrderController extends Controller
                     'unit' => $item['unit'] ?? 'Cái',
                     'unit_price' => $item['unit_price'],
                     'warehouse_unit_price' => $item['warehouse_unit_price'] ?? 0,
+                    'discount_percent' => $item['discount_percent'] ?? 0,
                     'total' => $total,
                     'vat_percent' => $itemVatPercent,
                     'vat_amount' => $itemVatAmount,
@@ -918,6 +918,9 @@ class PurchaseOrderController extends Controller
                     'si_name' => $item->si_name,
                     'estimated_cost_usd' => (float) ($item->saleItem->estimated_cost_usd ?? 0),
                     'cost_price_vnd' => (float) ($item->saleItem ? $item->saleItem->calculateVndCost() : 0),
+                    'list_price_usd' => (float) ($item->saleItem->usd_price ?? 0),
+                    'list_price_vnd' => (float) (($item->saleItem->usd_price ?? 0) * ($item->saleItem->exchange_rate ?? 1)),
+                    'discount_percent' => (float) ($item->saleItem->discount_rate ?? 0),
                 ];
             })
             ->values();
@@ -933,6 +936,19 @@ class PurchaseOrderController extends Controller
 
         $purchaseOrder->update([
             'expected_delivery' => $this->parseDate($request->expected_delivery),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function updateManufacturerReleaseDate(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $request->validate([
+            'manufacturer_release_date' => 'nullable|date',
+        ]);
+
+        $purchaseOrder->update([
+            'manufacturer_release_date' => $this->parseDate($request->manufacturer_release_date),
         ]);
 
         return response()->json(['success' => true]);

@@ -146,6 +146,9 @@ class SalesRevenue extends Model
         $this->unit_price = $poItem->unit_price;
         $this->total_amount = $poItem->total;
         $this->supplier_id = $po->supplier_id;
+        if ($po->cpq_number) {
+            $this->cpq_number = $po->cpq_number;
+        }
 
         // Warehouse status from received quantity
         if ($poItem->received_quantity >= $poItem->quantity) {

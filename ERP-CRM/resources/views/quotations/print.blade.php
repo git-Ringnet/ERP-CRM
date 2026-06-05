@@ -279,6 +279,11 @@
             $decimals = $quotation->currency->decimal_places ?? 2;
             $symbol = $quotation->currency->symbol ?? $quotation->currency->code ?? '';
 
+            $customColumns = $quotation->custom_columns ?? [];
+            if (!is_array($customColumns)) {
+                $customColumns = [];
+            }
+
             // Subtotal
             $subtotalForeign = $isForeign ? $quotation->items->sum('total') : $quotation->subtotal;
             $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $quotation->subtotal;
@@ -303,6 +308,9 @@
                     <th style="width: 60px;" class="text-center">SL</th>
                     <th style="width: 110px;" class="text-right">Đơn giá</th>
                     <th style="width: 70px;" class="text-center">VAT (%)</th>
+                    @foreach($customColumns as $colName)
+                        <th>{{ $colName }}</th>
+                    @endforeach
                     <th style="width: 120px;" class="text-right">Thành tiền</th>
                 </tr>
             </thead>
@@ -332,6 +340,9 @@
                             @endif
                         </td>
                         <td class="text-center">{{ (float)$item->vat }}%</td>
+                        @foreach($customColumns as $colName)
+                            <td>{{ $item->custom_fields[$colName] ?? '' }}</td>
+                        @endforeach
                         <td class="text-right">
                             @if($isForeign)
                                 <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>

@@ -20,7 +20,7 @@
             <p class="text-2xl font-bold text-green-600">{{ $stats['received'] }}</p>
         </div>
         <div class="bg-white rounded-lg shadow p-4">
-            <p class="text-sm text-gray-500">Tổng giá trị PO</p>
+            <p class="text-sm text-gray-500">Tổng giá trị PO <span class="text-xs text-gray-400 font-normal">(không bao gồm PO đã hủy)</span></p>
             <p class="text-2xl font-bold text-primary">${{ number_format($stats['total_value'], 2) }}</p>
 
         </div>
@@ -71,17 +71,21 @@
     <!-- Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table class="w-full divide-y divide-gray-200 table-auto" style="min-width: 1600px;">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã PO</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo (Sales)</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày đặt hàng</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày giao hàng dự kiến</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã PO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Mã SO</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Partner</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">End user</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">CPQ</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Người tạo (Sales)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Ngày đặt hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Ngày dự kiến hàng về kho</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Shipment date</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tổng tiền</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Trạng thái</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -105,20 +109,35 @@
                         $rowClass = $isOverdue ? 'bg-red-50 hover:bg-red-100' : ($isLongWaiting ? 'bg-orange-50 hover:bg-orange-100' : ($isNearDelivery ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'));
                     @endphp
                     <tr class="{{ $rowClass }}">
-                        <td class="px-4 py-3 font-medium text-primary">
+                        <td class="px-4 py-3 font-medium text-primary whitespace-nowrap">
                             <a href="{{ route('purchase-orders.show', $order) }}" class="hover:underline">{{ $order->code }}</a>
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-600">
+                        <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                             {{ $order->linked_so_codes }}
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-600">
+                        <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title="{{ $order->linked_partner_names }}">
+                            {{ $order->linked_partner_names }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" title="{{ $order->linked_end_user_names }}">
+                            {{ $order->linked_end_user_names }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                            {{ $order->cpq_number }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                             {{ $order->linked_salesperson_names }}
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-600">{{ $order->order_date->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3">
+                        <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{{ $order->order_date->format('d/m/Y') }}</td>
+                        <td class="px-4 py-3 w-40 min-w-[150px]">
                             <input type="date" 
                                 value="{{ $order->expected_delivery ? $order->expected_delivery->format('Y-m-d') : '' }}"
                                 class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-expected-delivery"
+                                data-id="{{ $order->id }}">
+                        </td>
+                        <td class="px-4 py-3 w-40 min-w-[150px]">
+                            <input type="date" 
+                                value="{{ $order->manufacturer_release_date ? $order->manufacturer_release_date->format('Y-m-d') : '' }}"
+                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-manufacturer-release-date"
                                 data-id="{{ $order->id }}">
                         </td>
                         <td class="px-4 py-3 text-right font-medium">
@@ -276,7 +295,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
+                        <td colspan="12" class="px-4 py-8 text-center text-gray-500">Chưa có đơn mua hàng nào</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -290,7 +309,7 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const dateInputs = document.querySelectorAll('.update-expected-delivery');
+        const dateInputs = document.querySelectorAll('.update-expected-delivery, .update-manufacturer-release-date');
         
         let activeRequests = {};
         let debounceTimers = {};
@@ -305,34 +324,52 @@
                 return;
             }
             
-            // Clear any pending debounce timer for this input
-            if (debounceTimers[poId]) {
-                clearTimeout(debounceTimers[poId]);
-                delete debounceTimers[poId];
+            const isReleaseDate = input.classList.contains('update-manufacturer-release-date');
+            const url = isReleaseDate 
+                ? `/purchase-orders/${poId}/update-manufacturer-release-date` 
+                : `/purchase-orders/${poId}/update-expected-delivery`;
+            
+            const bodyData = isReleaseDate 
+                ? { manufacturer_release_date: date } 
+                : { expected_delivery: date };
+                
+            const successMsg = isReleaseDate 
+                ? 'Cập nhật Shipment date thành công' 
+                : 'Cập nhật ngày dự kiến hàng về kho thành công';
+                
+            const errorMsg = isReleaseDate 
+                ? 'Có lỗi xảy ra khi cập nhật Shipment date' 
+                : 'Có lỗi xảy ra khi cập nhật ngày dự kiến hàng về kho';
+
+            // We need a unique key for activeRequests and debounceTimers to avoid collisions
+            const requestKey = `${poId}_${isReleaseDate ? 'release' : 'delivery'}`;
+            
+            // Clear any pending debounce timer for this key
+            if (debounceTimers[requestKey]) {
+                clearTimeout(debounceTimers[requestKey]);
+                delete debounceTimers[requestKey];
             }
             
-            // Abort any ongoing fetch request for this input
-            if (activeRequests[poId]) {
-                activeRequests[poId].abort();
+            // Abort any ongoing fetch request for this key
+            if (activeRequests[requestKey]) {
+                activeRequests[requestKey].abort();
             }
             
             // Create a new AbortController for this request
             const controller = new AbortController();
-            activeRequests[poId] = controller;
+            activeRequests[requestKey] = controller;
             
             // Show loading state (opacity) without disabling, so it doesn't lose focus
             input.classList.add('opacity-50');
             
-            fetch(`/purchase-orders/${poId}/update-expected-delivery`, {
+            fetch(url, {
                 method: 'POST',
                 signal: controller.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
-                body: JSON.stringify({
-                    expected_delivery: date
-                })
+                body: JSON.stringify(bodyData)
             })
             .then(response => response.json())
             .then(data => {
@@ -341,11 +378,11 @@
                     if (window.Toast) {
                         Toast.fire({
                             icon: 'success',
-                            title: 'Cập nhật ngày giao hàng thành công'
+                            title: successMsg
                         });
                     }
                 } else {
-                    alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
+                    alert(errorMsg);
                     input.value = originalValue;
                 }
             })
@@ -354,13 +391,13 @@
                     return; // Request was aborted, do nothing
                 }
                 console.error('Error:', error);
-                alert('Có lỗi xảy ra khi cập nhật ngày giao hàng');
+                alert(errorMsg);
                 input.value = originalValue;
             })
             .finally(() => {
-                if (activeRequests[poId] === controller) {
+                if (activeRequests[requestKey] === controller) {
                     input.classList.remove('opacity-50');
-                    delete activeRequests[poId];
+                    delete activeRequests[requestKey];
                 }
             });
         }

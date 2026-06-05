@@ -13,7 +13,7 @@ class PurchaseOrder extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'code', 'supplier_id', 'supplier_quotation_id', 'sale_id', 'order_date', 'expected_delivery',
+        'code', 'cpq_number', 'supplier_id', 'supplier_quotation_id', 'sale_id', 'order_date', 'expected_delivery',
         'actual_delivery', 'expected_arrival_date', 'manufacturer_release_date',
         'delivery_address', 'subtotal', 'discount_percent', 'discount_amount',
         'shipping_cost', 'other_cost', 'vat_percent', 'vat_amount', 'total', 'paid_amount',
@@ -122,19 +122,32 @@ class PurchaseOrder extends Model
         };
     }
 
-    public static function generateCode(): string
+    public static function generateCode($supplierName = null): string
     {
         $lastCode = self::whereYear('created_at', now()->year)
             ->orderBy('id', 'desc')
             ->value('code');
         
+        $number = 1;
         if ($lastCode) {
-            $number = (int) substr($lastCode, -4) + 1;
-        } else {
-            $number = 1;
+            $parts = explode('/', $lastCode);
+            if (count($parts) > 0 && is_numeric($parts[0])) {
+                $number = (int) $parts[0] + 1;
+            } else {
+                $numericPart = preg_replace('/[^0-9]/', '', $lastCode);
+                if (strlen($numericPart) >= 4) {
+                    $number = (int) substr($numericPart, -4) + 1;
+                } else {
+                    $number = self::whereYear('created_at', now()->year)->count() + 1;
+                }
+            }
         }
         
-        return 'PO' . now()->format('y') . str_pad($number, 4, '0', STR_PAD_LEFT);
+        $stt = str_pad($number, 4, '0', STR_PAD_LEFT);
+        $year = now()->format('Y');
+        $suffix = $supplierName ? '-' . trim($supplierName) : '';
+        
+        return "{$stt}/{$year}/TH{$suffix}";
     }
 
     public function calculateTotals(): void
@@ -249,6 +262,30 @@ class PurchaseOrder extends Model
         })->filter()->unique();
 
         return $names->isEmpty() ? ($this->sale->user->name ?? 'N/A') : $names->implode(', ');
+    }
+
+    /**
+     * Lấy danh sách Partner (Customer Name) liên quan
+     */
+    public function getLinkedPartnerNamesAttribute(): string
+    {
+        $partners = $this->items->map(function($item) {
+            return $item->saleOrderRequestItem->saleOrderRequest->sale->customer_name ?? ($item->saleOrderRequestItem->si_name ?? null);
+        })->filter()->unique();
+
+        return $partners->isEmpty() ? ($this->sale->customer_name ?? 'N/A') : $partners->implode(', ');
+    }
+
+    /**
+     * Lấy danh sách End User (EU Name) liên quan
+     */
+    public function getLinkedEndUserNamesAttribute(): string
+    {
+        $endUsers = $this->items->map(function($item) {
+            return $item->saleOrderRequestItem->eu_name_mst ?? ($item->saleOrderRequestItem->saleOrderRequest->sale->project->eu_name_vi ?? null);
+        })->filter()->unique();
+
+        return $endUsers->isEmpty() ? ($this->sale->project->eu_name_vi ?? 'N/A') : $endUsers->implode(', ');
     }
 }
 

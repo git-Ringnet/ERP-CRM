@@ -292,6 +292,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/purchase-orders/{purchaseOrder}/toggle-hold', [PurchaseOrderController::class, 'toggleHold'])->name('purchase-orders.toggle-hold');
     Route::post('/purchase-orders/{purchaseOrder}/update-tracking', [PurchaseOrderController::class, 'updateTracking'])->name('purchase-orders.update-tracking');
     Route::post('/purchase-orders/{purchaseOrder}/update-expected-delivery', [PurchaseOrderController::class, 'updateExpectedDelivery'])->name('purchase-orders.update-expected-delivery');
+    Route::post('/purchase-orders/{purchaseOrder}/update-manufacturer-release-date', [PurchaseOrderController::class, 'updateManufacturerReleaseDate'])->name('purchase-orders.update-manufacturer-release-date');
     Route::post('/purchase-orders/items/{item}/update-status', [PurchaseOrderController::class, 'updateItemStatus'])->name('purchase-orders.items.update-status');
     Route::post('/purchase-orders/items/{item}/update-price', [PurchaseOrderController::class, 'updateItemPrice'])->name('purchase-orders.items.update-price');
     Route::post('/purchase-orders/items/{item}/upload-license', [PurchaseOrderController::class, 'uploadItemLicense'])->name('purchase-orders.items.upload-license');

@@ -114,6 +114,10 @@ class QuotationController extends Controller
             'products.*.vat' => ['nullable', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
+            'custom_columns' => ['nullable', 'array'],
+            'custom_columns.*' => ['required', 'string', 'max:255'],
+            'products.*.custom_fields' => ['nullable', 'array'],
+            'products.*.custom_fields.*' => ['nullable', 'string', 'max:2000'],
         ], [
             'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
             'code.unique' => 'Mã báo giá đã tồn tại.',
@@ -174,6 +178,7 @@ class QuotationController extends Controller
                 'note' => $validated['note'],
                 'status' => 'draft',
                 'created_by' => auth()->id(),
+                'custom_columns' => $validated['custom_columns'] ?? null,
             ]);
 
             foreach ($validated['products'] as $item) {
@@ -186,7 +191,6 @@ class QuotationController extends Controller
                     $product = $this->getOrSyncProduct($syncKey, $item['product_name']);
                     if ($product) {
                         $productId = $product->id;
-                        $productName = $product->name;
                         $productCode = $product->code;
                     }
                 }
@@ -206,6 +210,7 @@ class QuotationController extends Controller
                     'vat' => $item['vat'] ?? 0,
                     'vat_amount' => $itemVatAmount,
                     'total' => $itemSubtotal,
+                    'custom_fields' => $item['custom_fields'] ?? null,
                 ]);
             }
 
@@ -277,6 +282,10 @@ class QuotationController extends Controller
             'products.*.vat' => ['nullable', 'numeric', 'min:0'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
+            'custom_columns' => ['nullable', 'array'],
+            'custom_columns.*' => ['required', 'string', 'max:255'],
+            'products.*.custom_fields' => ['nullable', 'array'],
+            'products.*.custom_fields.*' => ['nullable', 'string', 'max:2000'],
         ], [
             'valid_until.after_or_equal' => 'Hạn báo giá phải sau hoặc bằng ngày tạo.',
             'code.unique' => 'Mã báo giá đã tồn tại.',
@@ -336,6 +345,7 @@ class QuotationController extends Controller
                 'delivery_time' => $validated['delivery_time'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'status' => 'draft',
+                'custom_columns' => $validated['custom_columns'] ?? null,
             ]);
 
             $quotation->items()->delete();
@@ -350,7 +360,6 @@ class QuotationController extends Controller
                     $product = $this->getOrSyncProduct($syncKey, $item['product_name']);
                     if ($product) {
                         $productId = $product->id;
-                        $productName = $product->name;
                         $productCode = $product->code;
                     }
                 }
@@ -370,6 +379,7 @@ class QuotationController extends Controller
                     'vat' => $item['vat'] ?? 0,
                     'vat_amount' => $itemVatAmount,
                     'total' => $itemSubtotal,
+                    'custom_fields' => $item['custom_fields'] ?? null,
                 ]);
             }
 
@@ -594,6 +604,7 @@ class QuotationController extends Controller
                 'note' => $quotation->note,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
+                'custom_columns' => $quotation->custom_columns,
             ]);
 
             // Duplicate items
@@ -608,6 +619,7 @@ class QuotationController extends Controller
                     'vat' => $item->vat,
                     'vat_amount' => $item->vat_amount,
                     'total' => $item->total,
+                    'custom_fields' => $item->custom_fields,
                 ]);
             }
 

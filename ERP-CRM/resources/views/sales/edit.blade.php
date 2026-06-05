@@ -347,37 +347,7 @@
                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note', $sale->note) }}</textarea>
             </div>
 
-            <!-- Payment Term & Due Date -->
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                <div class="px-4 py-3 border-b border-gray-200 bg-blue-50">
-                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">
-                        <i class="fas fa-calendar-check mr-2 text-blue-500"></i>Hạn thanh toán
-                    </h3>
-                </div>
-                <div class="p-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Hạn thanh toán (Payment Term)</label>
-                            <select name="payment_term" id="paymentTermSelect"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                                <option value="">-- Chọn hạn thanh toán --</option>
-                                <option value="customer_default" {{ old('payment_term', $sale->payment_term) == 'customer_default' ? 'selected' : '' }}>Mặc định khách hàng</option>
-                                <option value="NET 30" {{ old('payment_term', $sale->payment_term) == 'NET 30' ? 'selected' : '' }}>NET 30 (30 ngày)</option>
-                                <option value="NET 45" {{ old('payment_term', $sale->payment_term) == 'NET 45' ? 'selected' : '' }}>NET 45 (45 ngày)</option>
-                                <option value="prepaid" {{ old('payment_term', $sale->payment_term) == 'prepaid' ? 'selected' : '' }}>Thanh toán trước giao hàng</option>
-                                <option value="custom" {{ old('payment_term', $sale->payment_term) == 'custom' ? 'selected' : '' }}>Tùy chỉnh</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Hạn ngày thanh toán (Due Date)</label>
-                            <input type="date" name="payment_due_date" id="paymentDueDateInput" 
-                                   value="{{ old('payment_due_date', $sale->payment_due_date ? \Carbon\Carbon::parse($sale->payment_due_date)->format('Y-m-d') : '') }}"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            <p class="text-xs text-gray-500 mt-1" id="paymentDueDateHint"></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- Payment Milestones -->
             <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -504,9 +474,7 @@ function formatMoney(amount) {
     }).format(amount);
 }
 
-// Order Request config
-window.OR_VENDORS = @json(\App\Models\SaleOrderRequest::VENDORS);
-window.OR_TYPES = @json(\App\Models\SaleOrderRequest::TYPES);
+
 
 
 // Searchable Select Functions
@@ -822,14 +790,7 @@ function initAllSearchableSelects() {
                 }
             }
             
-            // Auto-set payment term to customer_default if debt_days exist
-            if (window.selectedCustomerDebtDays > 0) {
-                const ptSelect = document.getElementById('paymentTermSelect');
-                if (ptSelect) {
-                    ptSelect.value = 'customer_default';
-                    calculatePaymentDueDate();
-                }
-            }
+
             
             // Load contacts for chosen customer
             loadContacts(opt.dataset.value);
@@ -1649,30 +1610,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.hasContractorTaxActive = window.initialHasContractorTax;
     updateContractorTaxVisibility(window.hasContractorTaxActive);
 
-    // --- Payment Term & Milestone Preset Event Listeners ---
-    const paymentTermSelect = document.getElementById('paymentTermSelect');
-    if (paymentTermSelect) {
-        paymentTermSelect.addEventListener('change', function() {
-            calculatePaymentDueDate();
-        });
-    }
 
-    const paymentDueDateInput = document.getElementById('paymentDueDateInput');
-    if (paymentDueDateInput) {
-        paymentDueDateInput.addEventListener('change', function() {
-            const ptSelect = document.getElementById('paymentTermSelect');
-            if (ptSelect && ptSelect.value !== 'custom') {
-                ptSelect.value = 'custom';
-            }
-        });
-    }
-
-    const dateInput2 = document.querySelector('input[name="date"]');
-    if (dateInput2) {
-        dateInput2.addEventListener('change', function() {
-            calculatePaymentDueDate();
-        });
-    }
 
     const milestonePresetSelect = document.getElementById('milestonePresetSelect');
     if (milestonePresetSelect) {
@@ -1699,46 +1637,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // --- Payment Term & Due Date Functions ---
 window.selectedCustomerDebtDays = 0;
-
-function calculatePaymentDueDate() {
-    const ptSelect = document.getElementById('paymentTermSelect');
-    const dueDateInput = document.getElementById('paymentDueDateInput');
-    const dateInput = document.querySelector('input[name="date"]');
-    const hint = document.getElementById('paymentDueDateHint');
-    
-    if (!ptSelect || !dueDateInput || !dateInput) return;
-    
-    const term = ptSelect.value;
-    const orderDate = dateInput.value;
-    
-    if (!orderDate || term === 'custom' || term === '') {
-        if (hint) hint.textContent = term === 'custom' ? 'Chọn ngày hạn thanh toán thủ công' : '';
-        return;
-    }
-    
-    let daysToAdd = 0;
-    let label = '';
-    
-    switch (term) {
-        case 'customer_default':
-            daysToAdd = window.selectedCustomerDebtDays || 0;
-            label = `Mặc định KH: ${daysToAdd} ngày`;
-            break;
-        case 'NET 30': daysToAdd = 30; label = 'NET 30: 30 ngày kể từ ngày đơn hàng'; break;
-        case 'NET 45': daysToAdd = 45; label = 'NET 45: 45 ngày kể từ ngày đơn hàng'; break;
-        case 'prepaid': daysToAdd = 0; label = 'Thanh toán trước giao hàng'; break;
-    }
-    
-    const date = new Date(orderDate);
-    date.setDate(date.getDate() + daysToAdd);
-    
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    dueDateInput.value = `${yyyy}-${mm}-${dd}`;
-    
-    if (hint) hint.textContent = label;
-}
 
 function onMilestonePresetChange(preset) {
     const list = document.getElementById('milestoneList');
@@ -1783,5 +1681,5 @@ function switchMilestonePresetToCustom() {
     }
 }
 </script>
-<script src="{{ asset('js/order-request.js') }}"></script>
+
 @endpush

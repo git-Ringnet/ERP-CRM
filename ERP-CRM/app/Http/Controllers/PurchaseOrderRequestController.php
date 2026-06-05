@@ -7,6 +7,7 @@ use App\Models\SaleOrderRequestItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,7 +36,6 @@ class PurchaseOrderRequestController extends Controller
     public function index(Request $request)
     {
         $status = $request->input('status');
-        $code = $request->input('code');
         $sale_code = $request->input('sale_code');
         $note = $request->input('note');
 
@@ -43,10 +43,6 @@ class PurchaseOrderRequestController extends Controller
 
         if ($status) {
             $query->where('status', $status);
-        }
-
-        if ($code) {
-            $query->where('code', 'like', '%' . $code . '%');
         }
 
         if ($sale_code) {
@@ -77,6 +73,10 @@ class PurchaseOrderRequestController extends Controller
             $pr->status = SaleOrderRequest::STATUS_PROCESSING;
             $pr->rejection_note = null;
             $pr->save();
+
+            // Gửi thông báo cho Sales (người tạo PR) biết PR đã được duyệt
+            $this->notifySalesPrStatusChanged($pr, 'approved');
+
             return back()->with('success', 'Đã duyệt yêu cầu #' . $pr->code . '. Các sản phẩm đã sẵn sàng để đặt hàng.');
         } elseif ($action === 'reject') {
             $request->validate(['rejection_note' => 'required|string|max:1000']);
@@ -161,9 +161,33 @@ class PurchaseOrderRequestController extends Controller
                     'total_usd' => 0,
                     'requested' => 0,
                     'ordered' => 0,
+                    'partner' => '',
+                    'end_user' => '',
                     'products' => []
                 ];
             }
+
+            // Accumulate Partner (Customer Name of SO or SI Name of PR item)
+            $partnerName = $pr->sale?->customer_name ?: ($item->si_name ?: '');
+            $partners = isset($vendorGroups[$vId]['sales_orders'][$soKey]['partners']) 
+                ? $vendorGroups[$vId]['sales_orders'][$soKey]['partners'] 
+                : [];
+            if ($partnerName && !in_array($partnerName, $partners)) {
+                $partners[] = $partnerName;
+            }
+            $vendorGroups[$vId]['sales_orders'][$soKey]['partners'] = $partners;
+            $vendorGroups[$vId]['sales_orders'][$soKey]['partner'] = implode(', ', $partners);
+
+            // Accumulate End User (EU Name of PR item or Project EU Name)
+            $euName = $item->eu_name_mst ?: ($pr->sale?->project?->eu_name_vi ?? '');
+            $endUsers = isset($vendorGroups[$vId]['sales_orders'][$soKey]['end_users']) 
+                ? $vendorGroups[$vId]['sales_orders'][$soKey]['end_users'] 
+                : [];
+            if ($euName && !in_array($euName, $endUsers)) {
+                $endUsers[] = $euName;
+            }
+            $vendorGroups[$vId]['sales_orders'][$soKey]['end_users'] = $endUsers;
+            $vendorGroups[$vId]['sales_orders'][$soKey]['end_user'] = implode(', ', $endUsers);
 
             $ordered = $item->ordered_quantity_total;
             $remaining = max(0, $item->quantity - $ordered);
@@ -232,6 +256,7 @@ class PurchaseOrderRequestController extends Controller
             'items.*.pr_item_id' => 'required|exists:sale_order_request_items,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'note' => 'nullable|string|max:2000',
+            'cpq_number' => 'nullable|string|max:255',
             'currency_id' => 'required|exists:currencies,id',
             'exchange_rate' => 'required|numeric|min:0',
         ]);
@@ -250,7 +275,8 @@ class PurchaseOrderRequestController extends Controller
 
             // 1. Tạo Purchase Order
             $po = PurchaseOrder::create([
-                'code' => PurchaseOrder::generateCode(),
+                'code' => PurchaseOrder::generateCode($vendor->name),
+                'cpq_number' => $validated['cpq_number'] ?? null,
                 'supplier_id' => $vendor->id,
                 'order_date' => now(),
                 'status' => 'pending_approval', // Chờ duyệt PO
@@ -278,25 +304,24 @@ class PurchaseOrderRequestController extends Controller
                     throw new \Exception("Số lượng đặt hàng ({$itemData['quantity']}) vượt quá số lượng còn lại ({$remaining}) của mặt hàng {$prItem->part_number} trong PR #{$prItem->saleOrderRequest->code}");
                 }
 
-                // Tự động tính giá kho từ P&L nếu có (chỉ dùng cho tham khảo)
+                // Tự động tính giá list và discount từ P&L nếu có
                 $warehousePrice = 0;
+                $discountPercent = 0;
                 
                 if ($prItem->saleItem) {
                     $saleItem = $prItem->saleItem;
                     
-                    // Tính giá kho tạm tính USD từ P&L
-                    $estUsd = $saleItem->estimated_cost_usd > 0 
-                        ? (float)$saleItem->estimated_cost_usd 
-                        : (float)($saleItem->usd_price * (1 - (($saleItem->discount_rate ?? 0) / 100)) * (1 + (($saleItem->import_cost_rate ?? 0) / 100)));
-
-                    $warehousePrice = $estUsd;
+                    // Giá list gốc từ P&L
+                    $warehousePrice = (float) ($saleItem->usd_price ?? 0);
+                    // Discount gốc từ P&L
+                    $discountPercent = (float) ($saleItem->discount_rate ?? 0);
                 }
 
-                // Giá mua thực tế mặc định = 0, cho người dùng tự điền
-                $unitPrice = 0;
+                // Giá mua thực tế mặc định = Giá list * (1 - Discount / 100)
+                $unitPrice = round($warehousePrice * (1 - ($discountPercent / 100)), 4);
 
                 // Tạo Purchase Order Item
-                $itemTotal = 0; // Sẽ được cập nhật khi user điền giá
+                $itemTotal = round($itemData['quantity'] * $unitPrice, 2);
 
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
@@ -308,6 +333,7 @@ class PurchaseOrderRequestController extends Controller
                     'unit' => $prItem->unit ?? 'Cái',
                     'unit_price' => $unitPrice,
                     'warehouse_unit_price' => $warehousePrice,
+                    'discount_percent' => $discountPercent,
                     'total' => $itemTotal,
                     'vat_percent' => 0,
                     'vat_amount' => 0,
@@ -412,6 +438,9 @@ class PurchaseOrderRequestController extends Controller
             $pr->delete();
         });
 
+        // Gửi thông báo cho Sales (người tạo PR) biết PR đã bị xóa
+        $this->notifySalesPrStatusChanged($pr, 'deleted', $request->input('reason'));
+
         return redirect()->route('purchase-requests.index')
             ->with('success', 'Đã xóa yêu cầu đặt hàng #' . $pr->code . '!');
     }
@@ -476,6 +505,45 @@ class PurchaseOrderRequestController extends Controller
     }
 
     /**
+     * Gửi thông báo cho Sales khi PR được duyệt hoặc bị xóa
+     */
+    private function notifySalesPrStatusChanged(SaleOrderRequest $pr, string $action, ?string $reason = null): void
+    {
+        $pr->load('sale');
+
+        $creatorId = $pr->created_by;
+        if (!$creatorId) {
+            return;
+        }
+
+        $approverName = auth()->user()->name ?? 'PO Team';
+        $saleCode = $pr->sale->code ?? 'N/A';
+        $link = $pr->sale ? route('sales.show', $pr->sale_id) : null;
+
+        if ($action === 'approved') {
+            Notification::create([
+                'user_id' => $creatorId,
+                'type' => 'order_request_approved',
+                'title' => 'Yêu cầu đặt hàng đã được duyệt',
+                'message' => "{$approverName} đã duyệt yêu cầu đặt hàng ({$pr->code}) cho đơn {$saleCode}. Các sản phẩm đã sẵn sàng để đặt hàng.",
+                'link' => $link,
+                'icon' => 'fas fa-check-circle',
+                'color' => 'green',
+            ]);
+        } elseif ($action === 'deleted') {
+            Notification::create([
+                'user_id' => $creatorId,
+                'type' => 'order_request_deleted',
+                'title' => 'Yêu cầu đặt hàng đã bị xóa',
+                'message' => "{$approverName} đã xóa yêu cầu đặt hàng ({$pr->code}) cho đơn {$saleCode}." . ($reason ? " Lý do: \"{$reason}\"" : ''),
+                'link' => $link,
+                'icon' => 'fas fa-trash',
+                'color' => 'red',
+            ]);
+        }
+    }
+
+    /**
      * Gửi thông báo cho Sales khi PR bị trả về "Thiếu thông tin"
      */
     private function notifySalesNeedInfo(SaleOrderRequest $pr)
@@ -484,7 +552,7 @@ class PurchaseOrderRequestController extends Controller
 
         // Thông báo cho người tạo PR
         $creatorId = $pr->created_by;
-        if (!$creatorId || $creatorId === auth()->id()) {
+        if (!$creatorId) {
             return;
         }
 

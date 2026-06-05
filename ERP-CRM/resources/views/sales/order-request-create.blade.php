@@ -33,15 +33,25 @@
             </div>
 
             {{-- Global SI/EU inputs (only need to fill once) --}}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">SI Name <span class="text-red-500">*</span></label>
                     <input type="text" id="global_si_name" name="global_si_name" required
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">EU Name - MST <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">EU Name <span class="text-red-500">*</span></label>
                     <input type="text" id="global_eu_name" name="global_eu_name" required
+                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MST <span class="text-red-500">*</span></label>
+                    <input type="text" id="global_mst" name="global_mst" required
+                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <input type="text" id="global_address" name="global_address"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
             </div>
@@ -97,11 +107,12 @@
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle uppercase">SN</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">Exp date</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[130px] align-middle uppercase">SI Name <span class="text-red-500">*</span></th>
-                                <th colspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300 uppercase">Thông tin CQ (Điền tay)</th>
+                                <th colspan="3" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300 uppercase">Thông tin CQ (Điền tay)</th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                             </tr>
                             <tr class="bg-yellow-200 text-[10px] border-b border-gray-300">
-                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name - MST <span class="text-red-500">*</span></th>
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name <span class="text-red-500">*</span></th>
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px] uppercase">MST <span class="text-red-500">*</span></th>
                                 <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">Address</th>
                             </tr>
                         </thead>
@@ -151,14 +162,17 @@
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="date" name="order_request_items[{{ $idx }}][exp_date]"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][exp_date]" placeholder="YYYY-MM-DD"
+                                        class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][si_name]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name_mst]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
+                                </td>
+                                <td class="px-1 py-1">
+                                    <input type="text" name="order_request_items[{{ $idx }}][mst]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][address]"
@@ -206,8 +220,109 @@
     </form>
 </div>
 
+{{-- Confirm Submit Modal --}}
+<div id="confirmSubmitModal" class="fixed inset-0 z-[200] hidden">
+    <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" id="confirmModalBg"></div>
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all scale-95 opacity-0" id="confirmModalContent">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <i class="fas fa-paper-plane text-2xl text-emerald-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Xác nhận gửi đơn hàng</h3>
+                <p class="text-sm text-gray-500 mb-6">Bạn có chắc muốn gửi đơn hàng?</p>
+                <div class="flex gap-3 justify-center">
+                    <button type="button" id="cancelSubmitBtn"
+                        class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="button" id="confirmSubmitBtn"
+                        class="px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-md transition-colors">
+                        <i class="fas fa-check mr-1.5"></i>Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
+    function initExpDatePicker(selectorOrElement) {
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr(selectorOrElement, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                parseDate: function(datestr, format) {
+                    const matches = datestr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                    if (matches) {
+                        return new Date(
+                            parseInt(matches[1], 10),
+                            parseInt(matches[2], 10) - 1,
+                            parseInt(matches[3], 10)
+                        );
+                    }
+                    const d = new Date(datestr);
+                    if (!isNaN(d.getTime())) {
+                        return d;
+                    }
+                    return null;
+                },
+                formatDate: function(date, format, locale) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+            });
+            
+            const elements = (typeof selectorOrElement === 'string') 
+                ? document.querySelectorAll(selectorOrElement) 
+                : [selectorOrElement];
+                
+            elements.forEach(el => {
+                if (el && !el.dataset.maskBound) {
+                    el.dataset.maskBound = 'true';
+                    
+                    let prevValue = el.value || '';
+                    
+                    el.addEventListener('input', function(e) {
+                        const currentVal = this.value;
+                        if (currentVal.length < prevValue.length) {
+                            prevValue = currentVal;
+                            return;
+                        }
+                        
+                        let digits = currentVal.replace(/\D/g, '');
+                        let formatted = '';
+                        if (digits.length > 0) {
+                            formatted += digits.substring(0, 4);
+                            if (digits.length >= 4) {
+                                formatted += '-';
+                                formatted += digits.substring(4, 6);
+                                if (digits.length >= 6) {
+                                    formatted += '-';
+                                    formatted += digits.substring(6, 8);
+                                }
+                            }
+                        }
+                        
+                        this.value = formatted;
+                        prevValue = formatted;
+                    });
+                    
+                    el.addEventListener('blur', function() {
+                        prevValue = this.value;
+                    });
+                    
+                    el.addEventListener('change', function() {
+                        prevValue = this.value;
+                    });
+                }
+            });
+        }
+    }
+
     let rowIdx = {{ count($sale->items) }};
     const suppliers = @json($suppliers->map(fn($s) => ['id' => $s->id, 'name' => $s->name]));
     const orderTypes = @json(\App\Models\SaleOrderRequest::TYPES);
@@ -216,12 +331,18 @@
     function syncGlobalToRows(){
         const si = document.getElementById('global_si_name').value;
         const eu = document.getElementById('global_eu_name').value;
+        const mst = document.getElementById('global_mst').value;
+        const addr = document.getElementById('global_address').value;
         document.querySelectorAll('input[name$="[si_name]"]').forEach(el => el.value = si);
-        document.querySelectorAll('input[name$="[eu_name_mst]"]').forEach(el => el.value = eu);
+        document.querySelectorAll('input[name$="[eu_name]"]').forEach(el => el.value = eu);
+        document.querySelectorAll('input[name$="[mst]"]').forEach(el => el.value = mst);
+        document.querySelectorAll('input[name$="[address]"]').forEach(el => el.value = addr);
     }
 
     document.getElementById('global_si_name').addEventListener('input', syncGlobalToRows);
     document.getElementById('global_eu_name').addEventListener('input', syncGlobalToRows);
+    document.getElementById('global_mst').addEventListener('input', syncGlobalToRows);
+    document.getElementById('global_address').addEventListener('input', syncGlobalToRows);
 
     function applyGlobalVendorType() {
         const globalVendor = document.getElementById('global_vendor_id').value;
@@ -264,6 +385,8 @@
         });
         const siGlobal = document.getElementById('global_si_name').value;
         const euGlobal = document.getElementById('global_eu_name').value;
+        const mstGlobal = document.getElementById('global_mst').value;
+        const addrGlobal = document.getElementById('global_address').value;
 
         tr.innerHTML = `
             <td class="px-1 py-1">
@@ -297,19 +420,23 @@
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
             </td>
             <td class="px-1 py-1">
-                <input type="date" name="order_request_items[${rowIdx}][exp_date]"
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                <input type="text" name="order_request_items[${rowIdx}][exp_date]" placeholder="YYYY-MM-DD"
+                    class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
             </td>
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][si_name]" value="${siGlobal}"
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
             </td>
             <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][eu_name_mst]" value="${euGlobal}"
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
+                <input type="text" name="order_request_items[${rowIdx}][eu_name]" value="${euGlobal}" required
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name">
             </td>
             <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][address]"
+                <input type="text" name="order_request_items[${rowIdx}][mst]" value="${mstGlobal}" required
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST">
+            </td>
+            <td class="px-1 py-1">
+                <input type="text" name="order_request_items[${rowIdx}][address]" value="${addrGlobal}"
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
             </td>
             <td class="px-1 py-1 text-center">
@@ -320,6 +447,7 @@
         `;
         
         tbody.appendChild(tr);
+        initExpDatePicker(tr.querySelector('.exp-date-picker'));
         rowIdx++;
     }
 
@@ -332,7 +460,69 @@
     }
 
     // Initial sync on page load in case global values already filled (e.g., after validation error)
-    document.addEventListener('DOMContentLoaded', syncGlobalToRows);
+    document.addEventListener('DOMContentLoaded', function() {
+        syncGlobalToRows();
+        initExpDatePicker(".exp-date-picker");
+    });
+
+    // === Double-Enter to submit with confirmation modal ===
+    let lastEnterTime = 0;
+    const DOUBLE_ENTER_THRESHOLD = 500; // ms
+
+    const confirmModal = document.getElementById('confirmSubmitModal');
+    const confirmModalContent = document.getElementById('confirmModalContent');
+    const confirmModalBg = document.getElementById('confirmModalBg');
+    const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
+    const cancelSubmitBtn = document.getElementById('cancelSubmitBtn');
+    const orderForm = document.getElementById('orderRequestForm');
+
+    function showConfirmModal() {
+        confirmModal.classList.remove('hidden');
+        // Trigger animation
+        requestAnimationFrame(() => {
+            confirmModalContent.classList.remove('scale-95', 'opacity-0');
+            confirmModalContent.classList.add('scale-100', 'opacity-100');
+        });
+    }
+
+    function hideConfirmModal() {
+        confirmModalContent.classList.remove('scale-100', 'opacity-100');
+        confirmModalContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => confirmModal.classList.add('hidden'), 150);
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+
+        // Ignore Enter inside textarea
+        if (e.target.tagName === 'TEXTAREA') return;
+
+        // Prevent default form submit on Enter
+        e.preventDefault();
+
+        const now = Date.now();
+        if (now - lastEnterTime <= DOUBLE_ENTER_THRESHOLD) {
+            lastEnterTime = 0;
+            showConfirmModal();
+        } else {
+            lastEnterTime = now;
+        }
+    });
+
+    confirmSubmitBtn.addEventListener('click', function() {
+        hideConfirmModal();
+        orderForm.submit();
+    });
+
+    cancelSubmitBtn.addEventListener('click', hideConfirmModal);
+    confirmModalBg.addEventListener('click', hideConfirmModal);
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !confirmModal.classList.contains('hidden')) {
+            hideConfirmModal();
+        }
+    });
 </script>
 @endpush
 @endsection

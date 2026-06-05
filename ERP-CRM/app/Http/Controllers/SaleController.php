@@ -401,7 +401,9 @@ class SaleController extends Controller
                             'serial_number' => $item['serial_number'] ?? null,
                             'exp_date' => $item['exp_date'] ?? null,
                             'si_name' => $item['si_name'] ?? '',
-                            'eu_name_mst' => $item['eu_name_mst'] ?? '',
+                            'eu_name_mst' => !empty($item['eu_name']) && !empty($item['mst'])
+                                ? trim($item['eu_name']) . ' - ' . trim($item['mst'])
+                                : (trim($item['eu_name'] ?? '') ?: trim($item['eu_name_mst'] ?? '')),
                             'address' => $item['address'] ?? null,
                         ]);
                     }
@@ -838,7 +840,9 @@ class SaleController extends Controller
                             'serial_number' => $item['serial_number'] ?? null,
                             'exp_date' => $item['exp_date'] ?? null,
                             'si_name' => $item['si_name'] ?? '',
-                            'eu_name_mst' => $item['eu_name_mst'] ?? '',
+                            'eu_name_mst' => !empty($item['eu_name']) && !empty($item['mst'])
+                                ? trim($item['eu_name']) . ' - ' . trim($item['mst'])
+                                : (trim($item['eu_name'] ?? '') ?: trim($item['eu_name_mst'] ?? '')),
                             'address' => $item['address'] ?? null,
                         ]);
                     }
@@ -2186,6 +2190,9 @@ class SaleController extends Controller
             'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt" khi PNL bị từ chối
         ]);
 
+        // Gửi thông báo cho người tạo đơn (Sales) biết P&L bị từ chối
+        $this->notifyPnlStatusChanged($sale, 'rejected', $request->comment);
+
         return redirect()->route('sales.show', $sale->id)
             ->with('success', 'P&L đã bị từ chối.')
             ->withFragment('pnl');
@@ -2227,9 +2234,48 @@ class SaleController extends Controller
             'status'    => 'pending',  // Đồng bộ: trả trạng thái đơn hàng về "Chờ duyệt"
         ]);
 
+        // Gửi thông báo cho người tạo đơn (Sales) biết P&L cần chỉnh sửa
+        $this->notifyPnlStatusChanged($sale, 'need_revision', $request->comment);
+
         return redirect()->route('sales.show', $sale->id)
             ->with('success', 'P&L đã được yêu cầu chỉnh sửa.')
             ->withFragment('pnl');
+    }
+
+    /**
+     * Gửi thông báo cho người tạo đơn khi P&L bị Rejected hoặc Need Revision
+     */
+    private function notifyPnlStatusChanged(Sale $sale, string $action, ?string $comment): void
+    {
+        $creatorId = $sale->getCreatorId();
+        if (!$creatorId || $creatorId === auth()->id()) {
+            return;
+        }
+
+        $approverName = auth()->user()->name ?? 'Người duyệt';
+        $link = route('sales.show', $sale->id) . '#pnl';
+
+        if ($action === 'rejected') {
+            Notification::create([
+                'user_id' => $creatorId,
+                'type' => 'pnl_rejected',
+                'title' => 'P&L bị từ chối',
+                'message' => "{$approverName} đã từ chối P&L cho đơn hàng {$sale->code}." . ($comment ? " Lý do: \"{$comment}\"" : ''),
+                'link' => $link,
+                'icon' => 'fas fa-times-circle',
+                'color' => 'red',
+            ]);
+        } elseif ($action === 'need_revision') {
+            Notification::create([
+                'user_id' => $creatorId,
+                'type' => 'pnl_need_revision',
+                'title' => 'P&L cần chỉnh sửa',
+                'message' => "{$approverName} yêu cầu chỉnh sửa P&L cho đơn hàng {$sale->code}." . ($comment ? " Ghi chú: \"{$comment}\"" : ''),
+                'link' => $link,
+                'icon' => 'fas fa-edit',
+                'color' => 'orange',
+            ]);
+        }
     }
 
     /**
@@ -2284,23 +2330,30 @@ class SaleController extends Controller
      */
     public function storeOrderRequest(Request $request, Sale $sale)
     {
-        $validated = $request->validate([
-            'order_request_items' => 'required|array|min:1',
-            'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
-            'order_request_items.*.type' => 'required|string|max:100',
-            'order_request_items.*.part_number' => 'required|string|max:255',
-            'order_request_items.*.product_id' => 'nullable|exists:products,id',
-            'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
-            'order_request_items.*.quantity' => 'required|numeric|min:0.01',
-            'order_request_items.*.unit' => 'nullable|string|max:50',
-            'order_request_items.*.serial_number' => 'nullable|string|max:255',
-            'order_request_items.*.exp_date' => 'nullable|date',
-            'order_request_items.*.si_name' => 'required|string|max:255',
-            'order_request_items.*.eu_name_mst' => 'required|string|max:255',
-            'order_request_items.*.address' => 'nullable|string|max:500',
-            'order_request_note' => 'nullable|string|max:2000',
-            'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
-        ]);
+        \Log::info('storeOrderRequest raw input: ' . json_encode($request->all()));
+        try {
+            $validated = $request->validate([
+                'order_request_items' => 'required|array|min:1',
+                'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
+                'order_request_items.*.type' => 'required|string|max:100',
+                'order_request_items.*.part_number' => 'required|string|max:255',
+                'order_request_items.*.product_id' => 'nullable|exists:products,id',
+                'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
+                'order_request_items.*.quantity' => 'required|numeric|min:0.01',
+                'order_request_items.*.unit' => 'nullable|string|max:50',
+                'order_request_items.*.serial_number' => 'nullable|string|max:255',
+                'order_request_items.*.exp_date' => 'nullable|date',
+                'order_request_items.*.si_name' => 'required|string|max:255',
+                'order_request_items.*.eu_name' => 'required|string|max:255',
+                'order_request_items.*.mst' => 'required|string|max:255',
+                'order_request_items.*.address' => 'nullable|string|max:500',
+                'order_request_note' => 'nullable|string|max:2000',
+                'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('storeOrderRequest validation failed: ' . json_encode($e->errors()));
+            throw $e;
+        }
 
         DB::beginTransaction();
         try {
@@ -2330,7 +2383,7 @@ class SaleController extends Controller
                     'serial_number' => $item['serial_number'] ?? null,
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'],
-                    'eu_name_mst' => $item['eu_name_mst'],
+                    'eu_name_mst' => trim($item['eu_name']) . ' - ' . trim($item['mst']),
                     'address' => $item['address'] ?? null,
                 ]);
             }
@@ -2416,7 +2469,8 @@ class SaleController extends Controller
             'order_request_items.*.serial_number' => 'nullable|string|max:255',
             'order_request_items.*.exp_date' => 'nullable|date',
             'order_request_items.*.si_name' => 'required|string|max:255',
-            'order_request_items.*.eu_name_mst' => 'required|string|max:255',
+            'order_request_items.*.eu_name' => 'required|string|max:255',
+            'order_request_items.*.mst' => 'required|string|max:255',
             'order_request_items.*.address' => 'nullable|string|max:500',
             'order_request_note' => 'nullable|string|max:2000',
             'order_request_files.*' => 'nullable|file|max:20480',

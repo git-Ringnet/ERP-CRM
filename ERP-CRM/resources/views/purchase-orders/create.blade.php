@@ -27,18 +27,23 @@
         @endif
 
         <!-- Thông tin chung -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO <span class="text-red-500">*</span></label>
-                <input type="text" name="code" value="{{ old('code', $code) }}" required readonly
+                <input type="text" name="code" id="poCodeInput" value="{{ old('code', $code) }}" required readonly
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng</label>
+                <input type="text" name="cpq_number" value="{{ old('cpq_number') }}" placeholder="CPQ/non"
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp <span class="text-red-500">*</span></label>
                 <select name="supplier_id" id="supplierSelect" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" {{ $quotation ? 'disabled' : '' }}>
                     <option value="">Tìm và chọn nhà cung cấp...</option>
                     @foreach($suppliers as $supplier)
-                        <option value="{{ $supplier->id }}" {{ ($quotation && $quotation->supplier_id == $supplier->id) ? 'selected' : '' }}>{{ $supplier->code }} - {{ $supplier->name }}</option>
+                        <option value="{{ $supplier->id }}" data-name="{{ $supplier->name }}" {{ ($quotation && $quotation->supplier_id == $supplier->id) ? 'selected' : '' }}>{{ $supplier->code }} - {{ $supplier->name }}</option>
                     @endforeach
                 </select>
                 @if($quotation)
@@ -125,7 +130,13 @@
                 </label>
                 <input type="date" name="manufacturer_release_date" value="{{ old('manufacturer_release_date') }}"
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
-            </div>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+            <textarea name="note" rows="3" 
+                class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500" 
+                placeholder="Nhập ghi chú cho đơn hàng này...">{{ old('note') }}</textarea>
         </div>
 
         <!-- Danh sách sản phẩm -->
@@ -145,7 +156,7 @@
                 @if($quotation && $quotation->items->count() > 0)
                     @foreach($quotation->items as $index => $item)
                     <div class="item-row grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
-                        <div class="col-span-3 relative product-autocomplete">
+                        <div class="col-span-2 relative product-autocomplete">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
                             <input type="text" name="items[{{ $index }}][product_name]" value="{{ $item->product_name }}"
                                 class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
@@ -155,22 +166,33 @@
                         <div class="col-span-1">
                             <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
                             <input type="number" name="items[{{ $index }}][quantity]" value="{{ $item->quantity }}" min="1" required
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
                         </div>
                         <div class="col-span-2">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho (<span class="currency-symbol">đ</span>)</label>
-                            <input type="number" name="items[{{ $index }}][warehouse_unit_price]" value="{{ $item->warehouse_unit_price ?? 0 }}" min="0" step="0.01"
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+                            <input type="text" name="items[{{ $index }}][warehouse_unit_price]" value="{{ $item->warehouse_unit_price ? (floor($item->warehouse_unit_price) == $item->warehouse_unit_price ? number_format($item->warehouse_unit_price, 0, '.', '') : number_format($item->warehouse_unit_price, 2, '.', '')) : '0' }}"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
                         </div>
-                        <div class="col-span-3">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (<span class="currency-symbol">đ</span>)</label>
-                            <input type="number" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" min="0" step="0.01" required
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
+                        <div class="col-span-1">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Discount (%)</label>
+                            <input type="text" name="items[{{ $index }}][discount_percent]" value="{{ floor($item->discount_percent ?? 0) == ($item->discount_percent ?? 0) ? number_format($item->discount_percent ?? 0, 0, '.', '') : number_format($item->discount_percent ?? 0, 2, '.', '') }}"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+                            <input type="text" name="items[{{ $index }}][unit_price]" value="{{ floor($item->unit_price) == $item->unit_price ? number_format($item->unit_price, 0, '.', '') : number_format($item->unit_price, 2, '.', '') }}" required
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
+                            <input type="number" name="items[{{ $index }}][vat_percent]" value="10" min="0" step="0.1" 
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
                         </div>
                         <div class="col-span-2">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
+                            @php $totalVal = $item->quantity * $item->unit_price; @endphp
                             <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly
-                                value="{{ number_format($item->quantity * $item->unit_price) }}">
+                                value="{{ floor($totalVal) == $totalVal ? number_format($totalVal, 0, '.', ',') : number_format($totalVal, 2, '.', ',') }}">
                         </div>
                         <div class="col-span-1 flex justify-center">
                             <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
@@ -181,7 +203,7 @@
                     @endforeach
                 @else
                 <div class="item-row grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
-                    <div class="col-span-3 relative product-autocomplete">
+                    <div class="col-span-2 relative product-autocomplete">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
                         <input type="text" name="items[0][product_name]" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 product-name-input" autocomplete="off" placeholder="Nhập tên sản phẩm...">
                         <input type="hidden" name="items[0][product_id]" class="product-id">
@@ -190,17 +212,27 @@
                     <div class="col-span-1">
                         <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
                         <input type="number" name="items[0][quantity]" value="1" min="1" required
-                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
                     </div>
-                    <div class="col-span-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho (<span class="currency-symbol">đ</span>)</label>
-                        <input type="number" name="items[0][warehouse_unit_price]" value="0" min="0" step="0.01"
-                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 warehouse-price">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+                        <input type="text" name="items[0][warehouse_unit_price]" value="0"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
                     </div>
-                    <div class="col-span-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (<span class="currency-symbol">đ</span>)</label>
-                        <input type="number" name="items[0][unit_price]" min="0" step="0.01" required placeholder="0"
-                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
+                    <div class="col-span-1">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Discount (%)</label>
+                        <input type="text" name="items[0][discount_percent]" value="0"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+                        <input type="text" name="items[0][unit_price]" required placeholder="0" value="0"
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
+                        <input type="number" name="items[0][vat_percent]" value="10" min="0" step="0.1" 
+                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
@@ -226,7 +258,7 @@
                 <div class="flex justify-between items-start">
                     <span class="text-gray-600 text-sm mt-1">Tổng tiền hàng:</span>
                     <div class="text-right">
-                        <div id="subtotal" class="font-medium">0đ</div>
+                        <div id="subtotal" class="font-medium">0 $</div>
                         <div id="subtotalVnd" class="text-xs text-gray-500 mt-0.5 hidden"></div>
                     </div>
                 </div>
@@ -252,7 +284,7 @@
                 <div class="flex justify-between items-start pt-3 border-t">
                     <span class="text-lg font-semibold mt-1">Tổng cộng:</span>
                     <div class="text-right">
-                        <div id="total" class="text-lg font-bold text-blue-600">0đ</div>
+                        <div id="total" class="text-lg font-bold text-blue-600">0 $</div>
                         <div id="totalVndReference" class="text-sm text-gray-500 mt-0.5 hidden"></div>
                     </div>
                 </div>
@@ -391,8 +423,36 @@ function updateImportPrBtn() {
     }
 }
 
-// Lắng nghe sự kiện thay đổi supplier
-document.getElementById('supplierSelect').addEventListener('change', updateImportPrBtn);
+function updatePoCodeWithSupplier() {
+    const supplierSelect = document.getElementById('supplierSelect');
+    const poCodeInput = document.getElementById('poCodeInput');
+    if (supplierSelect && poCodeInput) {
+        const supplierId = supplierSelect.value;
+        const selectedOption = Array.from(supplierSelect.options).find(opt => opt.value == supplierId);
+        const supplierName = selectedOption ? (selectedOption.dataset.name || '') : '';
+        
+        // Tránh ghi đè nếu tiền tố chưa có /TH
+        if (poCodeInput.value.includes('/TH')) {
+            const prefix = poCodeInput.value.split('/TH')[0] + '/TH';
+            if (supplierName) {
+                poCodeInput.value = prefix + '-' + supplierName.trim();
+            } else {
+                poCodeInput.value = prefix;
+            }
+        }
+    }
+}
+
+// Lắng nghe sự kiện thay đổi supplier để cập nhật nút import và Mã PO
+document.getElementById('supplierSelect').addEventListener('change', function() {
+    updateImportPrBtn();
+    updatePoCodeWithSupplier();
+});
+
+// Chạy khi load trang xong để điền tên hãng nếu có sẵn nhà cung cấp
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(updatePoCodeWithSupplier, 100);
+});
 
 @php
     $productData = $products->map(function ($p) {
@@ -472,10 +532,44 @@ let itemIndex = {{ $quotation ? $quotation->items->count() : 1 }};
 
 function calculateRow(input) {
     const row = input.closest('.item-row');
+    
+    const listPriceInput = row.querySelector('.item-list-price');
+    const discountInput = row.querySelector('.item-discount');
+    const priceInput = row.querySelector('.item-price');
+    
+    let listPrice = parseFloat(listPriceInput.value) || 0;
+    if (listPrice < 0) {
+        listPrice = 0;
+        listPriceInput.value = "0";
+    }
+    
+    let discount = parseFloat(discountInput.value) || 0;
+    if (discount < 0) {
+        discount = 0;
+        discountInput.value = "0";
+    }
+    
+    let price = parseFloat(priceInput.value) || 0;
+    if (price < 0) {
+        price = 0;
+        priceInput.value = "0";
+    }
+    
+    // If the change came from list price or discount, calculate price
+    if (input.classList.contains('item-list-price') || input.classList.contains('item-discount')) {
+        price = listPrice * (1 - discount / 100);
+        priceInput.value = price % 1 === 0 ? price.toFixed(0) : price.toFixed(2);
+    } else if (input.classList.contains('item-price')) {
+        // If price is edited directly, recalculate discount percent based on list price
+        if (listPrice > 0) {
+            discount = Math.max(0, ((listPrice - price) / listPrice) * 100);
+            discountInput.value = discount % 1 === 0 ? discount.toFixed(0) : discount.toFixed(2);
+        }
+    }
+    
     const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-    const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const itemTotal = Math.round((qty * price) * 100) / 100;
-    row.querySelector('.item-total').value = itemTotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    row.querySelector('.item-total').value = itemTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: itemTotal % 1 === 0 ? 0 : 2 });
     
     // Add logic to calculate VND
     const select = document.getElementById('currencySelect');
@@ -490,11 +584,11 @@ function calculateRow(input) {
         if (vndTotalDisplay) vndTotalDisplay.classList.add('hidden');
     } else {
         if (vndPriceDisplay) {
-            vndPriceDisplay.textContent = Math.round(price * rate).toLocaleString('vi-VN') + ' đ';
+            vndPriceDisplay.textContent = Math.round(price * rate).toLocaleString('en-US') + ' đ';
             vndPriceDisplay.classList.remove('hidden');
         }
         if (vndTotalDisplay) {
-            vndTotalDisplay.textContent = Math.round(itemTotal * rate).toLocaleString('vi-VN') + ' đ';
+            vndTotalDisplay.textContent = Math.round(itemTotal * rate).toLocaleString('en-US') + ' đ';
             vndTotalDisplay.classList.remove('hidden');
         }
     }
@@ -531,18 +625,20 @@ function calculateTotal() {
     const isBase = option ? option.dataset.isBase === '1' : true;
     const rate = parseFloat(document.getElementById('exchangeRateInput').value) || 1;
 
-    document.getElementById('subtotal').textContent = symbol + ' ' + subtotal.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    document.getElementById('total').textContent = symbol + ' ' + total.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const vatAmount = 0;
+
+    document.getElementById('subtotal').innerHTML = subtotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: subtotal % 1 === 0 ? 0 : 2 }) + ' $';
+    document.getElementById('total').innerHTML = total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: total % 1 === 0 ? 0 : 2 }) + ' $';
 
     const discDisplay = document.getElementById('discountAmountDisplay');
     if (discDisplay) {
-        discDisplay.textContent = discountAmount > 0 ? ('-' + symbol + ' ' + discountAmount.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })) : '';
+        discDisplay.textContent = discountAmount > 0 ? ('-' + discountAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: discountAmount % 1 === 0 ? 0 : 2 }) + ' $') : '';
         discDisplay.classList.toggle('hidden', discountAmount <= 0);
     }
     
     const vatDisplay = document.getElementById('vatAmountDisplay');
     if (vatDisplay) {
-        vatDisplay.textContent = vatAmount > 0 ? ('+' + symbol + ' ' + vatAmount.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })) : '';
+        vatDisplay.textContent = vatAmount > 0 ? ('+' + vatAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: vatAmount % 1 === 0 ? 0 : 2 }) + ' $') : '';
         vatDisplay.classList.toggle('hidden', vatAmount <= 0);
     }
     
@@ -556,11 +652,11 @@ function calculateTotal() {
         if (totalVnd) totalVnd.classList.add('hidden');
     } else {
         if (subtotalVnd) {
-            subtotalVnd.textContent = Math.round(subtotal * rate).toLocaleString('vi-VN') + ' đ';
+            subtotalVnd.textContent = Math.round(subtotal * rate).toLocaleString('en-US') + ' đ';
             subtotalVnd.classList.remove('hidden');
         }
         if (totalVnd) {
-            totalVnd.textContent = Math.round(total * rate).toLocaleString('vi-VN') + ' đ';
+            totalVnd.textContent = Math.round(total * rate).toLocaleString('en-US') + ' đ';
             totalVnd.classList.remove('hidden');
         }
     }
@@ -619,7 +715,7 @@ document.getElementById('addItem').addEventListener('click', function() {
     const newRow = document.createElement('div');
     newRow.className = 'item-row grid grid-cols-12 gap-3 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
     newRow.innerHTML = `
-        <div class="col-span-3 relative product-autocomplete">
+        <div class="col-span-2 relative product-autocomplete">
             <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm</label>
             <input type="text" name="items[${itemIndex}][product_name]" class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off" placeholder="Nhập tên sản phẩm...">
             <input type="hidden" name="items[${itemIndex}][product_id]" class="product-id">
@@ -627,17 +723,25 @@ document.getElementById('addItem').addEventListener('click', function() {
         </div>
         <div class="col-span-1">
             <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
-            <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+            <input type="number" name="items[${itemIndex}][quantity]" value="1" min="1" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
         </div>
         <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho</label>
-            <input type="number" name="items[${itemIndex}][warehouse_unit_price]" value="0" min="0" step="0.01" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100" readonly>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+            <input type="text" name="items[${itemIndex}][warehouse_unit_price]" value="0" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
+        </div>
+        <div class="col-span-1">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Discount (%)</label>
+            <input type="text" name="items[${itemIndex}][discount_percent]" value="0" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
         </div>
         <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua</label>
-            <input type="number" name="items[${itemIndex}][unit_price]" min="0" step="0.01" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+            <input type="text" name="items[${itemIndex}][unit_price]" value="0" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
         </div>
-        <div class="col-span-3">
+        <div class="col-span-1">
+            <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
+            <input type="number" name="items[${itemIndex}][vat_percent]" value="10" min="0" step="0.1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
+        </div>
+        <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
             <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
         </div>
@@ -647,6 +751,13 @@ document.getElementById('addItem').addEventListener('click', function() {
     `;
     container.appendChild(newRow);
     setupProductAutocomplete(newRow);
+    
+    // Set currency symbol for new row elements
+    const select = document.getElementById('currencySelect');
+    const option = select ? select.options[select.selectedIndex] : null;
+    const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
+    newRow.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
+    
     itemIndex++;
     updateRemoveButtons();
 });
@@ -766,12 +877,18 @@ function addItemsToOrder(items) {
     const isBase = currencySelect ? (currencySelect.options[currencySelect.selectedIndex].dataset.isBase === '1') : true;
 
     items.forEach(item => {
-        const defaultPrice = isBase ? (item.cost_price_vnd || 0) : (item.estimated_cost_usd || 0);
+        const listPriceRaw = isBase ? (item.list_price_vnd || 0) : (item.list_price_usd || 0);
+        const discountRaw = Math.max(0, item.discount_percent || 0);
+        const defaultPriceRaw = listPriceRaw * (1 - discountRaw / 100);
+        
+        const listPrice = listPriceRaw % 1 === 0 ? listPriceRaw.toFixed(0) : listPriceRaw.toFixed(2);
+        const discount = discountRaw % 1 === 0 ? discountRaw.toFixed(0) : discountRaw.toFixed(2);
+        const defaultPrice = defaultPriceRaw % 1 === 0 ? defaultPriceRaw.toFixed(0) : defaultPriceRaw.toFixed(2);
         
         const row = document.createElement('div');
         row.className = 'item-row grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200 relative';
         row.innerHTML = `
-            <div class="col-span-3 relative product-autocomplete">
+            <div class="col-span-2 relative product-autocomplete">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span class="bg-purple-100 text-purple-700 text-[10px] px-1 rounded ml-1">${item.pr_code}</span></label>
                 <input type="text" name="items[${itemIndex}][product_name]" value="${item.part_number}"
                     class="product-name-input w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
@@ -782,16 +899,20 @@ function addItemsToOrder(items) {
             <div class="col-span-1">
                 <label class="block text-xs font-medium text-gray-600 mb-1">SL</label>
                 <input type="number" name="items[${itemIndex}][quantity]" value="${item.remaining}" min="0.01" step="0.01" required 
-                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" onchange="calculateRow(this)">
+                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-qty" oninput="calculateRow(this)">
             </div>
             <div class="col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Giá kho</label>
-                <input type="number" name="items[${itemIndex}][warehouse_unit_price]" value="${item.estimated_cost_usd || 0}" min="0" step="0.01" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100" readonly>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Giá list (USD)</label>
+                <input type="text" name="items[${itemIndex}][warehouse_unit_price]" value="${listPrice}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-list-price focus:ring-blue-500" oninput="calculateRow(this)">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Discount (%)</label>
+                <input type="text" name="items[${itemIndex}][discount_percent]" value="${discount}" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-discount focus:ring-blue-500" oninput="calculateRow(this)">
             </div>
             <div class="col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua</label>
-                <input type="number" name="items[${itemIndex}][unit_price]" value="${defaultPrice}" min="0" step="0.01" required 
-                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" onchange="calculateRow(this)">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Giá mua (USD)</label>
+                <input type="text" name="items[${itemIndex}][unit_price]" value="${defaultPrice}" required 
+                    class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-price border-blue-400 focus:ring-blue-500" oninput="calculateRow(this)">
             </div>
             <div class="col-span-1">
                 <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
@@ -808,6 +929,13 @@ function addItemsToOrder(items) {
         `;
         container.appendChild(row);
         setupProductAutocomplete(row);
+        
+        // Set currency symbol for new row elements
+        const select = document.getElementById('currencySelect');
+        const option = select ? select.options[select.selectedIndex] : null;
+        const symbol = option ? (option.dataset.symbol || 'đ') : 'đ';
+        row.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
+        
         itemIndex++;
     });
 
