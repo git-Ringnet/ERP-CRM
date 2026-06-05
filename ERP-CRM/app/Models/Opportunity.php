@@ -17,7 +17,7 @@ class Opportunity extends Model
         // Activity
         'name', 'activity_type', 'activity_type_other',
         'activity_date', 'start_time', 'end_time', 'duration_minutes',
-        'description', 'notes', 'materials_required', 'giveaway',
+        'description', 'notes', 'materials_required', 'giveaway', 'giveaway_status',
         // Status
         'status', 'cancel_reason', 'completed_at',
         // Technical
@@ -69,6 +69,13 @@ class Opportunity extends Model
         '50' => '50%',
         '75' => '75%',
         '90' => '90%',
+    ];
+
+    public const GIVEAWAY_STATUSES = [
+        'none'     => 'Không yêu cầu',
+        'pending'  => 'Chờ duyệt',
+        'approved' => 'Đã duyệt',
+        'rejected' => 'Từ chối',
     ];
 
     // ===================================================================
@@ -170,6 +177,21 @@ class Opportunity extends Model
             '50' => 'bg-yellow-100 text-yellow-800 border border-yellow-200',
             '25' => 'bg-blue-100 text-blue-800 border border-blue-200',
             default => 'bg-gray-100 text-gray-800 border border-gray-200',
+        };
+    }
+
+    public function getGiveawayStatusLabelAttribute(): string
+    {
+        return self::GIVEAWAY_STATUSES[$this->giveaway_status] ?? $this->giveaway_status ?? 'Không yêu cầu';
+    }
+
+    public function getGiveawayStatusColorAttribute(): string
+    {
+        return match ($this->giveaway_status) {
+            'pending'  => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'approved' => 'bg-green-100 text-green-800 border border-green-200',
+            'rejected' => 'bg-red-100 text-red-800 border border-red-200',
+            default    => 'bg-gray-100 text-gray-800 border border-gray-200',
         };
     }
 

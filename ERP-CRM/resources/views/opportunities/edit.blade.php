@@ -80,14 +80,30 @@
                                 </div>
                             </div>
 
-                            <!-- Read-only Contact Details for SI -->
+                            <!-- Contact Details for SI (Editable inline) -->
                             <div id="contact_details_box" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-4 mt-3">
-                                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Thông tin người liên hệ (Contact Point)</h3>
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-700">
-                                    <div><span class="text-gray-400 block text-xs">Họ tên:</span> <strong id="si_c_name">-</strong></div>
-                                    <div><span class="text-gray-400 block text-xs">Chức danh:</span> <strong id="si_c_position">-</strong></div>
-                                    <div><span class="text-gray-400 block text-xs">SĐT:</span> <strong id="si_c_phone">-</strong></div>
-                                    <div><span class="text-gray-400 block text-xs">Email:</span> <strong id="si_c_email">-</strong></div>
+                                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3"><i class="fas fa-edit mr-1 text-gray-400"></i>Thông tin người liên hệ (Contact Point) - Cho phép chỉnh sửa</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-700">
+                                    <div>
+                                        <label class="block text-xs text-gray-500 mb-1 font-medium">Họ tên <span class="text-red-500">*</span></label>
+                                        <input type="text" name="contact_name" id="si_c_name"
+                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-500 mb-1 font-medium">Chức danh</label>
+                                        <input type="text" name="contact_position" id="si_c_position"
+                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-500 mb-1 font-medium">SĐT</label>
+                                        <input type="text" name="contact_phone" id="si_c_phone"
+                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-500 mb-1 font-medium">Email</label>
+                                        <input type="email" name="contact_email" id="si_c_email"
+                                            class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -586,20 +602,24 @@
             });
         }
 
-        // Fill selected contact info into the read-only box
+        // Fill selected contact info into the editable inputs
         function fillContactInfo() {
             const select = document.getElementById('contact_id');
             const box = document.getElementById('contact_details_box');
             const option = select.options[select.selectedIndex];
 
             if (option && option.value) {
-                document.getElementById('si_c_name').textContent = option.dataset.name || '-';
-                document.getElementById('si_c_position').textContent = option.dataset.position || '-';
-                document.getElementById('si_c_phone').textContent = option.dataset.phone || '-';
-                document.getElementById('si_c_email').textContent = option.dataset.email || '-';
+                document.getElementById('si_c_name').value = option.dataset.name || '';
+                document.getElementById('si_c_position').value = option.dataset.position || '';
+                document.getElementById('si_c_phone').value = option.dataset.phone || '';
+                document.getElementById('si_c_email').value = option.dataset.email || '';
                 box.classList.remove('hidden');
             } else {
                 box.classList.add('hidden');
+                document.getElementById('si_c_name').value = '';
+                document.getElementById('si_c_position').value = '';
+                document.getElementById('si_c_phone').value = '';
+                document.getElementById('si_c_email').value = '';
             }
         }
 

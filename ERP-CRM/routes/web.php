@@ -366,6 +366,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/opportunities/{opportunity}/attachments', [\App\Http\Controllers\OpportunityController::class, 'uploadAttachment'])->name('opportunities.upload-attachment');
     Route::delete('/opportunity-attachments/{attachment}', [\App\Http\Controllers\OpportunityController::class, 'deleteAttachment'])->name('opportunities.delete-attachment');
     Route::post('/opportunities/{opportunity}/update-status', [\App\Http\Controllers\OpportunityController::class, 'updateStatus'])->name('opportunities.update-status');
+    Route::post('/opportunities/{opportunity}/approve-giveaway', [\App\Http\Controllers\OpportunityController::class, 'approveGiveaway'])->name('opportunities.approve-giveaway');
+    Route::post('/opportunities/{opportunity}/reject-giveaway', [\App\Http\Controllers\OpportunityController::class, 'rejectGiveaway'])->name('opportunities.reject-giveaway');
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
 
     // Activities (Tasks/CRM)

@@ -205,6 +205,10 @@ class OpportunityController extends Controller
             'customer_type' => 'required|in:si,eu',
             'customer_id' => 'required_if:customer_type,si|nullable|exists:customers,id',
             'contact_id' => 'required_if:customer_type,si|nullable|exists:contacts,id',
+            'contact_name' => 'required_if:customer_type,si|nullable|string|max:255',
+            'contact_position' => 'nullable|string|max:255',
+            'contact_phone' => 'nullable|string|max:50',
+            'contact_email' => 'nullable|email|max:255',
             'eu_company_name' => 'required_if:customer_type,eu|nullable|string|max:255',
             'eu_contact_name' => 'nullable|string|max:255',
             'eu_phone' => 'nullable|string|max:50',
@@ -266,7 +270,22 @@ class OpportunityController extends Controller
             $validated['cancel_reason'] = null;
         }
 
+        $validated['giveaway_status'] = !empty($validated['giveaway']) ? 'pending' : 'none';
+
         $opportunity = Opportunity::create($validated);
+
+        // Update contact inline if SI mode and contact_id is selected
+        if ($validated['customer_type'] === 'si' && !empty($validated['contact_id'])) {
+            $contact = \App\Models\Contact::find($validated['contact_id']);
+            if ($contact) {
+                $contact->update([
+                    'name' => $request->input('contact_name'),
+                    'position' => $request->input('contact_position'),
+                    'phone' => $request->input('contact_phone'),
+                    'email' => $request->input('contact_email'),
+                ]);
+            }
+        }
 
         // Upload files
         if ($request->hasFile('files')) {
@@ -343,6 +362,18 @@ class OpportunityController extends Controller
                 'icon' => 'fas fa-calendar-plus',
                 'color' => 'green',
             ]);
+
+            if ($opportunity->giveaway_status === 'pending') {
+                Notification::create([
+                    'user_id' => $manager->id,
+                    'type' => 'giveaway_request',
+                    'title' => 'Yêu cầu quà tặng/budget mới',
+                    'message' => auth()->user()->name . ' đã yêu cầu quà tặng/budget cho hoạt động: "' . $opportunity->name . '" của khách hàng ' . $opportunity->customer_display_name . '.',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-gift',
+                    'color' => 'amber',
+                ]);
+            }
         }
 
         return redirect()->route('opportunities.index')->with('success', 'Đã tạo hoạt động cơ hội thành công.');
@@ -417,6 +448,12 @@ class OpportunityController extends Controller
             'cancel_reason' => 'required_if:status,cancelled|nullable|string',
             'assigned_to' => 'required|exists:users,id',
             
+            // SI Contact fields
+            'contact_name' => 'required_if:customer_type,si|nullable|string|max:255',
+            'contact_position' => 'nullable|string|max:255',
+            'contact_phone' => 'nullable|string|max:50',
+            'contact_email' => 'nullable|email|max:255',
+            
             // Phase 2 reports
             'customer_feedback' => 'nullable|string',
             'meeting_result' => 'nullable|string',
@@ -463,7 +500,48 @@ class OpportunityController extends Controller
             $validated['cancel_reason'] = null;
         }
 
+        // Handle giveaway status changes
+        if ($opportunity->giveaway !== $request->giveaway) {
+            $validated['giveaway_status'] = !empty($request->giveaway) ? 'pending' : 'none';
+        } else {
+            $validated['giveaway_status'] = $opportunity->giveaway_status ?: 'none';
+        }
+
+        $giveawayStatusChangedToPending = ($validated['giveaway_status'] === 'pending' && $opportunity->giveaway_status !== 'pending');
+
         $opportunity->update($validated);
+
+        // Update contact inline if SI mode and contact_id is selected
+        if ($validated['customer_type'] === 'si' && !empty($validated['contact_id'])) {
+            $contact = \App\Models\Contact::find($validated['contact_id']);
+            if ($contact) {
+                $contact->update([
+                    'name' => $request->input('contact_name'),
+                    'position' => $request->input('contact_position'),
+                    'phone' => $request->input('contact_phone'),
+                    'email' => $request->input('contact_email'),
+                ]);
+            }
+        }
+
+        // Notify managers if giveaway status changed to pending
+        if ($giveawayStatusChangedToPending) {
+            $managers = User::whereHas('roles', function ($q) {
+                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+            })->where('id', '!=', auth()->id())->get();
+
+            foreach ($managers as $manager) {
+                Notification::create([
+                    'user_id' => $manager->id,
+                    'type' => 'giveaway_request',
+                    'title' => 'Yêu cầu quà tặng/budget thay đổi',
+                    'message' => auth()->user()->name . ' đã cập nhật yêu cầu quà tặng/budget cho hoạt động: "' . $opportunity->name . '" của khách hàng ' . $opportunity->customer_display_name . '.',
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-gift',
+                    'color' => 'amber',
+                ]);
+            }
+        }
 
         // Upload files
         if ($request->hasFile('files')) {
@@ -651,5 +729,61 @@ class OpportunityController extends Controller
             'name' => $opportunity->name,
             'description' => $opportunity->description,
         ]);
+    }
+
+    /**
+     * Approve giveaway request.
+     */
+    public function approveGiveaway(Opportunity $opportunity)
+    {
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $opportunity->update(['giveaway_status' => 'approved']);
+
+        // Notify the assigned sales rep
+        if ($opportunity->assigned_to) {
+            Notification::create([
+                'user_id' => $opportunity->assigned_to,
+                'type' => 'giveaway_approved',
+                'title' => 'Yêu cầu quà tặng được duyệt',
+                'message' => 'Yêu cầu quà tặng/budget cho hoạt động "' . $opportunity->name . '" đã được ' . $user->name . ' duyệt.',
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => 'fas fa-gift',
+                'color' => 'green',
+            ]);
+        }
+
+        return back()->with('success', 'Đã duyệt yêu cầu quà tặng/budget.');
+    }
+
+    /**
+     * Reject giveaway request.
+     */
+    public function rejectGiveaway(Opportunity $opportunity)
+    {
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $opportunity->update(['giveaway_status' => 'rejected']);
+
+        // Notify the assigned sales rep
+        if ($opportunity->assigned_to) {
+            Notification::create([
+                'user_id' => $opportunity->assigned_to,
+                'type' => 'giveaway_rejected',
+                'title' => 'Yêu cầu quà tặng bị từ chối',
+                'message' => 'Yêu cầu quà tặng/budget cho hoạt động "' . $opportunity->name . '" đã bị ' . $user->name . ' từ chối.',
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => 'fas fa-times-circle',
+                'color' => 'red',
+            ]);
+        }
+
+        return back()->with('success', 'Đã từ chối yêu cầu quà tặng/budget.');
     }
 }

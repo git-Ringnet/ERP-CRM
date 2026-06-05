@@ -159,6 +159,38 @@
                         <div>
                             <span class="text-gray-400 block text-xs font-semibold uppercase tracking-wider mb-1">Quà tặng / Giveaway:</span>
                             <textarea readonly class="w-full text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-100 focus:outline-none resize-y text-sm font-sans leading-relaxed" rows="3">{{ $opportunity->giveaway ?: 'Không có quà tặng.' }}</textarea>
+                            
+                            @if($opportunity->giveaway)
+                                <div class="mt-3 flex flex-wrap items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Trạng thái duyệt:</span>
+                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {{ $opportunity->giveaway_status_color }}">
+                                            {{ $opportunity->giveaway_status_label }}
+                                        </span>
+                                    </div>
+                                    
+                                    @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager']))
+                                        <div class="flex gap-2">
+                                            @if($opportunity->giveaway_status !== 'approved')
+                                                <form action="{{ route('opportunities.approve-giveaway', $opportunity->id) }}" method="POST" class="m-0">
+                                                    @csrf
+                                                    <button type="submit" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-colors">
+                                                        <i class="fas fa-check"></i> Duyệt quà tặng
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            @if($opportunity->giveaway_status !== 'rejected')
+                                                <form action="{{ route('opportunities.reject-giveaway', $opportunity->id) }}" method="POST" class="m-0">
+                                                    @csrf
+                                                    <button type="submit" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
+                                                        <i class="fas fa-times"></i> Từ chối
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
                         </div>
                     </div>
 
