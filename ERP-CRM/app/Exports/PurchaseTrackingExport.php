@@ -34,7 +34,11 @@ class PurchaseTrackingExport implements FromCollection, WithHeadings, WithMappin
         return [
             'Sale Order',
             'PR Codes',
+            'CPQ',
+            'End User',
+            'SI (Partner)',
             'Sản phẩm (Part Number)',
+            'Serial Number',
             'Nhà cung cấp',
             'Đơn giá USD',
             'SL Yêu cầu',
@@ -56,7 +60,11 @@ class PurchaseTrackingExport implements FromCollection, WithHeadings, WithMappin
         return [
             $row['sale_code'],
             $prCodes,
+            $row['cpq'] ?? '',
+            $row['end_user'] ?? '',
+            $row['si_partner'] ?? '',
             $row['part_number'],
+            $row['serial_number'] ?? '',
             $row['vendor_name'],
             $row['unit_price_usd'],
             $row['requested'],

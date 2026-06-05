@@ -377,6 +377,8 @@
                                                             <th class="px-3 py-2.5 text-left text-[10px]">Mã PO</th>
                                                             <th class="px-3 py-2.5 text-left text-[10px]">Ngày đặt</th>
                                                             <th class="px-3 py-2.5 text-left text-[10px]">Mã SO liên quan</th>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">SI (Partner)</th>
+                                                            <th class="px-3 py-2.5 text-left text-[10px]">End User</th>
                                                             <th class="px-3 py-2.5 text-left text-[10px]">Salesperson</th>
                                                             <th class="px-3 py-2.5 text-right text-[10px]">Tổng tiền (USD)</th>
                                                             <th class="px-3 py-2.5 text-right text-[10px]">Tổng tiền (VND)</th>
@@ -398,6 +400,8 @@
                                                                 </td>
                                                                 <td class="px-3 py-3 text-gray-500 font-medium">{{ $po['order_date'] }}</td>
                                                                 <td class="px-3 py-3 font-bold text-gray-700">{{ $po['linked_so_codes'] }}</td>
+                                                                <td class="px-3 py-3 text-gray-600 font-semibold">{{ $po['linked_partner_names'] }}</td>
+                                                                <td class="px-3 py-3 text-gray-600 font-semibold">{{ $po['linked_end_user_names'] }}</td>
                                                                 <td class="px-3 py-3 text-gray-600 font-semibold">{{ $po['linked_salesperson_names'] }}</td>
                                                                 <td class="px-3 py-3 text-right font-bold text-indigo-600">${{ $po['total_usd'] }}</td>
                                                                 <td class="px-3 py-3 text-right text-gray-500 font-medium">{{ $po['total_vnd'] }}đ</td>
@@ -417,7 +421,7 @@
                                                             </tr>
                                                         @empty
                                                             <tr>
-                                                                <td colspan="11" class="px-4 py-6 text-center text-gray-400">
+                                                                <td colspan="13" class="px-4 py-6 text-center text-gray-400">
                                                                     <i class="fas fa-folder-open text-2xl mb-2 opacity-35"></i>
                                                                     <p>Không có đơn mua hàng nào trong khoảng thời gian này.</p>
                                                                 </td>

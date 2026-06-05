@@ -141,7 +141,7 @@ class PurchaseReportController extends Controller
 
         // Eager-load individual orders with relevant relationships to avoid N+1 queries
         $allOrdersQuery = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
-            ->with(['currency', 'items.saleOrderRequestItem.saleOrderRequest.sale.user', 'sale.user'])
+            ->with(['currency', 'items.saleOrderRequestItem.saleOrderRequest.sale.user', 'items.saleOrderRequestItem.saleOrderRequest.sale.project', 'sale.user', 'sale.project'])
             ->orderBy('order_date', 'desc');
 
         if ($supplierId) {
@@ -171,6 +171,8 @@ class PurchaseReportController extends Controller
                     'order_date' => $po->order_date ? $po->order_date->format('d/m/Y') : 'N/A',
                     'linked_so_codes' => $po->linked_so_codes,
                     'linked_salesperson_names' => $po->linked_salesperson_names,
+                    'linked_partner_names' => $po->linked_partner_names,
+                    'linked_end_user_names' => $po->linked_end_user_names,
                     'total_usd' => number_format($val, $decimals),
                     'total_vnd' => number_format($po->total, 0, ',', '.'),
                     'discount_vnd' => number_format($po->discount_amount, 0, ',', '.'),
@@ -343,7 +345,15 @@ class PurchaseReportController extends Controller
 
     private function getTrackingReport(Request $request, $productIds = []): array
     {
-        $query = \App\Models\SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
+        $query = \App\Models\SaleOrderRequestItem::where('is_cancelled', false)
+            ->whereHas('saleOrderRequest', function($q) {
+                $q->whereIn('status', [
+                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                    \App\Models\SaleOrderRequest::STATUS_COMPLETED
+                ]);
+            })
+            ->with(['saleOrderRequest.sale.project', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
 
         // Filter by Date
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
@@ -402,6 +412,10 @@ class PurchaseReportController extends Controller
                     'unit_price_usd' => $estimatedPrice, // Mặc định lấy từ Sale
                     'pr_codes' => [],
                     'po_links' => [], 
+                    'cpq_numbers' => [],
+                    'end_users' => [],
+                    'partners' => [],
+                    'serial_numbers' => [],
                     'created_at' => $item->created_at,
                 ];
             }
@@ -433,6 +447,26 @@ class PurchaseReportController extends Controller
                         'status_label' => $poItem->purchaseOrder->status_label ?? '',
                     ];
                 }
+
+                $poCpq = $poItem->purchaseOrder->cpq_number ?? '';
+                if ($poCpq && !in_array($poCpq, $grouped[$key]['cpq_numbers'])) {
+                    $grouped[$key]['cpq_numbers'][] = $poCpq;
+                }
+            }
+
+            $eu = $item->eu_name_mst ?? ($item->saleOrderRequest->sale->project->eu_name_vi ?? '');
+            if ($eu && !in_array($eu, $grouped[$key]['end_users'])) {
+                $grouped[$key]['end_users'][] = $eu;
+            }
+
+            $partner = $item->saleOrderRequest->sale->customer_name ?? ($item->si_name ?? '');
+            if ($partner && !in_array($partner, $grouped[$key]['partners'])) {
+                $grouped[$key]['partners'][] = $partner;
+            }
+
+            $sn = $item->serial_number ?? '';
+            if ($sn && !in_array($sn, $grouped[$key]['serial_numbers'])) {
+                $grouped[$key]['serial_numbers'][] = $sn;
             }
         }
 
@@ -440,6 +474,11 @@ class PurchaseReportController extends Controller
             $row['po_links'] = array_values($row['po_links']);
             $row['remaining'] = max(0, $row['requested'] - $row['received']);
             $row['total_usd'] = $row['requested'] * $row['unit_price_usd'];
+
+            $row['cpq'] = implode(', ', array_filter($row['cpq_numbers']));
+            $row['end_user'] = implode(', ', array_filter($row['end_users']));
+            $row['si_partner'] = implode(', ', array_filter($row['partners']));
+            $row['serial_number'] = implode(', ', array_filter($row['serial_numbers']));
 
             if ($row['ordered'] <= 0) {
                 $row['status'] = 'waiting';
