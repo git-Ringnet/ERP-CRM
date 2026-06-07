@@ -102,6 +102,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            table-layout: fixed;
         }
 
         th,
@@ -109,6 +110,17 @@
             border: 1px solid #ddd;
             padding: 10px;
             text-align: left;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        tr {
+            page-break-inside: avoid;
         }
 
         th {
@@ -132,6 +144,7 @@
         .totals {
             width: 300px;
             margin-left: auto;
+            page-break-inside: avoid;
         }
 
         .totals .row {
@@ -153,6 +166,7 @@
             padding: 15px;
             background: #f8f9fa;
             border-radius: 5px;
+            page-break-inside: avoid;
         }
 
         .terms h4 {
@@ -164,6 +178,7 @@
             margin-top: 40px;
             display: flex;
             justify-content: space-between;
+            page-break-inside: avoid;
         }
 
         .signature-box {
@@ -309,7 +324,7 @@
                     <th style="width: 110px;" class="text-right">Đơn giá</th>
                     <th style="width: 70px;" class="text-center">VAT (%)</th>
                     @foreach($customColumns as $colName)
-                        <th>{{ $colName }}</th>
+                        <th style="width: 90px;">{{ $colName }}</th>
                     @endforeach
                     <th style="width: 120px;" class="text-right">Thành tiền</th>
                 </tr>
@@ -325,9 +340,13 @@
                     <tr>
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td>
-                            {{ $item->product_name }}
+                            <strong>{{ $item->product_code ?: $item->product_name }}</strong>
                             @if($item->product_code)
-                                <br><small style="color: #666;">Mã: {{ $item->product_code }}</small>
+                                <br><small style="color: #666;">{{ $item->description ?: $item->product_name }}</small>
+                            @else
+                                @if($item->description)
+                                    <br><small style="color: #666;">{{ $item->description }}</small>
+                                @endif
                             @endif
                         </td>
                         <td class="text-center">{{ $item->quantity }}</td>
@@ -408,17 +427,34 @@
             </div>
         </div>
 
-        @if($quotation->payment_terms || $quotation->delivery_time || $quotation->note)
+        @if($quotation->payment_terms || $quotation->delivery_time || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
             <div class="terms">
-                <h4>Điều khoản & Ghi chú</h4>
+                <h4 style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 8px;">ĐIỀU KHOẢN & GHI CHÚ</h4>
                 @if($quotation->payment_terms)
-                    <p><strong>Điều khoản thanh toán:</strong> {{ $quotation->payment_terms }}</p>
+                    <p style="margin-bottom: 5px;"><strong>Điều khoản thanh toán:</strong> {{ $quotation->payment_terms }}</p>
                 @endif
                 @if($quotation->delivery_time)
-                    <p><strong>Thời gian giao hàng:</strong> {{ $quotation->delivery_time }}</p>
+                    <p style="margin-bottom: 5px;"><strong>Thời gian giao hàng:</strong> {{ $quotation->delivery_time }}</p>
                 @endif
-                @if($quotation->note)
-                    <p><strong>Ghi chú:</strong> {{ $quotation->note }}</p>
+                @if(!empty($quotation->note_array))
+                    <div style="margin-bottom: 8px;">
+                        <strong>Ghi chú:</strong>
+                        <div style="margin-top: 3px; padding-left: 10px;">
+                            @foreach($quotation->note_array as $i => $item)
+                                <div style="margin-bottom: 3px;">({{ $i + 1 }}) {{ $item }}</div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                @if(!empty($quotation->disclaimer_array))
+                    <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 8px;">
+                        <strong style="color: #c0392b;">Cảnh báo / Lưu ý:</strong>
+                        <div style="margin-top: 4px; padding-left: 10px;">
+                            @foreach($quotation->disclaimer_array as $i => $item)
+                                <div style="margin-bottom: 3px; color: #c0392b;">({{ $i + 1 }}) {{ $item }}</div>
+                            @endforeach
+                        </div>
+                    </div>
                 @endif
             </div>
         @endif

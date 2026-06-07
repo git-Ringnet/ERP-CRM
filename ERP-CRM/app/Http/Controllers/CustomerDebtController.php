@@ -66,7 +66,8 @@ class CustomerDebtController extends Controller
                         ->whereColumn('sales.customer_id', 'customers.id')
                         ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
                         ->where('sales.debt_amount', '>', 0)
-                        ->whereRaw('DATEDIFF(CURDATE(), COALESCE(sales.invoice_date, sales.date)) > COALESCE(customers.debt_days, 30)');
+                        ->whereNotNull('sales.invoice_date')
+                        ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) > COALESCE(customers.debt_days, 30)');
                 });
             })
             ->when($debtStatus === 'due_soon', function ($query) {
@@ -77,7 +78,8 @@ class CustomerDebtController extends Controller
                         ->whereColumn('sales.customer_id', 'customers.id')
                         ->whereIn('sales.status', ['approved', 'shipping', 'completed'])
                         ->where('sales.debt_amount', '>', 0)
-                        ->whereRaw('DATEDIFF(CURDATE(), COALESCE(sales.invoice_date, sales.date)) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
+                        ->whereNotNull('sales.invoice_date')
+                        ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
                 });
             })
             ->when($sortBy === 'debt_amount', function ($query) use ($sortOrder) {
@@ -239,13 +241,13 @@ class CustomerDebtController extends Controller
     {
         return Sale::whereIn('status', ['approved', 'shipping', 'completed'])
             ->where('debt_amount', '>', 0)
+            ->whereNotNull('invoice_date')
             ->whereHas('customer', function ($q) {
                 $q->where('debt_days', '>', 0);
             })
             ->get()
             ->filter(function ($sale) {
-                $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
-                $dueDate = $debtDate->addDays($sale->customer->debt_days ?? 30);
+                $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($sale->customer->debt_days ?? 30);
                 return now()->gt($dueDate);
             })
             ->sum('debt_amount');
@@ -354,13 +356,15 @@ class CustomerDebtController extends Controller
 
         $openingBalance = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereRaw('COALESCE(invoice_date, date) < ?', [$dateFrom])
+            ->whereNotNull('invoice_date')
+            ->where('invoice_date', '<', $dateFrom)
             ->sum('debt_amount');
 
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereRaw('COALESCE(invoice_date, date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
-            ->orderByRaw('COALESCE(invoice_date, date)')
+            ->whereNotNull('invoice_date')
+            ->whereBetween('invoice_date', [$dateFrom, $dateTo])
+            ->orderBy('invoice_date')
             ->get();
 
         $payments = PaymentHistory::where('customer_id', $customer->id)
@@ -371,9 +375,8 @@ class CustomerDebtController extends Controller
         $transactions = collect();
 
         foreach ($sales as $sale) {
-            $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
             $transactions->push([
-                'date' => $debtDate->format('Y-m-d'),
+                'date' => \Carbon\Carbon::parse($sale->invoice_date)->format('Y-m-d'),
                 'type' => 'debit',
                 'code' => $sale->code,
                 'description' => 'Đơn hàng bán',
@@ -425,13 +428,15 @@ class CustomerDebtController extends Controller
 
         $openingBalance = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereRaw('COALESCE(invoice_date, date) < ?', [$dateFrom])
+            ->whereNotNull('invoice_date')
+            ->where('invoice_date', '<', $dateFrom)
             ->sum('debt_amount');
 
         $sales = Sale::where('customer_id', $customer->id)
             ->where('status', '!=', 'cancelled')
-            ->whereRaw('COALESCE(invoice_date, date) BETWEEN ? AND ?', [$dateFrom, $dateTo])
-            ->orderByRaw('COALESCE(invoice_date, date)')
+            ->whereNotNull('invoice_date')
+            ->whereBetween('invoice_date', [$dateFrom, $dateTo])
+            ->orderBy('invoice_date')
             ->get();
 
         $payments = PaymentHistory::where('customer_id', $customer->id)
@@ -461,8 +466,7 @@ class CustomerDebtController extends Controller
 
             $transactions = collect();
             foreach ($sales as $sale) {
-                $debtDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : $sale->date;
-                $transactions->push(['date' => $debtDate->format('Y-m-d'), 'type' => 'Bán hàng', 'code' => $sale->code, 'desc' => 'Đơn hàng bán', 'debit' => (float)$sale->total, 'credit' => 0]);
+                $transactions->push(['date' => \Carbon\Carbon::parse($sale->invoice_date)->format('Y-m-d'), 'type' => 'Bán hàng', 'code' => $sale->code, 'desc' => 'Đơn hàng bán', 'debit' => (float)$sale->total, 'credit' => 0]);
             }
             foreach ($payments as $payment) {
                 $transactions->push(['date' => $payment->payment_date->format('Y-m-d'), 'type' => 'Thanh toán', 'code' => $payment->sale?->code ?? 'TT', 'desc' => 'Thanh toán', 'debit' => 0, 'credit' => (float)$payment->amount]);

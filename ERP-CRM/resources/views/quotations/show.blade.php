@@ -94,9 +94,13 @@
                     <tr>
                         <td class="px-4 py-3 text-center text-sm">{{ $index + 1 }}</td>
                         <td class="px-4 py-3">
-                            <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
+                            <div class="font-medium text-gray-900">{{ $item->product_code ?: $item->product_name }}</div>
                             @if($item->product_code)
-                                <div class="text-xs text-gray-500">{{ $item->product_code }}</div>
+                                <div class="text-xs text-gray-500">{{ $item->description ?: $item->product_name }}</div>
+                            @else
+                                @if($item->description)
+                                    <div class="text-xs text-gray-500">{{ $item->description }}</div>
+                                @endif
                             @endif
                         </td>
                         <td class="px-4 py-3 text-center">{{ $item->quantity }}</td>
@@ -132,9 +136,13 @@
         <div class="md:hidden space-y-3">
             @foreach($quotation->items as $index => $item)
             <div class="bg-gray-50 p-3 rounded-lg">
-                <div class="font-medium text-gray-900">{{ $item->product_name }}</div>
+                <div class="font-medium text-gray-900">{{ $item->product_code ?: $item->product_name }}</div>
                 @if($item->product_code)
-                    <div class="text-xs text-gray-500 mt-0.5">{{ $item->product_code }}</div>
+                    <div class="text-xs text-gray-500 mt-0.5">{{ $item->description ?: $item->product_name }}</div>
+                @else
+                    @if($item->description)
+                        <div class="text-xs text-gray-500 mt-0.5">{{ $item->description }}</div>
+                    @endif
                 @endif
                 @if(!empty($customColumns))
                     <div class="text-xs text-gray-600 mt-1.5 space-y-0.5 bg-white p-2 rounded border border-gray-100">
@@ -240,26 +248,46 @@
         </div>
 
         <!-- Terms -->
-        @if($quotation->payment_terms || $quotation->delivery_time || $quotation->note)
+        @if($quotation->payment_terms || $quotation->delivery_time || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
         <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Điều khoản & Ghi chú</h3>
-            <div class="space-y-3 text-sm">
+            <div class="space-y-4 text-sm">
                 @if($quotation->payment_terms)
                 <div>
                     <span class="text-gray-500 font-medium">Điều khoản thanh toán:</span>
-                    <p class="mt-1">{{ $quotation->payment_terms }}</p>
+                    <p class="mt-1 text-gray-800 leading-relaxed">{{ $quotation->payment_terms }}</p>
                 </div>
                 @endif
                 @if($quotation->delivery_time)
                 <div>
                     <span class="text-gray-500 font-medium">Thời gian giao hàng:</span>
-                    <p class="mt-1">{{ $quotation->delivery_time }}</p>
+                    <p class="mt-1 text-gray-800 leading-relaxed">{{ $quotation->delivery_time }}</p>
                 </div>
                 @endif
-                @if($quotation->note)
+                @if(!empty($quotation->note_array))
                 <div>
                     <span class="text-gray-500 font-medium">Ghi chú:</span>
-                    <p class="mt-1">{{ $quotation->note }}</p>
+                    <div class="mt-1.5 space-y-1.5">
+                        @foreach($quotation->note_array as $i => $item)
+                            <div class="flex items-start gap-1">
+                                <span class="font-semibold text-gray-500 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                <span class="text-gray-800 leading-relaxed">{{ $item }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+                @if(!empty($quotation->disclaimer_array))
+                <div class="pt-3 border-t border-dashed border-gray-200">
+                    <span class="text-amber-700 font-medium"><i class="fas fa-exclamation-triangle mr-1"></i> Cảnh báo / Lưu ý:</span>
+                    <div class="mt-1.5 space-y-1.5">
+                        @foreach($quotation->disclaimer_array as $i => $item)
+                            <div class="flex items-start gap-1">
+                                <span class="font-semibold text-amber-600 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                <span class="text-gray-800 leading-relaxed">{{ $item }}</span>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
                 @endif
             </div>
@@ -339,6 +367,11 @@
                 <a href="{{ route('quotations.print', $quotation) }}" target="_blank" 
                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
                     <i class="fas fa-print mr-2"></i> In & Gửi báo giá chính thức
+                </a>
+
+                <a href="{{ route('quotations.export-single', $quotation) }}" 
+                   class="w-full inline-flex items-center justify-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                    <i class="fas fa-file-excel mr-2"></i> Xuất Excel
                 </a>
 
                 <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST">

@@ -388,7 +388,9 @@ class NotificationService
             return;
         }
         $title = 'Đơn hàng sắp tới hạn thanh toán';
-        $dueDateFormatted = \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y');
+        $debtDays = $sale->customer?->debt_days ?? 30;
+        $dueDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays) : null;
+        $dueDateFormatted = $dueDate ? $dueDate->format('d/m/Y') : 'N/A';
         $message = "Đơn hàng #{$sale->code} sắp tới hạn thanh toán (Hạn: {$dueDateFormatted})";
         $link = route('sales.show', $sale->id);
 
@@ -403,7 +405,7 @@ class NotificationService
             [
                 'sale_id' => $sale->id,
                 'sale_code' => $sale->code,
-                'payment_due_date' => $sale->payment_due_date,
+                'payment_due_date' => $dueDate ? $dueDate->toDateString() : null,
             ]
         );
     }
@@ -417,7 +419,9 @@ class NotificationService
             return;
         }
         $title = 'Đơn hàng quá hạn thanh toán!';
-        $dueDateFormatted = \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y');
+        $debtDays = $sale->customer?->debt_days ?? 30;
+        $dueDate = $sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays) : null;
+        $dueDateFormatted = $dueDate ? $dueDate->format('d/m/Y') : 'N/A';
         $message = "Đơn hàng #{$sale->code} đã quá hạn thanh toán {$overdueDays} ngày (Hạn: {$dueDateFormatted})";
         $link = route('sales.show', $sale->id);
 
@@ -432,7 +436,7 @@ class NotificationService
             [
                 'sale_id' => $sale->id,
                 'sale_code' => $sale->code,
-                'payment_due_date' => $sale->payment_due_date,
+                'payment_due_date' => $dueDate ? $dueDate->toDateString() : null,
                 'overdue_days' => $overdueDays,
             ]
         );

@@ -605,21 +605,39 @@
 
 
         {{-- Yêu cầu đặt hàng từ Sales --}}
-        @if($purchaseOrder->sale && $purchaseOrder->sale->orderRequests->count() > 0)
+        @php
+            $orderRequests = collect();
+            if ($purchaseOrder->sale && $purchaseOrder->sale->orderRequests) {
+                $orderRequests = $orderRequests->merge($purchaseOrder->sale->orderRequests);
+            }
+            foreach ($purchaseOrder->items as $item) {
+                if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest) {
+                    $orderRequests->push($item->saleOrderRequestItem->saleOrderRequest);
+                }
+            }
+            $orderRequests = $orderRequests->unique('id');
+        @endphp
+
+        @if($orderRequests->count() > 0)
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
                 <h3 class="font-semibold flex items-center">
                     <i class="fas fa-clipboard-list mr-2 text-teal-600"></i>
                     Yêu cầu đặt hàng từ Sales
-                    <a href="{{ route('sales.show', $purchaseOrder->sale_id) }}" class="ml-2 text-sm font-normal text-teal-600 hover:underline">
-                        ({{ $purchaseOrder->sale->code }})
-                    </a>
+                    <span class="ml-2 text-sm font-normal text-teal-600">
+                        ({{ $purchaseOrder->linked_so_codes }})
+                    </span>
                 </h3>
             </div>
-            @foreach($purchaseOrder->sale->orderRequests as $req)
+            @foreach($orderRequests as $req)
             <div class="p-4 {{ !$loop->last ? 'border-b' : '' }}">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="px-2 py-1 text-xs font-bold rounded bg-teal-100 text-teal-800">{{ $req->code }}</span>
+                    @if($req->sale)
+                        <span class="text-sm font-semibold text-gray-700">
+                            SO: <a href="{{ route('sales.show', $req->sale_id) }}" target="_blank" class="text-teal-600 hover:underline">{{ $req->sale->code }}</a>
+                        </span>
+                    @endif
                     <span class="text-sm text-gray-600">
                         <i class="fas fa-user text-gray-400 mr-1"></i>{{ $req->creator->name ?? 'N/A' }}
                     </span>
@@ -639,7 +657,7 @@
                                 <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SN</th>
                                 <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Exp date</th>
                                 <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">SI Name</th>
-                                <th colspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-gray-300">Thông tin CQ (Điền tay)</th>
+                                <th colspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-gray-300">Thông tin CQ</th>
                             </tr>
                             <tr class="border-b border-gray-300">
                                 <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300">EU Name - MST</th>
@@ -674,7 +692,7 @@
                 @if($req->attachments->count() > 0)
                 <div class="mt-2 flex flex-wrap gap-2">
                     @foreach($req->attachments as $att)
-                    <a href="{{ route('sales.order-request.attachment.download', [$purchaseOrder->sale_id, $att->id]) }}" 
+                    <a href="{{ route('sales.order-request.attachment.download', [$req->sale_id, $att->id]) }}" 
                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-blue-50 rounded-lg text-xs text-gray-700 hover:text-blue-600 transition-colors">
                         <i class="{{ $att->file_icon }}"></i>
                         <span>{{ $att->file_name }}</span>

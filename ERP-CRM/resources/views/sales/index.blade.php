@@ -304,43 +304,32 @@
                                 </div>
                                 @endif
 
-                                {{-- Hạn thanh toán từ milestones --}}
-                                @php
-                                    $idxTerms = ($sale->payment_terms && count($sale->payment_terms) > 0)
-                                        ? $sale->payment_terms
-                                        : (($sale->customer && $sale->customer->payment_terms && count($sale->customer->payment_terms) > 0)
-                                            ? $sale->customer->payment_terms
-                                            : []);
-                                @endphp
-                                @if(count($idxTerms) > 0 && $sale->payment_status !== 'paid')
-                                    @php
-                                        $approvedDate = $sale->approved_at ?? $sale->created_at;
-                                        $nearestOverdue = null;
-                                        $nearestDueSoon = null;
-                                        foreach ($idxTerms as $ms) {
-                                            $msDays = (int)($ms['days'] ?? 0);
-                                            $msDueDate = \Carbon\Carbon::parse($approvedDate)->addDays($msDays);
-                                            $msDaysLeft = now()->diffInDays($msDueDate, false);
-                                            if ($msDaysLeft < 0 && ($nearestOverdue === null || abs($msDaysLeft) > abs($nearestOverdue))) {
-                                                $nearestOverdue = $msDaysLeft;
-                                            } elseif ($msDaysLeft >= 0 && $msDaysLeft <= 3 && ($nearestDueSoon === null || $msDaysLeft < $nearestDueSoon)) {
-                                                $nearestDueSoon = $msDaysLeft;
-                                            }
-                                        }
-                                    @endphp
-                                    @if($nearestOverdue !== null)
-                                        <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 inline-block">
-                                            <i class="fas fa-exclamation-circle"></i> Quá hạn {{ abs((int)$nearestOverdue) }}d
-                                        </div>
-                                    @elseif($nearestDueSoon !== null)
-                                        <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 inline-block">
-                                            <i class="fas fa-clock"></i> {{ $nearestDueSoon == 0 ? 'Tới hạn' : 'Còn ' . (int)$nearestDueSoon . 'd' }}
+                                {{-- Hạn thanh toán tính từ ngày xuất HĐ --}}
+                                @if($sale->payment_status !== 'paid')
+                                    @if($sale->invoice_date)
+                                        @php
+                                            $debtDays = $sale->customer->debt_days ?? 0;
+                                            $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
+                                            $daysLeft = now()->diffInDays($dueDate, false);
+                                        @endphp
+                                        @if($daysLeft < 0)
+                                            <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 inline-block">
+                                                <i class="fas fa-exclamation-circle"></i> Quá hạn {{ abs((int)$daysLeft) }}d
+                                            </div>
+                                        @elseif($daysLeft <= 3)
+                                            <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 inline-block">
+                                                <i class="fas fa-clock"></i> {{ $daysLeft == 0 ? 'Tới hạn' : 'Còn ' . (int)$daysLeft . 'd' }}
+                                            </div>
+                                        @else
+                                            <div class="text-[10px] text-gray-400 mt-1">
+                                                <i class="far fa-calendar-alt"></i> {{ $dueDate->format('d/m/Y') }}
+                                            </div>
+                                        @endif
+                                    @else
+                                        <div class="text-[10px] text-gray-400 italic mt-1">
+                                            Chờ xuất HĐ
                                         </div>
                                     @endif
-                                @elseif($sale->payment_due_date && $sale->payment_status !== 'paid')
-                                    <div class="text-[10px] text-gray-400 mt-1">
-                                        <i class="far fa-calendar-alt"></i> {{ $sale->payment_due_date->format('d/m/Y') }}
-                                    </div>
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">

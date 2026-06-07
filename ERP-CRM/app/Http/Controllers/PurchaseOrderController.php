@@ -71,7 +71,7 @@ class PurchaseOrderController extends Controller
         $orders = $query->with([
             'supplier', 'creator', 'currency', 'sale.user',
             'items.saleOrderRequestItem.saleOrderRequest.sale.user'
-        ])->orderBy('created_at', 'desc')->paginate(15);
+        ])->orderBy('created_at', 'desc')->paginate(10);
         $suppliers = Supplier::orderBy('name')->get();
 
         // Thống kê - apply same filtering
@@ -439,7 +439,20 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('view', $purchaseOrder);
 
-        $purchaseOrder->load(['supplier', 'sale', 'items.product', 'items.saleOrderRequestItem.saleItem', 'items.saleOrderRequestItem.saleOrderRequest.sale', 'creator', 'approver', 'currency', 'imports.warehouse']);
+        $purchaseOrder->load([
+            'supplier', 
+            'sale.orderRequests.attachments',
+            'sale.orderRequests.creator',
+            'items.product', 
+            'items.saleOrderRequestItem.saleItem', 
+            'items.saleOrderRequestItem.saleOrderRequest.sale', 
+            'items.saleOrderRequestItem.saleOrderRequest.attachments', 
+            'items.saleOrderRequestItem.saleOrderRequest.creator', 
+            'creator', 
+            'approver', 
+            'currency', 
+            'imports.warehouse'
+        ]);
         $warehouses = \App\Models\Warehouse::active()->get();
 
         return view('purchase-orders.show', compact('purchaseOrder', 'warehouses'));

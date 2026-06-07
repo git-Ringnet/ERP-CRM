@@ -66,6 +66,8 @@ class InvoiceRequestController extends Controller
             return back()->with('error', 'Bạn không có quyền thực hiện thao tác này.');
         }
         $request->validate([
+            'invoice_date' => 'required|date',
+            'payment_due_date' => 'required|date',
             'official_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:5120',
             'delivery_note_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:5120',
         ]);
@@ -84,8 +86,11 @@ class InvoiceRequestController extends Controller
             $invoiceRequest->finance_id = auth()->id();
             $invoiceRequest->save();
 
-            // Update invoice_date on Sale
-            $invoiceRequest->sale->update(['invoice_date' => now()]);
+            // Update invoice_date and payment_due_date on Sale
+            $invoiceRequest->sale->update([
+                'invoice_date' => $request->invoice_date,
+                'payment_due_date' => $request->payment_due_date,
+            ]);
 
             DB::commit();
             return back()->with('success', 'Đã xác nhận xuất hóa đơn chính thức!');

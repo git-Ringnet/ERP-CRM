@@ -115,7 +115,7 @@ class PurchaseOrderRequestController extends Controller
                 $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING]);
             })
             ->where('is_cancelled', false)
-            ->with(['saleOrderRequest.sale', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
+            ->with(['saleOrderRequest.sale', 'saleOrderRequest.attachments', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
             ->get();
 
         // Lấy các items đã bị hủy (để hiển thị riêng)
@@ -163,6 +163,9 @@ class PurchaseOrderRequestController extends Controller
                     'ordered' => 0,
                     'partner' => '',
                     'end_user' => '',
+                    'note' => $pr->note, // Thêm ghi chú PR
+                    'attachments' => $pr->attachments, // Thêm file đính kèm PR
+                    'sale_id' => $pr->sale_id, // Thêm sale_id để tạo link
                     'products' => []
                 ];
             }

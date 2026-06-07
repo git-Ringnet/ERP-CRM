@@ -238,6 +238,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
     Route::post('/quotations/{quotation}/duplicate', [QuotationController::class, 'duplicate'])->name('quotations.duplicate');
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
+    Route::get('/quotations/{quotation}/export-excel', [QuotationController::class, 'exportSingle'])->name('quotations.export-single');
 
     // Approval Workflow routes
     Route::resource('approval-workflows', ApprovalWorkflowController::class);

@@ -122,38 +122,6 @@
 <script>
     function pnlEditor() {
         return {
-            payment_term: '{{ $sale->payment_term ?? 'customer_default' }}',
-            payment_due_date: '{{ $sale->payment_due_date ? \Carbon\Carbon::parse($sale->payment_due_date)->format('Y-m-d') : '' }}',
-            order_date: '{{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('Y-m-d') : '' }}',
-            customer_debt_days: {{ $sale->customer->debt_days ?? 0 }},
-
-            calculateDueDate() {
-                if (!this.order_date || this.payment_term === 'custom' || this.payment_term === '') {
-                    return;
-                }
-                let daysToAdd = 0;
-                switch (this.payment_term) {
-                    case 'customer_default':
-                        daysToAdd = parseInt(this.customer_debt_days) || 0;
-                        break;
-                    case 'NET 30':
-                        daysToAdd = 30;
-                        break;
-                    case 'NET 45':
-                        daysToAdd = 45;
-                        break;
-                    case 'prepaid':
-                        daysToAdd = 0;
-                        break;
-                }
-                const date = new Date(this.order_date);
-                date.setDate(date.getDate() + daysToAdd);
-                const yyyy = date.getFullYear();
-                const mm = String(date.getMonth() + 1).padStart(2, '0');
-                const dd = String(date.getDate()).padStart(2, '0');
-                this.payment_due_date = `${yyyy}-${mm}-${dd}`;
-            },
-
             finance_p: {{ ($financeExpense && $financeExpense->input_mode === 'percent') ? (float) ($financeExpense->percent_value ?? 0) : 0 }},
             overdue_p: {{ ($overdueExpense && $overdueExpense->input_mode === 'percent') ? (float) ($overdueExpense->percent_value ?? 0) : 0 }},
             mgmt_p: {{ ($managementExpense && $managementExpense->input_mode === 'percent') ? (float) ($managementExpense->percent_value ?? 0) : 0 }},
@@ -286,8 +254,9 @@
                 });
             },
 
-            removePnlExpense(idx) {
-                const exp = this.pnl_extra_costs[idx];
+            removePnlExpense(exp) {
+                const idx = this.pnl_extra_costs.indexOf(exp);
+                if (idx === -1) return;
                 if (exp && exp.id && !exp.is_new) {
                     // AJAX delete existing expense
                     if (!confirm('Xóa chi phí "' + (exp.type || '') + '"?')) return;
@@ -312,8 +281,7 @@
                 }
             },
 
-            recalcPnlExpense(idx) {
-                const exp = this.pnl_extra_costs[idx];
+            recalcPnlExpense(exp) {
                 if (!exp) return;
                 const val = parseFloat(exp.input_value) || 0;
                 if (exp.input_mode === 'percent') {
@@ -562,9 +530,6 @@
                     this.updateGlobalTotals();
                 }, 500);
 
-                if (this.payment_term && this.payment_term !== 'custom') {
-                    this.calculateDueDate();
-                }
             }
         }
     }
@@ -1691,36 +1656,6 @@
             </table>
         </div>
 
-        <!-- Payment Term & Due Date Configuration -->
-        <div class="mt-4 p-4 bg-blue-50/40 rounded-lg border border-blue-200">
-            <h4 class="text-xs font-semibold text-blue-700 uppercase flex items-center gap-1.5 mb-3">
-                <i class="fas fa-calendar-check text-blue-500"></i> Thiết lập hạn thanh toán (Áp dụng riêng cho đơn hàng này)
-            </h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn thanh toán (Payment Term)</label>
-                    <select name="payment_term" x-model="payment_term" @change="calculateDueDate()"
-                            {{ !$sale->isPlEditable() ? 'disabled' : '' }}
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
-                        <option value="">-- Chọn hạn thanh toán --</option>
-                        <option value="customer_default">Mặc định khách hàng</option>
-                        <option value="NET 30">NET 30 (30 ngày)</option>
-                        <option value="NET 45">NET 45 (45 ngày)</option>
-                        <option value="prepaid">Thanh toán trước giao hàng</option>
-                        <option value="custom">Tùy chỉnh</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn ngày thanh toán (Due Date)</label>
-                    <input type="date" name="payment_due_date" x-model="payment_due_date" @input="payment_term = 'custom'"
-                           {{ !$sale->isPlEditable() ? 'readonly' : '' }}
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
-                    <p class="text-[10px] text-gray-500 mt-1" x-show="payment_term && payment_term !== 'custom'">
-                        Hỗ trợ tính hạn: <span x-text="payment_term === 'customer_default' ? `Mặc định KH (${customer_debt_days} ngày)` : (payment_term === 'prepaid' ? 'Thanh toán trước giao hàng (0 ngày)' : (payment_term === 'NET 30' ? 'NET 30 (30 ngày)' : 'NET 45 (45 ngày)'))"></span>
-                    </p>
-                </div>
-            </div>
-        </div>
 
         <!-- PNL Extra Costs Section -->
         <div class="mt-4 p-4 bg-rose-50/50 rounded-lg border border-rose-200">
@@ -1730,6 +1665,7 @@
                 </h4>
                 @if($sale->isPlEditable())
                 <div class="flex items-center gap-2">
+                    <span class="text-xs text-rose-600 font-medium mr-2">Nhấn lưu chi phí để cập nhật chi phí bảng P&L</span>
                     <button type="submit" form="pnlForm"
                             class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-medium shadow-sm">
                         <i class="fas fa-save mr-1.5"></i> Lưu chi phí
@@ -1754,7 +1690,7 @@
 
             {{-- Expense rows --}}
             <div class="border-x border-b border-rose-200 rounded-b-lg divide-y divide-rose-100">
-                <template x-for="(exp, idx) in pnl_extra_costs" :key="idx">
+                <template x-for="(exp, idx) in pnl_extra_costs.filter(e => !e.is_standard && !standard_types.includes(e.type))" :key="exp.id || idx">
                     <div class="px-3 py-2 hover:bg-rose-50 transition-colors"
                          :class="idx % 2 === 0 ? 'bg-white' : 'bg-rose-50/30'">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
@@ -1801,7 +1737,7 @@
                             {{-- Kiểu nhập --}}
                             <div class="col-span-2">
                                 <label class="block md:hidden text-xs font-medium text-gray-600 mb-1">Kiểu nhập</label>
-                                <select x-model="exp.input_mode" @change="recalcPnlExpense(idx)"
+                                <select x-model="exp.input_mode" @change="recalcPnlExpense(exp)"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}
                                         class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white cursor-pointer {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
                                     <option value="percent">% (Phần trăm)</option>
@@ -1815,7 +1751,7 @@
                                 <div class="relative">
                                     <input type="text" inputmode="numeric"
                                            x-model="exp.input_value"
-                                           @input="recalcPnlExpense(idx)"
+                                           @input="recalcPnlExpense(exp)"
                                            @blur="exp.input_value = parseFloat((exp.input_value || '0').toString().replace(/,/g, '')) || 0"
                                            :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
                                            {{ !$sale->isPlEditable() ? 'readonly' : '' }}
@@ -1844,7 +1780,7 @@
                             {{-- Xóa --}}
                             <div class="col-span-1 flex justify-center">
                                 @if($sale->isPlEditable())
-                                <button type="button" @click="removePnlExpense(idx)"
+                                <button type="button" @click="removePnlExpense(exp)"
                                         class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Xóa chi phí">
                                     <i class="fas fa-trash-alt text-xs"></i>
                                 </button>
@@ -1871,20 +1807,20 @@
                 </template>
 
                 {{-- Empty state --}}
-                <div x-show="pnl_extra_costs.length === 0" class="px-3 py-6 text-center text-gray-400 text-xs">
+                <div x-show="pnl_extra_costs.filter(e => !e.is_standard && !standard_types.includes(e.type)).length === 0" class="px-3 py-6 text-center text-gray-400 text-xs">
                     <i class="fas fa-inbox text-xl mb-2"></i>
                     <p>Chưa có chi phí bổ sung. Nhấn "+ Thêm chi phí" để thêm.</p>
                 </div>
             </div>
 
             {{-- Total --}}
-            <div x-show="pnl_extra_costs.length > 0" class="mt-3 flex justify-between items-center px-3 py-2.5 bg-rose-100 rounded-lg border border-rose-200">
+            <div x-show="pnl_extra_costs.filter(e => !e.is_standard && !standard_types.includes(e.type)).length > 0" class="mt-3 flex justify-between items-center px-3 py-2.5 bg-rose-100 rounded-lg border border-rose-200">
                 <span class="text-xs font-bold text-rose-800 uppercase">Tổng chi phí bổ sung:</span>
                 <span class="text-sm font-bold text-rose-800" x-text="formatNumber(totalPnlExtraCosts) + ' ₫'"></span>
             </div>
 
             {{-- Net profit after extra costs --}}
-            <div x-show="pnl_extra_costs.length > 0" class="mt-2 flex justify-between items-center px-3 py-2 bg-gray-800 rounded-lg">
+            <div x-show="pnl_extra_costs.filter(e => !e.is_standard && !standard_types.includes(e.type)).length > 0" class="mt-2 flex justify-between items-center px-3 py-2 bg-gray-800 rounded-lg">
                 <span class="text-xs font-bold text-white uppercase">Lợi nhuận ròng sau chi phí bổ sung:</span>
                 <div class="flex items-center gap-3">
                     <span class="text-sm font-bold" :class="global_profit >= 0 ? 'text-green-400' : 'text-red-400'" x-text="formatNumber(global_profit) + ' ₫'"></span>

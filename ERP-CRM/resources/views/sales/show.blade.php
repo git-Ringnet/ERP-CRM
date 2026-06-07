@@ -351,38 +351,40 @@
                         <dt class="w-32 text-gray-500">Ngày tạo:</dt>
                         <dd class="text-gray-900">{{ $sale->date->format('d/m/Y') }}</dd>
                     </div>
-                    @if($sale->payment_term)
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Hạn thanh toán:</dt>
-                        <dd class="font-medium text-gray-900">
-                            @if($sale->payment_term === 'customer_default')
-                                Mặc định khách hàng ({{ $sale->customer->debt_days ?? 0 }} ngày)
-                            @elseif($sale->payment_term === 'prepaid')
-                                Thanh toán trước giao hàng
-                            @elseif($sale->payment_term === 'custom')
-                                Tùy chỉnh
+                        <dd class="font-medium text-gray-950">
+                            @if($sale->payment_due_date)
+                                @php
+                                    $isOverdue = $sale->payment_due_date->isPast() && $sale->payment_status !== 'paid';
+                                @endphp
+                                <span>{{ $sale->payment_due_date->format('d/m/Y') }}</span>
+                                @if($isOverdue)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
+                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
+                                    </span>
+                                @endif
+                            @elseif($sale->invoice_date)
+                                @php
+                                    $debtDays = $sale->customer->debt_days ?? 0;
+                                    $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
+                                    $isOverdue = $dueDate->isPast() && $sale->payment_status !== 'paid';
+                                @endphp
+                                <span>{{ $dueDate->format('d/m/Y') }} (Tính từ ngày xuất HĐ {{ \Carbon\Carbon::parse($sale->invoice_date)->format('d/m/Y') }} + {{ $debtDays }} ngày nợ)</span>
+                                @if($isOverdue)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
+                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
+                                    </span>
+                                @endif
                             @else
-                                {{ $sale->payment_term }}
+                                <span class="text-gray-500 italic">Tính khi xuất hóa đơn</span>
                             @endif
                         </dd>
                     </div>
-                    @endif
-                    @if($sale->payment_due_date)
-                    @php
-                        $isOverdue = \Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid';
-                    @endphp
-                    <div class="flex">
-                        <dt class="w-32 text-gray-500">Hạn ngày thanh toán:</dt>
-                        <dd class="font-medium {{ $isOverdue ? 'text-red-600 font-bold flex items-center gap-1' : 'text-gray-900' }}">
-                            {{ \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y') }}
-                            @if($isOverdue)
-                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800" title="Đã quá hạn thanh toán!">
-                                    <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
-                                </span>
-                            @endif
-                        </dd>
+                    <div class="flex items-start">
+                        <dt class="w-32 text-gray-500 shrink-0">Điều khoản TT:</dt>
+                        <dd class="font-medium text-gray-900 break-words whitespace-pre-line">{{ $sale->payment_term ?: '-' }}</dd>
                     </div>
-                    @endif
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Trạng thái:</dt>
                         <dd>
@@ -528,9 +530,7 @@
         @php
             $displayTerms = ($sale->payment_terms && count($sale->payment_terms) > 0)
                 ? $sale->payment_terms
-                : (($sale->customer && $sale->customer->payment_terms && count($sale->customer->payment_terms) > 0)
-                    ? $sale->customer->payment_terms
-                    : []);
+                : [];
         @endphp
         @if(count($displayTerms) > 0)
         <div class="mt-8 pt-6 border-t border-gray-100">
@@ -849,6 +849,7 @@
                 </div>
             </div>
         </div>
+
     </div>
     <!-- End Tabs Wrapper -->
 
@@ -904,37 +905,28 @@
                                     <span class="font-bold text-amber-800">CÒN NỢ:</span>
                                     <span class="font-black text-red-600" x-text="formatMoney(orderTotal - paidAmount) + ' ' + (currentCurrencySymbol || 'đ')"></span>
                                 </div>
-                                @if($sale->payment_term || $sale->payment_due_date)
                                 <div class="border-t border-dashed border-amber-200 my-2 pt-2 space-y-1 text-xs">
-                                    @if($sale->payment_term)
                                     <div class="flex justify-between">
                                         <span class="text-gray-600">Hạn thanh toán đơn hàng:</span>
                                         <span class="font-semibold text-gray-800">
-                                            @if($sale->payment_term === 'customer_default')
-                                                Mặc định KH ({{ $sale->customer->debt_days ?? 0 }} ngày)
-                                            @elseif($sale->payment_term === 'prepaid')
-                                                Thanh toán trước giao hàng
-                                            @elseif($sale->payment_term === 'custom')
-                                                Tùy chỉnh
+                                            @if($sale->payment_due_date)
+                                                @php
+                                                    $isOverdue = $sale->payment_due_date->isPast() && $sale->payment_status !== 'paid';
+                                                @endphp
+                                                {{ $sale->payment_due_date->format('d/m/Y') }} @if($isOverdue) (Quá hạn) @endif
+                                            @elseif($sale->invoice_date)
+                                                @php
+                                                    $debtDays = $sale->customer->debt_days ?? 0;
+                                                    $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
+                                                    $isOverdue = $dueDate->isPast() && $sale->payment_status !== 'paid';
+                                                @endphp
+                                                {{ $dueDate->format('d/m/Y') }} @if($isOverdue) (Quá hạn) @endif
                                             @else
-                                                {{ $sale->payment_term }}
+                                                Tính khi xuất hóa đơn
                                             @endif
                                         </span>
                                     </div>
-                                    @endif
-                                    @if($sale->payment_due_date)
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-600">Hạn ngày thanh toán:</span>
-                                        <span class="font-bold {{ \Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid' ? 'text-red-600' : 'text-gray-800' }}">
-                                            {{ \Carbon\Carbon::parse($sale->payment_due_date)->format('d/m/Y') }}
-                                            @if(\Carbon\Carbon::parse($sale->payment_due_date)->isPast() && $sale->payment_status !== 'paid')
-                                                (Quá hạn)
-                                            @endif
-                                        </span>
-                                    </div>
-                                    @endif
                                 </div>
-                                @endif
                             </div>
                         </div>
 

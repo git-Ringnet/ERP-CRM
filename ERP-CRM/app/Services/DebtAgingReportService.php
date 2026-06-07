@@ -90,13 +90,17 @@ class DebtAgingReportService
         $today = Carbon::now();
 
         foreach ($sales as $sale) {
-            // Lấy ngày xuất hóa đơn (invoice_date) làm ngày ghi nhận công nợ. 
-            // Nếu chưa xuất hóa đơn (chưa có invoice_date), thì tạm lấy ngày lập đơn hàng (date).
-            $debtRecognitionDate = $sale->invoice_date ? Carbon::parse($sale->invoice_date) : Carbon::parse($sale->date);
+            $isOverdue = false;
+            $daysPastDue = 0;
+            $dueDate = null;
+
+            if ($sale->invoice_date) {
+                $debtRecognitionDate = Carbon::parse($sale->invoice_date);
+                $daysPastDue = $today->diffInDays($debtRecognitionDate);
+                $dueDate = $debtRecognitionDate->copy()->addDays($customer->debt_days ?? 30);
+                $isOverdue = $today->gt($dueDate);
+            }
             
-            $daysPastDue = $today->diffInDays($debtRecognitionDate);
-            $dueDate = $debtRecognitionDate->copy()->addDays($customer->debt_days ?? 30);
-            $isOverdue = $today->gt($dueDate);
             $debtAmount = $sale->debt_amount;
 
             // Categorize by aging bucket
@@ -125,7 +129,7 @@ class DebtAgingReportService
                 'sale_id' => $sale->id,
                 'code' => $sale->code,
                 'date' => $sale->date->format('Y-m-d'),
-                'due_date' => $dueDate->format('Y-m-d'),
+                'due_date' => $dueDate ? $dueDate->format('Y-m-d') : null,
                 'total' => $sale->total,
                 'paid_amount' => $sale->paid_amount,
                 'debt_amount' => $debtAmount,
@@ -166,11 +170,16 @@ class DebtAgingReportService
         $overdueCustomerIds = [];
 
         foreach ($sales as $sale) {
-            $debtRecognitionDate = $sale->invoice_date ? Carbon::parse($sale->invoice_date) : Carbon::parse($sale->date);
-            $daysPastDue = $today->diffInDays($debtRecognitionDate);
-            $debtDays = $sale->customer?->debt_days ?? 30;
-            $dueDate = $debtRecognitionDate->copy()->addDays($debtDays);
-            $isOverdue = $today->gt($dueDate);
+            $isOverdue = false;
+            $daysPastDue = 0;
+
+            if ($sale->invoice_date) {
+                $debtRecognitionDate = Carbon::parse($sale->invoice_date);
+                $daysPastDue = $today->diffInDays($debtRecognitionDate);
+                $debtDays = $sale->customer?->debt_days ?? 30;
+                $dueDate = $debtRecognitionDate->copy()->addDays($debtDays);
+                $isOverdue = $today->gt($dueDate);
+            }
 
             if ($daysPastDue <= 30) {
                 $stats['current'] += $sale->debt_amount;

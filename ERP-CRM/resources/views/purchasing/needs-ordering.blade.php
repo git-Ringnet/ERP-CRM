@@ -80,7 +80,13 @@
                                                         <i class="fas fa-chevron-right text-gray-400 text-[10px] transition-transform duration-200"
                                                             :class="expandedSo === '{{ $soId }}' ? 'rotate-90 text-teal-600' : ''"></i>
                                                         <div>
-                                                            <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
+                                                            @if(!empty($so['sale_id']))
+                                                                <a href="{{ route('sales.show', $so['sale_id']) }}" target="_blank" class="font-bold text-teal-600 hover:underline hover:text-teal-700" @click.stop>
+                                                                    {{ $so['code'] }}
+                                                                </a>
+                                                            @else
+                                                                <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
+                                                            @endif
                                                             <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
                                                         </div>
                                                     </div>
@@ -99,8 +105,8 @@
                                                 <td class="px-6 py-4 text-center font-bold text-red-500 text-sm">
                                                     {{ number_format($soRemaining, 0) }}</td>
                                             </tr>
-
-                                            <!-- Expandable Product Detail Row -->
+ 
+                                             <!-- Expandable Product Detail Row -->
                                             <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
                                                 <td colspan="7" class="px-8 py-4">
                                                     <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
@@ -151,6 +157,41 @@
                                                                 @endforeach
                                                             </tbody>
                                                         </table>
+
+                                                        {{-- PR Notes and Attachments --}}
+                                                        <div class="bg-gray-50 p-4 border-t border-gray-100 flex flex-col md:flex-row gap-6 text-xs">
+                                                            <div class="flex-1">
+                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ghi chú yêu cầu (PR)</h4>
+                                                                @if(!empty($so['note']))
+                                                                    <p class="text-sm text-gray-700 whitespace-pre-line">{{ $so['note'] }}</p>
+                                                                @else
+                                                                    <p class="text-gray-400 italic">Không có ghi chú</p>
+                                                                @endif
+                                                            </div>
+                                                            <div class="w-full md:w-80 shrink-0">
+                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tài liệu PR đính kèm</h4>
+                                                                @if(isset($so['attachments']) && $so['attachments']->count() > 0)
+                                                                    <div class="space-y-1.5">
+                                                                        @foreach($so['attachments'] as $att)
+                                                                            <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-gray-200 text-xs">
+                                                                                <div class="flex items-center gap-2 overflow-hidden">
+                                                                                    <i class="{{ $att->file_icon }} text-sm"></i>
+                                                                                    <span class="truncate font-medium text-gray-700" title="{{ $att->file_name }}">{{ $att->file_name }}</span>
+                                                                                </div>
+                                                                                @if(!empty($so['sale_id']))
+                                                                                    <a href="{{ route('sales.order-request.attachment.download', [$so['sale_id'], $att->id]) }}" 
+                                                                                       class="text-teal-600 hover:text-teal-700 font-bold shrink-0 ml-2" @click.stop>
+                                                                                        Tải về
+                                                                                    </a>
+                                                                                @endif
+                                                                            </div>
+                                                                        @endforeach
+                                                                    </div>
+                                                                @else
+                                                                    <p class="text-gray-400 italic">Không có tệp đính kèm</p>
+                                                                @endif
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </td>
                                             </tr>

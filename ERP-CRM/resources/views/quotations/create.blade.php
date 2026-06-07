@@ -36,6 +36,22 @@
         <form action="{{ route('quotations.store') }}" method="POST" id="quotationForm">
             @csrf
 
+            @if ($errors->any())
+                <div class="mx-4 sm:mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 mr-3"></i>
+                        <div>
+                            <h4 class="text-sm font-semibold text-red-800">Có lỗi xảy ra khi tạo báo giá:</h4>
+                            <ul class="mt-2 list-disc list-inside text-sm text-red-600 space-y-1">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             <div class="p-4 sm:p-6 space-y-6">
                 <!-- Basic Info -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -229,23 +245,32 @@
                                             </button>
                                         </div>
                                         <div class="select2-wrapper {{ $isManual ? 'hidden' : '' }}">
-                                            <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                                            <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
                                                 @if(!$isManual && isset($item['product_id']) && $item['product_id'])
-                                                    <option value="{{ $item['product_id'] }}" selected>{{ $item['product_name'] }}</option>
+                                                    @php
+                                                        $displayName = $item['product_name'] ?? '';
+                                                        if (str_starts_with($item['product_id'], 'p-')) {
+                                                            $prod = \App\Models\Product::find(substr($item['product_id'], 2));
+                                                            if ($prod) $displayName = $prod->code;
+                                                        } elseif (str_starts_with($item['product_id'], 'c-')) {
+                                                            $cat = \App\Models\SupplierPriceListItem::find(substr($item['product_id'], 2));
+                                                            if ($cat) $displayName = $cat->sku;
+                                                        }
+                                                    @endphp
+                                                    <option value="{{ $item['product_id'] }}" selected>{{ $displayName }}</option>
                                                 @endif
                                             </select>
                                         </div>
                                         <div class="manual-wrapper {{ $isManual ? '' : 'hidden' }}">
-                                            <input type="text" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                            <input type="text" name="products[{{ $index }}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                                                    placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                                                   value="{{ $isManual ? ($item['product_name'] ?? '') : '' }}"
-                                                   oninput="updateManualName(this)">
+                                                   value="{{ $isManual ? ($item['product_name'] ?? '') : '' }}">
                                         </div>
                                         <div class="mt-2">
-                                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                                            <input type="text" name="products[{{ $index }}][product_name]" value="{{ $item['product_name'] ?? '' }}" 
-                                                   class="product-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                                   placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
+                                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả</label>
+                                            <input type="text" name="products[{{ $index }}][description]" value="{{ $item['description'] ?? '' }}" 
+                                                   class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                   placeholder="Mô tả chi tiết sản phẩm/dịch vụ...">
                                         </div>
                                     </td>
                                     <td class="px-3 py-2 align-top">
@@ -298,19 +323,18 @@
                                             </button>
                                         </div>
                                         <div class="select2-wrapper">
-                                            <select name="products[0][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                                            <select name="products[0][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
                                                 <option value=""></option>
                                             </select>
                                         </div>
                                         <div class="manual-wrapper hidden">
-                                            <input type="text" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                                   placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                                                   oninput="updateManualName(this)">
+                                            <input type="text" name="products[0][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                   placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
                                         </div>
                                         <div class="mt-2">
-                                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                                            <input type="text" name="products[0][product_name]" class="product-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                                   placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
+                                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả</label>
+                                            <input type="text" name="products[0][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                   placeholder="Mô tả chi tiết sản phẩm/dịch vụ...">
                                         </div>
                                     </td>
                                     <td class="px-3 py-2 align-top">
@@ -356,39 +380,68 @@
                 <div class="border-t pt-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-4">
-                            <div>
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
-                                    <label class="block text-sm font-medium text-gray-700">Điều khoản thanh toán</label>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <select id="paymentMilestoneRatioSelect" class="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
-                                            <option value="customer_default">Mặc định khách hàng</option>
-                                            <option value="30-70">30% - 70%</option>
-                                            <option value="50-50">50% - 50%</option>
-                                            <option value="100-prepaid">100% prepaid</option>
-                                            <option value="custom">Tùy chỉnh tỷ lệ</option>
-                                        </select>
-                                        <select id="paymentTermSelect" class="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
-                                            <option value="NET 30">NET 30</option>
-                                            <option value="NET 45">NET 45</option>
-                                            <option value="prepaid">Thanh toán trước giao hàng</option>
-                                            <option value="custom">Tùy chỉnh hạn</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <textarea name="payment_terms" id="payment_terms" rows="2"
-                                    placeholder="VD: Thanh toán 30% trước, 70% sau khi giao hàng"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('payment_terms') }}</textarea>
-                            </div>
+
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Thời gian giao hàng</label>
                                 <input type="text" name="delivery_time" value="{{ old('delivery_time') }}"
                                     placeholder="VD: 7-10 ngày làm việc"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
+
+                            {{-- Ghi chú - Sortable numbered list --}}
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                                <textarea name="note" rows="2"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('note') }}</textarea>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">
+                                        <i class="fas fa-sticky-note text-yellow-500 mr-1"></i> Ghi chú
+                                    </label>
+                                    <button type="button" onclick="addNoteItem('noteList')"
+                                        class="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                        <i class="fas fa-plus mr-1"></i> Thêm
+                                    </button>
+                                </div>
+                                <div id="noteList" class="space-y-2">
+                                    @php $oldNotes = old('note', []); @endphp
+                                    @if(!empty($oldNotes))
+                                        @foreach($oldNotes as $i => $noteItem)
+                                            <div class="sortable-item flex items-start gap-2 group">
+                                                <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                                                <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                                <input type="text" name="note[]" value="{{ $noteItem }}"
+                                                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="Nhập ghi chú...">
+                                                <button type="button" onclick="removeNoteItem(this)"
+                                                    class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+                                            </div>
+                                        @endforeach
+                                    @endif
+                                </div>
+                            </div>
+
+                            {{-- Cảnh báo / Lưu ý - Sortable numbered list --}}
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">
+                                        <i class="fas fa-exclamation-triangle text-amber-500 mr-1"></i> Cảnh báo / Lưu ý
+                                    </label>
+                                    <button type="button" onclick="addNoteItem('disclaimerList')"
+                                        class="inline-flex items-center px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                                        <i class="fas fa-plus mr-1"></i> Thêm
+                                    </button>
+                                </div>
+                                <div id="disclaimerList" class="space-y-2">
+                                    @php $oldDisclaimer = old('disclaimer', $defaultDisclaimer ?? []); @endphp
+                                    @foreach($oldDisclaimer as $i => $discItem)
+                                        <div class="sortable-item flex items-start gap-2 group">
+                                            <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                                            <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                            <input type="text" name="disclaimer[]" value="{{ $discItem }}"
+                                                class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                placeholder="Nhập cảnh báo...">
+                                            <button type="button" onclick="removeNoteItem(this)"
+                                                class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg space-y-3">
@@ -494,7 +547,7 @@
             const row = element.closest('.product-item');
             
             element.select2({
-                placeholder: "Tìm hoặc nhập tên sản phẩm...",
+                placeholder: "Tìm mã hoặc tên sản phẩm...",
                 allowClear: true,
                 tags: true,
                 width: '100%',
@@ -512,7 +565,8 @@
                                 text: item.text,
                                 price: item.price,
                                 unit: item.unit,
-                                name: item.name
+                                name: item.name,
+                                description: item.description
                             }))
                         };
                     },
@@ -532,13 +586,14 @@
                 }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
-                const descInput = row.find('.product-name-input');
+                const descInput = row.find('.description-input');
                 
                 // If it's a tag or doesn't have our prefixes (p- or c-)
                 const isManual = data.isNew || (typeof data.id === 'string' && !data.id.startsWith('p-') && !data.id.startsWith('c-'));
                 
                 const name = data.name || data.text;
-                descInput.val(name);
+                // Auto-fill description with product name/description
+                descInput.val(data.description || name);
 
                 if (isManual) {
                     row.find('.base-price-reference').text('');
@@ -555,7 +610,7 @@
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
                 calculateRowTotal(idxRef);
             }).on('select2:clear', function(e) {
-                row.find('.product-name-input').val('');
+                row.find('.description-input').val('');
                 row.find('.base-price-reference').text('');
                 const qtyInput = row.find('.quantity-input');
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
@@ -640,7 +695,7 @@
             const manualWrapper = row.find('.manual-wrapper');
             const toggleBtn = row.find('.toggle-mode-btn');
             const isManualNow = selectWrapper.hasClass('hidden');
-            const descInput = row.find('.product-name-input');
+            const descInput = row.find('.description-input');
             const manualInput = row.find('.manual-name-input');
             const productSelect = row.find('.product-select');
             const symbol = $('#currencySelect option:selected').data('symbol') || '₫';
@@ -654,7 +709,6 @@
                          .addClass('bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200');
                 
                 row.find('.product-label').html('Sản phẩm');
-                row.find('.price-label').html('Đơn giá (<span class="currency-symbol">' + symbol + '</span>)');
 
                 // Clear manual input
                 manualInput.val('');
@@ -668,18 +722,12 @@
                          .addClass('bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200');
                 
                 row.find('.product-label').html('Tên dịch vụ');
-                row.find('.price-label').html('Giá bán (<span class="currency-symbol">' + symbol + '</span>)');
 
                 // Clear select2 and set to empty
                 productSelect.val(null).trigger('change');
                 descInput.val('');
                 row.find('.base-price-reference').text('');
             }
-        }
-
-        function updateManualName(input) {
-            const row = $(input).closest('.product-item');
-            row.find('.product-name-input').val($(input).val());
         }
 
         function addCustomColumnPrompt() {
@@ -797,19 +845,18 @@
                         </button>
                     </div>
                     <div class="select2-wrapper">
-                        <select name="products[${productIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                        <select name="products[${productIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
                             <option value=""></option>
                         </select>
                     </div>
                     <div class="manual-wrapper hidden">
-                        <input type="text" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                               oninput="updateManualName(this)">
+                        <input type="text" name="products[${productIndex}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
                     </div>
                     <div class="mt-2">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                        <input type="text" name="products[${productIndex}][product_name]" class="product-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
+                        <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả</label>
+                        <input type="text" name="products[${productIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                               placeholder="Mô tả chi tiết sản phẩm/dịch vụ...">
                     </div>
                 </td>
                 <td class="px-3 py-2 align-top">
@@ -1015,78 +1062,62 @@
             }
         });
 
-        // Payment Terms Generator Logic
-        function updatePaymentTermsText() {
-            const milestoneRatio = $('#paymentMilestoneRatioSelect').val();
-            const term = $('#paymentTermSelect').val();
 
-            if (milestoneRatio === 'custom' && term === 'custom') {
-                return; // Don't overwrite if both are custom
-            }
+    </script>
 
-            let milestoneText = '';
-            if (milestoneRatio === 'customer_default') {
-                const selectedOpt = $('#customer_id option:selected');
-                let rawTerms = selectedOpt.attr('data-payment-terms');
-                if (rawTerms) {
-                    try {
-                        const terms = JSON.parse(rawTerms);
-                        if (Array.isArray(terms) && terms.length > 0) {
-                            milestoneText = terms.map((t, idx) => {
-                                return `Đợt ${idx + 1}: ${t.label || 'Thanh toán'} ${t.percent}% trong vòng ${t.days || 0} ngày`;
-                            }).join('. ');
-                        }
-                    } catch (e) {
-                        console.error(e);
-                    }
+    {{-- SortableJS for drag-and-drop --}}
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        // Initialize Sortable on note and disclaimer lists
+        document.addEventListener('DOMContentLoaded', function() {
+            ['noteList', 'disclaimerList'].forEach(function(listId) {
+                const el = document.getElementById(listId);
+                if (el) {
+                    new Sortable(el, {
+                        handle: '.drag-handle',
+                        animation: 200,
+                        ghostClass: 'bg-blue-50',
+                        onEnd: function() { renumberList(listId); }
+                    });
                 }
-                if (!milestoneText) {
-                    milestoneText = 'Theo điều khoản thanh toán mặc định của khách hàng';
-                }
-            } else if (milestoneRatio === '30-70') {
-                milestoneText = 'Đợt 1: Cọc 30% trong vòng 5 ngày. Đợt 2: Thanh toán 70% còn lại trong vòng 30 ngày';
-            } else if (milestoneRatio === '50-50') {
-                milestoneText = 'Đợt 1: Cọc 50% trong vòng 5 ngày. Đợt 2: Thanh toán 50% còn lại trong vòng 30 ngày';
-            } else if (milestoneRatio === '100-prepaid') {
-                milestoneText = 'Thanh toán trả trước 100%';
-            }
+            });
+        });
 
-            let termText = '';
-            if (term === 'NET 30') {
-                termText = 'Hạn thanh toán: NET 30 (trong vòng 30 ngày)';
-            } else if (term === 'NET 45') {
-                termText = 'Hạn thanh toán: NET 45 (trong vòng 45 ngày)';
-            } else if (term === 'prepaid') {
-                termText = 'Hạn thanh toán: Thanh toán trước khi nhận hàng';
-            } else if (term === 'custom') {
-                termText = 'Hạn thanh toán: Tùy chỉnh theo thỏa thuận';
-            }
+        function addNoteItem(listId) {
+            const list = document.getElementById(listId);
+            const count = list.querySelectorAll('.sortable-item').length;
+            const fieldName = listId === 'noteList' ? 'note[]' : 'disclaimer[]';
+            const ringColor = listId === 'noteList' ? 'focus:ring-blue-500' : 'focus:ring-amber-500';
 
-            let combined = milestoneText;
-            if (termText) {
-                combined += (combined ? '. ' : '') + termText;
-            }
+            const div = document.createElement('div');
+            div.className = 'sortable-item flex items-start gap-2 group';
+            div.innerHTML = `
+                <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">(${count + 1})</span>
+                <input type="text" name="${fieldName}" value=""
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${ringColor}"
+                    placeholder="${listId === 'noteList' ? 'Nhập ghi chú...' : 'Nhập cảnh báo...'}">
+                <button type="button" onclick="removeNoteItem(this)"
+                    class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+            `;
+            list.appendChild(div);
 
-            $('textarea[name="payment_terms"]').val(combined);
+            // Focus the new input
+            div.querySelector('input').focus();
         }
 
-        $('#paymentMilestoneRatioSelect, #paymentTermSelect').on('change', updatePaymentTermsText);
-        $('#customer_id').on('change', function() {
-            if ($('#paymentMilestoneRatioSelect').val() === 'customer_default') {
-                updatePaymentTermsText();
-            }
-        });
+        function removeNoteItem(btn) {
+            const item = btn.closest('.sortable-item');
+            const list = item.parentElement;
+            item.remove();
+            renumberList(list.id);
+        }
 
-        $('textarea[name="payment_terms"]').on('input', function() {
-            $('#paymentMilestoneRatioSelect').val('custom');
-            $('#paymentTermSelect').val('custom');
-        });
-
-        // Initialize default text if empty on page load
-        $(document).ready(function() {
-            if (!$('textarea[name="payment_terms"]').val()) {
-                updatePaymentTermsText();
-            }
-        });
+        function renumberList(listId) {
+            const list = document.getElementById(listId);
+            list.querySelectorAll('.sortable-item').forEach(function(item, index) {
+                item.querySelector('.note-number').textContent = '(' + (index + 1) + ')';
+            });
+        }
     </script>
 @endpush

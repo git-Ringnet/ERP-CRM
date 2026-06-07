@@ -179,6 +179,7 @@
                             'id' => null,
                             'product_id' => $oldItem['product_id'] ?? null,
                             'product_name' => $oldItem['product_name'] ?? '',
+                            'description' => $oldItem['description'] ?? '',
                             'quantity' => $oldItem['quantity'] ?? 1,
                             'price' => $oldItem['price'] ?? 0,
                             'vat' => $oldItem['vat'] ?? 8,
@@ -246,9 +247,6 @@
                                 if ($productIdVal && is_numeric($productIdVal)) {
                                     $productIdVal = 'p-' . $productIdVal;
                                 }
-                                if (isset($item->product) && ($item->product->category === 'Z' || str_starts_with($item->product->code, 'M-'))) {
-                                    $isManual = true;
-                                }
                             @endphp
                             <tr class="product-item" data-index="{{ $index }}">
                                 <td class="px-3 py-2">
@@ -259,22 +257,21 @@
                                         </button>
                                     </div>
                                     <div class="select2-wrapper {{ $isManual ? 'hidden' : '' }}">
-                                        <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                                        <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
                                             @if($productIdVal && !$isManual)
-                                                <option value="{{ $productIdVal }}" selected>[KHO] {{ $item->product_code ?? '' }} - {{ $item->product_name }}</option>
+                                                <option value="{{ $productIdVal }}" selected>{{ $item->product_code ?? '' }}</option>
                                             @endif
                                         </select>
                                     </div>
                                     <div class="manual-wrapper {{ $isManual ? '' : 'hidden' }}">
-                                        <input type="text" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                        <input type="text" name="products[{{ $index }}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                                                placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                                               value="{{ $isManual ? $item->product_name : '' }}"
-                                               oninput="updateManualName(this)">
+                                               value="{{ $isManual ? $item->product_name : '' }}">
                                     </div>
                                     <div class="mt-2">
                                         <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                                        <input type="text" name="products[{{ $index }}][product_name]" value="{{ $item->product_name }}" 
-                                               class="product-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                        <input type="text" name="products[{{ $index }}][description]" value="{{ $item->description }}" 
+                                               class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                                                placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
                                     </div>
                                 </td>
@@ -373,10 +370,62 @@
                                 value="{{ old('delivery_time', $quotation->delivery_time) }}"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
+
+                        {{-- Ghi chú - Sortable numbered list --}}
+                        <div class="mb-4">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    <i class="fas fa-sticky-note text-yellow-500 mr-1"></i> Ghi chú
+                                </label>
+                                <button type="button" onclick="addNoteItem('noteList')"
+                                    class="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                    <i class="fas fa-plus mr-1"></i> Thêm
+                                </button>
+                            </div>
+                            <div id="noteList" class="space-y-2">
+                                @php $editNotes = old('note', $quotation->note_array); @endphp
+                                @foreach($editNotes as $i => $noteItem)
+                                    <div class="sortable-item flex items-start gap-2 group">
+                                        <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                                        <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                        <input type="text" name="note[]" value="{{ $noteItem }}"
+                                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Nhập ghi chú...">
+                                        <button type="button" onclick="removeNoteItem(this)"
+                                            class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        {{-- Cảnh báo / Lưu ý - Sortable numbered list --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                            <textarea name="note" rows="2"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('note', $quotation->note) }}</textarea>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    <i class="fas fa-exclamation-triangle text-amber-500 mr-1"></i> Cảnh báo / Lưu ý
+                                </label>
+                                <button type="button" onclick="addNoteItem('disclaimerList')"
+                                    class="inline-flex items-center px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                                    <i class="fas fa-plus mr-1"></i> Thêm
+                                </button>
+                            </div>
+                            <div id="disclaimerList" class="space-y-2">
+                                @php $editDisclaimer = old('disclaimer', $quotation->disclaimer_array); @endphp
+                                @if(empty($editDisclaimer))
+                                    @php $editDisclaimer = \App\Models\Quotation::defaultDisclaimer(); @endphp
+                                @endif
+                                @foreach($editDisclaimer as $i => $discItem)
+                                    <div class="sortable-item flex items-start gap-2 group">
+                                        <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                                        <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                        <input type="text" name="disclaimer[]" value="{{ $discItem }}"
+                                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="Nhập cảnh báo...">
+                                        <button type="button" onclick="removeNoteItem(this)"
+                                            class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                     <div class="bg-gray-50 p-4 rounded-lg">
@@ -501,7 +550,8 @@
                                 text: item.text,
                                 price: item.price,
                                 unit: item.unit,
-                                name: item.name
+                                name: item.name,
+                                description: item.description
                             }))
                         };
                     },
@@ -517,13 +567,13 @@
                 }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
-                const descInput = row.find('.product-name-input');
+                const descInput = row.find('.description-input');
                 
                 // If it's a tag or doesn't have our prefixes (p- or c-)
                 const isManual = data.isNew || (typeof data.id === 'string' && !data.id.startsWith('p-') && !data.id.startsWith('c-'));
                 
                 const name = data.name || data.text;
-                descInput.val(name);
+                descInput.val(data.description || name);
 
                 if (isManual) {
                     row.find('.base-price-reference').text('');
@@ -537,16 +587,14 @@
                     }
                 }
                 const qtyInput = row.find('.quantity-input');
-                const nameAttr = qtyInput.attr('name');
-                const match = nameAttr.match(/products\[(\d+)\]/);
-                if (match) calculateRowTotal(match[1]);
+                const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
+                calculateRowTotal(idxRef);
             }).on('select2:clear', function(e) {
-                row.find('.product-name-input').val('');
+                row.find('.description-input').val('');
                 row.find('.base-price-reference').text('');
                 const qtyInput = row.find('.quantity-input');
-                const nameAttr = qtyInput.attr('name');
-                const match = nameAttr.match(/products\[(\d+)\]/);
-                if (match) calculateRowTotal(match[1]);
+                const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
+                calculateRowTotal(idxRef);
             });
         }
 
@@ -627,7 +675,7 @@
             const manualWrapper = row.find('.manual-wrapper');
             const toggleBtn = row.find('.toggle-mode-btn');
             const isManualNow = selectWrapper.hasClass('hidden');
-            const descInput = row.find('.product-name-input');
+            const descInput = row.find('.description-input');
             const manualInput = row.find('.manual-name-input');
             const productSelect = row.find('.product-select');
 
@@ -662,11 +710,6 @@
                 descInput.val('');
                 row.find('.base-price-reference').text('');
             }
-        }
-
-        function updateManualName(input) {
-            const row = $(input).closest('.product-item');
-            row.find('.product-name-input').val($(input).val());
         }
 
         function addCustomColumnPrompt() {
@@ -784,18 +827,17 @@
                         </button>
                     </div>
                     <div class="select2-wrapper">
-                        <select name="products[${rowIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm hoặc nhập tên sản phẩm...">
+                        <select name="products[${rowIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
                             <option value=""></option>
                         </select>
                     </div>
                     <div class="manual-wrapper hidden">
-                        <input type="text" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                               oninput="updateManualName(this)">
+                        <input type="text" name="products[${rowIndex}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
                     </div>
                     <div class="mt-2">
                         <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                        <input type="text" name="products[${rowIndex}][product_name]" class="product-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                        <input type="text" name="products[${rowIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                                placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
                     </div>
                 </td>
@@ -1068,5 +1110,61 @@
             $('#paymentMilestoneRatioSelect').val('custom');
             $('#paymentTermSelect').val('custom');
         });
+    </script>
+
+    {{-- SortableJS for drag-and-drop --}}
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        // Initialize Sortable on note and disclaimer lists
+        document.addEventListener('DOMContentLoaded', function() {
+            ['noteList', 'disclaimerList'].forEach(function(listId) {
+                const el = document.getElementById(listId);
+                if (el) {
+                    new Sortable(el, {
+                        handle: '.drag-handle',
+                        animation: 200,
+                        ghostClass: 'bg-blue-50',
+                        onEnd: function() { renumberList(listId); }
+                    });
+                }
+            });
+        });
+
+        function addNoteItem(listId) {
+            const list = document.getElementById(listId);
+            const count = list.querySelectorAll('.sortable-item').length;
+            const fieldName = listId === 'noteList' ? 'note[]' : 'disclaimer[]';
+            const ringColor = listId === 'noteList' ? 'focus:ring-blue-500' : 'focus:ring-amber-500';
+
+            const div = document.createElement('div');
+            div.className = 'sortable-item flex items-start gap-2 group';
+            div.innerHTML = `
+                <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">(${count + 1})</span>
+                <input type="text" name="${fieldName}" value=""
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${ringColor}"
+                    placeholder="${listId === 'noteList' ? 'Nhập ghi chú...' : 'Nhập cảnh báo...'}">
+                <button type="button" onclick="removeNoteItem(this)"
+                    class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+            `;
+            list.appendChild(div);
+
+            // Focus the new input
+            div.querySelector('input').focus();
+        }
+
+        function removeNoteItem(btn) {
+            const item = btn.closest('.sortable-item');
+            const list = item.parentElement;
+            item.remove();
+            renumberList(list.id);
+        }
+
+        function renumberList(listId) {
+            const list = document.getElementById(listId);
+            list.querySelectorAll('.sortable-item').forEach(function(item, index) {
+                item.querySelector('.note-number').textContent = '(' + (index + 1) + ')';
+            });
+        }
     </script>
 @endpush

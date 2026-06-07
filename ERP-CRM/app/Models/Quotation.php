@@ -27,6 +27,7 @@ class Quotation extends Model
         'payment_terms',
         'delivery_time',
         'note',
+        'disclaimer',
         'status',
         'current_approval_level',
         'created_by',
@@ -50,6 +51,44 @@ class Quotation extends Model
         'total_foreign' => 'decimal:4',
         'custom_columns' => 'array',
     ];
+
+    /**
+     * Get note as array (backward compatible with legacy plain-text)
+     */
+    public function getNoteArrayAttribute(): array
+    {
+        $raw = $this->attributes['note'] ?? null;
+        if (empty($raw)) return [];
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) return array_values(array_filter($decoded, fn($v) => trim($v) !== ''));
+        // Legacy plain-text: wrap in array
+        return [trim($raw)];
+    }
+
+    /**
+     * Get disclaimer as array
+     */
+    public function getDisclaimerArrayAttribute(): array
+    {
+        $raw = $this->attributes['disclaimer'] ?? null;
+        if (empty($raw)) return [];
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) return array_values(array_filter($decoded, fn($v) => trim($v) !== ''));
+        return [trim($raw)];
+    }
+
+    /**
+     * Default disclaimer items for new quotations
+     */
+    public static function defaultDisclaimer(): array
+    {
+        return [
+            'Hỗ trợ đăng ký và kích hoạt thiết bị/phần mềm trong vòng 30 ngày kể từ ngày bàn giao.',
+            'Chúng tôi được quyền từ chối cung cấp hàng nếu phát hiện tên dự án hoặc tên khách hàng không đúng với thông tin đăng ký ban đầu.',
+            'Trường hợp thiết bị đã được bàn giao không đúng tên khách hàng đã đăng ký, chúng tôi sẽ không chịu trách nhiệm về bảo hành và dịch vụ của sản phẩm.',
+            'Đối với khách hàng thuộc khối chính phủ phải được khai báo ngay từ đầu. Chúng tôi miễn chịu trách nhiệm đối với các trường hợp không khai báo.',
+        ];
+    }
 
     public function currency()
     {

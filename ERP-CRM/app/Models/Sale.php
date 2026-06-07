@@ -521,15 +521,24 @@ class Sale extends Model
         };
 
         // Thêm trạng thái tới hạn / quá hạn
-        if ($this->payment_status !== 'paid' && $this->payment_due_date) {
-            $today = now()->startOfDay();
-            $dueDate = $this->payment_due_date->startOfDay();
-            $daysUntilDue = $today->diffInDays($dueDate, false);
+        if ($this->payment_status !== 'paid') {
+            $dueDate = null;
+            if ($this->payment_due_date) {
+                $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
+            } elseif ($this->invoice_date) {
+                $debtDays = $this->customer?->debt_days ?? 30;
+                $dueDate = \Carbon\Carbon::parse($this->invoice_date)->addDays($debtDays)->startOfDay();
+            }
 
-            if ($daysUntilDue < 0) {
-                return 'Quá hạn ' . abs($daysUntilDue) . ' ngày';
-            } elseif ($daysUntilDue <= 3) {
-                return 'Tới hạn' . ($daysUntilDue > 0 ? " ({$daysUntilDue} ngày)" : ' (Hôm nay)');
+            if ($dueDate) {
+                $today = now()->startOfDay();
+                $daysUntilDue = $today->diffInDays($dueDate, false);
+
+                if ($daysUntilDue < 0) {
+                    return 'Quá hạn ' . abs($daysUntilDue) . ' ngày';
+                } elseif ($daysUntilDue <= 3) {
+                    return 'Tới hạn' . ($daysUntilDue > 0 ? " ({$daysUntilDue} ngày)" : ' (Hôm nay)');
+                }
             }
         }
 
@@ -542,15 +551,24 @@ class Sale extends Model
     public function getPaymentStatusColorAttribute(): string
     {
         // Ưu tiên hiển thị trạng thái tới hạn / quá hạn
-        if ($this->payment_status !== 'paid' && $this->payment_due_date) {
-            $today = now()->startOfDay();
-            $dueDate = $this->payment_due_date->startOfDay();
-            $daysUntilDue = $today->diffInDays($dueDate, false);
+        if ($this->payment_status !== 'paid') {
+            $dueDate = null;
+            if ($this->payment_due_date) {
+                $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
+            } elseif ($this->invoice_date) {
+                $debtDays = $this->customer?->debt_days ?? 30;
+                $dueDate = \Carbon\Carbon::parse($this->invoice_date)->addDays($debtDays)->startOfDay();
+            }
 
-            if ($daysUntilDue < 0) {
-                return 'bg-red-600 text-white animate-pulse';
-            } elseif ($daysUntilDue <= 3) {
-                return 'bg-orange-500 text-white';
+            if ($dueDate) {
+                $today = now()->startOfDay();
+                $daysUntilDue = $today->diffInDays($dueDate, false);
+
+                if ($daysUntilDue < 0) {
+                    return 'bg-red-600 text-white animate-pulse';
+                } elseif ($daysUntilDue <= 3) {
+                    return 'bg-orange-500 text-white';
+                }
             }
         }
 

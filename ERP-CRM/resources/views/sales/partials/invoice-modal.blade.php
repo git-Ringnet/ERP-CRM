@@ -83,6 +83,18 @@
         <form id="officialForm" method="POST" enctype="multipart/form-data" class="p-6">
             @csrf
             <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày xuất hóa đơn <span class="text-red-500">*</span></label>
+                        <input type="date" name="invoice_date" id="official_invoice_date" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Hạn thanh toán <span class="text-red-500">*</span></label>
+                        <input type="date" name="payment_due_date" id="official_payment_due_date" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">File hóa đơn chính thức <span class="text-blue-500 italic">(Không bắt buộc)</span></label>
                     <input type="file" name="official_file" accept=".pdf,image/*,.doc,.docx"
@@ -128,6 +140,8 @@
 </div>
 
 <script>
+const debtDays = parseInt("{{ $sale->customer->debt_days ?? 30 }}") || 30;
+
 function openInvoiceRequestModal() {
     document.getElementById('invoiceRequestModal').classList.remove('hidden');
 }
@@ -147,8 +161,53 @@ function closeDraftModal() {
 function openOfficialModal(requestId) {
     const form = document.getElementById('officialForm');
     form.action = `/invoice-requests/${requestId}/issue-official`;
+    
+    // Set default invoice date to today
+    const today = new Date();
+    const formattedToday = formatDate(today);
+    
+    const invoiceDateInput = document.getElementById('official_invoice_date');
+    
+    if (invoiceDateInput) {
+        invoiceDateInput.value = formattedToday;
+        updatePaymentDueDate(formattedToday);
+    }
+    
     document.getElementById('officialModal').classList.remove('hidden');
 }
+
+function formatDate(date) {
+    const d = new Date(date);
+    let month = '' + (d.getMonth() + 1);
+    let day = '' + d.getDate();
+    const year = d.getFullYear();
+
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+
+    return [year, month, day].join('-');
+}
+
+function updatePaymentDueDate(invoiceDateStr) {
+    if (!invoiceDateStr) return;
+    const invoiceDate = new Date(invoiceDateStr);
+    invoiceDate.setDate(invoiceDate.getDate() + debtDays);
+    const paymentDueDateInput = document.getElementById('official_payment_due_date');
+    if (paymentDueDateInput) {
+        paymentDueDateInput.value = formatDate(invoiceDate);
+    }
+}
+
+// Add event listener when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const invoiceDateInput = document.getElementById('official_invoice_date');
+    if (invoiceDateInput) {
+        invoiceDateInput.addEventListener('change', function() {
+            updatePaymentDueDate(this.value);
+        });
+    }
+});
+
 function closeOfficialModal() {
     document.getElementById('officialModal').classList.add('hidden');
 }

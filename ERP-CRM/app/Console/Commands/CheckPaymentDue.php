@@ -42,9 +42,10 @@ class CheckPaymentDue extends Command
     {
         $this->info('Bắt đầu kiểm tra hạn thanh toán các đơn hàng...');
 
-        // Quét các đơn hàng chưa thanh toán hết và không bị hủy, có thiết lập ngày hạn thanh toán
+        // Quét các đơn hàng chưa thanh toán hết và không bị hủy, đã xuất hóa đơn
         $sales = Sale::query()
-            ->whereNotNull('payment_due_date')
+            ->with('customer')
+            ->whereNotNull('invoice_date')
             ->where('payment_status', '!=', 'paid')
             ->where('status', '!=', 'cancelled')
             ->get();
@@ -60,7 +61,8 @@ class CheckPaymentDue extends Command
                 continue;
             }
 
-            $dueDate = Carbon::parse($sale->payment_due_date)->startOfDay();
+            $debtDays = $sale->customer?->debt_days ?? 30;
+            $dueDate = Carbon::parse($sale->invoice_date)->addDays($debtDays)->startOfDay();
             $daysUntilDue = $today->diffInDays($dueDate, false);
 
             if ($daysUntilDue >= 0 && $daysUntilDue <= 3) {
@@ -79,7 +81,7 @@ class CheckPaymentDue extends Command
                 }
 
                 $this->notificationService->notifyPaymentDueSoon($sale);
-                $this->line("✓ Đã gửi thông báo sắp tới hạn cho đơn hàng #{$sale->code} (Hạn: {$sale->payment_due_date})");
+                $this->line("✓ Đã gửi thông báo sắp tới hạn cho đơn hàng #{$sale->code} (Hạn: {$dueDate->toDateString()})");
                 $dueSoonCount++;
             } elseif ($daysUntilDue < 0) {
                 // Quá hạn
@@ -99,7 +101,7 @@ class CheckPaymentDue extends Command
                 }
 
                 $this->notificationService->notifyPaymentOverdue($sale, $overdueDays);
-                $this->line("✓ Đã gửi thông báo quá hạn ({$overdueDays} ngày) cho đơn hàng #{$sale->code} (Hạn: {$sale->payment_due_date})");
+                $this->line("✓ Đã gửi thông báo quá hạn ({$overdueDays} ngày) cho đơn hàng #{$sale->code} (Hạn: {$dueDate->toDateString()})");
                 $overdueCount++;
             }
         }

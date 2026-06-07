@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\QuotationsExport;
+use App\Exports\SingleQuotationExport;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\SupplierPriceList;
@@ -73,7 +74,9 @@ class QuotationController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
-        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId'));
+        $defaultDisclaimer = Quotation::defaultDisclaimer();
+
+        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId', 'defaultDisclaimer'));
     }
 
     private function generateCode(): string
@@ -94,6 +97,17 @@ class QuotationController extends Controller
     {
         $this->authorize('create', Quotation::class);
 
+        // Sanitize formatted prices (strip comma separators) before validation
+        if ($request->has('products')) {
+            $products = $request->input('products');
+            foreach ($products as $index => $item) {
+                if (isset($item['price'])) {
+                    $products[$index]['price'] = str_replace(',', '', $item['price']);
+                }
+            }
+            $request->merge(['products' => $products]);
+        }
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:quotations,code'],
             'customer_id' => ['required', 'exists:customers,id'],
@@ -105,9 +119,13 @@ class QuotationController extends Controller
             'vat' => ['nullable', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string'],
             'delivery_time' => ['nullable', 'string'],
-            'note' => ['nullable', 'string'],
+            'note' => ['nullable', 'array'],
+            'note.*' => ['nullable', 'string', 'max:2000'],
+            'disclaimer' => ['nullable', 'array'],
+            'disclaimer.*' => ['nullable', 'string', 'max:2000'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_name' => ['required', 'string'],
+            'products.*.product_name' => ['nullable', 'string'],
+            'products.*.description' => ['nullable', 'string'],
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
@@ -172,10 +190,10 @@ class QuotationController extends Controller
                     ? $total
                     : null,
                 'currency_id' => $validated['currency_id'] ?? Currency::getBaseCurrencyId(),
-                'exchange_rate' => $validated['exchange_rate'] ?? 1,
-                'payment_terms' => $validated['payment_terms'],
-                'delivery_time' => $validated['delivery_time'],
-                'note' => $validated['note'],
+                'payment_terms' => $validated['payment_terms'] ?? null,
+                'delivery_time' => $validated['delivery_time'] ?? null,
+                'note' => !empty($validated['note']) ? json_encode(array_values(array_filter($validated['note'], fn($v) => trim($v) !== ''))) : null,
+                'disclaimer' => !empty($validated['disclaimer']) ? json_encode(array_values(array_filter($validated['disclaimer'], fn($v) => trim($v) !== ''))) : null,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
                 'custom_columns' => $validated['custom_columns'] ?? null,
@@ -183,7 +201,7 @@ class QuotationController extends Controller
 
             foreach ($validated['products'] as $item) {
                 $productId = null;
-                $productName = $item['product_name'];
+                $productName = $item['product_name'] ?? '';
                 $productCode = null;
 
                 $syncKey = !empty($item['product_id']) ? $item['product_id'] : $item['product_name'];
@@ -192,6 +210,10 @@ class QuotationController extends Controller
                     if ($product) {
                         $productId = $product->id;
                         $productCode = $product->code;
+                        // For products from catalog: product_name = product name, auto-fill if empty
+                        if (empty($productName)) {
+                            $productName = $product->name;
+                        }
                     }
                 }
 
@@ -204,6 +226,7 @@ class QuotationController extends Controller
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
                     'product_name' => $productName,
+                    'description' => $item['description'] ?? null,
                     'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
@@ -262,6 +285,17 @@ class QuotationController extends Controller
             return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
         }
 
+        // Sanitize formatted prices (strip comma separators) before validation
+        if ($request->has('products')) {
+            $products = $request->input('products');
+            foreach ($products as $index => $item) {
+                if (isset($item['price'])) {
+                    $products[$index]['price'] = str_replace(',', '', $item['price']);
+                }
+            }
+            $request->merge(['products' => $products]);
+        }
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('quotations')->ignore($quotation->id)],
             'customer_id' => ['required', 'exists:customers,id'],
@@ -273,9 +307,13 @@ class QuotationController extends Controller
             'vat' => ['nullable', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string'],
             'delivery_time' => ['nullable', 'string'],
-            'note' => ['nullable', 'string'],
+            'note' => ['nullable', 'array'],
+            'note.*' => ['nullable', 'string', 'max:2000'],
+            'disclaimer' => ['nullable', 'array'],
+            'disclaimer.*' => ['nullable', 'string', 'max:2000'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_name' => ['required', 'string'],
+            'products.*.product_name' => ['nullable', 'string'],
+            'products.*.description' => ['nullable', 'string'],
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
@@ -294,7 +332,6 @@ class QuotationController extends Controller
             'contact_id.required' => 'Vui lòng chọn người phụ trách (P.I.C).',
             'title.required' => 'Vui lòng nhập tiêu đề.',
             'products.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
-            'products.*.product_name.required' => 'Vui lòng nhập tên sản phẩm.',
         ]);
 
         DB::beginTransaction();
@@ -343,7 +380,8 @@ class QuotationController extends Controller
                 'exchange_rate' => $validated['exchange_rate'] ?? 1,
                 'payment_terms' => $validated['payment_terms'] ?? null,
                 'delivery_time' => $validated['delivery_time'] ?? null,
-                'note' => $validated['note'] ?? null,
+                'note' => !empty($validated['note']) ? json_encode(array_values(array_filter($validated['note'], fn($v) => trim($v) !== ''))) : null,
+                'disclaimer' => !empty($validated['disclaimer']) ? json_encode(array_values(array_filter($validated['disclaimer'], fn($v) => trim($v) !== ''))) : null,
                 'status' => 'draft',
                 'custom_columns' => $validated['custom_columns'] ?? null,
             ]);
@@ -352,7 +390,7 @@ class QuotationController extends Controller
 
             foreach ($validated['products'] as $item) {
                 $productId = null;
-                $productName = $item['product_name'];
+                $productName = $item['product_name'] ?? '';
                 $productCode = null;
 
                 $syncKey = !empty($item['product_id']) ? $item['product_id'] : $item['product_name'];
@@ -361,6 +399,9 @@ class QuotationController extends Controller
                     if ($product) {
                         $productId = $product->id;
                         $productCode = $product->code;
+                        if (empty($productName)) {
+                            $productName = $product->name;
+                        }
                     }
                 }
 
@@ -373,6 +414,7 @@ class QuotationController extends Controller
                     'quotation_id' => $quotation->id,
                     'product_id' => $productId,
                     'product_name' => $productName,
+                    'description' => $item['description'] ?? null,
                     'product_code' => $productCode,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
@@ -435,7 +477,7 @@ class QuotationController extends Controller
             ->map(function ($p) {
                 return [
                     'id' => 'p-' . $p->id,
-                    'text' => "[KHO] {$p->code} - {$p->name}",
+                    'text' => $p->code,
                     'sku' => $p->code,
                     'name' => $p->name,
                     'description' => $p->description,
@@ -469,7 +511,7 @@ class QuotationController extends Controller
                 $calculated = $primaryPrice > 0 ? $pl->calculateFinalPrice($primaryPrice) : null;
                 return [
                     'id' => 'c-' . $item->id,
-                    'text' => "[HÃNG] {$item->sku} - {$item->product_name}",
+                    'text' => $item->sku,
                     'sku' => $item->sku,
                     'name' => $item->product_name,
                     'description' => $item->description,
@@ -602,6 +644,7 @@ class QuotationController extends Controller
                 'payment_terms' => $quotation->payment_terms,
                 'delivery_time' => $quotation->delivery_time,
                 'note' => $quotation->note,
+                'disclaimer' => $quotation->disclaimer,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
                 'custom_columns' => $quotation->custom_columns,
@@ -670,6 +713,29 @@ class QuotationController extends Controller
         $filename = 'bao-gia-' . date('Y-m-d') . '.xlsx';
 
         return Excel::download(new QuotationsExport($filters), $filename);
+    }
+
+    /**
+     * Export single quotation to Excel
+     */
+    public function exportSingle(Quotation $quotation)
+    {
+        if (!auth()->user()->can('view', $quotation)) {
+            abort(404);
+        }
+
+        $quotation->load('items', 'customer', 'currency', 'contact');
+        $filename = 'bao-gia-' . $quotation->code . '.xlsx';
+
+        libxml_use_internal_errors(true);
+        try {
+            $download = Excel::download(new SingleQuotationExport($quotation), $filename);
+            libxml_clear_errors();
+            return $download;
+        } catch (\Exception $e) {
+            libxml_clear_errors();
+            throw $e;
+        }
     }
 
     /**
