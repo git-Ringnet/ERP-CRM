@@ -20,14 +20,6 @@ class PurchaseOrderRequestController extends Controller
     public function __construct(CurrencyService $currencyService)
     {
         $this->currencyService = $currencyService;
-
-        // Phân quyền: Duyệt yêu cầu (PR)
-        $this->middleware('permission:view_pr_approvals')->only(['index', 'deletedList']);
-        $this->middleware('permission:edit_pr_approvals')->only(['verify', 'updateNote', 'destroy', 'restore']);
-
-        // Phân quyền: Gom đơn cần đặt
-        $this->middleware('permission:view_needs_ordering')->only(['needsOrdering']);
-        $this->middleware('permission:create_needs_ordering')->only(['storeFromPr', 'cancelItem', 'restoreItem']);
     }
 
     /**
