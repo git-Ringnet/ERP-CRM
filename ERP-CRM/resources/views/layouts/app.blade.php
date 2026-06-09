@@ -119,7 +119,7 @@
                     </a>
                 @endcan
 
-                {{-- <div class="mt-4">
+                <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                         onclick="toggleDropdown('personal')">
                         <div class="flex items-center">
@@ -141,7 +141,7 @@
                             <span class="ml-3 sidebar-text whitespace-nowrap">Địa điểm làm việc</span>
                         </a>
                     </div>
-                </div> --}}
+                </div>
 
                 @canany(['view_customers', 'view_suppliers', 'view_employees', 'view_products'])
                     <div class="mt-4">
@@ -292,7 +292,7 @@
                 </div>
                 @endcan --}}
 
-                {{-- <div class="mt-4">
+                <div class="mt-4">
                     <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider sidebar-text">Lịch biểu
                     </p>
 
@@ -301,7 +301,7 @@
                         <i class="fas fa-calendar-alt w-6 flex-shrink-0"></i>
                         <span class="ml-3 sidebar-text whitespace-nowrap">Lịch làm việc</span>
                     </a>
-                </div> --}}
+                </div>
 
                 @if(false)
                     <div class="mt-4">
@@ -573,12 +573,12 @@
                             </a>
 
                             <!-- @can('view_shipping_allocations')
-                                                                                        <a href="{{ route('shipping-allocations.index') }}"
-                                                                                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                        </a>
-                                                                                    @endcan -->
+                                                                                                <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                    <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                    <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                                </a>
+                                                                                            @endcan -->
 
                             <a href="{{ route('purchase-reports.index') }}"
                                 class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-reports.*') ? 'bg-primary text-white' : '' }}">

@@ -15,14 +15,14 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         // Check if admin user already exists
-        $user = \App\Models\User::where('email', 'admin@erp.com')->first();
+        $user = \App\Models\User::where('email', 'admin@demo.com')->first();
         
         if (!$user) {
             $user = \App\Models\User::create([
                 'employee_code' => 'ADMIN001',
                 'name' => 'Administrator',
-                'email' => 'admin@erp.com',
-                'password' => Hash::make('password'),
+                'email' => 'admin@demo.com',
+                'password' => Hash::make('123456'),
                 'phone' => '0901234567',
                 'department' => 'IT',
                 'position' => 'System Administrator',
@@ -30,9 +30,12 @@ class AdminUserSeeder extends Seeder
                 'join_date' => now(),
             ]);
             
-            $this->command->info('Admin user created: admin@erp.com / password');
+            $this->command->info('Admin user created: admin@demo.com / 123456');
         } else {
-            $this->command->info('Admin user already exists.');
+            $user->update([
+                'password' => Hash::make('123456')
+            ]);
+            $this->command->info('Admin user already exists. Password updated to 123456.');
         }
         
         // Assign Super Admin role

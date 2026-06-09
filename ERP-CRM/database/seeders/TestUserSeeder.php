@@ -16,70 +16,38 @@ class TestUserSeeder extends Seeder
      */
     public function run(): void
     {
-        $password = Hash::make('password');
+        $password = Hash::make('123456');
         $now = Carbon::now();
-
+ 
         $testUsers = [
             [
-                'email' => 'sales_manager@erp.com',
-                'name' => 'Sales Manager User',
-                'employee_code' => 'SM001',
-                'role_slug' => 'sales_manager',
-                'position' => 'Sales Manager',
-                'department' => 'Sales'
+                'email' => 'ketoan@demo.com',
+                'name' => 'Demo Kế Toán',
+                'employee_code' => 'KT001',
+                'role_slug' => 'accountant',
+                'position' => 'Accountant',
+                'department' => 'Finance'
             ],
             [
-                'email' => 'sales_staff@erp.com',
-                'name' => 'Sales Staff User',
-                'employee_code' => 'SS001',
-                'role_slug' => 'sales_staff',
-                'position' => 'Sales Staff',
-                'department' => 'Sales'
-            ],
-            [
-                'email' => 'legal@erp.com',
-                'name' => 'Legal Team User',
-                'employee_code' => 'LG001',
-                'role_slug' => 'legal_team',
-                'position' => 'Legal Officer',
-                'department' => 'Legal'
-            ],
-            [
-                'email' => 'bod@erp.com',
-                'name' => 'BOD User',
-                'employee_code' => 'BOD001',
-                'role_slug' => 'director',
-                'position' => 'Director',
-                'department' => 'BOD'
-            ],
-            [
-                'email' => 'logistic@erp.com',
-                'name' => 'Logistic Team User',
-                'employee_code' => 'LO001',
+                'email' => 'quankho@demo.com',
+                'name' => 'Demo Thủ Kho',
+                'employee_code' => 'QK001',
                 'role_slug' => 'warehouse_manager',
                 'position' => 'Logistic Manager',
                 'department' => 'Logistic'
             ],
             [
-                'email' => 'po@erp.com',
-                'name' => 'PO Team User',
-                'employee_code' => 'PO001',
-                'role_slug' => 'purchase_manager',
-                'position' => 'PO Manager',
-                'department' => 'PO'
-            ],
-            [
-                'email' => 'finance@erp.com',
-                'name' => 'Finance Team User',
-                'employee_code' => 'FN001',
-                'role_slug' => 'accountant',
-                'position' => 'Accountant',
-                'department' => 'Finance'
+                'email' => 'baohanh@demo.com',
+                'name' => 'Demo Bảo Hành',
+                'employee_code' => 'BH001',
+                'role_slug' => 'sales_staff',
+                'position' => 'Sales Staff',
+                'department' => 'Sales'
             ],
         ];
-
+ 
         // Get admin user for 'assigned_by' reference
-        $admin = User::where('email', 'admin@erp.com')->first();
+        $admin = User::where('email', 'admin@demo.com')->first();
         $adminId = $admin ? $admin->id : 1;
 
         foreach ($testUsers as $userData) {

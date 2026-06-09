@@ -49,7 +49,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '0923456789',
                 'address' => '789 Trần Hưng Đạo, Quận 5, TP.HCM',
                 'type' => 'normal',
-                'tax_code' => null,
+                'tax_code' => '0246813579',
                 'website' => null,
                 'contact_person' => 'Lê Văn C',
                 'debt_limit' => 50000000,
@@ -77,7 +77,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '0945678901',
                 'address' => '654 Võ Văn Tần, Quận 3, TP.HCM',
                 'type' => 'normal',
-                'tax_code' => null,
+                'tax_code' => '1357924680',
                 'website' => 'https://hanhphuc.shop',
                 'contact_person' => 'Hoàng Văn E',
                 'debt_limit' => 20000000,
@@ -87,10 +87,29 @@ class CustomerSeeder extends Seeder
         ];
 
         $now = Carbon::now();
-        foreach ($customers as $customer) {
-            $customer['created_at'] = $now;
-            $customer['updated_at'] = $now;
-            DB::table('customers')->insert($customer);
+        foreach ($customers as $customerData) {
+            $contactPerson = $customerData['contact_person'] ?? null;
+            
+            // Remove columns that don't exist in the current customers schema
+            unset($customerData['code']);
+            unset($customerData['contact_person']);
+            
+            $customerData['created_at'] = $now;
+            $customerData['updated_at'] = $now;
+            
+            $customerId = DB::table('customers')->insertGetId($customerData);
+            
+            if ($contactPerson) {
+                DB::table('contacts')->insert([
+                    'customer_id' => $customerId,
+                    'name' => $contactPerson,
+                    'phone' => $customerData['phone'],
+                    'email' => $customerData['email'],
+                    'is_primary' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
         }
     }
 }

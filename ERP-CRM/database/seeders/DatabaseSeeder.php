@@ -13,46 +13,44 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-                // RBAC - Permissions and Roles (phải chạy trước để tạo permissions và roles)
+            // RBAC - Permissions and Roles
             PermissionSeeder::class,
             RoleSeeder::class,
 
-                // Admin user - chạy sau khi đã có roles và permissions
+            // Admin & Test users
             AdminUserSeeder::class,
             TestUserSeeder::class,
-                // Base data - phải chạy trước
-                // CustomerSeeder::class,
-                // SupplierSeeder::class,
-                // EmployeeSeeder::class,
-                // ProductSeeder::class,          // Bật lại ProductSeeder
+
+            // Base data
+            CustomerSeeder::class,
+            SupplierSeeder::class,
+            EmployeeSeeder::class,
+            ProductSeeder::class,
             WarehouseSeeder::class,
-            CurrencySeeder::class, //tien te chinh
-            ApprovalWorkflowSeeder::class, // Quy trình duyệt
-            // InventorySeeder::class,
-            // // New separate seeders for imports, exports, transfers
-            // ImportSeeder::class,
-            // ExportSeeder::class,
-            // TransferSeeder::class,
-            // DamagedGoodSeeder::class,
+            CurrencySeeder::class,
+            
+            // Inventory
+            InventorySeeder::class,
+            ImportSeeder::class,
+            ExportSeeder::class,
+            TransferSeeder::class,
+            DamagedGoodSeeder::class,
 
-            // // Module Bán hàng - chạy sau khi có Customer & Product
-            // PriceListSeeder::class,       // Bảng giá
-            // ProjectSeeder::class,          // Quản lý dự án
-            // SaleSeeder::class,             // Đơn hàng bán
-            // QuotationSeeder::class,        // Báo giá
-            // CostFormulaSeeder::class,      // Công thức chi phí
-            // PaymentHistorySeeder::class,   // Công nợ khách hàng
+            // Sales module
+            PriceListSeeder::class,
+            ProjectSeeder::class,
+            SaleSeeder::class,
+            QuotationSeeder::class,
+            CostFormulaSeeder::class,
+            PaymentHistorySeeder::class,
 
-            // // Module Mua hàng
-            // PurchaseRequestSeeder::class,  // Yêu cầu đặt hàng
-            // SupplierQuotationSeeder::class, // Báo giá NCC
-            // PurchaseOrderSeeder::class,    // Đơn mua hàng
+            // Purchase module
+            PurchaseRequestSeeder::class,
+            SupplierQuotationSeeder::class,
+            PurchaseOrderSeeder::class,
 
-            // // Module Quy trình
-            // ApprovalWorkflowSeeder::class, // Quy trình duyệt
-
-            //NCC
-            SupplierSeeder::class
+            // Approval workflow
+            ApprovalWorkflowSeeder::class,
         ]);
     }
 }
