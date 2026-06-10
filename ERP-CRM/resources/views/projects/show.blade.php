@@ -111,7 +111,7 @@
                     </div>
                     <div class="flex items-center justify-between py-2 border-b border-gray-50">
                         <span class="text-sm text-gray-500">Distributor</span>
-                        <span class="text-sm font-medium text-gray-800">Tech Horizon Corporation</span>
+                        <span class="text-sm font-medium text-gray-800">Demo Distributor</span>
                     </div>
                     <div class="flex items-center justify-between py-2">
                         <span class="text-sm text-gray-500">Distributor AM</span>
@@ -261,7 +261,7 @@
                         @endif
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 mb-1">Net to Tech Horizon</p>
+                        <p class="text-xs text-gray-400 mb-1">Net to Partner</p>
                         <p class="text-sm font-medium text-gray-800">{{ $project->net_to_tech_horizon ? number_format($project->net_to_tech_horizon) . ' đ' : '-' }}</p>
                     </div>
                     <div>

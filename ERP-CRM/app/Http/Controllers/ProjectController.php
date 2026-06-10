@@ -722,7 +722,7 @@ class ProjectController extends Controller
             'estimated_close_months' => 'Thời hạn dự kiến',
             'bom_file' => 'File BOM',
             'bom_data' => 'Nội dung BOM',
-            'net_to_tech_horizon' => 'Net to Tech Horizon',
+            'net_to_tech_horizon' => 'Net to Partner',
             'stage' => 'Giai đoạn',
             'deal_type' => 'Loại deal',
         ];

@@ -11,7 +11,7 @@
         @endphp
         
         <tr>
-            <td colspan="4"><strong>CÔNG TY TNHH RINGNET</strong></td>
+            <td colspan="4"><strong>CÔNG TY TNHH MINI ERP</strong></td>
             <td colspan="2" align="right"><strong>{{ $formCode }}</strong></td>
         </tr>
         <tr>

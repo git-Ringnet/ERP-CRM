@@ -163,7 +163,7 @@
                                     Chủ đề / Tên hoạt động <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="name" value="{{ old('name', $opportunity->name) }}" required
-                                    placeholder="Ví dụ: Demo tường lửa Sophos cho TechHorizon..."
+                                    placeholder="Ví dụ: Demo tường lửa cho khách hàng..."
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                                 @error('name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
@@ -257,7 +257,7 @@
                             <!-- Quà tặng / giveaway -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Quà tặng / Giveaway cho khách hàng</label>
-                                <textarea name="giveaway" rows="2" placeholder="VD: Lịch công ty, sổ tay Horizon..."
+                                <textarea name="giveaway" rows="2" placeholder="VD: Lịch công ty, sổ tay quà tặng..."
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">{{ old('giveaway', $opportunity->giveaway) }}</textarea>
                             </div>
                         </div>

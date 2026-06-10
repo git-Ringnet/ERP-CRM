@@ -33,11 +33,11 @@
         
         <!-- Header Section -->
         <tr>
-            <td colspan="5"><strong>{{ \App\Models\Setting::get('company_name', 'CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ CÔNG NGHỆ CHÂN TRỜI') }}</strong></td>
+            <td colspan="5"><strong>{{ \App\Models\Setting::get('company_name', 'CÔNG TY CỔ PHẦN CÔNG NGHỆ DEMO') }}</strong></td>
             <td colspan="4" align="right"><strong>{{ $formCode }}</strong></td>
         </tr>
         <tr>
-            <td colspan="5">Địa chỉ: {{ \App\Models\Setting::get('company_address', 'Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng,') }}</td>
+            <td colspan="5">Địa chỉ: {{ \App\Models\Setting::get('company_address', 'Số 123 Đường ABC, Quận 1, TP. Hồ Chí Minh,') }}</td>
             <td colspan="4" align="right"><font size="2">(Ban hành theo Thông tư số 133/2016/TT-BTC</font></td>
         </tr>
         <tr>

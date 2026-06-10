@@ -912,7 +912,7 @@
             <!-- Footer -->
             {{-- <footer class="bg-white border-t border-gray-200 py-3 sm:py-4 px-4 sm:px-6 flex-shrink-0">
                 <div class="text-center text-gray-500 text-xs sm:text-sm">
-                    &copy; {{ date('Y') }} Mini ERP. Created by Ringnet.
+                    &copy; {{ date('Y') }} Mini ERP. Created by ERP Team.
                 </div>
             </footer> --}}
         </div>

@@ -140,7 +140,7 @@
     use App\Models\Setting;
     use App\Helpers\NumberHelper;
 
-    $companyName    = Setting::get('company_name', 'CÔNG TY TNHH RINGNET');
+    $companyName    = Setting::get('company_name', 'CÔNG TY TNHH MINI ERP');
     $companyAddress = Setting::get('company_address', '');
     $companyPhone   = Setting::get('company_phone', '');
     $companyLogo    = Setting::get('company_logo');

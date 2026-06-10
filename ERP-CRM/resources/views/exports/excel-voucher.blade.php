@@ -1,6 +1,6 @@
 <table>
     <tr>
-        <td>{{ \App\Models\Setting::get('company_name', 'CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ CÔNG NGHỆ CHÂN TRỜI') }}</td>
+        <td>{{ \App\Models\Setting::get('company_name', 'CÔNG TY CỔ PHẦN CÔNG NGHỆ DEMO') }}</td>
         <td></td>
         <td></td>
         <td></td>
@@ -10,7 +10,7 @@
         <td></td>
     </tr>
     <tr>
-        <td>Địa chỉ: {{ \App\Models\Setting::get('company_address', 'Số 22 đường số 9 KDC Trung Sơn, ấp 49, Xã Bình Hưng') }}</td>
+        <td>Địa chỉ: {{ \App\Models\Setting::get('company_address', 'Số 123 Đường ABC, Quận 1, TP. Hồ Chí Minh') }}</td>
         <td></td>
         <td></td>
         <td></td>

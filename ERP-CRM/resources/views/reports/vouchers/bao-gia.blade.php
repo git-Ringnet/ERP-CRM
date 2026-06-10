@@ -18,7 +18,7 @@
 <body>
 @php
     use App\Models\Setting;
-    $companyName    = Setting::get('company_name', 'CÔNG TY TNHH RINGNET');
+    $companyName    = Setting::get('company_name', 'CÔNG TY TNHH MINI ERP');
     $companyAddress = Setting::get('company_address', 'TP. Hồ Chí Minh');
     $companyPhone   = Setting::get('company_phone', '');
     $companyEmail   = Setting::get('company_email', '');

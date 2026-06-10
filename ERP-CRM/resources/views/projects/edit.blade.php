@@ -33,7 +33,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Distributor</label>
-                                <input type="text" value="Tech Horizon Corporation" disabled
+                                <input type="text" value="Demo Distributor" disabled
                                     class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed">
                             </div>
                             <div class="md:col-span-2">
@@ -367,7 +367,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Net to Tech Horizon</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Net to Partner</label>
                                 <div class="relative">
                                     <input type="text" id="net_display" oninput="formatCurrency(this, 'net_to_tech_horizon')"
                                         value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) ? number_format(old('net_to_tech_horizon', $project->net_to_tech_horizon)) : '' }}"
