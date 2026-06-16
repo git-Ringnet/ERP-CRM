@@ -24,6 +24,8 @@ class SaleItem extends Model
         'project_id',
         'quantity',
         'price',
+        'vat',
+        'vat_amount',
         'cost_price',
         'total',
         'cost_total',
@@ -54,6 +56,8 @@ class SaleItem extends Model
     protected $casts = [
         'quantity' => 'integer',
         'price' => 'decimal:2',
+        'vat' => 'decimal:2',
+        'vat_amount' => 'decimal:2',
         'cost_price' => 'decimal:2',
         'total' => 'decimal:2',
         'cost_total' => 'decimal:2',

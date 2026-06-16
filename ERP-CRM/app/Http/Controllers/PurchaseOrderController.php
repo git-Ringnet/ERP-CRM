@@ -132,15 +132,20 @@ class PurchaseOrderController extends Controller
             'code' => 'required|unique:purchase_orders,code',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
-            'cpq_number' => 'nullable|string|max:255',
+            'cpq_number' => 'required|string|max:255',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
             'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.sale_order_request_item_id' => 'nullable|exists:sale_order_request_items,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit' => 'nullable|string|max:255',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
+        ], [], [
+            'code' => 'Mã PO',
+            'cpq_number' => 'CPQ đơn hàng',
         ]);
 
         DB::beginTransaction();
@@ -249,21 +254,28 @@ class PurchaseOrderController extends Controller
         }
 
         $validated = $request->validate([
+            'code' => 'required|string|max:255|unique:purchase_orders,code,' . $purchaseOrder->id,
             'expected_delivery' => 'nullable|date',
-            'cpq_number' => 'nullable|string|max:255',
+            'cpq_number' => 'required|string|max:255',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
             'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.sale_order_request_item_id' => 'nullable|exists:sale_order_request_items,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit' => 'nullable|string|max:255',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.warehouse_unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0|max:100',
+        ], [], [
+            'code' => 'Mã PO',
+            'cpq_number' => 'CPQ đơn hàng',
         ]);
 
         DB::beginTransaction();
         try {
             $purchaseOrder->update([
+                'code' => $validated['code'],
                 'expected_delivery' => $this->parseDate($request->expected_delivery),
                 'cpq_number' => $validated['cpq_number'] ?? null,
                 'expected_arrival_date' => $this->parseDate($request->expected_arrival_date),

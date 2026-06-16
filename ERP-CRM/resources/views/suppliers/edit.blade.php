@@ -28,7 +28,7 @@
             this.contacts.forEach((c, i) => c.is_primary = (i === index));
         },
         updateFullName(index) {
-            this.contacts[index].name = (this.contacts[index].first_name + ' ' + this.contacts[index].last_name).trim();
+            this.contacts[index].name = ((this.contacts[index].last_name || '') + ' ' + (this.contacts[index].first_name || '')).trim();
         },
         errors: {{ json_encode($errors->toArray()) }}
     }">

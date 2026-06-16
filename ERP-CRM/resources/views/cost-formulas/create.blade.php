@@ -111,7 +111,7 @@
                 <select name="apply_conditions[customer_ids][]" multiple size="5"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                     @foreach($customers as $customer)
-                        <option value="{{ $customer->id }}">{{ $customer->name }} ({{ $customer->code }})</option>
+                        <option value="{{ $customer->id }}">{{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}</option>
                     @endforeach
                 </select>
                 <p class="text-xs text-gray-500 mt-1">Giữ Ctrl để chọn nhiều khách hàng</p>

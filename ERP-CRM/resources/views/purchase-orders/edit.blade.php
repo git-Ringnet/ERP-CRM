@@ -20,13 +20,16 @@
         
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO</label>
-                <input type="text" value="{{ $purchaseOrder->code }}" readonly 
-                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mã PO <span class="text-red-500">*</span></label>
+                <input type="text" name="code" value="{{ old('code', $purchaseOrder->code) }}" required 
+                    class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 @error('code') border-red-500 @enderror">
+                @error('code')
+                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                @enderror
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng</label>
-                <input type="text" name="cpq_number" value="{{ old('cpq_number', $purchaseOrder->cpq_number) }}" 
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                <input type="text" name="cpq_number" value="{{ old('cpq_number', $purchaseOrder->cpq_number) }}" required
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
             </div>
             <div>

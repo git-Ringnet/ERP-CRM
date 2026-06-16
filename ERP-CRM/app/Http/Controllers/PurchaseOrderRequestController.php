@@ -251,9 +251,11 @@ class PurchaseOrderRequestController extends Controller
             'items.*.pr_item_id' => 'required|exists:sale_order_request_items,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'note' => 'nullable|string|max:2000',
-            'cpq_number' => 'nullable|string|max:255',
+            'cpq_number' => 'required|string|max:255',
             'currency_id' => 'required|exists:currencies,id',
             'exchange_rate' => 'required|numeric|min:0',
+        ], [], [
+            'cpq_number' => 'CPQ đơn hàng',
         ]);
 
         DB::beginTransaction();

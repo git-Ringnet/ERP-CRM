@@ -342,10 +342,10 @@
                         <td>
                             <strong>{{ $item->product_code ?: $item->product_name }}</strong>
                             @if($item->product_code)
-                                <br><small style="color: #666;">{{ $item->description ?: $item->product_name }}</small>
+                                <br><small style="color: #666; white-space: pre-line;">{{ $item->description ?: $item->product_name }}</small>
                             @else
                                 @if($item->description)
-                                    <br><small style="color: #666;">{{ $item->description }}</small>
+                                    <br><small style="color: #666; white-space: pre-line;">{{ $item->description }}</small>
                                 @endif
                             @endif
                         </td>
@@ -358,7 +358,7 @@
                                 {{ number_format($itemPriceVnd) }} đ
                             @endif
                         </td>
-                        <td class="text-center">{{ (float)$item->vat }}%</td>
+                        <td class="text-center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
                         @foreach($customColumns as $colName)
                             <td>{{ $item->custom_fields[$colName] ?? '' }}</td>
                         @endforeach

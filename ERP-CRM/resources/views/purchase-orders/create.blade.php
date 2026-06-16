@@ -34,8 +34,8 @@
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng</label>
-                <input type="text" name="cpq_number" value="{{ old('cpq_number') }}" placeholder="CPQ/non"
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                <input type="text" name="cpq_number" value="{{ old('cpq_number') }}" placeholder="CPQ/non" required
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
             </div>
             <div>

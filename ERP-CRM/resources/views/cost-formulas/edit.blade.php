@@ -121,7 +121,7 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                         @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" {{ in_array($customer->id, $selectedCustomers) ? 'selected' : '' }}>
-                                {{ $customer->name }} ({{ $customer->code }})
+                                {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                             </option>
                         @endforeach
                     </select>

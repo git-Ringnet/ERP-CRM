@@ -132,7 +132,10 @@ class Quotation extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('code', 'like', "%{$search}%")
               ->orWhere('customer_name', 'like', "%{$search}%")
-              ->orWhere('title', 'like', "%{$search}%");
+              ->orWhere('title', 'like', "%{$search}%")
+              ->orWhereHas('convertedSale', function ($sq) use ($search) {
+                  $sq->where('code', 'like', "%{$search}%");
+              });
         });
     }
 

@@ -138,8 +138,14 @@
     <tr>
         <td class="border center">{{ $index + 1 }}</td>
         <td class="border left">
-            <b>{{ $item->product_code ?: $item->product_name }}</b>@if($item->product_code && $item->description)
-{{ $item->description }}@endif
+            <b>{{ $item->product_code ?: $item->product_name }}</b>
+            @if($item->product_code)
+                <br><span style="color: #555; font-size: 10pt;">{!! nl2br(e($item->description ?: $item->product_name)) !!}</span>
+            @else
+                @if($item->description)
+                    <br><span style="color: #555; font-size: 10pt;">{!! nl2br(e($item->description)) !!}</span>
+                @endif
+            @endif
         </td>
         <td class="border center">{{ number_format($item->quantity) }}</td>
         <td class="border right">
@@ -149,7 +155,7 @@
                 {{ number_format($priceVal) }}
             @endif
         </td>
-        <td class="border center">{{ (float)$item->vat }}%</td>
+        <td class="border center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
         @foreach($customColumns as $colName)
             <td class="border left">{{ $item->custom_fields[$colName] ?? '' }}</td>
         @endforeach

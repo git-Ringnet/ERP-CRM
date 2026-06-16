@@ -147,9 +147,43 @@
         </div>
 
         <!-- Order Duration Status Alert -->
-        @if($purchaseOrder->status !== 'received' && $purchaseOrder->status !== 'cancelled')
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Days Since Order -->
+        <!-- Order Duration Status Alert -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Days Since Order -->
+            @if($purchaseOrder->status === 'received')
+                @php
+                    $daysToComplete = $purchaseOrder->actual_delivery ? $orderDate->diffInDays($purchaseOrder->actual_delivery) : $daysElapsed;
+                    $weeksToComplete = floor($daysToComplete / 7);
+                @endphp
+                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-check-double text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Hoàn thành sau</p>
+                            <p class="text-xl font-bold text-green-600">
+                                {{ $daysToComplete }} ngày
+                                <span class="text-sm font-normal text-gray-500">({{ $weeksToComplete }} tuần)</span>
+                            </p>
+                            <p class="text-xs text-gray-400">Từ {{ $orderDate->format('d/m/Y') }} đến {{ $purchaseOrder->actual_delivery->format('d/m/Y') }}</p>
+                        </div>
+                    </div>
+                </div>
+            @elseif($purchaseOrder->status === 'cancelled')
+                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-red-100 text-red-600">
+                            <i class="fas fa-ban text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Trạng thái đơn hàng</p>
+                            <p class="text-xl font-bold text-red-600">Đã hủy đơn</p>
+                            <p class="text-xs text-gray-400">Đơn hàng không được xử lý</p>
+                        </div>
+                    </div>
+                </div>
+            @else
                 <div
                     class="bg-white rounded-lg shadow p-4 {{ $isLongWaiting ? 'border-l-4 border-orange-500' : 'border-l-4 border-blue-500' }}">
                     <div class="flex items-center">
@@ -172,8 +206,38 @@
                         </div>
                     @endif
                 </div>
+            @endif
 
-                <!-- Expected Arrival - chỉ hiển khi có expected_arrival_date từ tracking -->
+            <!-- Expected Arrival -->
+            @if($purchaseOrder->status === 'received')
+                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-box-open text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Thực tế nhận hàng</p>
+                            <p class="text-xl font-bold text-green-600">
+                                {{ $purchaseOrder->actual_delivery->format('d/m/Y') }}
+                            </p>
+                            <p class="text-xs text-gray-400">Đã nhập kho hoàn tất</p>
+                        </div>
+                    </div>
+                </div>
+            @elseif($purchaseOrder->status === 'cancelled')
+                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-300">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-gray-100 text-gray-500">
+                            <i class="fas fa-times-circle text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-500">Ngày nhận hàng</p>
+                            <p class="text-xl font-bold text-gray-500">-</p>
+                            <p class="text-xs text-gray-400">Không nhận hàng</p>
+                        </div>
+                    </div>
+                </div>
+            @else
                 @if($purchaseOrder->expected_arrival_date)
                 <div
                     class="bg-white rounded-lg shadow p-4 {{ $isOverdue ? 'border-l-4 border-red-500' : ($isNearDelivery ? 'border-l-4 border-green-500' : 'border-l-4 border-gray-300') }}">
@@ -212,35 +276,51 @@
                         </div>
                     @endif
                 </div>
-                @endif
-
-                <!-- Order Value Summary -->
-                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+                @else
+                <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-300">
                     <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-primary/10 text-primary">
-                            <i class="fas fa-file-invoice-dollar text-xl"></i>
+                        <div class="p-3 rounded-full bg-gray-100 text-gray-400">
+                            <i class="fas fa-truck text-xl"></i>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm text-gray-500">Tổng giá trị PO</p>
-                            @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
-                                <p class="text-xl font-bold text-primary">
-                                    @php 
-                                        $totalVal = $purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1));
-                                        $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : ($purchaseOrder->currency->decimal_places ?? 2);
-                                    @endphp
-                                    {{ number_format($totalVal, $dispDecimals) }} $
-                                </p>
-                            @else
-                                <p class="text-xl font-bold text-primary">
-                                    {{ number_format($purchaseOrder->total) }} đ
-                                </p>
-                            @endif
-                            <p class="text-xs text-gray-400 mt-1">{{ $purchaseOrder->items->count() }} sản phẩm</p>
+                            <p class="text-sm text-gray-500">Dự kiến hàng về</p>
+                            <p class="text-xl font-bold text-gray-400">-</p>
+                            <p class="text-xs text-gray-400">Chưa cập nhật theo dõi</p>
                         </div>
                     </div>
                 </div>
+                @endif
+            @endif
+
+            <!-- Order Value Summary -->
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-primary/10 text-primary">
+                        <i class="fas fa-file-invoice-dollar text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-500">Tổng giá trị PO</p>
+                        @if($purchaseOrder->currency && !$purchaseOrder->currency->is_base)
+                            <p class="text-xl font-bold text-primary">
+                                @php 
+                                    $totalVal = $purchaseOrder->total_foreign ?? ($purchaseOrder->total / ($purchaseOrder->exchange_rate ?: 1));
+                                    $dispDecimals = (floor($totalVal) == $totalVal) ? 0 : ($purchaseOrder->currency->decimal_places ?? 2);
+                                @endphp
+                                {{ number_format($totalVal, $dispDecimals) }} {{ $symbol }}
+                            </p>
+                            <p class="text-[10px] text-gray-400 font-medium mt-0.5">
+                                ≈ {{ number_format($purchaseOrder->total) }} đ
+                            </p>
+                        @else
+                            <p class="text-xl font-bold text-primary">
+                                {{ number_format($purchaseOrder->total) }} đ
+                            </p>
+                        @endif
+                        <p class="text-xs text-gray-400 mt-1">{{ $purchaseOrder->items->count() }} sản phẩm</p>
+                    </div>
+                </div>
             </div>
-        @endif
+        </div>
 
         <!-- Status Timeline -->
         <div class="bg-white rounded-lg shadow p-6">
@@ -440,8 +520,8 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SO</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">SL</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá nhập kho (USD)</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế (USD)</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền (USD)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Giá mua thực tế ({{ $isForeign ? $symbol : 'đ' }})</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thành tiền ({{ $isForeign ? $symbol : 'đ' }})</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Status</th>
                     </tr>
                 </thead>
@@ -489,11 +569,11 @@
                                         oninput="calculateItemTotal({{ $item->id }}, this.value, {{ $item->quantity }})"
                                         onchange="updateItemPrice({{ $item->id }}, this.value)"
                                         class="w-36 text-right font-semibold text-blue-700 bg-transparent border-none focus:ring-1 focus:ring-blue-400 rounded px-1 transition-all">
-                                    <span class="text-blue-700 ml-0.5">$</span>
+                                    <span class="text-blue-700 ml-0.5">{{ $isForeign ? $symbol : 'đ' }}</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-right font-bold text-gray-900">
-                                <span id="item-total-{{ $item->id }}">{{ number_format($item->total, 2) }}</span> $
+                                <span id="item-total-{{ $item->id }}">{{ number_format($item->total, $decimals, '.', ',') }}</span> {{ $isForeign ? $symbol : 'đ' }}
                             </td>
                             <td class="px-2 py-3">
                                 <div class="flex flex-col items-center space-y-1">
@@ -560,7 +640,12 @@
                     <tr>
                         <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Tổng tiền hàng:</td>
                         <td class="px-4 py-2 text-right">
-                            <div class="font-medium text-gray-900">{{ number_format($subtotalVnd, 2) }} $</div>
+                            @if($isForeign)
+                                <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
+                                <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
+                            @else
+                                <div class="font-bold text-gray-900">{{ number_format($subtotalVnd) }} đ</div>
+                            @endif
                         </td>
                         <td></td>
                     </tr>
@@ -569,7 +654,12 @@
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chiết khấu
                                 ({{ $purchaseOrder->discount_percent }}%):</td>
                             <td class="px-4 py-2 text-right text-red-600">
-                                <div>-{{ number_format($discountVnd, 2) }} $</div>
+                                @if($isForeign)
+                                    <div class="font-bold">-{{ $symbol }}{{ number_format($discountForeign, $decimals, '.', ',') }}</div>
+                                    <div class="text-xs">-{{ number_format($discountVnd) }} đ</div>
+                                @else
+                                    <div class="font-bold">-{{ number_format($discountVnd) }} đ</div>
+                                @endif
                             </td>
                             <td></td>
                         </tr>
@@ -578,7 +668,12 @@
                         <tr>
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Phí vận chuyển:</td>
                             <td class="px-4 py-2 text-right">
-                                <div class="font-medium text-gray-900">{{ number_format($shippingVnd, 2) }} $</div>
+                                @if($isForeign)
+                                    <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($shippingForeign, $decimals, '.', ',') }}</div>
+                                    <div class="text-xs text-gray-500">{{ number_format($shippingVnd) }} đ</div>
+                                @else
+                                    <div class="font-bold text-gray-900">{{ number_format($shippingVnd) }} đ</div>
+                                @endif
                             </td>
                             <td></td>
                         </tr>
@@ -587,7 +682,12 @@
                         <tr>
                             <td colspan="{{ $footerColspan }}" class="px-4 py-2 text-right text-gray-600">Chi phí khác:</td>
                             <td class="px-4 py-2 text-right">
-                                <div class="font-medium text-gray-900">{{ number_format($otherVnd, 2) }} $</div>
+                                @if($isForeign)
+                                    <div class="font-bold text-gray-900">{{ $symbol }}{{ number_format($otherForeign, $decimals, '.', ',') }}</div>
+                                    <div class="text-xs text-gray-500">{{ number_format($otherVnd) }} đ</div>
+                                @else
+                                    <div class="font-bold text-gray-900">{{ number_format($otherVnd) }} đ</div>
+                                @endif
                             </td>
                             <td></td>
                         </tr>
@@ -595,7 +695,15 @@
                     <tr class="border-t bg-gray-100">
                         <td colspan="{{ $footerColspan }}" class="px-4 py-3 text-right text-lg font-bold text-gray-800">Tổng cộng:</td>
                         <td class="px-4 py-3 text-right text-primary">
-                            <div class="text-lg font-bold">{{ number_format($totalVnd, 2) }} $</div>
+                            @if($isForeign)
+                                <div class="text-lg font-bold">{{ $symbol }}{{ number_format($totalForeign, $decimals, '.', ',') }}</div>
+                                <div class="text-xs text-primary/80 font-normal">
+                                    {{ number_format($totalVnd) }} đ
+                                    <span class="text-[10px] text-gray-400 block">(Tỷ giá: {{ number_format($purchaseOrder->exchange_rate) }})</span>
+                                </div>
+                            @else
+                                <div class="text-lg font-bold text-primary">{{ number_format($totalVnd) }} đ</div>
+                            @endif
                         </td>
                         <td></td>
                     </tr>

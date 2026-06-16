@@ -129,7 +129,7 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with(['project', 'user', 'customer'])->orderBy('created_at', 'desc')->paginate(10);
+        $sales = $query->with(['project', 'user', 'customer', 'quotation'])->orderBy('created_at', 'desc')->paginate(10);
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
         $saleCodes = $sales->pluck('code')->toArray();
@@ -236,6 +236,7 @@ class SaleController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
@@ -260,14 +261,21 @@ class SaleController extends Controller
 
             // Calculate totals
             $subtotal = 0;
+            $totalVatAmount = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += round($item['quantity'] * $item['price'], 2);
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $subtotal += $itemSubtotal;
+                
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
+                $totalVatAmount += $itemVatAmount;
             }
 
             $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
-            $total = round($afterDiscount + $vatAmount, 2);
+            $total = round($subtotal - $discountAmount + $totalVatAmount, 2);
 
             // Determine currency
             $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
@@ -296,7 +304,8 @@ class SaleController extends Controller
                 'delivery_address' => $validated['delivery_address'],
                 'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
-                'vat' => $validated['vat'] ?? 10,
+                'vat' => 0, // VAT rate at order level is now 0 since it is item-based
+                'vat_amount' => $isForeign ? $this->currencyService->toBase($totalVatAmount, $exchangeRate) : $totalVatAmount,
                 'total' => $total,
                 'cost' => 0,
                 'margin' => 0,
@@ -328,6 +337,13 @@ class SaleController extends Controller
                     ? (int) $item['warranty_months']
                     : $product->warranty_months;
 
+                $itemSubtotal = $quantity * $item['price'];
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -336,8 +352,10 @@ class SaleController extends Controller
                     'quantity' => $quantity,
                     'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     'price' => $item['price'],
+                    'vat' => $item['vat'] ?? 0,
+                    'vat_amount' => $itemVatAmount,
                     'cost_price' => $costPrice,
-                    'total' => $quantity * $item['price'],
+                    'total' => $itemSubtotal,
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,
@@ -516,6 +534,7 @@ class SaleController extends Controller
             'products.*.product_id' => ['required', 'exists:products,id'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
@@ -538,14 +557,21 @@ class SaleController extends Controller
 
             // Calculate totals
             $subtotal = 0;
+            $totalVatAmount = 0;
             foreach ($validated['products'] as $item) {
-                $subtotal += round($item['quantity'] * $item['price'], 2);
+                $itemSubtotal = $item['quantity'] * $item['price'];
+                $subtotal += $itemSubtotal;
+                
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
+                $totalVatAmount += $itemVatAmount;
             }
 
             $discountAmount = round($subtotal * ($validated['discount'] ?? 0) / 100, 2);
-            $afterDiscount = $subtotal - $discountAmount;
-            $vatAmount = round($afterDiscount * ($validated['vat'] ?? 10) / 100, 2);
-            $total = round($afterDiscount + $vatAmount, 2);
+            $total = round($subtotal - $discountAmount + $totalVatAmount, 2);
 
             // Determine currency
             $currencyId = $validated['currency_id'] ?? Currency::getBaseCurrencyId();
@@ -569,7 +595,8 @@ class SaleController extends Controller
                 'delivery_address' => $validated['delivery_address'],
                 'subtotal' => $isForeign ? $this->currencyService->toBase($subtotal, $exchangeRate) : $subtotal,
                 'discount' => $validated['discount'] ?? 0,
-                'vat' => $validated['vat'] ?? 10,
+                'vat' => 0, // VAT rate at order level is now 0 since it is item-based
+                'vat_amount' => $isForeign ? $this->currencyService->toBase($totalVatAmount, $exchangeRate) : $totalVatAmount,
                 'total' => $total,
                 'cost' => $validated['cost'] ?? 0,
                 'paid_amount' => $validated['paid_amount'] ?? 0,
@@ -755,6 +782,13 @@ class SaleController extends Controller
                     }
                 }
 
+                $itemSubtotal = $quantity * $item['price'];
+                $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
+                $itemBaseForVat = $itemSubtotal - $itemDiscount;
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -763,8 +797,10 @@ class SaleController extends Controller
                     'quantity' => $quantity,
                     'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
                     'price' => $item['price'],
+                    'vat' => $item['vat'] ?? 0,
+                    'vat_amount' => $itemVatAmount,
                     'cost_price' => $costPrice,
-                    'total' => $quantity * $item['price'],
+                    'total' => $itemSubtotal,
                     'cost_total' => $quantity * $costPrice,
                     'warranty_months' => $warrantyMonths,
                     'warranty_start_date' => $warrantyMonths ? $validated['date'] : null,

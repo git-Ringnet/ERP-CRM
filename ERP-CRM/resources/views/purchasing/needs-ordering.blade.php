@@ -209,8 +209,8 @@
                     <div class="space-y-4">
                         <!-- Dòng 1: CPQ Đơn hàng -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng</label>
-                            <input type="text" name="cpq_number" value=""
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                            <input type="text" name="cpq_number" value="" required
                                 class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
                                 placeholder="CPQ/non">
                         </div>
@@ -454,6 +454,19 @@
             function submitPo() {
                 const form = document.getElementById('mainPoForm');
                 const btn = document.querySelector('button[onclick="submitPo()"]');
+                
+                const cpqInput = form.querySelector('input[name="cpq_number"]');
+                if (cpqInput && !cpqInput.value.trim()) {
+                    Swal.fire({
+                        title: 'Thiếu thông tin',
+                        text: 'CPQ đơn hàng bắt buộc điền, không được để trống.',
+                        icon: 'warning',
+                        confirmButtonColor: '#0d9488'
+                    });
+                    cpqInput.focus();
+                    return;
+                }
+
                 const items = document.querySelectorAll('.order-qty-input:not(:disabled)');
 
                 const vId = document.getElementById('selectedVendorId').value;

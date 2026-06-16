@@ -96,10 +96,10 @@
                         <td class="px-4 py-3">
                             <div class="font-medium text-gray-900">{{ $item->product_code ?: $item->product_name }}</div>
                             @if($item->product_code)
-                                <div class="text-xs text-gray-500">{{ $item->description ?: $item->product_name }}</div>
+                                <div class="text-xs text-gray-500" style="white-space: pre-line;">{{ $item->description ?: $item->product_name }}</div>
                             @else
                                 @if($item->description)
-                                    <div class="text-xs text-gray-500">{{ $item->description }}</div>
+                                    <div class="text-xs text-gray-500" style="white-space: pre-line;">{{ $item->description }}</div>
                                 @endif
                             @endif
                         </td>
@@ -112,7 +112,7 @@
                                 {{ number_format($item->price, 0, ',', '.') }} đ
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-center">{{ (float)$item->vat }}%</td>
+                        <td class="px-4 py-3 text-center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
                         @foreach($customColumns as $colName)
                             <td class="px-4 py-3 text-left text-sm text-gray-600">
                                 {{ $item->custom_fields[$colName] ?? '' }}
@@ -138,10 +138,10 @@
             <div class="bg-gray-50 p-3 rounded-lg">
                 <div class="font-medium text-gray-900">{{ $item->product_code ?: $item->product_name }}</div>
                 @if($item->product_code)
-                    <div class="text-xs text-gray-500 mt-0.5">{{ $item->description ?: $item->product_name }}</div>
+                    <div class="text-xs text-gray-500 mt-0.5" style="white-space: pre-line;">{{ $item->description ?: $item->product_name }}</div>
                 @else
                     @if($item->description)
-                        <div class="text-xs text-gray-500 mt-0.5">{{ $item->description }}</div>
+                        <div class="text-xs text-gray-500 mt-0.5" style="white-space: pre-line;">{{ $item->description }}</div>
                     @endif
                 @endif
                 @if(!empty($customColumns))
@@ -161,7 +161,7 @@
                             SL: {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }} đ
                         @endif
                     </span>
-                    <span class="text-blue-600">VAT: {{ (float)$item->vat }}%</span>
+                    <span class="text-blue-600">VAT: {{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</span>
                 </div>
                 <div class="text-sm font-medium text-right mt-2 border-t pt-1">
                     @if($quotation->currency && !$quotation->currency->is_base)

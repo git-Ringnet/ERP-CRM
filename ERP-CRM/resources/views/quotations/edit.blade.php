@@ -76,7 +76,7 @@
                                     data-debt-days="{{ $customer->debt_days }}"
                                     data-payment-terms="{{ json_encode($customer->payment_terms) }}"
                                     {{ old('customer_id', $quotation->customer_id) == $customer->id ? 'selected' : '' }}>
-                                    {{ $customer->name }} ({{ $customer->code }})
+                                    {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -270,9 +270,9 @@
                                     </div>
                                     <div class="mt-2">
                                         <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                                        <input type="text" name="products[{{ $index }}][description]" value="{{ $item->description }}" 
+                                        <textarea name="products[{{ $index }}][description]" 
                                                class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                               placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
+                                               placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2">{{ $item->description }}</textarea>
                                     </div>
                                 </td>
                                 <td class="px-3 py-2 align-top">
@@ -293,10 +293,22 @@
                                     </small>
                                 </td>
                                 <td class="px-3 py-2 align-top">
-                                    <input type="number" name="products[{{ $index }}][vat]"
-                                        value="{{ (float)$item->vat }}" min="0" step="0.01"
-                                        onchange="calculateRowTotal({{ $index }})"
-                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                    @php
+                                        $vatVal = isset($item->vat) ? (float)$item->vat : (isset($item['vat']) ? (float)$item['vat'] : 8.0);
+                                    @endphp
+                                    <select name="products[{{ $index }}][vat]"
+                                            onchange="handleVatChange(this)"
+                                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                        <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
+                                        <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
+                                        <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
+                                        <option value="8" {{ $vatVal == 8 ? 'selected' : '' }}>8%</option>
+                                        <option value="10" {{ $vatVal == 10 ? 'selected' : '' }}>10%</option>
+                                        @if(!in_array($vatVal, [-1, 0, 5, 8, 10]))
+                                            <option value="{{ $vatVal }}" selected>{{ $vatVal }}%</option>
+                                        @endif
+                                        <option value="custom">Khác...</option>
+                                    </select>
                                 </td>
                                 @foreach($customColumns as $colName)
                                     @php
@@ -837,8 +849,8 @@
                     </div>
                     <div class="mt-2">
                         <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                        <input type="text" name="products[${rowIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Mô tả chi tiết sản phẩm cho dòng này...">
+                        <textarea name="products[${rowIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                               placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2"></textarea>
                     </div>
                 </td>
                 <td class="px-3 py-2 align-top">
@@ -853,9 +865,16 @@
                     <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
                 </td>
                 <td class="px-3 py-2 align-top">
-                    <input type="number" name="products[${rowIndex}][vat]" value="8" min="0" step="0.01"
-                           onchange="calculateRowTotal(${rowIndex})"
-                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                    <select name="products[${rowIndex}][vat]"
+                            onchange="handleVatChange(this)"
+                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                        <option value="-1">KCT</option>
+                        <option value="0">0%</option>
+                        <option value="5">5%</option>
+                        <option value="8" selected>8%</option>
+                        <option value="10">10%</option>
+                        <option value="custom">Khác...</option>
+                    </select>
                 </td>
                 ${customColsHtml}
                 <td class="px-3 py-2 align-top row-total-cell">
@@ -906,7 +925,10 @@
                 const rowSubtotal = qty * price;
                 subtotal += rowSubtotal;
 
-                const vatPercent = parseFloat(row.find('.vat-input').val()) || 0;
+                let vatPercent = parseFloat(row.find('.vat-input').val()) || 0;
+                if (vatPercent < 0) {
+                    vatPercent = 0;
+                }
                 const rowDiscount = rowSubtotal * discount / 100;
                 const rowBaseForVat = rowSubtotal - rowDiscount;
                 const rowVatAmount = rowBaseForVat * vatPercent / 100;
@@ -927,6 +949,47 @@
                 vndRef.text(`= ${formatMoney(total * rate)} ₫`);
             }
             $('.currency-symbol').text(symbol);
+        }
+
+        function handleVatChange(selectEl) {
+            const val = selectEl.value;
+            if (val === 'custom') {
+                Swal.fire({
+                    title: 'Nhập % thuế VAT',
+                    input: 'number',
+                    inputLabel: 'Tỷ lệ phần trăm (%)',
+                    inputPlaceholder: 'Nhập số...',
+                    inputAttributes: {
+                        min: 0,
+                        step: 0.01
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'Đồng ý',
+                    cancelButtonText: 'Hủy'
+                }).then((result) => {
+                    if (result.isConfirmed && result.value !== '') {
+                        const customVal = parseFloat(result.value);
+                        if (!isNaN(customVal) && customVal >= 0) {
+                            let option = $(selectEl).find(`option[value="${customVal}"]`);
+                            if (option.length === 0) {
+                                $(`<option value="${customVal}">${customVal}%</option>`).insertBefore($(selectEl).find('option[value="custom"]'));
+                            }
+                            $(selectEl).val(customVal).trigger('change');
+                        } else {
+                            const prevVal = $(selectEl).data('prev') || 8;
+                            $(selectEl).val(prevVal).trigger('change');
+                        }
+                    } else {
+                        const prevVal = $(selectEl).data('prev') || 8;
+                        $(selectEl).val(prevVal).trigger('change');
+                    }
+                });
+            } else {
+                $(selectEl).data('prev', val);
+                const row = $(selectEl).closest('.product-item');
+                const index = row.attr('data-index');
+                calculateRowTotal(index);
+            }
         }
 
         let currentExchangeRate = parseFloat($('#exchangeRateInput').val()) || 1;

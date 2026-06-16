@@ -35,7 +35,7 @@ class QuotationController extends Controller
     {
         $this->authorize('viewAny', Quotation::class);
 
-        $query = Quotation::with(['customer', 'creator']);
+        $query = Quotation::with(['customer', 'creator', 'convertedSale']);
 
         // Apply data filtering based on permissions
         $user = auth()->user();
@@ -129,7 +129,7 @@ class QuotationController extends Controller
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
-            'products.*.vat' => ['nullable', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'custom_columns' => ['nullable', 'array'],
@@ -158,9 +158,10 @@ class QuotationController extends Controller
                 $subtotal += $itemSubtotal;
                 
                 $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
                 $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
-                $itemVatAmount = round($itemBaseForVat * $itemVat / 100, 2);
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
                 $totalVatAmount += $itemVatAmount;
             }
 
@@ -220,7 +221,9 @@ class QuotationController extends Controller
                 $itemSubtotal = $item['quantity'] * $item['price'];
                 $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
-                $itemVatAmount = round($itemBaseForVat * ($item['vat'] ?? 0) / 100, 2);
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
@@ -317,7 +320,7 @@ class QuotationController extends Controller
             'products.*.product_id' => ['nullable', 'string'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
-            'products.*.vat' => ['nullable', 'numeric', 'min:0'],
+            'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'custom_columns' => ['nullable', 'array'],
@@ -345,9 +348,10 @@ class QuotationController extends Controller
                 $subtotal += $itemSubtotal;
                 
                 $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
                 $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
-                $itemVatAmount = round($itemBaseForVat * $itemVat / 100, 2);
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
                 $totalVatAmount += $itemVatAmount;
             }
 
@@ -408,7 +412,9 @@ class QuotationController extends Controller
                 $itemSubtotal = $item['quantity'] * $item['price'];
                 $itemDiscount = $itemSubtotal * ($validated['discount'] ?? 0) / 100;
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
-                $itemVatAmount = round($itemBaseForVat * ($item['vat'] ?? 0) / 100, 2);
+                $itemVat = $item['vat'] ?? 0;
+                $effectiveVat = $itemVat < 0 ? 0 : $itemVat;
+                $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
 
                 QuotationItem::create([
                     'quotation_id' => $quotation->id,
@@ -560,6 +566,7 @@ class QuotationController extends Controller
                 'subtotal' => $quotation->subtotal,
                 'discount' => $quotation->discount,
                 'vat' => $quotation->vat,
+                'vat_amount' => $quotation->vat_amount,
                 'total' => $quotation->total,
                 'total_foreign' => $quotation->total_foreign,
                 'currency_id' => $quotation->currency_id,
@@ -587,6 +594,8 @@ class QuotationController extends Controller
                     'product_name' => $item->product_name,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
+                    'vat' => $item->vat,
+                    'vat_amount' => $item->vat_amount,
                     'total' => $item->total,
                     'cost_price' => $costPrice,
                     'cost_total' => $item->quantity * $costPrice,

@@ -41,6 +41,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã báo
                             giá</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">Khách
                             hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiêu đề
@@ -70,6 +71,16 @@
                                     class="font-medium text-blue-600 hover:text-blue-800">
                                     {{ $quotation->code }}
                                 </a>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                @if($quotation->convertedSale)
+                                    <a href="{{ route('sales.show', $quotation->converted_to_sale_id) }}"
+                                        class="font-medium text-purple-600 hover:text-purple-800">
+                                        {{ $quotation->convertedSale->code }}
+                                    </a>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 min-w-[300px]">
                                 <div class="text-sm font-medium text-gray-900">{{ $quotation->customer_name }}</div>
@@ -171,6 +182,11 @@
                         <div class="flex-1">
                             <a href="{{ route('quotations.show', $quotation) }}"
                                 class="font-medium text-blue-600 hover:text-blue-800">{{ $quotation->code }}</a>
+                            @if($quotation->convertedSale)
+                                <span class="mx-1 text-gray-300">|</span>
+                                <a href="{{ route('sales.show', $quotation->converted_to_sale_id) }}"
+                                    class="font-medium text-purple-600 hover:text-purple-800 text-xs">{{ $quotation->convertedSale->code }}</a>
+                            @endif
                             <div class="text-sm text-gray-500">{{ $quotation->customer_name }}</div>
                         </div>
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $quotation->status_color }}">

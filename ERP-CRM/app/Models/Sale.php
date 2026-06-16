@@ -24,6 +24,7 @@ class Sale extends Model
         'subtotal',
         'discount',
         'vat',
+        'vat_amount',
         'total',
         'cost',
         'margin',
@@ -54,6 +55,7 @@ class Sale extends Model
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'vat' => 'decimal:2',
+        'vat_amount' => 'decimal:2',
         'total' => 'decimal:2',
         'cost' => 'decimal:2',
         'margin' => 'decimal:2',
@@ -141,6 +143,14 @@ class Sale extends Model
     }
 
     /**
+     * Relationship with Quotation
+     */
+    public function quotation()
+    {
+        return $this->hasOne(Quotation::class, 'converted_to_sale_id');
+    }
+
+    /**
      * Relationship with SaleAttachment
      */
     public function attachments()
@@ -205,7 +215,10 @@ class Sale extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('code', 'like', "%{$search}%")
               ->orWhere('customer_name', 'like', "%{$search}%")
-              ->orWhere('note', 'like', "%{$search}%");
+              ->orWhere('note', 'like', "%{$search}%")
+              ->orWhereHas('quotation', function ($qq) use ($search) {
+                  $qq->where('code', 'like', "%{$search}%");
+              });
         });
     }
 

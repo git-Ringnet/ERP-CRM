@@ -63,7 +63,7 @@
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" 
                                     data-customer-id="{{ $project->customer_id }}"
-                                    data-customer-name="{{ $project->customer ? $project->customer->name . ' (' . $project->customer->code . ')' : '' }}"
+                                    data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
                                     {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
                                     {{ $project->code }} - {{ $project->name }}
                                 </option>
@@ -90,7 +90,7 @@
                             if ($oldCustomerId) {
                                 $c = $customers->firstWhere('id', $oldCustomerId);
                                 if ($c) {
-                                    $oldCustomerName = $c->name . ' (' . $c->code . ')';
+                                    $oldCustomerName = $c->name . ($c->code ? ' (' . $c->code . ')' : '');
                                 }
                             }
                         @endphp
@@ -103,10 +103,10 @@
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
                                      data-value="{{ $customer->id }}" 
-                                     data-text="{{ $customer->name }} ({{ $customer->code }})"
+                                     data-text="{{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}"
                                      data-milestones="{{ json_encode($customer->payment_terms) }}"
                                      data-debt-days="{{ $customer->debt_days ?? '' }}">
-                                    {{ $customer->name }} ({{ $customer->code }})
+                                    {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                                 </div>
                             @endforeach
                         </div>
@@ -210,7 +210,8 @@
                     <div class="md:col-span-3 product-name-header">Sản phẩm <span class="text-red-500">*</span></div>
                     <div class="md:col-span-1">Số lượng <span class="text-red-500">*</span></div>
                     <div class="md:col-span-2">Đơn giá (<span class="currency-symbol">{{ $sale->currency ? ($sale->currency->symbol ?? $sale->currency->code) : '₫' }}</span>) <span class="text-red-500">*</span></div>
-                    <div class="md:col-span-2">Bảo hành (tháng)</div>
+                    <div class="md:col-span-1 text-center">VAT (%)</div>
+                    <div class="md:col-span-1">Bảo hành</div>
                     <div class="md:col-span-1 text-center product-tax-header">Thuế nhà thầu</div>
                     <div class="md:col-span-2 text-right">Thành tiền</div>
                     <div class="md:col-span-1 text-center"><i class="fas fa-cog"></i></div>
@@ -218,7 +219,7 @@
 
                 <div id="productList" class="space-y-0 border-x border-b border-gray-200 rounded-b-lg">
                     @foreach($sale->items as $index => $item)
-                    <div class="product-item {{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }} p-4 border-b last:border-b-0 border-gray-100">
+                    <div class="product-item {{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }} p-4 border-b last:border-b-0 border-gray-100" data-index="{{ $index }}">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                             <div class="md:col-span-3 product-name-col">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
@@ -245,7 +246,27 @@
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input {{ $isLocked ? 'bg-gray-100' : '' }}">
                                 <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
                             </div>
-                            <div class="md:col-span-2">
+                            <div class="md:col-span-1">
+                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                                <select name="products[{{ $index }}][vat]"
+                                        onchange="handleVatChange(this)"
+                                        {{ $isLocked ? 'disabled' : '' }}
+                                        class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input {{ $isLocked ? 'bg-gray-100' : '' }}">
+                                    @php
+                                        $vatVal = isset($item->vat) ? (float)$item->vat : 8;
+                                    @endphp
+                                    <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
+                                    <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
+                                    <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
+                                    <option value="8" {{ $vatVal == 8 ? 'selected' : '' }}>8%</option>
+                                    <option value="10" {{ $vatVal == 10 ? 'selected' : '' }}>10%</option>
+                                    @if(!in_array($vatVal, [-1, 0, 5, 8, 10]))
+                                        <option value="{{ $vatVal }}" selected>{{ $vatVal }}%</option>
+                                    @endif
+                                    <option value="custom">Khác...</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-1">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành</label>
                                 <input type="number" name="products[{{ $index }}][warranty_months]" min="0" max="120" value="{{ $item->warranty_months }}"
                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input {{ $isLocked ? 'bg-gray-100' : '' }}"
@@ -320,15 +341,10 @@
                         </div>
                     </div>
                     <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium text-gray-700">Thuế GTGT (%)</label>
-                        <div class="flex gap-2 items-center">
-                            <input type="number" name="vat" id="vat" value="{{ old('vat', $sale->vat ? (int)$sale->vat : '') }}" min="0" max="100" step="1"
-                                   oninput="this.value = this.value.replace(/[^0-9]/g, '')" onchange="calculateTotal()"
-                                   class="w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}"
-                                   placeholder="0" {{ $isLocked ? 'readonly' : '' }}>
-                            <input type="text" id="vatAmount" readonly
-                                   class="w-32 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
-                        </div>
+                        <label class="text-sm font-medium text-gray-700">Thuế GTGT</label>
+                        <input type="hidden" name="vat" id="vat" value="0">
+                        <input type="text" id="vatAmount" readonly
+                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
                     </div>
                     <div class="flex justify-between items-center pt-2 border-t">
                         <label class="text-base font-bold text-gray-900">Tổng cộng (<span class="currency-symbol">₫</span>)</label>
@@ -907,7 +923,20 @@ function addProductRow() {
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
             </div>
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                <select name="products[${productIndex}][vat]"
+                        onchange="handleVatChange(this)"
+                        class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                    <option value="-1">KCT</option>
+                    <option value="0">0%</option>
+                    <option value="5">5%</option>
+                    <option value="8" selected>8%</option>
+                    <option value="10">10%</option>
+                    <option value="custom">Khác...</option>
+                </select>
+            </div>
+            <div class="md:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
                 <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value=""
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
@@ -968,23 +997,31 @@ function calculateTotal() {
     const symbol = option.dataset.symbol || '';
 
     let subtotal = 0;
+    let totalVatAmount = 0;
+    const discount = parseFloat(document.getElementById('discount').value) || 0;
+
     document.querySelectorAll('.product-item').forEach(row => {
         const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
         const price = unformatMoney(row.querySelector('.price-input').value);
-        subtotal += Math.round((qty * price) * 100) / 100;
+        const rowSubtotal = qty * price;
+        subtotal += Math.round(rowSubtotal * 100) / 100;
+
+        let vatPercent = parseFloat(row.querySelector('.vat-input').value) || 0;
+        if (vatPercent < 0) {
+            vatPercent = 0;
+        }
+        const rowDiscount = rowSubtotal * discount / 100;
+        const rowBaseForVat = rowSubtotal - rowDiscount;
+        const rowVatAmount = rowBaseForVat * vatPercent / 100;
+        totalVatAmount += Math.round(rowVatAmount * 100) / 100;
     });
     
-    const discount = parseInt(document.getElementById('discount').value) || 0;
-    const vat = parseInt(document.getElementById('vat').value) || 0;
-    
     const discountAmount = Math.round((subtotal * discount / 100) * 100) / 100;
-    const afterDiscount = subtotal - discountAmount;
-    const vatAmount = Math.round((afterDiscount * vat / 100) * 100) / 100;
-    const total = Math.round((afterDiscount + vatAmount) * 100) / 100;
+    const total = Math.round((subtotal - discountAmount + totalVatAmount) * 100) / 100;
     
     document.getElementById('subtotal').value = formatMoney(subtotal);
     document.getElementById('discountAmount').value = discountAmount > 0 ? formatMoney(discountAmount) : '0';
-    document.getElementById('vatAmount').value = vatAmount > 0 ? formatMoney(vatAmount) : '0';
+    document.getElementById('vatAmount').value = totalVatAmount > 0 ? formatMoney(totalVatAmount) : '0';
     document.getElementById('total').value = formatMoney(total);
     
     // Update VND reference for total
@@ -1007,6 +1044,46 @@ function calculateTotal() {
     calculateMargin();
     calculateDebt();
     calculateMilestoneAmounts();
+}
+
+function handleVatChange(selectEl) {
+    const val = selectEl.value;
+    if (val === 'custom') {
+        Swal.fire({
+            title: 'Nhập % thuế VAT',
+            input: 'number',
+            inputLabel: 'Tỷ lệ phần trăm (%)',
+            inputPlaceholder: 'Nhập số...',
+            inputAttributes: {
+                min: 0,
+                step: 0.01
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Đồng ý',
+            cancelButtonText: 'Hủy'
+        }).then((result) => {
+            if (result.isConfirmed && result.value !== '') {
+                const customVal = parseFloat(result.value);
+                if (!isNaN(customVal) && customVal >= 0) {
+                    let option = $(selectEl).find(`option[value="${customVal}"]`);
+                    if (option.length === 0) {
+                        $(`<option value="${customVal}">${customVal}%</option>`).insertBefore($(selectEl).find('option[value="custom"]'));
+                    }
+                    $(selectEl).val(customVal).trigger('change');
+                } else {
+                    const prevVal = $(selectEl).data('prev') || 8;
+                    $(selectEl).val(prevVal).trigger('change');
+                }
+            } else {
+                const prevVal = $(selectEl).data('prev') || 8;
+                $(selectEl).val(prevVal).trigger('change');
+            }
+        });
+    } else {
+        $(selectEl).data('prev', val);
+        const row = $(selectEl).closest('.product-item');
+        calculateTotal();
+    }
 }
 
 // Calculate on page load
