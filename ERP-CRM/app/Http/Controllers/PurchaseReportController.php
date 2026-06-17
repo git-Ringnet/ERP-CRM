@@ -56,6 +56,9 @@ class PurchaseReportController extends Controller
         // Tracking report (Theo dõi hàng về)
         $trackingReport = $this->getTrackingReport($request, $productIds);
 
+        // Cancelled orders report
+        $cancelledReport = $this->getCancelledOrders($dateFrom, $dateTo, $supplierId, $productIds);
+
         // Get suppliers for filter dropdown
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
         
@@ -70,14 +73,15 @@ class PurchaseReportController extends Controller
         
         return view('purchase-reports.index', compact(
             'stats', 'supplierReport', 'productReport', 'monthlyReport',
-            'trackingReport', 'suppliers', 'products',
+            'trackingReport', 'cancelledReport', 'suppliers', 'products',
             'dateFrom', 'dateTo', 'supplierId', 'productId', 'productSearch'
         ));
     }
 
     private function getSummaryStats($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
     {
-        $query = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo]);
+        $query = PurchaseOrder::where('status', '!=', 'cancelled')
+            ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
         if ($supplierId) {
             $query->where('supplier_id', $supplierId);
@@ -119,10 +123,12 @@ class PurchaseReportController extends Controller
                 DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
                 DB::raw('SUM(CASE WHEN total_foreign > 0 THEN (subtotal * exchange_rate) / NULLIF(exchange_rate, 0) ELSE subtotal END) as total_subtotal_usd'),
                 DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
+                DB::raw('SUM(discount_amount) as total_discount_usd'),
                 DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
                 DB::raw('SUM(paid_amount) as total_paid'),
                 DB::raw('SUM(CASE WHEN total_foreign > 0 THEN paid_amount / NULLIF(exchange_rate, 0) ELSE paid_amount / NULLIF(exchange_rate, 0) END) as total_paid_usd')
             )
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->groupBy('supplier_id')
             ->with('supplier');
@@ -140,7 +146,8 @@ class PurchaseReportController extends Controller
         $results = $query->get();
 
         // Eager-load individual orders with relevant relationships to avoid N+1 queries
-        $allOrdersQuery = PurchaseOrder::whereBetween('order_date', [$dateFrom, $dateTo])
+        $allOrdersQuery = PurchaseOrder::where('status', '!=', 'cancelled')
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->with(['currency', 'items.saleOrderRequestItem.saleOrderRequest.sale.user', 'items.saleOrderRequestItem.saleOrderRequest.sale.project', 'sale.user', 'sale.project'])
             ->orderBy('order_date', 'desc');
 
@@ -193,6 +200,7 @@ class PurchaseReportController extends Controller
                 'total_amount_usd' => $item->total_amount_usd,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
+                'total_discount_usd' => $item->total_discount_usd,
                 'total_shipping' => $item->total_shipping,
                 'total_paid' => $item->total_paid,
                 'total_paid_usd' => $item->total_paid_usd,
@@ -204,61 +212,55 @@ class PurchaseReportController extends Controller
 
     private function getProductReport($dateFrom, $dateTo, $productIds = [], $supplierId = null): array
     {
-        $query = ImportItem::query()
-            ->join('imports', 'import_items.import_id', '=', 'imports.id')
-            ->leftJoin('purchase_orders', function($join) {
-                $join->on('imports.reference_id', '=', 'purchase_orders.id')
-                     ->where('imports.reference_type', '=', 'purchase_order');
-            })
+        // Query từ purchase_order_items JOIN purchase_orders (nhất quán với Supplier & Monthly Report)
+        $query = \App\Models\PurchaseOrderItem::query()
+            ->join('purchase_orders', 'purchase_order_items.purchase_order_id', '=', 'purchase_orders.id')
             ->select(
-                'import_items.product_id',
-                DB::raw('SUM(import_items.quantity) as total_quantity'),
-                DB::raw('AVG(import_items.cost) as avg_purchase_price'),
-                DB::raw('AVG(import_items.cost / NULLIF(COALESCE(purchase_orders.exchange_rate, 25000), 0)) as avg_purchase_price_usd'),
-                DB::raw('SUM(import_items.cost * import_items.quantity) as total_value'),
-                DB::raw('SUM((import_items.cost / NULLIF(COALESCE(purchase_orders.exchange_rate, 25000), 0)) * import_items.quantity) as total_value_usd'),
-                DB::raw('AVG(import_items.warehouse_price) as avg_warehouse_price'),
-                DB::raw('SUM((import_items.warehouse_price - import_items.cost) * import_items.quantity) as total_service_cost'),
-                DB::raw('COUNT(DISTINCT import_items.import_id) as import_count')
+                'purchase_order_items.product_id',
+                DB::raw('SUM(purchase_order_items.quantity) as total_quantity'),
+                DB::raw('AVG(purchase_order_items.unit_price) as avg_purchase_price_usd'),
+                DB::raw('AVG(purchase_order_items.unit_price * purchase_orders.exchange_rate) as avg_purchase_price'),
+                DB::raw('SUM(purchase_order_items.total) as total_value_usd'),
+                DB::raw('SUM(purchase_order_items.total * purchase_orders.exchange_rate) as total_value'),
+                DB::raw('AVG(COALESCE(purchase_order_items.warehouse_unit_price, purchase_order_items.unit_price) * purchase_orders.exchange_rate) as avg_warehouse_price'),
+                DB::raw('SUM((COALESCE(purchase_order_items.warehouse_unit_price, purchase_order_items.unit_price) - purchase_order_items.unit_price) * purchase_order_items.quantity * purchase_orders.exchange_rate) as total_service_cost'),
+                DB::raw('COUNT(DISTINCT purchase_order_items.purchase_order_id) as import_count')
             )
-            ->whereBetween('imports.date', [$dateFrom, $dateTo])
-            ->where('imports.status', 'completed')
-            ->groupBy('import_items.product_id')
-            ->with('product');
+            ->where('purchase_orders.status', '!=', 'cancelled')
+            ->whereBetween('purchase_orders.order_date', [$dateFrom, $dateTo])
+            ->groupBy('purchase_order_items.product_id');
 
         if (!empty($productIds)) {
-            $query->whereIn('import_items.product_id', $productIds);
+            $query->whereIn('purchase_order_items.product_id', $productIds);
         }
 
         if ($supplierId) {
-            $query->where('imports.supplier_id', $supplierId);
+            $query->where('purchase_orders.supplier_id', $supplierId);
         }
 
         $results = $query->get();
 
-        return $results->map(function ($item) use ($supplierId) {
-            // Get unique suppliers for this product
-            $supplierCountQuery = ImportItem::where('product_id', $item->product_id)
-                ->whereHas('import', function($q) use ($item, $supplierId) {
-                    $q->where('status', 'completed');
-                    if ($supplierId) {
-                        $q->where('supplier_id', $supplierId);
-                    }
-                })
-                ->join('imports', 'import_items.import_id', '=', 'imports.id')
-                ->distinct('imports.supplier_id');
+        // Load product info separately
+        $productIdsInResult = $results->pluck('product_id')->filter()->unique()->toArray();
+        $productsMap = Product::whereIn('id', $productIdsInResult)->get()->keyBy('id');
 
-            $supplierCount = $supplierCountQuery->count('imports.supplier_id');
+        return $results->map(function ($item) use ($supplierId, $dateFrom, $dateTo, $productsMap) {
+            $product = $productsMap->get($item->product_id);
 
-            $supplierNamesList = ImportItem::where('product_id', $item->product_id)
-                ->whereHas('import', function($q) use ($supplierId) {
-                    $q->where('status', 'completed');
-                    if ($supplierId) {
-                        $q->where('supplier_id', $supplierId);
-                    }
-                })
-                ->join('imports', 'import_items.import_id', '=', 'imports.id')
-                ->join('suppliers', 'imports.supplier_id', '=', 'suppliers.id')
+            // Đếm số NCC unique cho sản phẩm này trong date range
+            $supplierCountQuery = \App\Models\PurchaseOrderItem::where('product_id', $item->product_id)
+                ->join('purchase_orders', 'purchase_order_items.purchase_order_id', '=', 'purchase_orders.id')
+                ->where('purchase_orders.status', '!=', 'cancelled')
+                ->whereBetween('purchase_orders.order_date', [$dateFrom, $dateTo]);
+
+            if ($supplierId) {
+                $supplierCountQuery->where('purchase_orders.supplier_id', $supplierId);
+            }
+
+            $supplierCount = (clone $supplierCountQuery)->distinct('purchase_orders.supplier_id')->count('purchase_orders.supplier_id');
+
+            $supplierNamesList = (clone $supplierCountQuery)
+                ->join('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
                 ->distinct('suppliers.name')
                 ->pluck('suppliers.name')
                 ->toArray();
@@ -266,10 +268,10 @@ class PurchaseReportController extends Controller
             $supplierNames = implode(', ', $supplierNamesList) ?: 'N/A';
 
             return [
-                'product_code' => $item->product->code ?? 'N/A',
-                'product_name' => $item->product->name ?? 'N/A',
+                'product_code' => $product->code ?? 'N/A',
+                'product_name' => $product->name ?? 'N/A',
                 'supplier_names' => $supplierNames,
-                'product' => $item->product->code ?? 'N/A',
+                'product' => $product->code ?? 'N/A',
                 'total_quantity' => $item->total_quantity,
                 'avg_purchase_price' => $item->avg_purchase_price,
                 'avg_purchase_price_usd' => $item->avg_purchase_price_usd,
@@ -285,7 +287,7 @@ class PurchaseReportController extends Controller
 
     private function getMonthlyReport($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
     {
-        $query = PurchaseOrder::query();
+        $query = PurchaseOrder::where('status', '!=', 'cancelled');
 
         if ($supplierId) {
             $query->where('supplier_id', $supplierId);
@@ -297,6 +299,7 @@ class PurchaseReportController extends Controller
             });
         }
 
+        // Sort ASC để tính change đúng chiều (tháng cũ → tháng mới)
         $results = $query->select(
                 DB::raw("DATE_FORMAT(order_date, '%Y-%m') as period"),
                 DB::raw('COUNT(*) as order_count'),
@@ -304,22 +307,24 @@ class PurchaseReportController extends Controller
                 DB::raw('SUM(CASE WHEN total_foreign > 0 THEN total_foreign ELSE total / NULLIF(exchange_rate, 0) END) as total_amount_usd'),
                 DB::raw('SUM(subtotal * exchange_rate) as total_subtotal'),
                 DB::raw('SUM(discount_amount * exchange_rate) as total_discount'),
+                DB::raw('SUM(discount_amount) as total_discount_usd'),
                 DB::raw('SUM(shipping_cost * exchange_rate) as total_shipping'),
                 DB::raw('SUM(paid_amount) as total_paid'),
                 DB::raw('SUM(paid_amount / NULLIF(exchange_rate, 0)) as total_paid_usd')
             )
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->groupBy('period')
-            ->orderBy('period', 'desc')
+            ->orderBy('period', 'asc')
             ->get();
 
+        // Tính change theo chiều ASC (so sánh tháng hiện tại vs tháng trước đó)
         $report = [];
         $previousTotal = null;
 
         foreach ($results as $item) {
             $change = null;
             if ($previousTotal !== null && $previousTotal > 0) {
-                $change = (($item->total_paid - $previousTotal) / $previousTotal) * 100;
+                $change = (($item->total_amount_usd - $previousTotal) / $previousTotal) * 100;
             }
 
             $report[] = [
@@ -329,22 +334,63 @@ class PurchaseReportController extends Controller
                 'total_amount_usd' => $item->total_amount_usd,
                 'total_subtotal' => $item->total_subtotal,
                 'total_discount' => $item->total_discount,
+                'total_discount_usd' => $item->total_discount_usd,
                 'total_shipping' => $item->total_shipping,
                 'total_paid' => $item->total_paid,
                 'total_paid_usd' => $item->total_paid_usd,
                 'change' => $change !== null ? round($change, 1) : null,
             ];
 
-            $previousTotal = $item->total_paid;
+            $previousTotal = $item->total_amount_usd;
         }
 
-        return $report;
+        // Reverse để hiển thị DESC (tháng mới nhất ở trên), change đã tính đúng
+        return array_reverse($report);
     }
 
+    private function getCancelledOrders($dateFrom, $dateTo, $supplierId = null, $productIds = []): array
+    {
+        $query = PurchaseOrder::where('status', 'cancelled')
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
+            ->with(['supplier', 'currency']);
 
+        if ($supplierId) {
+            $query->where('supplier_id', $supplierId);
+        }
+
+        if (!empty($productIds)) {
+            $query->whereHas('items', function($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds);
+            });
+        }
+
+        $results = $query->orderBy('order_date', 'desc')->get();
+
+        return $results->map(function ($po) {
+            $val = $po->total_foreign ?? ($po->total / ($po->exchange_rate ?: 1));
+            $decimals = (floor($val) == $val) ? 0 : ($po->currency->decimal_places ?? 2);
+
+            return [
+                'id' => $po->id,
+                'code' => $po->code,
+                'order_date' => $po->order_date ? $po->order_date->format('d/m/Y') : 'N/A',
+                'supplier_name' => $po->supplier->name ?? 'N/A',
+                'linked_so_codes' => $po->linked_so_codes,
+                'linked_salesperson_names' => $po->linked_salesperson_names,
+                'linked_partner_names' => $po->linked_partner_names,
+                'linked_end_user_names' => $po->linked_end_user_names,
+                'total_usd' => number_format($val, $decimals),
+                'total_vnd' => number_format($po->total, 0, ',', '.'),
+                'note' => $po->note,
+            ];
+        })->toArray();
+    }
 
     private function getTrackingReport(Request $request, $productIds = []): array
     {
+        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+
         $query = \App\Models\SaleOrderRequestItem::where('is_cancelled', false)
             ->whereHas('saleOrderRequest', function($q) {
                 $q->whereIn('status', [
@@ -353,12 +399,27 @@ class PurchaseReportController extends Controller
                     \App\Models\SaleOrderRequest::STATUS_COMPLETED
                 ]);
             })
-            ->with(['saleOrderRequest.sale.project', 'vendor', 'purchaseOrderItems.purchaseOrder', 'saleItem']);
+            ->with(['saleOrderRequest.sale.project', 'vendor', 'purchaseOrderItems' => function($q) {
+                // Chỉ load PO items từ PO không bị cancelled
+                $q->whereHas('purchaseOrder', function($pq) {
+                    $pq->where('status', '!=', 'cancelled');
+                });
+            }, 'purchaseOrderItems.purchaseOrder', 'saleItem']);
 
-        // Filter by Date
-        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
-        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
-        $query->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+        // Filter by Date - Logic chặt hơn:
+        // Lấy PR items có PO trong date range, HOẶC PR tạo trong date range nhưng chưa có PO nào
+        $query->where(function($q) use ($dateFrom, $dateTo) {
+            // Case 1: Có PO trong date range
+            $q->whereHas('purchaseOrderItems.purchaseOrder', function($pq) use ($dateFrom, $dateTo) {
+                $pq->where('status', '!=', 'cancelled')
+                   ->whereBetween('order_date', [$dateFrom, $dateTo]);
+            })
+            // Case 2: PR tạo trong date range nhưng chưa có PO nào (chờ đặt hàng)
+            ->orWhere(function($q2) use ($dateFrom, $dateTo) {
+                $q2->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
+                   ->whereDoesntHave('purchaseOrderItems');
+            });
+        });
 
         // Filter by Sales Order Code
         if ($request->filled('sale_code')) {
@@ -386,10 +447,52 @@ class PurchaseReportController extends Controller
 
         // Filter by Vendor
         if ($request->filled('supplier_id')) {
-            $query->where('vendor_id', $request->supplier_id);
+            $query->where(function($q) use ($request) {
+                $q->where('vendor_id', $request->supplier_id)
+                  ->orWhereHas('purchaseOrderItems.purchaseOrder', function($pq) use ($request) {
+                      $pq->where('supplier_id', $request->supplier_id);
+                  });
+            });
         }
 
         $allItems = $query->latest()->get();
+
+        // Query direct/manual PurchaseOrderItems (no linked PR item)
+        $poQuery = \App\Models\PurchaseOrderItem::whereNull('sale_order_request_item_id')
+            ->whereHas('purchaseOrder', function($pq) {
+                $pq->where('status', '!=', 'cancelled');
+            })
+            ->with(['purchaseOrder.supplier', 'purchaseOrder.currency', 'product']);
+
+        // Filter direct PO items by Date
+        $poQuery->whereHas('purchaseOrder', function($pq) use ($dateFrom, $dateTo) {
+            $pq->whereBetween('order_date', [$dateFrom, $dateTo]);
+        });
+
+        // Filter direct PO items by Vendor
+        if ($request->filled('supplier_id')) {
+            $poQuery->whereHas('purchaseOrder', function($pq) use ($request) {
+                $pq->where('supplier_id', $request->supplier_id);
+            });
+        }
+
+        // Filter direct PO items by Product
+        if (!empty($productIds)) {
+            if (in_array(-1, $productIds)) {
+                $poQuery->whereRaw('1 = 0');
+            } else {
+                $poQuery->whereIn('product_id', $productIds);
+            }
+        } elseif ($request->filled('product_search')) {
+            $poQuery->whereHas('product', function($pq) use ($request) {
+                $pq->where('code', 'like', '%' . $request->product_search . '%');
+            });
+        }
+
+        $directPoItems = $poQuery->get();
+
+        // Track PO item IDs đã được xử lý qua PR items để tránh double-count
+        $processedPoItemIds = [];
 
         $grouped = [];
         foreach ($allItems as $item) {
@@ -420,8 +523,15 @@ class PurchaseReportController extends Controller
                 ];
             }
 
-            $ordered = $item->ordered_quantity_total;
-            $received = $item->received_quantity_total;
+            // Chỉ tính ordered/received từ PO items KHÔNG bị cancelled (đã filter ở eager load)
+            $ordered = 0;
+            $received = 0;
+            foreach ($item->purchaseOrderItems as $poItem) {
+                $ordered += (float) ($poItem->ordered_quantity ?? $poItem->quantity ?? 0);
+                $received += (float) ($poItem->received_quantity ?? 0);
+                // Track PO item ID để tránh double-count
+                $processedPoItemIds[] = $poItem->id;
+            }
 
             $grouped[$key]['requested'] += $item->quantity;
             $grouped[$key]['ordered'] += $ordered;
@@ -470,6 +580,57 @@ class PurchaseReportController extends Controller
             }
         }
 
+        // Chỉ thêm direct PO items chưa được xử lý qua PR
+        foreach ($directPoItems as $poItem) {
+            // Skip nếu PO item này đã được xử lý qua PR items
+            if (in_array($poItem->id, $processedPoItemIds)) {
+                continue;
+            }
+
+            $saleCode = 'N/A';
+            $saleId = 0;
+            $partNumber = $poItem->product->code ?? $poItem->product_name ?? 'N/A';
+            $key = $saleId . '-' . $partNumber;
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'sale_id' => $saleId,
+                    'sale_code' => $saleCode,
+                    'part_number' => $partNumber,
+                    'vendor_name' => $poItem->purchaseOrder->supplier->name ?? 'N/A',
+                    'requested' => 0,
+                    'ordered' => 0,
+                    'received' => 0,
+                    'unit_price_usd' => $poItem->warehouse_unit_price ?: $poItem->unit_price ?: 0,
+                    'pr_codes' => [],
+                    'po_links' => [],
+                    'cpq_numbers' => [],
+                    'end_users' => [],
+                    'partners' => [],
+                    'serial_numbers' => [],
+                    'created_at' => $poItem->purchaseOrder->order_date ?? $poItem->created_at,
+                ];
+            }
+
+            $grouped[$key]['requested'] += $poItem->quantity;
+            $grouped[$key]['ordered'] += $poItem->quantity;
+            $grouped[$key]['received'] += $poItem->received_quantity;
+
+            $poId = $poItem->purchase_order_id;
+            if (!isset($grouped[$key]['po_links'][$poId])) {
+                $grouped[$key]['po_links'][$poId] = [
+                    'id' => $poId,
+                    'code' => $poItem->purchaseOrder->code ?? '',
+                    'status_label' => $poItem->purchaseOrder->status_label ?? '',
+                ];
+            }
+
+            $poCpq = $poItem->purchaseOrder->cpq_number ?? '';
+            if ($poCpq && !in_array($poCpq, $grouped[$key]['cpq_numbers'])) {
+                $grouped[$key]['cpq_numbers'][] = $poCpq;
+            }
+        }
+
         foreach ($grouped as &$row) {
             $row['po_links'] = array_values($row['po_links']);
             $row['remaining'] = max(0, $row['requested'] - $row['received']);
@@ -512,31 +673,75 @@ class PurchaseReportController extends Controller
         
         $type = $request->input('report_type', 'tracking');
         
+        $productId = $request->input('product_id');
+        $productSearch = $request->input('product_search');
+
+        if ($productId && !empty($productSearch)) {
+            $selectedProduct = \App\Models\Product::find($productId);
+            if ($selectedProduct && !str_contains($productSearch, $selectedProduct->code)) {
+                $productId = null;
+            }
+        }
+
+        $productIds = [];
+        if ($productId) {
+            $productIds = [$productId];
+        } elseif (!empty($productSearch)) {
+            $productIds = \App\Models\Product::search($productSearch)->pluck('id')->toArray();
+            if (empty($productIds)) {
+                $productIds = [-1];
+            }
+        }
+
         if ($type === 'tracking') {
-            $productId = $request->input('product_id');
-            $productSearch = $request->input('product_search');
-
-            if ($productId && !empty($productSearch)) {
-                $selectedProduct = \App\Models\Product::find($productId);
-                if ($selectedProduct && !str_contains($productSearch, $selectedProduct->code)) {
-                    $productId = null;
-                }
-            }
-
-            $productIds = [];
-            if ($productId) {
-                $productIds = [$productId];
-            } elseif (!empty($productSearch)) {
-                $productIds = \App\Models\Product::search($productSearch)->pluck('id')->toArray();
-                if (empty($productIds)) {
-                    $productIds = [-1];
-                }
-            }
-
             $data = $this->getTrackingReport($request, $productIds);
             return \Maatwebsite\Excel\Facades\Excel::download(
                 new \App\Exports\PurchaseTrackingExport($data), 
                 'bao-cao-theo-doi-hang-ve-' . date('Ymd') . '.xlsx'
+            );
+        } elseif ($type === 'supplier') {
+            $data = $this->getSupplierReport(
+                $request->input('date_from', now()->startOfMonth()->format('Y-m-d')),
+                $request->input('date_to', now()->format('Y-m-d')),
+                $request->input('supplier_id'),
+                $productIds
+            );
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\PurchaseSupplierExport($data), 
+                'bao-cao-mua-hang-theo-ncc-' . date('Ymd') . '.xlsx'
+            );
+        } elseif ($type === 'product') {
+            $data = $this->getProductReport(
+                $request->input('date_from', now()->startOfMonth()->format('Y-m-d')),
+                $request->input('date_to', now()->format('Y-m-d')),
+                $productIds,
+                $request->input('supplier_id')
+            );
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\PurchaseProductExport($data), 
+                'bao-cao-mua-hang-theo-san-pham-' . date('Ymd') . '.xlsx'
+            );
+        } elseif ($type === 'monthly') {
+            $data = $this->getMonthlyReport(
+                $request->input('date_from', now()->startOfMonth()->format('Y-m-d')),
+                $request->input('date_to', now()->format('Y-m-d')),
+                $request->input('supplier_id'),
+                $productIds
+            );
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\PurchaseMonthlyExport($data), 
+                'bao-cao-mua-hang-theo-thang-' . date('Ymd') . '.xlsx'
+            );
+        } elseif ($type === 'cancelled') {
+            $data = $this->getCancelledOrders(
+                $request->input('date_from', now()->startOfMonth()->format('Y-m-d')),
+                $request->input('date_to', now()->format('Y-m-d')),
+                $request->input('supplier_id'),
+                $productIds
+            );
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\PurchaseCancelledExport($data), 
+                'bao-cao-don-hang-da-huy-' . date('Ymd') . '.xlsx'
             );
         }
 

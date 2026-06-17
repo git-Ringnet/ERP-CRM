@@ -10,15 +10,46 @@
             <div class="text-sm text-gray-600">
                 <i class="fas fa-info-circle mr-1"></i>Phân tích chi tiết hoạt động mua hàng: theo NCC, sản phẩm, thời gian
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2" x-data="{ openExport: false }">
                 <a href="{{ route('purchase-reports.index') }}"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
                     <i class="fas fa-sync mr-2"></i>Làm mới
                 </a>
-                <a href="{{ route('purchase-reports.export', ['report_type' => 'tracking'] + request()->all()) }}"
-                    class="inline-flex items-center px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600">
-                    <i class="fas fa-file-export mr-2"></i>Xuất Excel
-                </a>
+                
+                <div class="relative">
+                    <button type="button" @click="openExport = !openExport"
+                        class="inline-flex items-center px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none">
+                        <i class="fas fa-file-export mr-2"></i>Xuất Excel
+                        <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                    </button>
+                    <div x-show="openExport" @click.away="openExport = false"
+                        class="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-xl py-1 z-50 text-sm"
+                        x-transition:enter="transition ease-out duration-100"
+                        x-transition:enter-start="opacity-0 transform scale-95"
+                        x-transition:enter-end="opacity-100 transform scale-100"
+                        style="display: none;">
+                        <a href="{{ route('purchase-reports.export', ['report_type' => 'tracking'] + request()->all()) }}"
+                            class="block px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center">
+                            <i class="fas fa-boxes w-5 text-gray-400 mr-2"></i>Xuất Theo dõi hàng về
+                        </a>
+                        <a href="{{ route('purchase-reports.export', ['report_type' => 'supplier'] + request()->all()) }}"
+                            class="block px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center">
+                            <i class="fas fa-building w-5 text-gray-400 mr-2"></i>Xuất Theo nhà cung cấp
+                        </a>
+                        <a href="{{ route('purchase-reports.export', ['report_type' => 'product'] + request()->all()) }}"
+                            class="block px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center">
+                            <i class="fas fa-box w-5 text-gray-400 mr-2"></i>Xuất Theo sản phẩm
+                        </a>
+                        <a href="{{ route('purchase-reports.export', ['report_type' => 'monthly'] + request()->all()) }}"
+                            class="block px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center">
+                            <i class="fas fa-calendar-alt w-5 text-gray-400 mr-2"></i>Xuất Theo tháng
+                        </a>
+                        <a href="{{ route('purchase-reports.export', ['report_type' => 'cancelled'] + request()->all()) }}"
+                            class="block px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center border-t border-gray-100">
+                            <i class="fas fa-times-circle w-5 text-red-500 mr-2"></i>Xuất Đơn đã hủy
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -206,6 +237,11 @@
                         data-tab="monthly">
                         <i class="fas fa-calendar-alt mr-1"></i>Theo tháng
                     </button>
+                    <button type="button"
+                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+                        data-tab="cancelled">
+                        <i class="fas fa-times-circle mr-1"></i>Đơn đã hủy
+                    </button>
                 </nav>
             </div>
 
@@ -343,7 +379,7 @@
                                         <div class="text-[10px] text-gray-400 font-medium">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-3 text-right text-green-600">
-                                        <div class="font-bold">${{ number_format(($row['total_discount'] / 25000), 2) }}</div> <!-- Approximate USD for discount if not calculated -->
+                                        <div class="font-bold">${{ number_format($row['total_discount_usd'] ?? 0, 2) }}</div>
                                         <div class="text-[10px] opacity-70 font-medium">{{ number_format($row['total_discount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-3 text-right text-gray-700 font-semibold">
@@ -541,6 +577,57 @@
                             @empty
                                 <tr>
                                     <td colspan="7" class="px-3 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cancelled Orders Report -->
+            <div class="tab-content p-4 hidden" id="tab-cancelled">
+                <h3 class="text-base font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-times-circle mr-2 text-red-500"></i>Danh sách đơn mua hàng (PO) đã bị hủy
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm divide-y divide-gray-200">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Mã PO</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Ngày đặt</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Nhà cung cấp</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">SO liên quan</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">SI (Partner)</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">End User</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng tiền (USD)</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-700">Tổng tiền (VND)</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-700">Ghi chú / Lý do hủy</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            @forelse($cancelledReport as $row)
+                                <tr class="hover:bg-red-50/20 transition-colors">
+                                    <td class="px-3 py-3 font-bold text-red-600">
+                                        <a href="{{ route('purchase-orders.show', $row['id']) }}" class="hover:underline flex items-center gap-1.5" target="_blank">
+                                            <i class="fas fa-external-link-alt text-[9px] opacity-60"></i>
+                                            {{ $row['code'] }}
+                                        </a>
+                                    </td>
+                                    <td class="px-3 py-3 text-gray-500">{{ $row['order_date'] }}</td>
+                                    <td class="px-3 py-3 font-semibold text-gray-900">{{ $row['supplier_name'] }}</td>
+                                    <td class="px-3 py-3 font-bold text-gray-700">{{ $row['linked_so_codes'] }}</td>
+                                    <td class="px-3 py-3 text-gray-600">{{ $row['linked_partner_names'] }}</td>
+                                    <td class="px-3 py-3 text-gray-600">{{ $row['linked_end_user_names'] }}</td>
+                                    <td class="px-3 py-3 text-right font-bold text-indigo-600">${{ $row['total_usd'] }}</td>
+                                    <td class="px-3 py-3 text-right text-gray-500">{{ $row['total_vnd'] }}đ</td>
+                                    <td class="px-3 py-3 text-gray-500 italic">{{ $row['note'] ?: 'N/A' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="9" class="px-3 py-10 text-center text-gray-400">
+                                        <i class="fas fa-check-circle text-4xl mb-2 opacity-20 text-green-500"></i>
+                                        <p>Không có đơn mua hàng nào bị hủy trong khoảng thời gian này.</p>
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>

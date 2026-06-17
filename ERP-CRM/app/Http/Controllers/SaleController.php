@@ -2634,7 +2634,15 @@ class SaleController extends Controller
 
     public function orderTracking(Request $request)
     {
-        $query = SaleOrderRequestItem::with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder']);
+        $query = SaleOrderRequestItem::where('is_cancelled', false)
+            ->whereHas('saleOrderRequest', function($q) {
+                $q->whereIn('status', [
+                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                    \App\Models\SaleOrderRequest::STATUS_COMPLETED
+                ]);
+            })
+            ->with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder']);
 
         // Filter by Sales Order Code
         if ($request->filled('sale_code')) {
