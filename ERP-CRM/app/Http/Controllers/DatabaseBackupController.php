@@ -28,6 +28,7 @@ class DatabaseBackupController extends Controller
      */
     public function export(Request $request)
     {
+        ini_set('memory_limit', '512M');
         $request->validate([
             'password' => 'required|string|min:8',
         ]);
@@ -126,6 +127,7 @@ class DatabaseBackupController extends Controller
      */
     public function import(Request $request)
     {
+        ini_set('memory_limit', '512M');
         $request->validate([
             'backup_file' => 'required|file',
             'password' => 'required|string',
