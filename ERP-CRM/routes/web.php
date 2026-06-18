@@ -130,6 +130,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/inventory/expiring', [InventoryController::class, 'expiringSoon'])->name('inventory.expiring');
     Route::get('/inventory-export', [InventoryController::class, 'export'])->name('inventory.export');
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show'])->name('inventory.show');
+    Route::post('/inventory/custom-columns', [InventoryController::class, 'storeCustomColumn'])->name('inventory.custom-columns.store');
+    Route::delete('/inventory/custom-columns/{id}', [InventoryController::class, 'deleteCustomColumn'])->name('inventory.custom-columns.destroy');
+    Route::patch('/inventory/items/{id}', [InventoryController::class, 'updateItem'])->name('inventory.items.update');
 
     // Damaged Goods Routes
     Route::get('/ajax/damaged-goods/items', [DamagedGoodController::class, 'getProductItems'])->name('damaged-goods.items');

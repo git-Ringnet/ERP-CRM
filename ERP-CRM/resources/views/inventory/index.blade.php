@@ -4,8 +4,12 @@
 @section('page-title', 'Quản lý Tồn kho')
 
 @section('content')
+@php
+    $activeTab = request('tab', 'stocking');
+@endphp
+
     <div class="bg-white rounded-lg shadow-sm">
-        <!-- Header -->
+        <!-- Header & Filters -->
         <div class="p-3 sm:p-4 border-b border-gray-200 space-y-3">
             <div class="flex flex-col sm:flex-row gap-3">
                 <!-- Search -->
@@ -16,9 +20,8 @@
                             <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm sản phẩm..."
                                 class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="hidden" name="tab" value="{{ $activeTab }}">
                             <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
-                            <input type="hidden" name="stock_status" value="{{ request('stock_status') }}">
-                            <input type="hidden" name="expiry_filter" value="{{ request('expiry_filter') }}">
                         </form>
                     </div>
                 </div>
@@ -27,7 +30,7 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Kho</label>
                     <select name="warehouse_id"
-                        onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&stock_status={{ request('stock_status') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
+                        onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&tab={{ $activeTab }}&search={{ request('search') }}'"
                         class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
                         <option value="">Tất cả kho</option>
                         @foreach($warehouses as $warehouse)
@@ -37,342 +40,435 @@
                         @endforeach
                     </select>
                 </div>
-
-                <!-- Filter by Stock Status -->
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Trạng thái</label>
-                    <select name="stock_status"
-                        onchange="window.location.href='{{ route('inventory.index') }}?stock_status='+this.value+'&warehouse_id={{ request('warehouse_id') }}&expiry_filter={{ request('expiry_filter') }}&search={{ request('search') }}'"
-                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="available" {{ request('stock_status') == 'available' ? 'selected' : '' }}>Còn hàng</option>
-                        <option value="low" {{ request('stock_status') == 'low' ? 'selected' : '' }}>Sắp hết</option>
-                        <option value="out" {{ request('stock_status') == 'out' ? 'selected' : '' }}>Hết hàng</option>
-                    </select>
-                </div>
-
-                <!-- Filter by Expiry -->
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Hạn sử dụng</label>
-                    <select name="expiry_filter"
-                        onchange="window.location.href='{{ route('inventory.index') }}?expiry_filter='+this.value+'&warehouse_id={{ request('warehouse_id') }}&stock_status={{ request('stock_status') }}&search={{ request('search') }}'"
-                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                        <option value="">Tất cả hạn sử dụng</option>
-                        <option value="expiring" {{ request('expiry_filter') == 'expiring' ? 'selected' : '' }}>Sắp hết hạn
-                        </option>
-                        <option value="expired" {{ request('expiry_filter') == 'expired' ? 'selected' : '' }}>Đã hết hạn</option>
-                    </select>
-                </div>
             </div>
 
-            <div class="flex gap-2">
-                <a href="{{ route('inventory.export', request()->query()) }}"
-                    class="inline-flex items-center justify-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm">
-                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
-                </a>
-                <a href="{{ route('inventory.low-stock') }}"
-                    class="inline-flex items-center justify-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    <span class="hidden sm:inline">Sắp hết hàng</span>
-                    <span class="sm:hidden">Sắp hết</span>
-                </a>
-                <a href="{{ route('inventory.expiring') }}"
-                    class="inline-flex items-center justify-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm">
-                    <i class="fas fa-clock mr-2"></i>
-                    <span class="hidden sm:inline">Sắp hết hạn</span>
-                    <span class="sm:hidden">Hết hạn</span>
-                </a>
+            <div class="flex flex-wrap justify-between items-center gap-2 pt-2">
+                <div class="flex gap-2">
+                    <a href="{{ route('inventory.export', request()->query()) }}"
+                        class="inline-flex items-center justify-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm">
+                        <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                    </a>
+                </div>
             </div>
         </div>
 
-        <!-- Table - Desktop View -->
-        <div class="hidden md:block overflow-x-auto" x-data="{ expanded: null }">
-            <table class="w-full">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">STT</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">Sản phẩm</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Kho</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Tồn kho</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Hạn sử dụng</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Bảo hành</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Đơn giá TB</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Tổng giá trị</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Trạng thái</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-24">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($inventories as $inventory)
-                        <tr class="hover:bg-gray-50 cursor-pointer" @click="expanded === {{ $inventory->id }} ? expanded = null : expanded = {{ $inventory->id }}">
-                            <td class="px-4 py-3 text-center">
-                                <i class="fas fa-chevron-right transition-transform duration-200" :class="expanded === {{ $inventory->id }} ? 'rotate-90 text-primary' : 'text-gray-400'"></i>
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
-                                {{ ($inventories->currentPage() - 1) * $inventories->perPage() + $loop->iteration }}
-                            </td>
-                            <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $inventory->product->name }}</div>
-                                <div class="text-sm text-gray-500">{{ $inventory->product->code }}</div>
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                {{ $inventory->warehouse->name }}
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <div class="flex flex-col">
-                                    <span
-                                        class="font-medium {{ $inventory->stock <= 0 ? 'text-red-600' : ($inventory->is_low_stock ? 'text-yellow-600' : 'text-gray-900') }}">
-                                        {{ number_format($inventory->stock) }}
-                                    </span>
-                                    @foreach($inventory->stock_breakdown as $status => $count)
-                                        @if($count > 0 && $status !== 'sold' && $status !== 'transferred')
-                                            <span class="text-xs text-gray-500">
-                                                @switch($status)
-                                                    @case('in_stock') Mới: @break
-                                                    @case('damaged') Hỏng: @break
-                                                    @case('liquidation') TL: @break
-                                                    @default {{ ucfirst($status) }}:
-                                                @endswitch
-                                                {{ $count }}
-                                            </span>
-                                        @endif
-                                    @endforeach
-                                </div>
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm">
-                                @if($inventory->expiry_date)
-                                    <span
-                                        class="{{ $inventory->is_expiring_soon ? 'text-orange-600 font-medium' : 'text-gray-500' }}">
-                                        {{ $inventory->expiry_date->format('d/m/Y') }}
-                                    </span>
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                @if($inventory->warranty_months)
-                                    {{ $inventory->warranty_months }} tháng
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                                @if($inventory->avg_cost > 0)
-                                    <span class="font-medium text-gray-800">{{ number_format($inventory->avg_cost, 0, ',', '.') }} đ</span>
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                                @if($inventory->stock > 0 && $inventory->avg_cost > 0)
-                                    <span class="font-semibold text-blue-700">{{ number_format($inventory->stock * $inventory->avg_cost, 0, ',', '.') }} đ</span>
-                                @else
-                                    <span class="text-gray-400">-</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                @if($inventory->stock <= 0)
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                        <i class="fas fa-times-circle mr-1"></i>Hết hàng
-                                    </span>
-                                @elseif($inventory->is_low_stock)
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i>Sắp hết
-                                    </span>
-                                @else
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                        <i class="fas fa-check-circle mr-1"></i>Còn hàng
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-center" @click.stop>
-                                <div class="flex items-center justify-center gap-1">
-                                    <a href="{{ route('inventory.show', $inventory->id) }}"
-                                        class="inline-block p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                                        title="Xem chi tiết">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        <!-- Details Row (Hidden by default) -->
-                        <tr x-show="expanded === {{ $inventory->id }}" x-cloak class="bg-gray-50">
-                            <td colspan="11" class="px-8 py-4">
-                                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div class="space-y-3">
-                                            <div>
-                                                <label class="text-sm text-gray-500">Sản phẩm</label>
-                                                <p class="font-medium text-gray-900">{{ $inventory->product->name }}</p>
-                                                <p class="text-sm text-gray-500">{{ $inventory->product->code }}</p>
-                                            </div>
-                                            <div>
-                                                <label class="text-sm text-gray-500">Kho</label>
-                                                <p class="font-medium text-gray-900">{{ $inventory->warehouse->name }}</p>
-                                            </div>
-                                            @if($inventory->stock > 0)
-                                            <div>
-                                                <label class="text-sm text-gray-500 mb-1 block">Chi tiết tồn kho:</label>
-                                                <div class="bg-gray-50 p-3 rounded-lg text-sm">
-                                                    @foreach($inventory->stock_breakdown as $status => $count)
-                                                        @if($count > 0 && $status != 'sold' && $status !== 'transferred')
-                                                        <div class="flex items-center justify-between max-w-[200px]">
-                                                            <span>
-                                                                @switch($status)
-                                                                    @case('in_stock') <i class="fas fa-check-circle text-green-500 mr-2 w-4"></i>Mới: @break
-                                                                    @case('damaged') <i class="fas fa-times-circle text-red-500 mr-2 w-4"></i>Hỏng: @break
-                                                                    @case('liquidation') <i class="fas fa-tag text-purple-500 mr-2 w-4"></i>Thanh lý: @break
-                                                                    @default <i class="fas fa-box text-gray-400 mr-2 w-4"></i>{{ ucfirst($status) }}:
-                                                                @endswitch
-                                                            </span>
-                                                            <span class="font-bold text-gray-900">{{ $count }}</span>
-                                                        </div>
-                                                        @endif
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                            @endif
-                                        </div>
-                                        <div class="space-y-3">
-                                            <div>
-                                                <label class="text-sm text-gray-500">Hạn sử dụng</label>
-                                                <p class="font-medium {{ $inventory->is_expiring_soon ? 'text-orange-600' : 'text-gray-900' }}">
-                                                    {{ $inventory->expiry_date ? $inventory->expiry_date->format('d/m/Y') : '-' }}
-                                                </p>
-                                                @if($inventory->days_until_expiry !== null)
-                                                    <p class="text-sm text-gray-500">
-                                                        {{ $inventory->days_until_expiry >= 0 ? 'Còn ' . $inventory->days_until_expiry . ' ngày' : 'Đã hết hạn' }}
-                                                    </p>
-                                                @endif
-                                            </div>
-                                            <div>
-                                                <label class="text-sm text-gray-500">Bảo hành</label>
-                                                <p class="font-medium text-gray-900">
-                                                    {{ $inventory->warranty_months ? $inventory->warranty_months . ' tháng' : '-' }}
-                                                </p>
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
-                                                <div>
-                                                    <label class="text-xs text-gray-400">Cập nhật lần cuối</label>
-                                                    <p class="text-xs text-gray-600">{{ $inventory->updated_at->format('d/m/Y H:i') }}</p>
-                                                </div>
-                                                <div>
-                                                    <label class="text-xs text-gray-400">Ngày tạo</label>
-                                                    <p class="text-xs text-gray-600">{{ $inventory->created_at->format('d/m/Y H:i') }}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
-                                <i class="fas fa-boxes text-4xl mb-2"></i>
-                                <p>Không có dữ liệu tồn kho</p>
-                            </td>
-                        </tr>
-                    @endforelse
-                    @if($inventories->count() > 0)
-                        <tr class="bg-blue-50 border-t-2 border-blue-200">
-                            <td colspan="5" class="px-4 py-3 text-right text-sm font-bold text-blue-800">
-                                Tổng giá trị tồn kho:
-                            </td>
-                            <td colspan="2" class="px-4 py-3 text-right text-sm font-bold text-blue-800">
-                                {{ number_format($inventories->sum(fn($inv) => $inv->stock * $inv->avg_cost), 0, ',', '.') }} đ
-                            </td>
-                            <td colspan="2"></td>
-                        </tr>
-                    @endif
-                </tbody>
-            </table>
+        <!-- Navigation Tabs -->
+        <div class="border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center pr-4">
+            <nav class="-mb-px flex space-x-6 px-4" aria-label="Tabs">
+                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'stocking'])) }}" 
+                   class="{{ ($activeTab === 'stocking') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
+                    Hàng stocking
+                </a>
+                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'project'])) }}" 
+                   class="{{ ($activeTab === 'project') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
+                    Hàng dự án
+                </a>
+                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'rmodel'])) }}" 
+                   class="{{ ($activeTab === 'rmodel') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
+                    hàng R và NFR
+                </a>
+            </nav>
+            @if(in_array($activeTab, ['stocking', 'project', 'rmodel']))
+                <div class="px-4 py-2 sm:py-0">
+                    <button onclick="addCustomColumn('{{ $activeTab }}')" 
+                            class="inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium">
+                        <i class="fas fa-plus mr-1"></i>Thêm cột cho {{ $activeTab === 'stocking' ? 'Hàng stocking' : ($activeTab === 'project' ? 'Hàng dự án' : 'hàng R & NFR') }}
+                    </button>
+                </div>
+            @endif
         </div>
 
-        <!-- Card View - Mobile -->
-        <div class="md:hidden divide-y divide-gray-200" x-data="{ expanded: null }">
-            @forelse($inventories as $inventory)
-                <div class="p-4 hover:bg-gray-50">
-                    <div class="flex justify-between items-start mb-2" @click="expanded === {{ $inventory->id }} ? expanded = null : expanded = {{ $inventory->id }}">
-                        <div class="flex-1">
-                            <div class="font-medium text-gray-900">{{ $inventory->product->name }}</div>
-                            <div class="text-sm text-gray-500">{{ $inventory->product->code }}</div>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            @if($inventory->stock <= 0)
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                    Hết hàng
+        <!-- Tab 1 & 2: Stocking and Project detailed lists -->
+        @if($activeTab === 'stocking' || $activeTab === 'project')
+            @php
+                $items = ($activeTab === 'stocking') ? $stockingItems : $projectItems;
+                $cols = ($activeTab === 'stocking') ? $stockingColumns : $projectColumns;
+            @endphp
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr class="divide-x divide-gray-200">
+                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-12">STT</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Tên thiết bị</th>
+                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Số PO</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">
+                                <span class="inline-flex items-center gap-1 cursor-pointer" onclick="showProjectRuleHelp()" title="Click để xem chi tiết quy tắc hiển thị">
+                                    Dự án
+                                    <i class="fas fa-question-circle text-gray-400 hover:text-primary text-xs"></i>
                                 </span>
-                            @elseif($inventory->is_low_stock)
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                    Sắp hết
-                                </span>
-                            @else
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                    Còn hàng
-                                </span>
-                            @endif
-                            <i class="fas fa-chevron-down transition-transform duration-200" :class="expanded === {{ $inventory->id }} ? 'rotate-180 text-primary' : 'text-gray-400'"></i>
-                        </div>
-                    </div>
-                    <div class="space-y-1 text-sm text-gray-600 mb-3" x-show="expanded !== {{ $inventory->id }}">
-                        <div><i class="fas fa-warehouse w-4"></i> {{ $inventory->warehouse->name }}</div>
-                        <div><i class="fas fa-boxes w-4"></i> Tồn: {{ number_format($inventory->stock) }} / Min:
-                            {{ number_format($inventory->min_stock) }}</div>
-                        <div><i class="fas fa-dollar-sign w-4"></i> {{ number_format($inventory->avg_cost) }} đ</div>
-                        @if($inventory->expiry_date)
-                            <div><i class="fas fa-calendar w-4"></i> HSD: {{ $inventory->expiry_date->format('d/m/Y') }}</div>
-                        @endif
-                        @if($inventory->warranty_months)
-                            <div><i class="fas fa-shield-alt w-4"></i> BH: {{ $inventory->warranty_months }} tháng</div>
-                        @endif
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="{{ route('inventory.show', $inventory->id) }}"
-                            class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
-                            <i class="fas fa-eye mr-1"></i>Xem
-                        </a>
-                    </div>
-                    <div x-show="expanded === {{ $inventory->id }}" x-cloak class="mt-3 p-3 bg-gray-50 rounded-lg text-sm border border-gray-100">
-                        @if($inventory->stock > 0)
-                        <div class="mb-2">
-                            <span class="font-medium text-gray-700 block mb-1">Chi tiết tồn kho:</span>
-                            @foreach($inventory->stock_breakdown as $status => $count)
-                                @if($count > 0 && $status != 'sold' && $status !== 'transferred')
-                                    <div class="flex justify-between py-1 border-b border-gray-200 border-dashed last:border-0">
-                                        <span class="text-gray-600">
-                                            @switch($status)
-                                                @case('in_stock') Mới @break
-                                                @case('damaged') Hỏng @break
-                                                @case('liquidation') Thanh lý @break
-                                                @default {{ ucfirst($status) }}
-                                            @endswitch
-                                        </span>
-                                        <span class="font-medium">{{ $count }}</span>
+                            </th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
+                            
+                            <!-- Custom columns headers -->
+                            @foreach($cols as $col)
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px] relative group">
+                                    <div class="flex items-center justify-between">
+                                        <span>{{ $col->name }}</span>
+                                        <button onclick="deleteCustomColumn({{ $col->id }}, '{{ $col->name }}')" 
+                                                class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity ml-1" 
+                                                title="Xóa cột này">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
                                     </div>
-                                @endif
+                                </th>
                             @endforeach
-                        </div>
-                        @endif
-                        <div class="text-xs text-gray-500 mt-2">
-                            Cập nhật: {{ $inventory->updated_at->format('d/m/y H:i') }}
-                        </div>
-                    </div>
-                </div>
-            @empty
-                <div class="p-8 text-center text-gray-500">
-                    <i class="fas fa-boxes text-4xl mb-2"></i>
-                    <p>Không có dữ liệu tồn kho</p>
-                </div>
-            @endforelse
-        </div>
-
-        <!-- Pagination -->
-        @if($inventories->hasPages())
-            <div class="px-4 py-3 border-t border-gray-200">
-                {{ $inventories->appends(request()->query())->links() }}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @forelse($items as $item)
+                            <tr class="hover:bg-gray-50 divide-x divide-gray-100">
+                                <td class="px-3 py-2 text-center text-gray-500">
+                                    {{ ($items->currentPage() - 1) * $items->perPage() + $loop->iteration }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="font-medium text-gray-900">{{ $item->product->name }}</div>
+                                    <div class="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-0.5">
+                                        <span>Mã: {{ $item->product->code }}</span>
+                                        @if(!$item->isNoSku())
+                                            <span class="text-primary font-semibold">S/N: {{ $item->sku }}</span>
+                                        @else
+                                            <span class="text-gray-400">Không serial</span>
+                                        @endif
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2 text-center text-gray-900 font-medium">
+                                    {{ $item->quantity }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700">
+                                    {{ $item->order_creator_name ?: '-' }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700 font-mono text-xs">
+                                    {{ $item->purchase_order_code ?: '-' }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700">
+                                    {{ $item->project_name ?: '-' }}
+                                </td>
+                                <td class="px-3 py-1.5">
+                                    <input type="text" value="{{ $item->borrower }}" 
+                                           placeholder="Nhập tên..." 
+                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                           data-item-id="{{ $item->item_ids }}" data-field="borrower"
+                                           onblur="saveItemField(this)">
+                                </td>
+                                <td class="px-3 py-1.5">
+                                    <input type="text" value="{{ $item->comments }}" 
+                                           placeholder="Ghi chú..." 
+                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                           data-item-id="{{ $item->item_ids }}" data-field="comments"
+                                           onblur="saveItemField(this)">
+                                </td>
+                                
+                                <!-- Custom columns inputs -->
+                                @foreach($cols as $col)
+                                    <td class="px-3 py-1.5">
+                                        @php
+                                            $val = $item->custom_fields[$col->key] ?? '';
+                                        @endphp
+                                        <input type="text" value="{{ $val }}" 
+                                               placeholder="..." 
+                                               class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                               data-item-id="{{ $item->item_ids }}" data-custom-key="{{ $col->key }}"
+                                               onblur="saveItemField(this)">
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="{{ 8 + count($cols) }}" class="px-4 py-8 text-center text-gray-500">
+                                    <i class="fas fa-boxes text-4xl mb-2"></i>
+                                    <p>Không có dữ liệu thiết bị nào</p>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
+            
+            <!-- Pagination -->
+            @if($items->hasPages())
+                <div class="px-4 py-3 border-t border-gray-200">
+                    {{ $items->appends(request()->query())->links() }}
+                </div>
+            @endif
+
+        <!-- Tab 3: R & NFR Model -->
+        @elseif($activeTab === 'rmodel')
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr class="divide-x divide-gray-200">
+                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-12">STT</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Tên thiết bị</th>
+                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
+                            
+                            <!-- Custom columns headers -->
+                            @foreach($rmodelColumns as $col)
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px] relative group">
+                                    <div class="flex items-center justify-between">
+                                        <span>{{ $col->name }}</span>
+                                        <button onclick="deleteCustomColumn({{ $col->id }}, '{{ $col->name }}')" 
+                                                class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity ml-1" 
+                                                title="Xóa cột này">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @forelse($rmodelItems as $item)
+                            <tr class="hover:bg-gray-50 divide-x divide-gray-100">
+                                <td class="px-3 py-2 text-center text-gray-500">
+                                    {{ ($rmodelItems->currentPage() - 1) * $rmodelItems->perPage() + $loop->iteration }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="font-medium text-gray-900">{{ $item->product->name }}</div>
+                                    <div class="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-0.5">
+                                        <span>Mã: {{ $item->product->code }}</span>
+                                        @if(!$item->isNoSku())
+                                            <span class="text-primary font-semibold">S/N: {{ $item->sku }}</span>
+                                        @else
+                                            <span class="text-gray-400">Không serial</span>
+                                        @endif
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2 text-center text-gray-900 font-medium">
+                                    {{ $item->quantity }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700">
+                                    {{ $item->r_model_orderer_info ?: '-' }}
+                                </td>
+                                <td class="px-3 py-1.5">
+                                    <input type="text" value="{{ $item->borrower }}" 
+                                           placeholder="Nhập tên..." 
+                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                           data-item-id="{{ $item->item_ids }}" data-field="borrower"
+                                           onblur="saveItemField(this)">
+                                </td>
+                                <td class="px-3 py-1.5">
+                                    <input type="text" value="{{ $item->comments }}" 
+                                           placeholder="Ghi chú..." 
+                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                           data-item-id="{{ $item->item_ids }}" data-field="comments"
+                                           onblur="saveItemField(this)">
+                                </td>
+                                
+                                <!-- Custom columns inputs -->
+                                @foreach($rmodelColumns as $col)
+                                    <td class="px-3 py-1.5">
+                                        @php
+                                            $val = $item->custom_fields[$col->key] ?? '';
+                                        @endphp
+                                        <input type="text" value="{{ $val }}" 
+                                               placeholder="..." 
+                                               class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
+                                               data-item-id="{{ $item->item_ids }}" data-custom-key="{{ $col->key }}"
+                                               onblur="saveItemField(this)">
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="{{ 6 + count($rmodelColumns) }}" class="px-4 py-8 text-center text-gray-500">
+                                    <i class="fas fa-boxes text-4xl mb-2"></i>
+                                    <p>Không có dữ liệu thiết bị nào</p>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            @if($rmodelItems->hasPages())
+                <div class="px-4 py-3 border-t border-gray-200">
+                    {{ $rmodelItems->appends(request()->query())->links() }}
+                </div>
+            @endif
         @endif
     </div>
+
+    <!-- Scripts for Inline Editing & Custom Columns -->
+    <script>
+        // Simple elegant Toast Notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 z-50 flex items-center px-4 py-3 rounded-lg shadow-lg text-white text-sm transition-all duration-300 transform translate-y-2 opacity-0 ${
+                type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i> ${message}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // AJAX update for borrower, comments, and custom fields
+        function saveItemField(element) {
+            const itemId = element.getAttribute('data-item-id');
+            const field = element.getAttribute('data-field');
+            const customKey = element.getAttribute('data-custom-key');
+            const value = element.value;
+
+            // Only update if value changes
+            if (element.getAttribute('data-last-value') === value) {
+                return;
+            }
+
+            let payload = {};
+            if (customKey) {
+                payload['custom_fields'] = {};
+                payload['custom_fields'][customKey] = value;
+            } else {
+                payload[field] = value;
+            }
+
+            // Highlight editing cell
+            element.classList.add('bg-yellow-50');
+
+            fetch(`/inventory/items/${itemId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    element.setAttribute('data-last-value', value);
+                    element.classList.remove('bg-yellow-50');
+                    element.classList.add('bg-green-50');
+                    setTimeout(() => element.classList.remove('bg-green-50'), 1000);
+                    showToast('Đã lưu thành công', 'success');
+                } else {
+                    throw new Error(data.message || 'Lỗi không xác định');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                element.classList.remove('bg-yellow-50');
+                element.classList.add('bg-red-50');
+                showToast('Không thể lưu giá trị', 'error');
+            });
+        }
+
+        // Initialize last values to avoid duplicate updates
+        document.querySelectorAll('input[data-item-id]').forEach(input => {
+            input.setAttribute('data-last-value', input.value);
+        });
+
+        // Add custom column dialog
+        function addCustomColumn(tab) {
+            const columnName = prompt("Nhập tên cột mới cần thêm:");
+            if (!columnName || columnName.trim() === '') {
+                return;
+            }
+
+            fetch(`/inventory/custom-columns`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    tab: tab,
+                    name: columnName.trim()
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.message || 'Lỗi máy chủ') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    throw new Error(data.message || 'Lỗi không xác định');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message || 'Có lỗi xảy ra khi thêm cột.');
+            });
+        }
+
+        // Delete custom column dialog
+        function deleteCustomColumn(id, name) {
+            if (!confirm(`Bạn có chắc chắn muốn xóa cột "${name}"? Tất cả dữ liệu của cột này trên toàn bộ thiết bị sẽ bị xóa vĩnh viễn khỏi database.`)) {
+                return;
+            }
+
+            fetch(`/inventory/custom-columns/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Không thể xóa cột');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    throw new Error(data.message || 'Lỗi không xác định');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message || 'Có lỗi xảy ra khi xóa cột.');
+            });
+        }
+
+        // Show Project / End User displaying rules SweetAlert
+        function showProjectRuleHelp() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Quy tắc hiển thị Dự án / End User',
+                    html: `
+                        <div class="text-left text-sm space-y-3" style="line-height: 1.6;">
+                            <p><strong>1. Ưu tiên 1 (Dự án liên kết):</strong> Mã dự án - Tên dự án từ đơn SO tương ứng.<br><span class="text-xs text-blue-600 font-mono"></span></p>
+                            <p><strong>2. Ưu tiên 2 (EU của Phiếu đặt hàng):</strong> Tên End-User/Mã số thuế của phiếu yêu cầu đặt hàng (SOR) nếu đơn SO không liên kết dự án.<br><span class="text-xs text-blue-600 font-mono"></span></p>
+                            <p><strong>3. Ưu tiên 3 (Khách hàng đơn SO):</strong> Tên khách hàng của đơn SO làm phương án dự phòng cuối cùng.</p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    confirmButtonText: 'Đã hiểu',
+                    confirmButtonColor: '#2563eb'
+                });
+            } else {
+                alert("Quy tắc hiển thị Dự án / End User:\n\n1. Ưu tiên 1: Mã dự án - Tên dự án từ SO liên kết (Ví dụ: DA-0001 - DA từ 4324234).\n2. Ưu tiên 2: EU Name - MST của phiếu đặt hàng (nếu có).\n3. Ưu tiên 3: Tên khách hàng (customer_name) của đơn SO làm fallback.");
+            }
+        }
+    </script>
 @endsection

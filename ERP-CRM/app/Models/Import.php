@@ -92,7 +92,12 @@ class Import extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class, 'reference_id')
-            ->where('reference_type', 'purchase_order');
+            ->whereExists(function ($query) {
+                $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('imports')
+                    ->whereColumn('imports.reference_id', 'purchase_orders.id')
+                    ->where('imports.reference_type', 'purchase_order');
+            });
     }
 
     /**

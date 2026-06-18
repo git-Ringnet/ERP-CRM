@@ -46,6 +46,8 @@ class ProductItem extends Model
         'status',
         'warranty_months',
         'expiry_date',
+        'borrower',
+        'custom_fields',
     ];
 
     /**
@@ -59,6 +61,17 @@ class ProductItem extends Model
         'warranty_months' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'custom_fields' => 'array',
+    ];
+
+    /**
+     * Appends
+     */
+    protected $appends = [
+        'purchase_order_code',
+        'project_name',
+        'order_creator_name',
+        'r_model_orderer_info'
     ];
 
     /**
@@ -165,5 +178,124 @@ class ProductItem extends Model
             self::STATUS_TRANSFERRED => 'Đã chuyển',
             self::STATUS_LIQUIDATION => 'Thanh lý',
         ];
+    }
+
+    /**
+     * Get the Purchase Order for this item.
+     */
+    public function getPurchaseOrderAttribute()
+    {
+        return $this->import && $this->import->reference_type === 'purchase_order' 
+            ? $this->import->purchaseOrder 
+            : null;
+    }
+
+    /**
+     * Get PO code.
+     */
+    public function getPurchaseOrderCodeAttribute(): ?string
+    {
+        return $this->purchase_order ? $this->purchase_order->code : null;
+    }
+
+    /**
+     * Get the related PO Item.
+     */
+    public function getPoItemAttribute()
+    {
+        if (!$this->purchase_order) {
+            return null;
+        }
+        return $this->purchase_order->items()
+            ->where('product_id', $this->product_id)
+            ->first();
+    }
+
+    /**
+     * Get the related Sale Order Request Item.
+     */
+    public function getSaleOrderRequestItemAttribute()
+    {
+        return $this->po_item ? $this->po_item->saleOrderRequestItem : null;
+    }
+
+    public function getProjectNameAttribute(): ?string
+    {
+        // Try to get sale from sale order request item or purchase order
+        $sale = null;
+        if ($this->sale_order_request_item && $this->sale_order_request_item->saleOrderRequest) {
+            $sale = $this->sale_order_request_item->saleOrderRequest->sale;
+        }
+        if (!$sale && $this->purchase_order) {
+            $sale = $this->purchase_order->sale;
+        }
+
+        // If there is a linked project, return its Code - Name
+        if ($sale && $sale->project) {
+            $project = $sale->project;
+            return $project->code ? "{$project->code} - {$project->name}" : $project->name;
+        }
+
+        // Fallback to eu_name_mst or sale's customer_name
+        return $this->sale_order_request_item?->eu_name_mst ?: ($sale?->customer_name ?: null);
+    }
+
+    /**
+     * Get Orderer (Người đặt hàng).
+     */
+    public function getOrderCreatorNameAttribute(): ?string
+    {
+        if ($this->sale_order_request_item) {
+            $sor = $this->sale_order_request_item->saleOrderRequest;
+            if ($sor && $sor->creator) {
+                return $sor->creator->name;
+            }
+        }
+
+        if ($this->purchase_order) {
+            if ($this->purchase_order->sale && $this->purchase_order->sale->user) {
+                return $this->purchase_order->sale->user->name;
+            }
+            return $this->purchase_order->creator ? $this->purchase_order->creator->name : null;
+        }
+
+        return null;
+    }
+
+    public function getRModelOrdererInfoAttribute(): ?string
+    {
+        if ($this->purchase_order) {
+            $partner = $this->purchase_order->linked_partner_names;
+            $salesperson = $this->purchase_order->linked_salesperson_names;
+            $poCode = $this->purchase_order->code;
+            $creator = $this->order_creator_name;
+
+            $parts = [];
+            if ($partner && $partner !== 'N/A') {
+                $parts[] = $partner;
+            }
+            if ($salesperson && $salesperson !== 'N/A') {
+                $parts[] = '(' . $salesperson . ')';
+            }
+            $partnerSalesperson = implode(' ', $parts);
+
+            $creatorPo = [];
+            if ($creator) {
+                $creatorPo[] = $creator;
+            }
+            if ($poCode) {
+                $creatorPo[] = 'P.O ' . $poCode;
+            }
+            $creatorPoStr = implode(' - ', $creatorPo);
+
+            if ($partnerSalesperson && $creatorPoStr) {
+                return $partnerSalesperson . ', ' . $creatorPoStr;
+            } elseif ($partnerSalesperson) {
+                return $partnerSalesperson;
+            } else {
+                return $creatorPoStr ?: 'N/A';
+            }
+        }
+        return $this->order_creator_name ?: 'N/A';
     }
 }
