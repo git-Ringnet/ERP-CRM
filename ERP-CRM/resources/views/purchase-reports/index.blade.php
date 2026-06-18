@@ -376,18 +376,15 @@
                                     </td>
                                     <td class="px-3 py-3 text-right">
                                         <div class="font-bold text-indigo-600">${{ number_format($row['total_amount_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400 font-medium">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-3 text-right text-green-600">
                                         <div class="font-bold">${{ number_format($row['total_discount_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] opacity-70 font-medium">{{ number_format($row['total_discount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-3 text-right text-gray-700 font-semibold">
                                         {{ number_format($row['total_shipping'], 0, ',', '.') }}đ
                                     </td>
                                     <td class="px-3 py-3 text-right">
                                         <div class="font-bold text-gray-900">${{ number_format($row['total_paid_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400 font-medium">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-3 text-center">
                                         <span class="inline-block px-2.5 py-0.5 text-xs font-bold bg-green-100 text-green-800 rounded-full">{{ $row['discount_rate'] }}%</span>
@@ -505,11 +502,9 @@
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
                                     <td class="px-3 py-2 text-right">
                                         <div class="font-bold text-indigo-600">${{ number_format($row['avg_purchase_price_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['avg_purchase_price'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-right">
                                         <div class="font-bold">${{ number_format($row['total_value_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_value'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600 font-bold">
                                         {{ number_format($row['avg_warehouse_price'], 0, ',', '.') }}đ
@@ -553,7 +548,6 @@
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
                                     <td class="px-3 py-2 text-right">
                                         <div class="font-bold text-indigo-600">${{ number_format($row['total_amount_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_amount'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-right text-green-600">
                                         {{ number_format($row['total_discount'], 0, ',', '.') }}đ
@@ -562,7 +556,6 @@
                                     </td>
                                     <td class="px-3 py-2 text-right">
                                         <div class="font-bold text-gray-900">${{ number_format($row['total_paid_usd'] ?? 0, 2) }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ number_format($row['total_paid'], 0, ',', '.') }}đ</div>
                                     </td>
                                     <td class="px-3 py-2 text-center">
                                         @if($row['change'] !== null)
