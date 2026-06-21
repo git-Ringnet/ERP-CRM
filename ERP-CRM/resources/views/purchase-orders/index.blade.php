@@ -131,13 +131,15 @@
                         <td class="px-4 py-3 w-40 min-w-[150px]">
                             <input type="date" 
                                 value="{{ $order->expected_delivery ? $order->expected_delivery->format('Y-m-d') : '' }}"
-                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-expected-delivery"
+                                {{ in_array($order->status, ['received', 'cancelled']) ? 'disabled' : '' }}
+                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-expected-delivery disabled:bg-gray-100 disabled:text-gray-500"
                                 data-id="{{ $order->id }}">
                         </td>
                         <td class="px-4 py-3 w-40 min-w-[150px]">
                             <input type="date" 
                                 value="{{ $order->manufacturer_release_date ? $order->manufacturer_release_date->format('Y-m-d') : '' }}"
-                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-manufacturer-release-date"
+                                {{ in_array($order->status, ['received', 'cancelled']) ? 'disabled' : '' }}
+                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 bg-transparent update-manufacturer-release-date disabled:bg-gray-100 disabled:text-gray-500"
                                 data-id="{{ $order->id }}">
                         </td>
                         <td class="px-4 py-3 text-right font-medium">
@@ -207,7 +209,7 @@
                                 <a href="{{ route('purchase-orders.show', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all" title="Xem">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                @if(in_array($order->status, ['draft', 'pending_approval']))
+                                @if(!in_array($order->status, ['received', 'cancelled']))
                                     <a href="{{ route('purchase-orders.edit', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-all" title="Sửa">
                                         <i class="fas fa-edit"></i>
                                     </a>
@@ -263,10 +265,6 @@
                                         @endif
                                     </form>
                                 @endif
-
-                                <a href="{{ route('purchase-orders.print', $order) }}" class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all" title="In" target="_blank">
-                                    <i class="fas fa-print"></i>
-                                </a>
 
                                 @if(!in_array($order->status, ['received', 'cancelled']))
                                     <form action="{{ route('purchase-orders.cancel', $order) }}" method="POST" class="inline delete-form">

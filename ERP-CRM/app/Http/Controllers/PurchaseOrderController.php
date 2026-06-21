@@ -15,6 +15,8 @@ use App\Models\Notification;
 use App\Mail\PurchaseOrderMail;
 use App\Exports\PurchaseOrdersExport;
 use App\Exports\SinglePurchaseOrderExport;
+use App\Exports\FortinetPurchaseOrderExport;
+use App\Exports\SaleContractPurchaseOrderExport;
 use App\Services\PurchaseImportSyncService;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
@@ -232,8 +234,8 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('update', $purchaseOrder);
 
-        if (!in_array($purchaseOrder->status, ['draft', 'pending_approval'])) {
-            return back()->with('error', 'Không thể sửa đơn hàng đã được duyệt!');
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return back()->with('error', 'Không thể sửa đơn hàng đã hoàn thành hoặc đã hủy!');
         }
 
         $suppliers = Supplier::orderBy('name')->get();
@@ -249,8 +251,8 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('update', $purchaseOrder);
 
-        if (!in_array($purchaseOrder->status, ['draft', 'pending_approval'])) {
-            return back()->with('error', 'Không thể sửa đơn hàng đã được duyệt!');
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return back()->with('error', 'Không thể sửa đơn hàng đã hoàn thành hoặc đã hủy!');
         }
 
         $validated = $request->validate([
@@ -676,8 +678,8 @@ class PurchaseOrderController extends Controller
                     ->toArray();
             }
 
-            // Xóa tất cả PO items (giải phóng ordered_quantity_total)
-            $purchaseOrder->items()->delete();
+            // Cập nhật trạng thái các PO items sang 'cancelled' (thay vì xóa để giữ lại lịch sử hiển thị)
+            $purchaseOrder->items()->update(['status' => 'cancelled']);
 
             // Hủy PO
             $purchaseOrder->update(['status' => 'cancelled']);
@@ -892,6 +894,10 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('update', $purchaseOrder);
 
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return back()->with('error', 'Không thể cập nhật theo dõi cho đơn hàng đã hoàn thành hoặc đã hủy!');
+        }
+
         $validated = $request->validate([
             'expected_arrival_date' => 'nullable|date',
             'manufacturer_release_date' => 'nullable|date',
@@ -941,6 +947,7 @@ class PurchaseOrderController extends Controller
                     'unit' => $item->unit,
                     'type' => $item->type,
                     'si_name' => $item->si_name,
+                    'pos_id' => $item->pos_id,
                     'estimated_cost_usd' => (float) ($item->saleItem->estimated_cost_usd ?? 0),
                     'cost_price_vnd' => (float) ($item->saleItem ? $item->saleItem->calculateVndCost() : 0),
                     'list_price_usd' => (float) ($item->saleItem->usd_price ?? 0),
@@ -955,6 +962,10 @@ class PurchaseOrderController extends Controller
 
     public function updateExpectedDelivery(Request $request, PurchaseOrder $purchaseOrder)
     {
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return response()->json(['success' => false, 'message' => 'Không thể cập nhật cho đơn hàng đã hoàn thành hoặc đã hủy.'], 422);
+        }
+
         $request->validate([
             'expected_delivery' => 'nullable|date',
         ]);
@@ -968,6 +979,10 @@ class PurchaseOrderController extends Controller
 
     public function updateManufacturerReleaseDate(Request $request, PurchaseOrder $purchaseOrder)
     {
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return response()->json(['success' => false, 'message' => 'Không thể cập nhật cho đơn hàng đã hoàn thành hoặc đã hủy.'], 422);
+        }
+
         $request->validate([
             'manufacturer_release_date' => 'nullable|date',
         ]);
@@ -1383,8 +1398,102 @@ class PurchaseOrderController extends Controller
     {
         $this->authorize('view', $purchaseOrder);
 
-        $filename = $purchaseOrder->code . '-' . date('Y-m-d') . '.xlsx';
+        $purchaseOrder->load(['supplier.poConfig']);
+        $supplierName = $purchaseOrder->supplier->name ?? '';
+        $poConfig = $purchaseOrder->supplier->poConfig ?? null;
+
+        $safeCode = str_replace(['/', '\\'], '-', $purchaseOrder->code);
+        $filename = $safeCode . '-' . date('Y-m-d') . '.xlsx';
+
+        if ($poConfig) {
+            if ($poConfig->template_type === 'fortinet') {
+                return Excel::download(new FortinetPurchaseOrderExport($purchaseOrder), $filename);
+            } elseif ($poConfig->template_type === 'sale_contract') {
+                return Excel::download(new SaleContractPurchaseOrderExport($purchaseOrder), $filename);
+            }
+        }
+
+        if (stripos($supplierName, 'fortinet') !== false) {
+            return Excel::download(new FortinetPurchaseOrderExport($purchaseOrder), $filename);
+        }
+
         return Excel::download(new SinglePurchaseOrderExport($purchaseOrder), $filename);
+    }
+
+    public function previewHtml(PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('view', $purchaseOrder);
+
+        $purchaseOrder->load(['supplier.poConfig', 'items.product', 'items.saleOrderRequestItem.saleItem', 'currency']);
+        $company = \App\Models\PoCompanyConfig::getConfig();
+        $poConfig = $purchaseOrder->supplier->poConfig ?? null;
+
+        // Determine template type
+        $templateType = $poConfig->template_type ?? 'sale_contract';
+        
+        // Fallback for Fortinet supplier names
+        $supplierName = $purchaseOrder->supplier->name ?? '';
+        if (!$poConfig && stripos($supplierName, 'fortinet') !== false) {
+            $templateType = 'fortinet';
+        }
+
+        if ($templateType === 'fortinet') {
+            $config = $poConfig ?: new \App\Models\SupplierPoConfig([
+                'template_type' => 'fortinet',
+                'seller_name' => 'FORTINET INC',
+                'seller_address_line1' => 'US Headquarters, 909 Kifer Road, Sunnyvale, CA 94086 US',
+                'seller_address_line2' => '',
+                'seller_tel' => '(408) 486-4816',
+                'seller_fax' => '(408) 235-7737',
+                'seller_contact' => "ANSON HA - Order Coordinator",
+                'seller_beneficiary' => 'Fortinet Inc., 909 Kifer Road',
+                'seller_beneficiary_address' => 'Sunnyvale, CA 94086 United States',
+                'seller_bank_name' => 'WELLS FARGO BANK, N.A',
+                'seller_bank_account' => '4040006199',
+                'seller_bank_address_line1' => 'Santa Clara Valley RCBO, 420 Montgomery St,',
+                'seller_bank_address_line2' => 'San Francisco, CA 94104',
+                'seller_bank_aba' => '121000248',
+                'seller_swift_code' => 'WFBIUS6SSFO',
+                'port_loading' => 'TAIWAN/ USA',
+                'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
+            ]);
+
+            return view('reports.vouchers.po-fortinet', [
+                'po' => $purchaseOrder,
+                'company' => $company,
+                'config' => $config,
+                'isPreview' => true,
+            ]);
+        } else {
+            $config = $poConfig ?: new \App\Models\SupplierPoConfig([
+                'template_type' => 'sale_contract',
+                'seller_name' => $purchaseOrder->supplier->name,
+                'seller_address_line1' => $purchaseOrder->supplier->address,
+                'seller_tel' => $purchaseOrder->supplier->phone,
+                'seller_contact' => $purchaseOrder->supplier->contact_person,
+                'port_loading' => 'TAIWAN/ USA',
+                'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
+            ]);
+
+            return view('reports.vouchers.po-sale-contract', [
+                'po' => $purchaseOrder,
+                'company' => $company,
+                'config' => $config,
+                'isPreview' => true,
+            ]);
+        }
+    }
+
+    public function generateCodeApi(Request $request)
+    {
+        $supplierId = $request->get('supplier_id');
+        $supplierName = null;
+        if ($supplierId) {
+            $supplier = Supplier::find($supplierId);
+            $supplierName = $supplier ? $supplier->name : null;
+        }
+        $code = PurchaseOrder::generateCode($supplierName);
+        return response()->json(['code' => $code]);
     }
 
     /**

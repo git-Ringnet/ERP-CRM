@@ -124,9 +124,17 @@ class PurchaseOrder extends Model
 
     public static function generateCode($supplierName = null): string
     {
-        $lastCode = self::whereYear('created_at', now()->year)
-            ->orderBy('id', 'desc')
-            ->value('code');
+        $query = self::whereYear('created_at', now()->year);
+        
+        if ($supplierName) {
+            $suffix = '-' . trim($supplierName);
+            $escapedSuffix = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $suffix);
+            $query->where('code', 'like', '%' . $escapedSuffix);
+        } else {
+            $query->where('code', 'like', '%/TH');
+        }
+        
+        $lastCode = $query->orderBy('id', 'desc')->value('code');
         
         $number = 1;
         if ($lastCode) {
@@ -138,7 +146,7 @@ class PurchaseOrder extends Model
                 if (strlen($numericPart) >= 4) {
                     $number = (int) substr($numericPart, -4) + 1;
                 } else {
-                    $number = self::whereYear('created_at', now()->year)->count() + 1;
+                    $number = $query->count() + 1;
                 }
             }
         }

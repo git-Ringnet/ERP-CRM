@@ -16,6 +16,10 @@
                 <i class="fas fa-database mr-2 text-primary"></i>
                 Quản lý & Sao lưu Dữ liệu
             </a>
+            <a href="{{ route('settings.po-company') }}" class="inline-flex items-center px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors text-sm font-medium">
+                <i class="fas fa-file-invoice mr-2 text-primary"></i>
+                Cấu hình Biểu mẫu PO
+            </a>
             {{-- Any other admin links can go here --}}
         </div>
     </div>
@@ -33,52 +37,55 @@
         <form action="{{ route('settings.company.update') }}" method="POST" enctype="multipart/form-data" class="p-6">
             @csrf
 
-            {{-- Logo --}}
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <label class="block text-sm font-medium text-gray-700 mb-3">
-                    <i class="fas fa-image mr-1 text-gray-500"></i> Logo công ty
-                </label>
-                <div class="flex items-start gap-5">
-                    {{-- Preview box --}}
-                    <div class="flex-shrink-0">
-                        @php $logoPath = \App\Models\Setting::get('company_logo'); @endphp
-                        @if($logoPath && file_exists(public_path($logoPath)))
-                        <img id="logo-preview"
-                             src="{{ asset($logoPath) }}"
-                             alt="Logo"
-                             class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm">
-                        @else
-                        <div id="logo-placeholder"
-                             class="w-36 h-24 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-400 text-xs bg-white">
-                            <i class="fas fa-image text-3xl mb-1"></i>
-                            <span>Chưa có logo</span>
+            {{-- Logo Row --}}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {{-- Logo --}}
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <label class="block text-sm font-medium text-gray-700 mb-3">
+                        <i class="fas fa-image mr-1 text-gray-500"></i> Logo công ty
+                    </label>
+                    <div class="flex items-start gap-5">
+                        {{-- Preview box --}}
+                        <div class="flex-shrink-0">
+                            @php $logoPath = \App\Models\Setting::get('company_logo'); @endphp
+                            @if($logoPath && file_exists(public_path($logoPath)))
+                            <img id="logo-preview"
+                                 src="{{ asset($logoPath) }}"
+                                 alt="Logo"
+                                 class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm">
+                            @else
+                            <div id="logo-placeholder"
+                                 class="w-36 h-24 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-400 text-xs bg-white">
+                                <i class="fas fa-image text-3xl mb-1"></i>
+                                <span>Chưa có logo</span>
+                            </div>
+                            <img id="logo-preview"
+                                 src=""
+                                 alt="Logo preview"
+                                 class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm hidden">
+                            @endif
                         </div>
-                        <img id="logo-preview"
-                             src=""
-                             alt="Logo preview"
-                             class="h-24 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm hidden">
-                        @endif
-                    </div>
 
-                    {{-- Input + hint --}}
-                    <div class="flex-1">
-                        <input type="file"
-                               id="logo-input"
-                               name="company_logo"
-                               accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                               class="block w-full text-sm text-gray-600
-                                      file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0
-                                      file:text-sm file:font-medium file:bg-primary file:text-white
-                                      hover:file:bg-primary-dark cursor-pointer mb-2">
-                        <p class="text-xs text-gray-500">PNG, JPG hoặc SVG. Tối đa 2MB. Để trống nếu không muốn thay đổi.</p>
-                        <p id="logo-filename" class="text-xs text-purple-600 font-medium mt-1 hidden">
-                            <i class="fas fa-check-circle mr-1"></i><span></span>
-                        </p>
+                        {{-- Input + hint --}}
+                        <div class="flex-1">
+                            <input type="file"
+                                   id="logo-input"
+                                   name="company_logo"
+                                   accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                                   class="block w-full text-sm text-gray-600
+                                          file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0
+                                          file:text-sm file:font-medium file:bg-primary file:text-white
+                                          hover:file:bg-primary-dark cursor-pointer mb-2">
+                            <p class="text-xs text-gray-500">PNG, JPG hoặc SVG. Tối đa 2MB.</p>
+                            <p id="logo-filename" class="text-xs text-purple-600 font-medium mt-1 hidden">
+                                <i class="fas fa-check-circle mr-1"></i><span></span>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {{-- Live preview script --}}
+            {{-- Live preview scripts --}}
             <script>
                 document.getElementById('logo-input').addEventListener('change', function (e) {
                     const file = e.target.files[0];

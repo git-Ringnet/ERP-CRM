@@ -1403,6 +1403,10 @@ function addEditRow(prId) {
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>
         <td class="px-1 py-1">
+            <input type="text" name="order_request_items[${idx}][pos_id]" placeholder="POS ID"
+                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
+        </td>
+        <td class="px-1 py-1">
             <input type="text" name="order_request_items[${idx}][eu_name]" required placeholder="EU Name"
                 class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-orange-400 focus:border-orange-400 bg-gray-50">
         </td>

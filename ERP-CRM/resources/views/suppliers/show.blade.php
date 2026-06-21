@@ -396,6 +396,10 @@
                        class="w-full inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                         <i class="fas fa-edit mr-2"></i>Chỉnh sửa
                     </a>
+                    <a href="{{ route('suppliers.po-config', $supplier->id) }}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
+                        <i class="fas fa-cog mr-2"></i>Cài đặt biểu mẫu PO
+                    </a>
                     <a href="{{ route('suppliers.index') }}" 
                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                         <i class="fas fa-list mr-2"></i>Danh sách

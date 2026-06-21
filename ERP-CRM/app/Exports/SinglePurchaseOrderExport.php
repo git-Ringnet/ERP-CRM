@@ -47,13 +47,16 @@ class SinglePurchaseOrderExport implements FromArray, WithHeadings, WithStyles, 
         $rate = $this->po->exchange_rate ?: 1;
 
         foreach ($this->po->items as $index => $item) {
-            // Giá nhập kho từ PNL SaleItem
+            // Giá nhập kho từ PO Item hoặc fallback PNL SaleItem
             $warehousePriceUsd = '-';
-            if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleItem) {
-                $estCost = $item->saleOrderRequestItem->saleItem->estimated_cost_usd;
-                if ($estCost > 0) {
-                    $warehousePriceUsd = number_format($estCost, 2);
+            $listPrice = $item->warehouse_unit_price;
+            if (!$listPrice || $listPrice == 0) {
+                if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleItem) {
+                    $listPrice = $item->saleOrderRequestItem->saleItem->estimated_cost_usd;
                 }
+            }
+            if ($listPrice > 0) {
+                $warehousePriceUsd = number_format($listPrice, 2);
             }
 
             // Sale code

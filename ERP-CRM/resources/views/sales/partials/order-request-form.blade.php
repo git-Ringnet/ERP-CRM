@@ -76,6 +76,7 @@
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">SN</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">Exp date</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[120px] align-middle">SI Name <span class="text-red-500">*</span></th>
+                            <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle">POS ID</th>
                             <th colspan="3" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300">Thông tin CQ (Điền tay)</th>
                             <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                         </tr>
@@ -135,6 +136,11 @@
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][si_name]" required
                                             value="{{ $item->si_name }}"
+                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                    </td>
+                                    <td class="px-1 py-1.5">
+                                        <input type="text" name="order_request_items[{{ $idx }}][pos_id]"
+                                            value="{{ $item->pos_id }}" placeholder="POS ID"
                                             class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
                                     @php
@@ -207,6 +213,10 @@
                                 </td>
                                 <td class="px-1 py-1.5">
                                     <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                </td>
+                                <td class="px-1 py-1.5">
+                                    <input type="text" name="order_request_items[0][pos_id]" placeholder="POS ID"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
                                 <td class="px-1 py-1.5">

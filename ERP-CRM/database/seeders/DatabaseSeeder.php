@@ -52,7 +52,8 @@ class DatabaseSeeder extends Seeder
             // ApprovalWorkflowSeeder::class, // Quy trình duyệt
 
             //NCC
-            SupplierSeeder::class
+            SupplierSeeder::class,
+            SupplierPoConfigSeeder::class
         ]);
     }
 }

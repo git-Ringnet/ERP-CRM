@@ -236,7 +236,12 @@ class PurchaseOrderRequestController extends Controller
         $currencies = \App\Models\Currency::where('is_active', 1)->get();
         $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
 
-        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems'));
+        $draftPos = PurchaseOrder::where('status', 'draft')
+            ->with(['supplier', 'items.saleOrderRequestItem.saleOrderRequest.sale', 'currency', 'creator'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos'));
     }
 
     /**
@@ -294,7 +299,7 @@ class PurchaseOrderRequestController extends Controller
                 $prItem = SaleOrderRequestItem::where('id', $prItem->id)->lockForUpdate()->firstOrFail();
 
                 // Tính toán lại Remaining thực tế
-                $orderedTotal = $prItem->purchaseOrderItems()->sum('ordered_quantity');
+                $orderedTotal = $prItem->ordered_quantity_total;
                 $remaining = $prItem->quantity - $orderedTotal;
 
                 if ($itemData['quantity'] > $remaining + 0.001) {
@@ -358,6 +363,332 @@ class PurchaseOrderRequestController extends Controller
             DB::rollBack();
             Log::error('Error creating PO from PR: ' . $e->getMessage());
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Tạo đơn hàng nháp MỚI từ danh sách đã gom (luôn tạo mới, không tự gộp theo hãng)
+     */
+    public function storeDraftFromPr(Request $request)
+    {
+        $validated = $request->validate([
+            'vendor_id' => 'required|exists:suppliers,id',
+            'items' => 'required|array|min:1',
+            'items.*.pr_item_id' => 'required|exists:sale_order_request_items,id',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'note' => 'nullable|string|max:2000',
+            'cpq_number' => 'nullable|string|max:255',
+            'currency_id' => 'required|exists:currencies,id',
+            'exchange_rate' => 'required|numeric|min:0',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $vendor = Supplier::findOrFail($validated['vendor_id']);
+            
+            // Luôn tạo MỚI một đơn nháp (không tự gộp theo hãng)
+            $po = PurchaseOrder::create([
+                'code' => PurchaseOrder::generateCode($vendor->name),
+                'cpq_number' => $validated['cpq_number'] ?: 'CPQ/draft',
+                'supplier_id' => $vendor->id,
+                'order_date' => now(),
+                'status' => 'draft',
+                'created_by' => auth()->id(),
+                'note' => $validated['note'],
+                'currency_id' => $validated['currency_id'],
+                'exchange_rate' => $validated['exchange_rate'],
+            ]);
+
+            $affectedPrs = [];
+            $prItemIds = array_column($validated['items'], 'pr_item_id');
+            $prItemsForCurrency = SaleOrderRequestItem::whereIn('id', $prItemIds)->with('saleItem')->get();
+
+            // Xử lý từng item
+            foreach ($validated['items'] as $itemData) {
+                $prItem = $prItemsForCurrency->firstWhere('id', $itemData['pr_item_id']);
+                $prItem = SaleOrderRequestItem::where('id', $prItem->id)->lockForUpdate()->firstOrFail();
+
+                // Tính toán lại Remaining thực tế
+                $orderedTotal = $prItem->ordered_quantity_total;
+                $remaining = $prItem->quantity - $orderedTotal;
+
+                if ($itemData['quantity'] > $remaining + 0.001) {
+                    throw new \Exception("Số lượng đặt hàng ({$itemData['quantity']}) vượt quá số lượng còn lại ({$remaining}) của mặt hàng {$prItem->part_number} trong PR #{$prItem->saleOrderRequest->code}");
+                }
+
+                // Tính giá
+                $warehousePrice = 0;
+                $discountPercent = 0;
+                if ($prItem->saleItem) {
+                    $saleItem = $prItem->saleItem;
+                    $warehousePrice = (float) ($saleItem->usd_price ?? 0);
+                    $discountPercent = (float) ($saleItem->discount_rate ?? 0);
+                }
+                $unitPrice = round($warehousePrice * (1 - ($discountPercent / 100)), 4);
+                $itemTotal = round($itemData['quantity'] * $unitPrice, 2);
+
+                PurchaseOrderItem::create([
+                    'purchase_order_id' => $po->id,
+                    'sale_order_request_item_id' => $prItem->id,
+                    'product_id' => $prItem->product_id,
+                    'product_name' => $prItem->part_number,
+                    'ordered_quantity' => $itemData['quantity'],
+                    'quantity' => $itemData['quantity'],
+                    'unit' => $prItem->unit ?? 'Cái',
+                    'unit_price' => $unitPrice,
+                    'warehouse_unit_price' => $warehousePrice,
+                    'discount_percent' => $discountPercent,
+                    'total' => $itemTotal,
+                    'vat_percent' => 0,
+                    'vat_amount' => 0,
+                    'status' => 'ordered',
+                ]);
+
+                $affectedPrs[$prItem->sale_order_request_id] = $prItem->saleOrderRequest;
+            }
+
+            // Tính toán lại tổng tiền cho PO
+            $po->load(['items', 'currency']);
+            $po->calculateTotals();
+            $po->updateDebt();
+            $po->save();
+
+            // Cập nhật trạng thái cho các PR liên quan
+            foreach ($affectedPrs as $pr) {
+                $pr->checkAndUpdateStatus();
+            }
+
+            DB::commit();
+            
+            return redirect()->route('purchase-requests.needs-ordering', ['tab' => 'drafts'])
+                ->with('success', 'Đã tạo đơn nháp ' . $po->code . ' thành công từ các yêu cầu.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating Draft PO from PR: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Xác nhận tạo PO chính thức từ đơn nháp
+     */
+    public function confirmDraftPo(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'cpq_number' => 'required|string|max:255',
+            'note' => 'nullable|string|max:2000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $po = PurchaseOrder::findOrFail($id);
+            if ($po->status !== 'draft') {
+                return back()->with('error', 'Đơn hàng không ở trạng thái nháp!');
+            }
+
+            // Cập nhật thông tin và đổi trạng thái sang pending_approval (chờ duyệt)
+            $po->update([
+                'cpq_number' => $validated['cpq_number'],
+                'note' => $validated['note'] ?: $po->note,
+                'status' => 'pending_approval',
+                'order_date' => now(), // Đặt ngày đặt hàng thực tế khi xác nhận
+            ]);
+
+            // Cập nhật lại công nợ
+            $po->load('items');
+            $po->calculateTotals();
+            $po->updateDebt();
+            $po->save();
+
+            DB::commit();
+            return redirect()->route('purchase-orders.show', $po->id)
+                ->with('success', 'Đã xác nhận tạo Đơn đặt hàng ' . $po->code . ' thành công!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error confirming Draft PO: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Gộp nhiều đơn nháp cùng hãng thành 1 đơn nháp duy nhất
+     */
+    public function mergeDraftPos(Request $request)
+    {
+        $validated = $request->validate([
+            'draft_ids' => 'required|array|min:2',
+            'draft_ids.*' => 'required|exists:purchase_orders,id',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $draftPos = PurchaseOrder::whereIn('id', $validated['draft_ids'])
+                ->where('status', 'draft')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            if ($draftPos->count() < 2) {
+                return back()->with('error', 'Cần chọn ít nhất 2 đơn nháp để gộp!');
+            }
+
+            // Kiểm tra tất cả phải cùng hãng (supplier)
+            $supplierIds = $draftPos->pluck('supplier_id')->unique();
+            if ($supplierIds->count() > 1) {
+                return back()->with('error', 'Chỉ có thể gộp các đơn nháp cùng một Hãng!');
+            }
+
+            // Đơn nháp đầu tiên (cũ nhất) sẽ là đơn chính để gộp vào
+            $mainPo = $draftPos->first();
+            $mergedPoCodes = [];
+
+            // Gộp items từ các đơn còn lại vào đơn chính
+            foreach ($draftPos->skip(1) as $otherPo) {
+                $mergedPoCodes[] = $otherPo->code;
+
+                foreach ($otherPo->items as $item) {
+                    // Kiểm tra xem item (cùng sale_order_request_item_id) đã có trong đơn chính chưa
+                    $existingItem = PurchaseOrderItem::where('purchase_order_id', $mainPo->id)
+                        ->where('sale_order_request_item_id', $item->sale_order_request_item_id)
+                        ->first();
+
+                    if ($existingItem) {
+                        // Gộp số lượng
+                        $existingItem->update([
+                            'ordered_quantity' => $existingItem->ordered_quantity + $item->ordered_quantity,
+                            'quantity' => $existingItem->quantity + $item->quantity,
+                            'total' => round(($existingItem->quantity + $item->quantity) * $existingItem->unit_price, 2),
+                        ]);
+                    } else {
+                        // Chuyển item sang đơn chính
+                        $item->update(['purchase_order_id' => $mainPo->id]);
+                    }
+                }
+
+                // Gộp ghi chú nếu có
+                if ($otherPo->note) {
+                    $mainPo->note = $mainPo->note 
+                        ? trim($mainPo->note . "\n" . $otherPo->note) 
+                        : $otherPo->note;
+                }
+
+                // Xóa đơn nháp đã gộp (items đã chuyển/gộp xong)
+                // Xóa các items còn dính (đã gộp qty vào existing)
+                $otherPo->items()->delete();
+                $otherPo->delete();
+            }
+
+            // Cập nhật lại tổng tiền cho đơn chính
+            $mainPo->load(['items', 'currency']);
+            $mainPo->calculateTotals();
+            $mainPo->updateDebt();
+            $mainPo->save();
+
+            DB::commit();
+
+            $mergedNames = implode(', ', $mergedPoCodes);
+            return redirect()->route('purchase-requests.needs-ordering', ['tab' => 'drafts'])
+                ->with('success', "Đã gộp {$mergedNames} vào đơn nháp {$mainPo->code} thành công!");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error merging Draft POs: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Xóa hoàn toàn đơn nháp
+     */
+    public function destroyDraftPo($id)
+    {
+        DB::beginTransaction();
+        try {
+            $po = PurchaseOrder::findOrFail($id);
+            if ($po->status !== 'draft') {
+                return back()->with('error', 'Chỉ có thể xóa đơn hàng ở trạng thái nháp!');
+            }
+
+            // Thu thập các PR liên quan trước khi xóa items
+            $affectedPrIds = $po->items()
+                ->whereNotNull('sale_order_request_item_id')
+                ->pluck('sale_order_request_item_id')
+                ->unique();
+
+            $affectedSorIds = [];
+            if ($affectedPrIds->isNotEmpty()) {
+                $affectedSorIds = \App\Models\SaleOrderRequestItem::whereIn('id', $affectedPrIds)
+                    ->pluck('sale_order_request_id')
+                    ->unique()
+                    ->filter()
+                    ->toArray();
+            }
+
+            // Xóa tất cả PO items ( cascadeOnDelete sẽ tự chạy ở DB, nhưng xóa tay ở đây để chắc chắn )
+            $po->items()->delete();
+            $po->delete();
+
+            // Cập nhật lại trạng thái các PR liên quan
+            foreach ($affectedSorIds as $sorId) {
+                $sor = \App\Models\SaleOrderRequest::find($sorId);
+                if ($sor) {
+                    $sor->checkAndUpdateStatus();
+                }
+            }
+
+            DB::commit();
+            return redirect()->route('purchase-requests.needs-ordering', ['tab' => 'drafts'])
+                ->with('success', 'Đã xóa đơn hàng nháp thành công! Các sản phẩm đã quay về danh sách cần đặt.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error deleting Draft PO: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Xóa một sản phẩm cụ thể khỏi đơn nháp
+     */
+    public function destroyDraftPoItem($id)
+    {
+        DB::beginTransaction();
+        try {
+            $item = PurchaseOrderItem::findOrFail($id);
+            $po = $item->purchaseOrder;
+            
+            if ($po->status !== 'draft') {
+                return back()->with('error', 'Chỉ có thể sửa đơn hàng ở trạng thái nháp!');
+            }
+
+            $prItemId = $item->sale_order_request_item_id;
+            $item->delete();
+
+            // Cập nhật lại trạng thái PR liên quan
+            if ($prItemId) {
+                $prItem = SaleOrderRequestItem::find($prItemId);
+                if ($prItem && $prItem->saleOrderRequest) {
+                    $prItem->saleOrderRequest->checkAndUpdateStatus();
+                }
+            }
+
+            // Kiểm tra xem PO còn sản phẩm nào không
+            $po->load('items');
+            if ($po->items->isEmpty()) {
+                $po->delete();
+                $msg = 'Đã xóa sản phẩm khỏi đơn nháp. Đơn nháp trống đã tự động được xóa.';
+            } else {
+                // Tính toán lại tổng tiền
+                $po->calculateTotals();
+                $po->updateDebt();
+                $po->save();
+                $msg = 'Đã xóa sản phẩm khỏi đơn nháp thành công.';
+            }
+
+            DB::commit();
+            return redirect()->route('purchase-requests.needs-ordering', ['tab' => 'drafts'])
+                ->with('success', $msg);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error deleting Draft PO Item: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
     }
 

@@ -12,17 +12,40 @@
             <p class="text-sm text-gray-600">Dữ liệu được gom theo Hãng và Sản phẩm từ các yêu cầu đang chờ xử lý</p>
         </div>
 
-        @if(empty($vendorGroups))
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
-                <i class="fas fa-check-circle text-5xl mb-4 text-green-100"></i>
-                <p class="text-lg font-medium text-gray-600">Tuyệt vời! Hiện tại không còn mặt hàng nào cần đặt mới.</p>
-                <a href="{{ route('purchase-requests.index') }}" class="text-teal-600 hover:underline mt-2 inline-block">Quay
-                    lại danh sách PR</a>
-            </div>
-        @else
-            <form action="{{ route('purchase-orders.store-from-pr') }}" method="POST" id="mainPoForm">
-                @csrf
-                <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
+        <!-- Tabs Navigation -->
+        @php
+            $activeTab = request('tab', 'needs-ordering');
+        @endphp
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                <button type="button" onclick="switchTab('needs-ordering')" id="tab-needs-ordering-btn"
+                    class="{{ $activeTab === 'needs-ordering' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all">
+                    <i class="fas fa-list mr-1.5"></i> Cần đặt hàng
+                </button>
+                <button type="button" onclick="switchTab('drafts')" id="tab-drafts-btn"
+                    class="{{ $activeTab === 'drafts' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all">
+                    <i class="fas fa-file-signature mr-1.5"></i> Danh sách nháp
+                    @if($draftPos->count() > 0)
+                        <span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                            {{ $draftPos->count() }}
+                        </span>
+                    @endif
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab 1: Cần đặt hàng -->
+        <div id="tab-needs-ordering" class="tab-content {{ $activeTab === 'needs-ordering' ? '' : 'hidden' }}">
+            @if(empty($vendorGroups))
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+                    <i class="fas fa-check-circle text-5xl mb-4 text-green-100"></i>
+                    <p class="text-lg font-medium text-gray-600">Tuyệt vời! Hiện tại không còn mặt hàng nào cần đặt mới.</p>
+                    <a href="{{ route('purchase-requests.index') }}" class="text-teal-600 hover:underline mt-2 inline-block">Quay lại danh sách PR</a>
+                </div>
+            @else
+                <form action="{{ route('purchase-orders.store-from-pr') }}" method="POST" id="mainPoForm">
+                    @csrf
+                    <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
 
                 <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
                     @foreach($vendorGroups as $vId => $vendor)
@@ -210,7 +233,7 @@
                         <!-- Dòng 1: CPQ Đơn hàng -->
                         <div>
                             <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
-                            <input type="text" name="cpq_number" value="" required
+                            <input type="text" name="cpq_number" id="mainCpqInput" value=""
                                 class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
                                 placeholder="CPQ/non">
                         </div>
@@ -237,9 +260,13 @@
                                     class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors">
                                     Hủy chọn
                                 </button>
+                                <button type="button" onclick="submitDraft()"
+                                    class="bg-amber-500 text-white px-6 py-2.5 rounded-lg hover:bg-amber-600 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
+                                    <i class="fas fa-file-signature text-xs"></i> GOM NHÁP (DRAFT)
+                                </button>
                                 <button type="button" onclick="submitPo()"
-                                    class="bg-teal-600 text-white px-8 py-2.5 rounded-lg hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap">
-                                    XÁC NHẬN TẠO PO
+                                    class="bg-teal-600 text-white px-6 py-2.5 rounded-lg hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
+                                    <i class="fas fa-check-circle text-xs"></i> XÁC NHẬN TẠO PO
                                 </button>
                             </div>
                         </div>
@@ -294,7 +321,7 @@
                                                 onclick="return confirm('Khôi phục sản phẩm này về danh sách cần đặt?')"
                                                 class="text-teal-500 hover:text-teal-700 transition-colors text-xs font-bold">
                                                 <i class="fas fa-undo mr-1"></i>Khôi phục
-                                            </button>
+                                             </button>
                                         </form>
                                     </td>
                                 </tr>
@@ -304,6 +331,209 @@
                 </div>
             </div>
         @endif
+    </div> <!-- End tab-needs-ordering -->
+
+    <!-- Tab 2: Danh sách nháp -->
+    <div id="tab-drafts" class="tab-content {{ $activeTab === 'drafts' ? '' : 'hidden' }}">
+        @if($draftPos->isEmpty())
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+                <i class="fas fa-file-invoice text-5xl mb-4 text-gray-200"></i>
+                <p class="text-lg font-medium text-gray-600">Hiện tại không có đơn hàng nháp nào.</p>
+            </div>
+        @else
+                <div class="grid grid-cols-1 gap-8">
+                    @foreach($draftPos as $po)
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden draft-po-card transition-all duration-200"
+                            data-draft-id="{{ $po->id }}" data-supplier-id="{{ $po->supplier_id }}"
+                            x-data="{ expanded: false }">
+                            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center flex-wrap gap-4 cursor-pointer select-none hover:bg-gray-100/70 transition-colors"
+                                @click="expanded = !expanded">
+                                <div class="flex items-center gap-3">
+                                    <!-- Checkbox để chọn gộp -->
+                                    <div @click.stop class="flex items-center">
+                                        <input type="checkbox" class="draft-checkbox rounded text-amber-500 focus:ring-amber-400 w-5 h-5 cursor-pointer"
+                                            data-draft-id="{{ $po->id }}" data-supplier-id="{{ $po->supplier_id }}"
+                                            onclick="event.stopPropagation(); updateDraftSelections();">
+                                    </div>
+                                    <i class="fas fa-chevron-right text-gray-400 text-xs transition-transform duration-200"
+                                        :class="expanded ? 'rotate-90 text-amber-500' : ''"></i>
+                                    <div class="w-10 h-10 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center font-bold shrink-0">
+                                        {{ substr($po->supplier->name ?? 'U', 0, 1) }}
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <h2 class="text-lg font-bold text-gray-800">{{ $po->supplier->name }}</h2>
+                                            <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Đơn nháp</span>
+                                            
+                                            <!-- Summary badge when collapsed -->
+                                            <span x-show="!expanded" x-cloak class="bg-teal-50 text-teal-800 border border-teal-200 text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all">
+                                                <i class="fas fa-box text-[9px]"></i> {{ $po->items->count() }} sản phẩm | ${{ number_format($po->total_foreign ?: $po->subtotal, 2) }}
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-500">Mã tạm: <span class="font-semibold">{{ $po->code }}</span> | Người tạo: {{ $po->creator->name ?? 'N/A' }} | Ngày: {{ $po->created_at->format('d/m/Y H:i') }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2" @click.stop>
+                                    <button type="button" 
+                                        onclick="openConfirmDraftModal('{{ $po->id }}', '{{ $po->code }}', '{{ $po->cpq_number }}', '{{ addslashes($po->note) }}')"
+                                        class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm flex items-center gap-1.5">
+                                        <i class="fas fa-check-circle text-xs"></i> Xác nhận tạo PO
+                                    </button>
+                                    <form action="{{ route('purchase-orders.draft.destroy', $po->id) }}" method="POST" class="inline"
+                                        onsubmit="return confirm('Bạn có chắc muốn xóa toàn bộ đơn hàng nháp này? Tất cả mặt hàng sẽ quay lại danh sách cần đặt.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" 
+                                            class="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors text-sm font-bold shadow-sm">
+                                            <i class="fas fa-trash-alt"></i> Xóa nháp
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Collapsible Content -->
+                            <div x-show="expanded" x-cloak>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-sm">
+                                        <thead class="bg-gray-50">
+                                            <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                                <th class="px-6 py-3">Sản phẩm / Part Number</th>
+                                                <th class="px-6 py-3">Mã SO</th>
+                                                <th class="px-6 py-3">Khách hàng / Partner</th>
+                                                <th class="px-6 py-3 text-center">Số lượng</th>
+                                                <th class="px-6 py-3 text-right">Đơn giá (USD)</th>
+                                                <th class="px-6 py-3 text-right">Thành tiền (USD)</th>
+                                                <th class="px-6 py-3 w-16 text-center"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-50">
+                                            @foreach($po->items as $item)
+                                                @php
+                                                    $prItem = $item->saleOrderRequestItem;
+                                                    $pr = $prItem?->saleOrderRequest;
+                                                    $displayCode = ($pr?->sale && $pr->sale->code) ? $pr->sale->code : ($pr?->code ?? 'N/A');
+                                                    $partnerName = $pr?->sale?->customer_name ?: ($prItem?->si_name ?: '-');
+                                                @endphp
+                                                <tr class="hover:bg-gray-50 transition-colors">
+                                                    <td class="px-6 py-4">
+                                                        <div class="font-medium text-gray-800">{{ $item->product_name }}</div>
+                                                        <div class="text-[10px] text-gray-400">Đơn vị: {{ $item->unit }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4">
+                                                        @if($pr?->sale_id)
+                                                            <a href="{{ route('sales.show', $pr->sale_id) }}" target="_blank" class="font-bold text-teal-600 hover:underline">
+                                                                {{ $displayCode }}
+                                                            </a>
+                                                        @else
+                                                            <span class="text-gray-800">{{ $displayCode }}</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-6 py-4 text-gray-600 text-xs">
+                                                        {{ $partnerName }}
+                                                    </td>
+                                                    <td class="px-6 py-4 text-center font-semibold">
+                                                        {{ number_format($item->quantity, 0) }}
+                                                    </td>
+                                                    <td class="px-6 py-4 text-right text-gray-500 font-mono">
+                                                        ${{ number_format($item->unit_price, 2) }}
+                                                    </td>
+                                                    <td class="px-6 py-4 text-right text-teal-700 font-bold font-mono">
+                                                        ${{ number_format($item->total, 2) }}
+                                                    </td>
+                                                    <td class="px-6 py-4 text-center">
+                                                        <form action="{{ route('purchase-orders.draft-items.destroy', $item->id) }}" method="POST" class="inline"
+                                                            onsubmit="return confirm('Xóa mặt hàng này khỏi đơn nháp? Nó sẽ quay lại danh sách cần đặt.')">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="text-red-400 hover:text-red-600 transition-colors" title="Xóa mặt hàng">
+                                                                <i class="fas fa-times-circle text-lg"></i>
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                            <!-- Total Row -->
+                                            <tr class="bg-teal-50/20 font-bold border-t border-gray-100">
+                                                <td colspan="3" class="px-6 py-4 text-right text-gray-500 text-xs">TỔNG ĐƠN HÀNG:</td>
+                                                <td class="px-6 py-4 text-center text-gray-800">{{ number_format($po->items->sum('quantity'), 0) }}</td>
+                                                <td></td>
+                                                <td class="px-6 py-4 text-right text-teal-700 font-mono text-base">${{ number_format($po->total_foreign ?: $po->subtotal, 2) }}</td>
+                                                <td></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                @if($po->note)
+                                    <div class="bg-amber-50/50 p-4 border-t border-gray-100 text-xs flex gap-2">
+                                        <span class="font-bold text-amber-700 shrink-0"><i class="fas fa-info-circle"></i> Ghi chú gom nháp:</span>
+                                        <span class="text-gray-700 whitespace-pre-line">{{ $po->note }}</span>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+
+                <!-- Floating Action Bar for Drafts (merge) -->
+                <div id="draftActionBar"
+                    class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-amber-200 p-5 z-40 transition-all duration-300">
+                    <div class="flex items-center justify-between">
+                        <div class="text-left">
+                            <p class="text-sm text-gray-700 font-medium">
+                                Đang chọn <span id="draftSelectedCount" class="font-bold text-amber-600">0</span> đơn nháp
+                                <span id="draftSelectedVendor" class="text-xs text-gray-400 ml-2"></span>
+                            </p>
+                            <p id="draftMergeWarning" class="text-xs text-red-500 mt-1 hidden">
+                                <i class="fas fa-exclamation-triangle mr-1"></i> Chỉ có thể gộp các đơn nháp cùng một Hãng!
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="resetDraftSelections()"
+                                class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors">
+                                Bỏ chọn
+                            </button>
+                            <button type="button" id="mergeDraftBtn" onclick="submitMergeDrafts()" disabled
+                                class="bg-amber-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                                <i class="fas fa-object-group text-xs"></i> GỘP ĐƠN NHÁP
+                            </button>
+                        </div>
+                    </div>
+                </div>
+        @endif
+    </div>
+
+    <!-- Confirm Draft PO Modal -->
+    <div id="confirmDraftModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Xác nhận tạo PO <span id="confirmDraftPoCode" class="text-teal-600"></span></h3>
+                <button type="button" onclick="closeConfirmDraftModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="confirmDraftForm" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                    <input type="text" name="cpq_number" id="draftCpqInput" required
+                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="CPQ/non">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ghi chú cho Đơn hàng (PO)</label>
+                    <textarea name="note" id="draftNoteTextarea" rows="3"
+                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="Nhập ghi chú chung cho PO này..."></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeConfirmDraftModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg">Hủy</button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-bold shadow-md">Xác nhận tạo PO</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     @push('scripts')
@@ -533,9 +763,150 @@
 
                         btn.disabled = true;
                         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> ĐANG XỬ LÝ...';
+                        form.action = "{{ route('purchase-orders.store-from-pr') }}";
                         HTMLFormElement.prototype.submit.call(form);
                     }
                 });
+            }
+
+            function submitDraft() {
+                const form = document.getElementById('mainPoForm');
+                const items = document.querySelectorAll('.order-qty-input:not(:disabled)');
+
+                const vId = document.getElementById('selectedVendorId').value;
+                if (!vId || isNaN(vId)) {
+                    Swal.fire({
+                        title: 'Lỗi Nhà cung cấp',
+                        text: 'Hãng này chưa được liên kết với Nhà cung cấp trong hệ thống. Vui lòng kiểm tra lại dữ liệu.',
+                        icon: 'error',
+                        confirmButtonColor: '#0d9488'
+                    });
+                    return;
+                }
+
+                form.querySelectorAll('.temp-input').forEach(i => i.remove());
+
+                let idx = 0;
+                items.forEach(input => {
+                    const val = input.value;
+                    const prItemId = input.dataset.prItemId;
+
+                    if (val > 0) {
+                        const hiddenId = document.createElement('input');
+                        hiddenId.type = 'hidden';
+                        hiddenId.name = `items[${idx}][pr_item_id]`;
+                        hiddenId.value = prItemId;
+                        hiddenId.className = 'temp-input';
+                        form.appendChild(hiddenId);
+
+                        const hiddenQty = document.createElement('input');
+                        hiddenQty.type = 'hidden';
+                        hiddenQty.name = `items[${idx}][quantity]`;
+                        hiddenQty.value = val;
+                        hiddenQty.className = 'temp-input';
+                        form.appendChild(hiddenQty);
+
+                        idx++;
+                    }
+                });
+
+                if (idx === 0) {
+                    Swal.fire({
+                        title: 'Chưa chọn mặt hàng',
+                        text: 'Vui lòng chọn ít nhất một mặt hàng để gom nháp.',
+                        icon: 'warning',
+                        confirmButtonColor: '#f59e0b'
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Gom đơn nháp',
+                    text: `Bạn có chắc chắn muốn gom ${idx} mặt hàng đã chọn vào danh sách nháp của Hãng này?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#f59e0b',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Đồng ý, Gom nháp',
+                    cancelButtonText: 'Hủy',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.formChanged = false;
+                        form.action = "{{ route('purchase-orders.store-draft-from-pr') }}";
+                        HTMLFormElement.prototype.submit.call(form);
+                    }
+                });
+            }
+
+            function switchTab(tabName) {
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+                document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+                const activeClass = ['border-teal-500', 'text-teal-600'];
+                const inactiveClass = ['border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300'];
+
+                const needsBtn = document.getElementById('tab-needs-ordering-btn');
+                const draftsBtn = document.getElementById('tab-drafts-btn');
+
+                if (tabName === 'needs-ordering') {
+                    needsBtn.classList.remove(...inactiveClass);
+                    needsBtn.classList.add(...activeClass);
+                    draftsBtn.classList.remove(...activeClass);
+                    draftsBtn.classList.add(...inactiveClass);
+                } else {
+                    draftsBtn.classList.remove(...inactiveClass);
+                    draftsBtn.classList.add(...activeClass);
+                    needsBtn.classList.remove(...activeClass);
+                    needsBtn.classList.add(...inactiveClass);
+                }
+
+                const url = new URL(window.location);
+                url.searchParams.set('tab', tabName);
+                window.history.pushState({}, '', url);
+            }
+
+            function openConfirmDraftModal(poId, code, currentCpq, currentNote) {
+                document.getElementById('confirmDraftPoCode').innerText = code;
+                document.getElementById('draftCpqInput').value = currentCpq === 'CPQ/draft' ? '' : currentCpq;
+                document.getElementById('draftNoteTextarea').value = currentNote || '';
+                document.getElementById('confirmDraftForm').action = `/purchase-orders/draft/${poId}/confirm`;
+                document.getElementById('confirmDraftModal').classList.remove('hidden');
+            }
+
+            function closeConfirmDraftModal() {
+                document.getElementById('confirmDraftModal').classList.add('hidden');
+            }
+
+            async function handleVendorSwitch(vId) {
+                if (currentVendorId && currentVendorId !== vId) {
+                    const hasSelections = document.querySelectorAll('.item-checkbox:checked').length > 0;
+                    if (hasSelections) {
+                        const result = await Swal.fire({
+                            title: 'Chuyển đổi Hãng',
+                            text: 'Bạn đang chọn mặt hàng từ Hãng khác. Chuyển sang Hãng này sẽ bỏ chọn các mặt hàng cũ?',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#0d9488',
+                            cancelButtonColor: '#6b7280',
+                            confirmButtonText: 'Đồng ý chuyển',
+                            cancelButtonText: 'Hủy',
+                            reverseButtons: true
+                        });
+
+                        if (result.isConfirmed) {
+                            resetSelections();
+                            currentVendorId = vId;
+                            document.getElementById('selectedVendorId').value = vId;
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                currentVendorId = vId;
+                document.getElementById('selectedVendorId').value = vId;
+                return true;
             }
 
             async function preparePo(vId) {
@@ -585,6 +956,116 @@
                     }
                 });
             }
+
+            // ==========================================
+            // DRAFT TAB: Selection & Merge Logic
+            // ==========================================
+            function updateDraftSelections() {
+                const checkedBoxes = document.querySelectorAll('.draft-checkbox:checked');
+                const count = checkedBoxes.length;
+                const bar = document.getElementById('draftActionBar');
+                const countSpan = document.getElementById('draftSelectedCount');
+                const vendorSpan = document.getElementById('draftSelectedVendor');
+                const warningEl = document.getElementById('draftMergeWarning');
+                const mergeBtn = document.getElementById('mergeDraftBtn');
+
+                if (count > 0) {
+                    bar.classList.remove('hidden');
+                    countSpan.innerText = count;
+
+                    // Check if all selected are same supplier
+                    const supplierIds = new Set();
+                    checkedBoxes.forEach(cb => supplierIds.add(cb.dataset.supplierId));
+                    
+                    const isSameVendor = supplierIds.size === 1;
+
+                    if (isSameVendor) {
+                        // Get vendor name from the card
+                        const firstCard = document.querySelector(`.draft-po-card[data-supplier-id="${[...supplierIds][0]}"]`);
+                        const vendorName = firstCard ? firstCard.querySelector('h2')?.innerText : '';
+                        vendorSpan.innerText = `(${vendorName})`;
+                        warningEl.classList.add('hidden');
+                        mergeBtn.disabled = count < 2;
+                    } else {
+                        vendorSpan.innerText = '(nhiều hãng)';
+                        warningEl.classList.remove('hidden');
+                        mergeBtn.disabled = true;
+                    }
+                } else {
+                    bar.classList.add('hidden');
+                }
+
+                // Visual highlight for selected cards
+                document.querySelectorAll('.draft-po-card').forEach(card => {
+                    const cb = card.querySelector('.draft-checkbox');
+                    if (cb && cb.checked) {
+                        card.classList.add('ring-2', 'ring-amber-400', 'border-amber-400');
+                    } else {
+                        card.classList.remove('ring-2', 'ring-amber-400', 'border-amber-400');
+                    }
+                });
+            }
+
+            function resetDraftSelections() {
+                document.querySelectorAll('.draft-checkbox').forEach(cb => cb.checked = false);
+                updateDraftSelections();
+            }
+
+            function submitMergeDrafts() {
+                const checkedBoxes = document.querySelectorAll('.draft-checkbox:checked');
+                if (checkedBoxes.length < 2) return;
+
+                // Verify same supplier
+                const supplierIds = new Set();
+                checkedBoxes.forEach(cb => supplierIds.add(cb.dataset.supplierId));
+                if (supplierIds.size > 1) {
+                    Swal.fire({
+                        title: 'Không thể gộp',
+                        text: 'Chỉ có thể gộp các đơn nháp cùng một Hãng!',
+                        icon: 'error',
+                        confirmButtonColor: '#f59e0b'
+                    });
+                    return;
+                }
+
+                // Collect draft IDs
+                const draftIds = [...checkedBoxes].map(cb => cb.dataset.draftId);
+
+                Swal.fire({
+                    title: 'Gộp đơn nháp',
+                    text: `Bạn có chắc chắn muốn gộp ${draftIds.length} đơn nháp đã chọn thành 1 đơn nháp duy nhất?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#f59e0b',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Đồng ý, Gộp',
+                    cancelButtonText: 'Hủy',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{{ route("purchase-orders.draft.merge") }}';
+
+                        const csrf = document.createElement('input');
+                        csrf.type = 'hidden';
+                        csrf.name = '_token';
+                        csrf.value = '{{ csrf_token() }}';
+                        form.appendChild(csrf);
+
+                        draftIds.forEach((id, idx) => {
+                            const hidden = document.createElement('input');
+                            hidden.type = 'hidden';
+                            hidden.name = `draft_ids[${idx}]`;
+                            hidden.value = id;
+                            form.appendChild(hidden);
+                        });
+
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                });
+            }
         </script>
     @endpush
 
@@ -593,6 +1074,9 @@
             border-color: #0d9488;
             ring: 2px;
             ring-color: #0d9488;
+        }
+        .draft-po-card.ring-2 {
+            box-shadow: 0 0 0 2px #fbbf24;
         }
     </style>
 @endsection

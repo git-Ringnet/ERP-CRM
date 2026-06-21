@@ -428,18 +428,18 @@ function updatePoCodeWithSupplier() {
     const poCodeInput = document.getElementById('poCodeInput');
     if (supplierSelect && poCodeInput) {
         const supplierId = supplierSelect.value;
-        const selectedOption = Array.from(supplierSelect.options).find(opt => opt.value == supplierId);
-        const supplierName = selectedOption ? (selectedOption.dataset.name || '') : '';
-        
-        // Tránh ghi đè nếu tiền tố chưa có /TH
-        if (poCodeInput.value.includes('/TH')) {
-            const prefix = poCodeInput.value.split('/TH')[0] + '/TH';
-            if (supplierName) {
-                poCodeInput.value = prefix + '-' + supplierName.trim();
-            } else {
-                poCodeInput.value = prefix;
-            }
+        let url = '/api/purchase-orders/generate-code';
+        if (supplierId) {
+            url += `?supplier_id=${supplierId}`;
         }
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.code) {
+                    poCodeInput.value = data.code;
+                }
+            })
+            .catch(err => console.error('Error fetching PO code:', err));
     }
 }
 

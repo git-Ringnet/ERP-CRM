@@ -566,7 +566,6 @@ class QuotationController extends Controller
                 'subtotal' => $quotation->subtotal,
                 'discount' => $quotation->discount,
                 'vat' => $quotation->vat,
-                'vat_amount' => $quotation->vat_amount,
                 'total' => $quotation->total,
                 'total_foreign' => $quotation->total_foreign,
                 'currency_id' => $quotation->currency_id,
@@ -594,8 +593,6 @@ class QuotationController extends Controller
                     'product_name' => $item->product_name,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
-                    'vat' => $item->vat,
-                    'vat_amount' => $item->vat_amount,
                     'total' => $item->total,
                     'cost_price' => $costPrice,
                     'cost_total' => $item->quantity * $costPrice,
@@ -734,7 +731,8 @@ class QuotationController extends Controller
         }
 
         $quotation->load('items', 'customer', 'currency', 'contact');
-        $filename = 'bao-gia-' . $quotation->code . '.xlsx';
+        $safeCode = str_replace(['/', '\\'], '-', $quotation->code);
+        $filename = 'bao-gia-' . $safeCode . '.xlsx';
 
         libxml_use_internal_errors(true);
         try {

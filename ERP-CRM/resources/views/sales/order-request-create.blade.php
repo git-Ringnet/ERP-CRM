@@ -33,10 +33,15 @@
             </div>
 
             {{-- Global SI/EU inputs (only need to fill once) --}}
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">SI Name <span class="text-red-500">*</span></label>
                     <input type="text" id="global_si_name" name="global_si_name" required
+                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reseller POS ID</label>
+                    <input type="text" id="global_pos_id" name="global_pos_id"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
@@ -107,6 +112,7 @@
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle uppercase">SN</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">Exp date</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[130px] align-middle uppercase">SI Name <span class="text-red-500">*</span></th>
+                                <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[110px] align-middle uppercase">POS ID</th>
                                 <th colspan="3" class="px-2 py-1.5 text-center font-bold text-gray-800 border-b border-r border-gray-300 uppercase">Thông tin CQ (Điền tay)</th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                             </tr>
@@ -167,6 +173,9 @@
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][si_name]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                </td>
+                                <td class="px-1 py-1">
+                                    <input type="text" name="order_request_items[{{ $idx }}][pos_id]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][eu_name]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
@@ -330,16 +339,19 @@
     // Populate existing rows with global SI/EU values if present
     function syncGlobalToRows(){
         const si = document.getElementById('global_si_name').value;
+        const pos = document.getElementById('global_pos_id').value;
         const eu = document.getElementById('global_eu_name').value;
         const mst = document.getElementById('global_mst').value;
         const addr = document.getElementById('global_address').value;
         document.querySelectorAll('input[name$="[si_name]"]').forEach(el => el.value = si);
+        document.querySelectorAll('input[name$="[pos_id]"]').forEach(el => el.value = pos);
         document.querySelectorAll('input[name$="[eu_name]"]').forEach(el => el.value = eu);
         document.querySelectorAll('input[name$="[mst]"]').forEach(el => el.value = mst);
         document.querySelectorAll('input[name$="[address]"]').forEach(el => el.value = addr);
     }
 
     document.getElementById('global_si_name').addEventListener('input', syncGlobalToRows);
+    document.getElementById('global_pos_id').addEventListener('input', syncGlobalToRows);
     document.getElementById('global_eu_name').addEventListener('input', syncGlobalToRows);
     document.getElementById('global_mst').addEventListener('input', syncGlobalToRows);
     document.getElementById('global_address').addEventListener('input', syncGlobalToRows);
@@ -384,6 +396,7 @@
             typeOptions += `<option value="${t}" ${globalType == t ? 'selected' : ''}>${t}</option>`;
         });
         const siGlobal = document.getElementById('global_si_name').value;
+        const posGlobal = document.getElementById('global_pos_id').value;
         const euGlobal = document.getElementById('global_eu_name').value;
         const mstGlobal = document.getElementById('global_mst').value;
         const addrGlobal = document.getElementById('global_address').value;
@@ -426,6 +439,10 @@
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][si_name]" value="${siGlobal}"
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
+            </td>
+            <td class="px-1 py-1">
+                <input type="text" name="order_request_items[${rowIdx}][pos_id]" value="${posGlobal}"
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID">
             </td>
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][eu_name]" value="${euGlobal}" required

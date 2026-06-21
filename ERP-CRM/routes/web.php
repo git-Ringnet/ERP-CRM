@@ -69,6 +69,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ajax/customers/{customer}/contacts', [CustomerController::class, 'storeContact'])->name('customers.store-contact');
     Route::post('/ajax/customers', [CustomerController::class, 'storeAjax'])->name('customers.store-ajax');
     Route::resource('suppliers', SupplierController::class);
+    Route::get('/suppliers/{supplier}/po-config', [SupplierController::class, 'poConfig'])->name('suppliers.po-config');
+    Route::put('/suppliers/{supplier}/po-config', [SupplierController::class, 'updatePoConfig'])->name('suppliers.po-config.update');
     Route::resource('employees', EmployeeController::class);
     Route::resource('products', ProductController::class);
     Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
@@ -202,6 +204,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/settings/email', [SettingController::class, 'updateEmail'])->name('settings.email.update');
     Route::post('/settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
     Route::post('/settings/company', [SettingController::class, 'updateCompany'])->name('settings.company.update');
+    Route::get('/settings/po-company', [SupplierController::class, 'companyConfig'])->name('settings.po-company');
+    Route::put('/settings/po-company', [SupplierController::class, 'updateCompanyConfig'])->name('settings.po-company.update');
 
     // Database Backup & Restore routes
     Route::get('/settings/database', [\App\Http\Controllers\DatabaseBackupController::class, 'index'])->name('settings.database.index');
@@ -281,6 +285,7 @@ Route::middleware(['auth'])->group(function () {
     // Purchase Order routes (Đơn mua hàng)
     Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
     Route::get('/purchase-orders/pr-items', [PurchaseOrderController::class, 'getPrItems'])->name('purchase-orders.pr-items');
+    Route::get('/api/purchase-orders/generate-code', [PurchaseOrderController::class, 'generateCodeApi'])->name('purchase-orders.generate-code-api');
     Route::resource('purchase-orders', PurchaseOrderController::class);
     Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
     Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
@@ -304,6 +309,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders/items/{item}/preview-license/{index}', [PurchaseOrderController::class, 'previewItemLicense'])->name('purchase-orders.items.preview-license');
     Route::post('/purchase-orders/{purchaseOrder}/confirm-received', [PurchaseOrderController::class, 'confirmReceived'])->name('purchase-orders.confirm-received');
     Route::get('/purchase-orders/{purchaseOrder}/export-excel', [PurchaseOrderController::class, 'exportSingle'])->name('purchase-orders.export-single');
+    Route::get('/purchase-orders/{purchaseOrder}/preview-html', [PurchaseOrderController::class, 'previewHtml'])->name('purchase-orders.preview-html');
 
 
     // Purchasing Management (Flow sau khi gửi PR)
@@ -315,6 +321,11 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/purchase-requests/{id}/update-note', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'updateNote'])->name('purchase-requests.update-note');
     Route::get('/purchase-requests/needs-ordering', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'needsOrdering'])->name('purchase-requests.needs-ordering');
     Route::post('/purchase-orders/store-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeFromPr'])->name('purchase-orders.store-from-pr');
+    Route::post('/purchase-orders/store-draft-from-pr', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'storeDraftFromPr'])->name('purchase-orders.store-draft-from-pr');
+    Route::post('/purchase-orders/draft/{id}/confirm', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'confirmDraftPo'])->name('purchase-orders.draft.confirm');
+    Route::post('/purchase-orders/draft/merge', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'mergeDraftPos'])->name('purchase-orders.draft.merge');
+    Route::delete('/purchase-orders/draft/{id}', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'destroyDraftPo'])->name('purchase-orders.draft.destroy');
+    Route::delete('/purchase-orders/draft-items/{id}', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'destroyDraftPoItem'])->name('purchase-orders.draft-items.destroy');
     Route::post('/purchase-requests/items/{itemId}/cancel', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'cancelItem'])->name('purchase-requests.items.cancel');
     Route::post('/purchase-requests/items/{itemId}/restore', [\App\Http\Controllers\PurchaseOrderRequestController::class, 'restoreItem'])->name('purchase-requests.items.restore');
 

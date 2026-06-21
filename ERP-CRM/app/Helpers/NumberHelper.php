@@ -78,4 +78,86 @@ class NumberHelper
 
         return trim($words) . ' đồng chẵn.';
     }
+
+    public static function currencyToEnglishWords(int|float $amount): string
+    {
+        $amount = round($amount, 2);
+        $dollars = (int) floor($amount);
+        $cents = (int) round(($amount - $dollars) * 100);
+
+        $dollarWords = str_replace('-', ' ', strtolower(self::numberToEnglishWords($dollars)));
+        
+        $result = $dollarWords . ' US dollars';
+        if ($cents > 0) {
+            $centWords = str_replace('-', ' ', strtolower(self::numberToEnglishWords($cents)));
+            $result .= ' and ' . $centWords . ' cents';
+        } else {
+            $result .= ' only';
+        }
+
+        return ucfirst(trim($result)) . '.';
+    }
+
+    private static function numberToEnglishWords(int $number): string
+    {
+        if ($number === 0) {
+            return 'Zero';
+        }
+
+        $ones = [
+            0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
+            5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+            10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen',
+            15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen'
+        ];
+
+        $tens = [
+            2 => 'Twenty', 3 => 'Thirty', 4 => 'Forty', 5 => 'Fifty',
+            6 => 'Sixty', 7 => 'Seventy', 8 => 'Eighty', 9 => 'Ninety'
+        ];
+
+        $thousands = [
+            '', 'Thousand', 'Million', 'Billion', 'Trillion'
+        ];
+
+        $result = '';
+        $groups = [];
+        while ($number > 0) {
+            $groups[] = $number % 1000;
+            $number = (int)($number / 1000);
+        }
+
+        for ($i = count($groups) - 1; $i >= 0; $i--) {
+            $groupVal = $groups[$i];
+            if ($groupVal === 0) {
+                continue;
+            }
+
+            $groupWords = '';
+            $h = (int)($groupVal / 100);
+            $t = $groupVal % 100;
+
+            if ($h > 0) {
+                $groupWords .= $ones[$h] . ' Hundred ';
+            }
+
+            if ($t > 0) {
+                if ($t < 20) {
+                    $groupWords .= $ones[$t] . ' ';
+                } else {
+                    $tenVal = (int)($t / 10);
+                    $oneVal = $t % 10;
+                    $groupWords .= $tens[$tenVal] . ($oneVal > 0 ? '-' . $ones[$oneVal] : '') . ' ';
+                }
+            }
+
+            $groupWords = trim($groupWords);
+            if ($groupWords !== '') {
+                $result .= ' ' . $groupWords . ($thousands[$i] !== '' ? ' ' . $thousands[$i] : '');
+            }
+        }
+
+        return trim($result);
+    }
 }
+

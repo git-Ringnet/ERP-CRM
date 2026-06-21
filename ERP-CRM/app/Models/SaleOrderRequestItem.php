@@ -20,6 +20,7 @@ class SaleOrderRequestItem extends Model
         'serial_number',
         'exp_date',
         'si_name',
+        'pos_id',
         'eu_name_mst',
         'address',
         'note',
@@ -57,19 +58,27 @@ class SaleOrderRequestItem extends Model
     }
 
     /**
-     * Tính tổng số lượng đã đặt hàng từ các PO liên kết
+     * Tính tổng số lượng đã đặt hàng từ các PO liên kết (loại trừ các PO đã hủy)
      */
     public function getOrderedQuantityTotalAttribute(): float
     {
-        return (float) $this->purchaseOrderItems()->sum('ordered_quantity');
+        return (float) $this->purchaseOrderItems()
+            ->whereHas('purchaseOrder', function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            })
+            ->sum('ordered_quantity');
     }
 
     /**
-     * Tính tổng số lượng thực tế đã nhận hàng
+     * Tính tổng số lượng thực tế đã nhận hàng (loại trừ các PO đã hủy)
      */
     public function getReceivedQuantityTotalAttribute(): float
     {
-        return (float) $this->purchaseOrderItems()->sum('received_quantity');
+        return (float) $this->purchaseOrderItems()
+            ->whereHas('purchaseOrder', function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            })
+            ->sum('received_quantity');
     }
 
     /**

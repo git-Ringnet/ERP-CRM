@@ -463,4 +463,138 @@ class SupplierController extends Controller
 
         return back()->with('success', "Import thành công! Tạo mới: {$imported}, Cập nhật: {$updated}");
     }
+
+    /**
+     * Show PO template configuration for a supplier.
+     */
+    public function poConfig($supplierId)
+    {
+        $supplier = \App\Models\Supplier::findOrFail($supplierId);
+        $this->authorize('update', $supplier);
+
+        $config = $supplier->poConfig ?: new \App\Models\SupplierPoConfig();
+
+        return view('suppliers.po-config', compact('supplier', 'config'));
+    }
+
+    /**
+     * Update PO template configuration for a supplier.
+     */
+    public function updatePoConfig(Request $request, $supplierId)
+    {
+        $supplier = \App\Models\Supplier::findOrFail($supplierId);
+        $this->authorize('update', $supplier);
+
+        $data = $request->validate([
+            'template_type' => 'required|in:fortinet,sale_contract',
+            'seller_name' => 'nullable|string|max:255',
+            'seller_address_line1' => 'nullable|string|max:255',
+            'seller_address_line2' => 'nullable|string|max:255',
+            'seller_tel' => 'nullable|string|max:255',
+            'seller_fax' => 'nullable|string|max:255',
+            'seller_contact' => 'nullable|string|max:1000',
+            'seller_beneficiary' => 'nullable|string|max:255',
+            'seller_beneficiary_address' => 'nullable|string|max:500',
+            'seller_bank_name' => 'nullable|string|max:255',
+            'seller_bank_account' => 'nullable|string|max:255',
+            'seller_bank_address_line1' => 'nullable|string|max:255',
+            'seller_bank_address_line2' => 'nullable|string|max:255',
+            'seller_bank_aba' => 'nullable|string|max:255',
+            'seller_swift_code' => 'nullable|string|max:255',
+            'port_loading' => 'nullable|string|max:255',
+            'port_discharge' => 'nullable|string|max:255',
+        ]);
+
+        $supplier->poConfig()->updateOrCreate(['supplier_id' => $supplier->id], $data);
+
+        // Redirect back to supplier show
+        return redirect()->route('suppliers.show', $supplier->id)->with('success', 'Cập nhật cấu hình biểu mẫu PO thành công!');
+    }
+
+    /**
+     * Show PO company configuration (Buyer).
+     */
+    public function companyConfig()
+    {
+        $this->authorize('update', \App\Models\Setting::class);
+
+        $config = \App\Models\PoCompanyConfig::getConfig();
+
+        return view('settings.po-company', compact('config'));
+    }
+
+    /**
+     * Update PO company configuration (Buyer).
+     */
+    public function updateCompanyConfig(Request $request)
+    {
+        $this->authorize('update', \App\Models\Setting::class);
+
+        $data = $request->validate([
+            'buyer_name' => 'nullable|string|max:255',
+            'buyer_address_line1' => 'nullable|string|max:255',
+            'buyer_address_line2' => 'nullable|string|max:255',
+            'buyer_tel' => 'nullable|string|max:255',
+            'buyer_fax' => 'nullable|string|max:255',
+            'buyer_contact' => 'nullable|string|max:1000',
+            'buyer_bank_account' => 'nullable|string|max:255',
+            'buyer_bank_name' => 'nullable|string|max:255',
+            'buyer_bank_address_line1' => 'nullable|string|max:255',
+            'buyer_bank_address_line2' => 'nullable|string|max:255',
+            'buyer_swift_code' => 'nullable|string|max:255',
+            
+            'ship_to_name' => 'nullable|string|max:255',
+            'ship_to_address_line1' => 'nullable|string|max:255',
+            'ship_to_address_line2' => 'nullable|string|max:255',
+            'ship_to_attn' => 'nullable|string|max:255',
+            
+            'invoice_to_name' => 'nullable|string|max:255',
+            'invoice_to_address_line1' => 'nullable|string|max:255',
+            'invoice_to_address_line2' => 'nullable|string|max:255',
+            'invoice_to_attn' => 'nullable|string|max:255',
+            
+            'company_full_name' => 'nullable|string|max:255',
+            'hcmc_address' => 'nullable|string|max:500',
+            'hanoi_address' => 'nullable|string|max:500',
+            'website' => 'nullable|string|max:255',
+            'email' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:255',
+            'header_logo' => 'nullable|image|max:2048',
+            'header_banner' => 'nullable|image|max:4096',
+            
+            'signer_name' => 'nullable|string|max:255',
+            'signer_title' => 'nullable|string|max:255',
+        ]);
+
+        if ($request->hasFile('header_logo') && $request->file('header_logo')->isValid()) {
+            $logoFile = $request->file('header_logo');
+            $logoName = 'po_logo_' . time() . '.' . $logoFile->getClientOriginalExtension();
+
+            if (!is_dir(public_path('uploads/po-logos'))) {
+                mkdir(public_path('uploads/po-logos'), 0755, true);
+            }
+
+            $logoFile->move(public_path('uploads/po-logos'), $logoName);
+            $data['header_logo_path'] = 'uploads/po-logos/' . $logoName;
+        }
+        unset($data['header_logo']);
+
+        if ($request->hasFile('header_banner') && $request->file('header_banner')->isValid()) {
+            $bannerFile = $request->file('header_banner');
+            $bannerName = 'po_banner_' . time() . '.' . $bannerFile->getClientOriginalExtension();
+
+            if (!is_dir(public_path('uploads/po-logos'))) {
+                mkdir(public_path('uploads/po-logos'), 0755, true);
+            }
+
+            $bannerFile->move(public_path('uploads/po-logos'), $bannerName);
+            $data['header_banner_path'] = 'uploads/po-logos/' . $bannerName;
+        }
+        unset($data['header_banner']);
+
+        $config = \App\Models\PoCompanyConfig::getConfig();
+        $config->update($data);
+
+        return back()->with('success', 'Cập nhật cấu hình công ty PO thành công!');
+    }
 }
