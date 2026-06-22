@@ -62,7 +62,7 @@ class PurchaseImportSyncService
         try {
             // Create import record
             $import = Import::create([
-                'code' => Import::generateCode(),
+                'code' => $purchaseOrder->code,
                 'warehouse_id' => $warehouseId,
                 'supplier_id' => $purchaseOrder->supplier_id,
                 'date' => $purchaseOrder->actual_delivery ?? now(),

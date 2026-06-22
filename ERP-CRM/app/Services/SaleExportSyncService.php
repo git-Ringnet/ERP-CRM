@@ -134,7 +134,7 @@ class SaleExportSyncService
         try {
             // Create export record
             $export = Export::create([
-                'code' => Export::generateCode(),
+                'code' => $sale->code,
                 'warehouse_id' => $warehouseId,
                 'project_id' => $sale->project_id,
                 'customer_id' => $sale->customer_id,

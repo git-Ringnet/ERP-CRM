@@ -37,9 +37,6 @@ class SaleContractPurchaseOrderExport implements FromView, WithStyles, WithTitle
         $config = $this->po->supplier->poConfig ?: new SupplierPoConfig([
             'template_type' => 'sale_contract',
             'seller_name' => $this->po->supplier->name,
-            'seller_address_line1' => $this->po->supplier->address,
-            'seller_tel' => $this->po->supplier->phone,
-            'seller_contact' => $this->po->supplier->contact_person,
             'port_loading' => 'TAIWAN/ USA',
             'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
         ]);

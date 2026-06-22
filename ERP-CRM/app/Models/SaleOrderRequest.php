@@ -177,8 +177,12 @@ class SaleOrderRequest extends Model
         } elseif ($anyOrdered) {
             $newStatus = self::STATUS_PROCESSING;
         } else {
-            // Không có item nào được ordered → revert về submitted
-            $newStatus = self::STATUS_SUBMITTED;
+            // Không có item nào được ordered → Nếu đang là submitted thì giữ submitted, nếu đang là processing/completed thì giữ processing (đã duyệt nhưng chưa đặt hàng)
+            if ($this->status === self::STATUS_SUBMITTED) {
+                $newStatus = self::STATUS_SUBMITTED;
+            } else {
+                $newStatus = self::STATUS_PROCESSING;
+            }
         }
 
         if ($newStatus !== $this->status) {

@@ -29,6 +29,8 @@ class SupplierSeeder extends Seeder
             ['code' => 'PL001', 'name' => 'Perle', 'email' => 'perle@example.com', 'phone' => '000000000'],
             ['code' => 'ND001', 'name' => 'Norden', 'email' => 'norden@example.com', 'phone' => '000000000'],
             ['code' => 'OTH001', 'name' => 'Other', 'email' => 'other@example.com', 'phone' => '000000000'],
+            ['code' => 'PTB001', 'name' => 'CÔNG TY TNHH PHÁT TRIỂN B (VIỆT NAM)', 'email' => 'bdevelopment@example.com', 'phone' => '024 3795 8686'],
+            ['code' => 'AIL001', 'name' => 'Aditya Infotech Limited', 'email' => 'aditya@example.com', 'phone' => '00 91-120-4555666'],
         ];
 
         $now = Carbon::now();

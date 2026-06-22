@@ -1330,7 +1330,7 @@ class PurchaseOrderController extends Controller
             // 2. Nếu chưa có, tạo mới. Nếu có rồi mà đã completed, mở lại thành pending
             if (!$import) {
                 $import = \App\Models\Import::create([
-                    'code' => \App\Models\Import::generateCode(),
+                    'code' => $po->code,
                     'warehouse_id' => $po->warehouse_id ?? \App\Models\Warehouse::first()->id ?? 1,
                     'supplier_id' => $po->supplier_id,
                     'date' => now(),
@@ -1417,7 +1417,7 @@ class PurchaseOrderController extends Controller
             return Excel::download(new FortinetPurchaseOrderExport($purchaseOrder), $filename);
         }
 
-        return Excel::download(new SinglePurchaseOrderExport($purchaseOrder), $filename);
+        return Excel::download(new SaleContractPurchaseOrderExport($purchaseOrder), $filename);
     }
 
     public function previewHtml(PurchaseOrder $purchaseOrder)
@@ -1468,9 +1468,6 @@ class PurchaseOrderController extends Controller
             $config = $poConfig ?: new \App\Models\SupplierPoConfig([
                 'template_type' => 'sale_contract',
                 'seller_name' => $purchaseOrder->supplier->name,
-                'seller_address_line1' => $purchaseOrder->supplier->address,
-                'seller_tel' => $purchaseOrder->supplier->phone,
-                'seller_contact' => $purchaseOrder->supplier->contact_person,
                 'port_loading' => 'TAIWAN/ USA',
                 'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
             ]);

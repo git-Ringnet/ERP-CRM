@@ -661,10 +661,8 @@
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">SL</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá bán</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">VAT</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá vốn</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bảo hành</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Thành tiền</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng vốn</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Lợi nhuận</th>
                             </tr>
                         </thead>
@@ -685,7 +683,6 @@
                                 <td class="px-4 py-3 text-sm text-center">
                                     {{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}
                                 </td>
-                                <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_price) }} đ</td>
                                 <td class="px-4 py-3 text-sm text-center">
                                     @if($item->warranty_months)
                                         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -703,7 +700,6 @@
                                         <div class="text-sm font-medium text-gray-900">{{ number_format($item->total) }} đ</div>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-orange-600 text-right">{{ number_format($item->cost_total) }} đ</td>
                                 <td class="px-4 py-3 text-sm text-right font-medium {{ $item->profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
                                     {{ number_format($item->profit) }} đ
                                     <span class="text-xs">({{ number_format($item->profit_percent, 1) }}%)</span>
@@ -713,8 +709,8 @@
                         </tbody>
                         <tfoot class="bg-white border-t-2 border-gray-100">
                             <tr>
-                                <td colspan="7" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Tổng tiền hàng:</td>
-                                <td colspan="3" class="px-4 py-3 text-right font-semibold">
+                                <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Tổng tiền hàng:</td>
+                                <td colspan="2" class="px-4 py-3 text-right font-semibold">
                                     @if($isForeign)
                                         <div class="text-sm text-gray-900">{{ $symbol }} {{ number_format($subtotalForeign, $decimals) }}</div>
                                         <div class="text-xs text-gray-500">{{ number_format($subtotalVnd) }} đ</div>
@@ -724,8 +720,8 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="7" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chiết khấu ({{ $sale->discount }}%):</td>
-                                <td colspan="3" class="px-4 py-3 text-right font-semibold">
+                                <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Chiết khấu ({{ $sale->discount }}%):</td>
+                                <td colspan="2" class="px-4 py-3 text-right font-semibold">
                                     @if($isForeign)
                                         <div class="text-sm text-red-600">-{{ $symbol }} {{ number_format($discountForeign, $decimals) }}</div>
                                         <div class="text-xs text-red-400">-{{ number_format($discountVnd) }} đ</div>
@@ -735,8 +731,8 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="7" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Thuế VAT:</td>
-                                <td colspan="3" class="px-4 py-3 text-right font-semibold">
+                                <td colspan="6" class="px-4 py-3 text-sm font-medium text-gray-700 text-right">Thuế VAT:</td>
+                                <td colspan="2" class="px-4 py-3 text-right font-semibold">
                                     @if($isForeign)
                                         <div class="text-sm text-gray-900">{{ $symbol }} {{ number_format($vatForeign, $decimals) }}</div>
                                         <div class="text-xs text-gray-500">{{ number_format($vatVnd) }} đ</div>
@@ -746,8 +742,8 @@
                                 </td>
                             </tr>
                             <tr class="bg-blue-50">
-                                <td colspan="7" class="px-4 py-3 text-base font-bold text-gray-900 text-right uppercase">Tổng cộng hồ sơ:</td>
-                                <td colspan="3" class="px-4 py-3 text-right">
+                                <td colspan="6" class="px-4 py-3 text-base font-bold text-gray-900 text-right uppercase">Tổng cộng:</td>
+                                <td colspan="2" class="px-4 py-3 text-right">
                                     @if($isForeign)
                                         <div class="text-lg font-bold text-blue-700">{{ $symbol }} {{ number_format($totalForeign, $decimals) }}</div>
                                         <div class="text-xs text-blue-500 font-normal">≈ {{ number_format($totalVnd) }} đ</div>

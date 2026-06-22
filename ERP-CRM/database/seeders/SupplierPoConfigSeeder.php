@@ -70,8 +70,8 @@ class SupplierPoConfigSeeder extends Seeder
                 'port_loading' => 'USA',
                 'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
             ],
-            // CÔNG TY TNHH PHÁT TRIỂN B (VIỆT NAM) -> Ben Q (BQ001)
-            'BQ001' => [
+            // CÔNG TY TNHH PHÁT TRIỂN B (VIỆT NAM)
+            'PTB001' => [
                 'template_type' => 'sale_contract',
                 'seller_name' => 'CÔNG TY TNHH PHÁT TRIỂN B (VIỆT NAM)',
                 'seller_address_line1' => 'Room 901, Kim Anh Building, 78 Duy Tan Street,',
@@ -110,8 +110,8 @@ class SupplierPoConfigSeeder extends Seeder
                 'port_loading' => 'USA',
                 'port_discharge' => 'HOCHIMINH CITY, VIETNAM',
             ],
-            // Aditya Infotech Limited -> CP Plus (CP001)
-            'CP001' => [
+            // Aditya Infotech Limited
+            'AIL001' => [
                 'template_type' => 'sale_contract',
                 'seller_name' => 'Aditya Infotech Limited',
                 'seller_address_line1' => 'A-12, Sector 4, NOIDA - 201301, (Delhi-NCR) India',

@@ -104,7 +104,7 @@ class PurchaseOrderRequestController extends Controller
     {
         // Lấy các PR items từ các PR đang chờ xử lý (LOẠI BỎ items đã bị hủy)
         $items = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
-                $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING]);
+                $q->where('status', SaleOrderRequest::STATUS_PROCESSING);
             })
             ->where('is_cancelled', false)
             ->with(['saleOrderRequest.sale', 'saleOrderRequest.attachments', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
@@ -112,7 +112,7 @@ class PurchaseOrderRequestController extends Controller
 
         // Lấy các items đã bị hủy (để hiển thị riêng)
         $cancelledItems = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
-                $q->whereIn('status', [SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_PROCESSING, SaleOrderRequest::STATUS_COMPLETED]);
+                $q->whereIn('status', [SaleOrderRequest::STATUS_PROCESSING, SaleOrderRequest::STATUS_COMPLETED]);
             })
             ->where('is_cancelled', true)
             ->with(['saleOrderRequest.sale', 'vendor'])

@@ -86,16 +86,24 @@ class TestUserSeeder extends Seeder
             $roleSlug = $userData['role_slug'];
             unset($userData['role_slug']);
 
-            // Create or update user
-            $user = User::updateOrCreate(
-                ['email' => $userData['email']],
-                array_merge($userData, [
+            // Find user by email or employee_code to avoid unique constraint violations
+            $user = User::where('email', $userData['email'])
+                ->orWhere('employee_code', $userData['employee_code'])
+                ->first();
+
+            if ($user) {
+                $user->update(array_merge($userData, [
+                    'status' => 'active',
+                    'join_date' => $now,
+                ]));
+            } else {
+                $user = User::create(array_merge($userData, [
                     'password' => $password,
                     'status' => 'active',
                     'join_date' => $now,
                     'phone' => '090000000' . rand(0, 9)
-                ])
-            );
+                ]));
+            }
 
             // Assign role
             $role = Role::where('slug', $roleSlug)->first();
