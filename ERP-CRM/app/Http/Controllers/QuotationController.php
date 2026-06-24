@@ -566,6 +566,7 @@ class QuotationController extends Controller
                 'subtotal' => $quotation->subtotal,
                 'discount' => $quotation->discount,
                 'vat' => $quotation->vat,
+                'vat_amount' => $quotation->vat_amount,
                 'total' => $quotation->total,
                 'total_foreign' => $quotation->total_foreign,
                 'currency_id' => $quotation->currency_id,
@@ -596,6 +597,8 @@ class QuotationController extends Controller
                     'total' => $item->total,
                     'cost_price' => $costPrice,
                     'cost_total' => $item->quantity * $costPrice,
+                    'vat' => $item->vat,
+                    'vat_amount' => $item->vat_amount,
                 ]);
             }
 

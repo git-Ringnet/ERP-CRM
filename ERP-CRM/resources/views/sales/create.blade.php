@@ -1148,7 +1148,6 @@ function calculateTotal() {
     
     calculateMargin();
     calculateDebt();
-    calculateMilestoneAmounts();
 }
 
 function handleVatChange(selectEl) {
@@ -1170,23 +1169,29 @@ function handleVatChange(selectEl) {
             if (result.isConfirmed && result.value !== '') {
                 const customVal = parseFloat(result.value);
                 if (!isNaN(customVal) && customVal >= 0) {
-                    let option = $(selectEl).find(`option[value="${customVal}"]`);
-                    if (option.length === 0) {
-                        $(`<option value="${customVal}">${customVal}%</option>`).insertBefore($(selectEl).find('option[value="custom"]'));
+                    let option = selectEl.querySelector(`option[value="${customVal}"]`);
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = customVal;
+                        option.textContent = customVal + '%';
+                        const customOption = selectEl.querySelector('option[value="custom"]');
+                        selectEl.insertBefore(option, customOption);
                     }
-                    $(selectEl).val(customVal).trigger('change');
+                    selectEl.value = customVal;
+                    selectEl.dispatchEvent(new Event('change'));
                 } else {
-                    const prevVal = $(selectEl).data('prev') || 8;
-                    $(selectEl).val(prevVal).trigger('change');
+                    const prevVal = selectEl.dataset.prev || 8;
+                    selectEl.value = prevVal;
+                    selectEl.dispatchEvent(new Event('change'));
                 }
             } else {
-                const prevVal = $(selectEl).data('prev') || 8;
-                $(selectEl).val(prevVal).trigger('change');
+                const prevVal = selectEl.dataset.prev || 8;
+                selectEl.value = prevVal;
+                selectEl.dispatchEvent(new Event('change'));
             }
         });
     } else {
-        $(selectEl).data('prev', val);
-        const row = $(selectEl).closest('.product-item');
+        selectEl.dataset.prev = val;
         calculateTotal();
     }
 }
