@@ -36,8 +36,22 @@
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">SI Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="global_si_name" name="global_si_name" required
-                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
+                    <div class="searchable-select" id="globalSiNameSelect">
+                        <input type="text" id="global_si_name" name="global_si_name" required
+                            class="searchable-input w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
+                            placeholder="Gõ để tìm khách hàng..." autocomplete="off"
+                            value="{{ old('global_si_name', $sale->customer_name) }}">
+                        <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
+                            @foreach($customers as $customer)
+                                <div class="searchable-option px-3 py-2 hover:bg-emerald-50 cursor-pointer text-sm"
+                                     data-value="{{ $customer->id }}"
+                                     data-text="{{ $customer->name }}"
+                                     data-name="{{ $customer->name }}">
+                                    {{ $customer->name }}@if($customer->tax_code) <span class="text-gray-400 text-xs">({{ $customer->tax_code }})</span>@endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Reseller POS ID</label>
@@ -255,6 +269,28 @@
     </div>
 </div>
 
+@push('styles')
+<style>
+.searchable-select {
+    position: relative;
+}
+.searchable-dropdown {
+    top: 100%;
+    left: 0;
+    right: 0;
+}
+.searchable-option.highlighted {
+    background-color: #d1fae5;
+}
+.no-results {
+    padding: 8px 12px;
+    color: #6b7280;
+    font-style: italic;
+    font-size: 0.875rem;
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
     function initExpDatePicker(selectorOrElement) {
@@ -335,6 +371,96 @@
     let rowIdx = {{ count($sale->items) }};
     const suppliers = @json($suppliers->map(fn($s) => ['id' => $s->id, 'name' => $s->name]));
     const orderTypes = @json(\App\Models\SaleOrderRequest::TYPES);
+
+    function initSearchableSelect(container, onSelect) {
+        const input = container.querySelector('.searchable-input');
+        const dropdown = container.querySelector('.searchable-dropdown');
+
+        input.addEventListener('focus', () => {
+            dropdown.classList.remove('hidden');
+            filterOptions('');
+        });
+
+        input.addEventListener('input', (e) => {
+            filterOptions(e.target.value);
+        });
+
+        function filterOptions(query) {
+            const q = query.toLowerCase();
+            let hasResults = false;
+            dropdown.querySelectorAll('.searchable-option').forEach(opt => {
+                const text = opt.dataset.text.toLowerCase();
+                if (text.includes(q)) {
+                    opt.classList.remove('hidden');
+                    hasResults = true;
+                } else {
+                    opt.classList.add('hidden');
+                }
+            });
+
+            let noResults = dropdown.querySelector('.no-results');
+            if (!hasResults) {
+                if (!noResults) {
+                    noResults = document.createElement('div');
+                    noResults.className = 'no-results px-3 py-2 text-gray-500';
+                    noResults.textContent = 'Không tìm thấy kết quả';
+                    dropdown.appendChild(noResults);
+                }
+                noResults.classList.remove('hidden');
+            } else if (noResults) {
+                noResults.classList.add('hidden');
+            }
+        }
+
+        dropdown.querySelectorAll('.searchable-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                input.value = opt.dataset.name || opt.dataset.text;
+                dropdown.classList.add('hidden');
+                if (onSelect) onSelect(opt);
+            });
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const visibleOptions = [...dropdown.querySelectorAll('.searchable-option')].filter(o => !o.classList.contains('hidden'));
+            const highlighted = dropdown.querySelector('.searchable-option.highlighted');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!highlighted && visibleOptions.length) {
+                    visibleOptions[0].classList.add('highlighted');
+                } else if (highlighted) {
+                    const idx = visibleOptions.indexOf(highlighted);
+                    if (idx < visibleOptions.length - 1) {
+                        highlighted.classList.remove('highlighted');
+                        visibleOptions[idx + 1].classList.add('highlighted');
+                        visibleOptions[idx + 1].scrollIntoView({ block: 'nearest' });
+                    }
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (highlighted) {
+                    const idx = visibleOptions.indexOf(highlighted);
+                    if (idx > 0) {
+                        highlighted.classList.remove('highlighted');
+                        visibleOptions[idx - 1].classList.add('highlighted');
+                        visibleOptions[idx - 1].scrollIntoView({ block: 'nearest' });
+                    }
+                }
+            } else if (e.key === 'Enter' && highlighted) {
+                e.preventDefault();
+                e.stopPropagation();
+                highlighted.click();
+            } else if (e.key === 'Escape') {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+    }
 
     // Populate existing rows with global SI/EU values if present
     function syncGlobalToRows(){
@@ -478,6 +604,10 @@
 
     // Initial sync on page load in case global values already filled (e.g., after validation error)
     document.addEventListener('DOMContentLoaded', function() {
+        const siSelect = document.getElementById('globalSiNameSelect');
+        if (siSelect) {
+            initSearchableSelect(siSelect, () => syncGlobalToRows());
+        }
         syncGlobalToRows();
         initExpDatePicker(".exp-date-picker");
     });

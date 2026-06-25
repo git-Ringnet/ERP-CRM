@@ -2382,8 +2382,9 @@ class SaleController extends Controller
 
         $sale->load(['items.product', 'customer']);
         $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $customers = Customer::select('id', 'name', 'tax_code')->orderBy('name')->get();
         
-        return view('sales.order-request-create', compact('sale', 'suppliers'));
+        return view('sales.order-request-create', compact('sale', 'suppliers', 'customers'));
     }
 
     /**
