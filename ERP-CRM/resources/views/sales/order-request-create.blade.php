@@ -40,7 +40,7 @@
                         <input type="text" id="global_si_name" name="global_si_name" required
                             class="searchable-input w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
                             placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                            value="{{ old('global_si_name', $sale->customer_name) }}">
+                            value="{{ old('global_si_name', '') }}">
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-emerald-50 cursor-pointer text-sm"
@@ -377,8 +377,9 @@
         const dropdown = container.querySelector('.searchable-dropdown');
 
         input.addEventListener('focus', () => {
-            dropdown.classList.remove('hidden');
-            filterOptions('');
+            if (input.value.trim()) {
+                filterOptions(input.value);
+            }
         });
 
         input.addEventListener('input', (e) => {
@@ -386,7 +387,14 @@
         });
 
         function filterOptions(query) {
-            const q = query.toLowerCase();
+            const q = query.trim().toLowerCase();
+            if (!q) {
+                dropdown.classList.add('hidden');
+                dropdown.querySelectorAll('.searchable-option.highlighted').forEach(o => o.classList.remove('highlighted'));
+                return;
+            }
+
+            dropdown.classList.remove('hidden');
             let hasResults = false;
             dropdown.querySelectorAll('.searchable-option').forEach(opt => {
                 const text = opt.dataset.text.toLowerCase();
