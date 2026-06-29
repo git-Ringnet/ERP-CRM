@@ -38,6 +38,7 @@ class SingleQuotationExport implements FromView, WithColumnWidths, WithStyles, W
         if (!is_array($customColumns)) {
             $customColumns = [];
         }
+        $customColumns = array_values(array_filter($customColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
 
         $widths = [
             'A' => 8,   // STT
@@ -69,6 +70,7 @@ class SingleQuotationExport implements FromView, WithColumnWidths, WithStyles, W
         if (!is_array($customColumns)) {
             $customColumns = [];
         }
+        $customColumns = array_values(array_filter($customColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
         $totalCols = 6 + count($customColumns);
         $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
 

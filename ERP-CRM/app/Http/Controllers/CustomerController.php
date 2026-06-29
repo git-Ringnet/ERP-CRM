@@ -148,20 +148,72 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'tax_code' => 'required|string|max:100|unique:customers,tax_code',
+            'abv_name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string',
+
+            // Contacts array
+            'contacts' => 'required|array|min:1',
+            'contacts.*.name' => 'required|string|max:255',
+            'contacts.*.position' => 'required|string|max:255',
+            'contacts.*.phone' => 'required|string|max:50',
+            'contacts.*.email' => 'required|email|max:255',
+            'contacts.*.title' => 'nullable|string|max:50',
+            'contacts.*.is_primary' => 'nullable|boolean',
         ]);
 
-        $validated['type'] = 'normal';
+        DB::beginTransaction();
+        try {
+            $customer = Customer::create([
+                'name' => $validated['name'],
+                'tax_code' => $validated['tax_code'],
+                'abv_name' => $validated['abv_name'],
+                'phone' => $validated['phone'] ?? null,
+                'email' => $validated['email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'type' => 'normal',
+            ]);
 
-        $customer = Customer::create($validated);
+            // Create all contacts
+            $primaryContact = null;
+            foreach ($validated['contacts'] as $contactData) {
+                $contact = $customer->contacts()->create([
+                    'name' => $contactData['name'],
+                    'first_name' => $contactData['name'],
+                    'position' => $contactData['position'],
+                    'phone' => $contactData['phone'],
+                    'email' => $contactData['email'],
+                    'title' => $contactData['title'] ?? null,
+                    'is_primary' => !empty($contactData['is_primary']),
+                ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Đã tạo công ty mới.',
-            'customer' => $customer,
-        ]);
+                if (!empty($contactData['is_primary'])) {
+                    $primaryContact = $contact;
+                }
+            }
+
+            // If no contact was marked primary, use the first one
+            if (!$primaryContact) {
+                $primaryContact = $customer->contacts()->first();
+                $primaryContact->update(['is_primary' => true]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã tạo công ty và người liên hệ thành công.',
+                'customer' => $customer,
+                'contact' => $primaryContact,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi lưu: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

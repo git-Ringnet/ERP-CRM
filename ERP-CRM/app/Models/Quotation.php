@@ -189,8 +189,7 @@ class Quotation extends Model
 
     public function canConvertToSale(): bool
     {
-        return !$this->converted_to_sale_id
-            && !$this->isExpired();
+        return !$this->converted_to_sale_id;
     }
 
     public function canBeDeleted(): bool

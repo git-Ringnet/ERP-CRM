@@ -142,7 +142,7 @@
         }
 
         .totals {
-            width: 300px;
+            width: 440px;
             margin-left: auto;
             page-break-inside: avoid;
         }
@@ -294,14 +294,28 @@
             $decimals = $quotation->currency->decimal_places ?? 2;
             $symbol = $quotation->currency->symbol ?? $quotation->currency->code ?? '';
 
-            $customColumns = $quotation->custom_columns ?? [];
-            if (!is_array($customColumns)) {
-                $customColumns = [];
+            $allColumns = $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'vat', 'row_total'];
+            if (!is_array($allColumns)) {
+                $allColumns = [];
+            }
+            if (!in_array('product_id', $allColumns)) {
+                $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $allColumns);
+            } else {
+                if (!in_array('row_total', $allColumns)) {
+                    $allColumns[] = 'row_total';
+                }
             }
 
             // Subtotal
             $subtotalForeign = $isForeign ? $quotation->items->sum('total') : $quotation->subtotal;
             $subtotalVnd = $isForeign ? round($subtotalForeign * $rate) : $quotation->subtotal;
+
+            $subtotalWithVatForeign = 0;
+            foreach ($quotation->items as $item) {
+                $itemEffectiveVat = $item->vat < 0 ? 0 : $item->vat;
+                $subtotalWithVatForeign += $item->total * (1 + $itemEffectiveVat / 100);
+            }
+            $subtotalWithVatVnd = $isForeign ? round($subtotalWithVatForeign * $rate) : $subtotalWithVatForeign;
 
             // Discount Amount
             $discountForeign = round($subtotalForeign * ($quotation->discount / 100), $decimals);
@@ -319,14 +333,21 @@
             <thead>
                 <tr>
                     <th style="width: 40px;" class="text-center">STT</th>
-                    <th>Sản phẩm</th>
-                    <th style="width: 60px;" class="text-center">SL</th>
-                    <th style="width: 110px;" class="text-right">Đơn giá</th>
-                    <th style="width: 70px;" class="text-center">VAT (%)</th>
-                    @foreach($customColumns as $colName)
-                        <th style="width: 90px;">{{ $colName }}</th>
+                    @foreach($allColumns as $colName)
+                        @if($colName === 'product_id')
+                            <th>Sản phẩm</th>
+                        @elseif($colName === 'quantity')
+                            <th style="width: 60px;" class="text-center">SL</th>
+                        @elseif($colName === 'price')
+                            <th style="width: 110px;" class="text-right">Đơn giá</th>
+                        @elseif($colName === 'vat')
+                            <th style="width: 70px;" class="text-center">VAT (%)</th>
+                        @elseif($colName === 'row_total')
+                            <th style="width: 120px;" class="text-right">Thành tiền (gồm VAT)</th>
+                        @else
+                            <th style="width: 90px;">{{ $colName }}</th>
+                        @endif
                     @endforeach
-                    <th style="width: 120px;" class="text-right">Thành tiền</th>
                 </tr>
             </thead>
             <tbody>
@@ -334,42 +355,50 @@
                     @php
                         $itemPriceForeign = $item->price;
                         $itemPriceVnd = $isForeign ? round($item->price * $rate) : $item->price;
-                        $itemTotalForeign = $item->total;
-                        $itemTotalVnd = $isForeign ? round($item->total * $rate) : $item->total;
+                        $itemEffectiveVat = $item->vat < 0 ? 0 : $item->vat;
+                        $itemTotalForeign = $item->total * (1 + $itemEffectiveVat / 100);
+                        $itemTotalVnd = $isForeign ? round($itemTotalForeign * $rate) : $itemTotalForeign;
                     @endphp
                     <tr>
                         <td class="text-center">{{ $index + 1 }}</td>
-                        <td>
-                            <strong>{{ $item->product_code ?: $item->product_name }}</strong>
-                            @if($item->product_code)
-                                <br><small style="color: #666; white-space: pre-line;">{{ $item->description ?: $item->product_name }}</small>
+                        @foreach($allColumns as $colName)
+                            @if($colName === 'product_id')
+                                <td>
+                                    <strong>{{ $item->product_code ?: $item->product_name }}</strong>
+                                    @if($item->product_code)
+                                        <br><small style="color: #666; white-space: pre-line;">{{ $item->description ?: $item->product_name }}</small>
+                                    @else
+                                        @if($item->description)
+                                            <br><small style="color: #666; white-space: pre-line;">{{ $item->description }}</small>
+                                        @endif
+                                    @endif
+                                </td>
+                            @elseif($colName === 'quantity')
+                                <td class="text-center">{{ $item->quantity }}</td>
+                            @elseif($colName === 'price')
+                                <td class="text-right">
+                                    @if($isForeign)
+                                        <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemPriceForeign, $decimals, '.', ',') }}</div>
+                                        <div style="font-size: 11px; color: #666;">{{ number_format($itemPriceVnd) }} đ</div>
+                                    @else
+                                        {{ number_format($itemPriceVnd) }} đ
+                                    @endif
+                                </td>
+                            @elseif($colName === 'vat')
+                                <td class="text-center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
+                            @elseif($colName === 'row_total')
+                                <td class="text-right">
+                                    @if($isForeign)
+                                        <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
+                                        <div style="font-size: 11px; color: #666;">{{ number_format($itemTotalVnd) }} đ</div>
+                                    @else
+                                        <strong>{{ number_format($itemTotalVnd) }} đ</strong>
+                                    @endif
+                                </td>
                             @else
-                                @if($item->description)
-                                    <br><small style="color: #666; white-space: pre-line;">{{ $item->description }}</small>
-                                @endif
+                                <td>{{ $item->custom_fields[$colName] ?? '' }}</td>
                             @endif
-                        </td>
-                        <td class="text-center">{{ $item->quantity }}</td>
-                        <td class="text-right">
-                            @if($isForeign)
-                                <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemPriceForeign, $decimals, '.', ',') }}</div>
-                                <div style="font-size: 11px; color: #666;">{{ number_format($itemPriceVnd) }} đ</div>
-                            @else
-                                {{ number_format($itemPriceVnd) }} đ
-                            @endif
-                        </td>
-                        <td class="text-center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
-                        @foreach($customColumns as $colName)
-                            <td>{{ $item->custom_fields[$colName] ?? '' }}</td>
                         @endforeach
-                        <td class="text-right">
-                            @if($isForeign)
-                                <div style="font-weight: bold;">{{ $symbol }}{{ number_format($itemTotalForeign, $decimals, '.', ',') }}</div>
-                                <div style="font-size: 11px; color: #666;">{{ number_format($itemTotalVnd) }} đ</div>
-                            @else
-                                <strong>{{ number_format($itemTotalVnd) }} đ</strong>
-                            @endif
-                        </td>
                     </tr>
                 @endforeach
             </tbody>
@@ -377,13 +406,24 @@
 
         <div class="totals text-right">
             <div class="row">
-                <span>Tổng tiền hàng:</span>
+                <span>Tổng tiền hàng (chưa VAT):</span>
                 <span class="text-right font-medium">
                     @if($isForeign)
                         <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalForeign, $decimals, '.', ',') }}</div>
                         <div style="font-size: 11px; color: #666;">{{ number_format($subtotalVnd) }} đ</div>
                     @else
                         <strong>{{ number_format($subtotalVnd) }} đ</strong>
+                    @endif
+                </span>
+            </div>
+            <div class="row">
+                <span>Tổng tiền hàng (đã gồm VAT):</span>
+                <span class="text-right font-medium">
+                    @if($isForeign)
+                        <div style="font-weight: bold;">{{ $symbol }}{{ number_format($subtotalWithVatForeign, $decimals, '.', ',') }}</div>
+                        <div style="font-size: 11px; color: #666;">{{ number_format($subtotalWithVatVnd) }} đ</div>
+                    @else
+                        <strong>{{ number_format($subtotalWithVatVnd) }} đ</strong>
                     @endif
                 </span>
             </div>
@@ -412,7 +452,7 @@
                 </span>
             </div>
             <div class="row total-row">
-                <span>TỔNG CỘNG:</span>
+                <span>TỔNG CỘNG (gồm VAT & CK):</span>
                 <span class="text-right" style="color: #3498db;">
                     @if($isForeign)
                         <div>{{ $symbol }}{{ number_format($totalForeign, $decimals, '.', ',') }}</div>

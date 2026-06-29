@@ -75,6 +75,8 @@
                                 <option value="{{ $customer->id }}" 
                                     data-debt-days="{{ $customer->debt_days }}"
                                     data-payment-terms="{{ json_encode($customer->payment_terms) }}"
+                                    data-tax-code="{{ $customer->tax_code }}"
+                                    data-abv-name="{{ $customer->abv_name }}"
                                     {{ old('customer_id', $quotation->customer_id) == $customer->id ? 'selected' : '' }}>
                                     {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                                 </option>
@@ -161,41 +163,48 @@
                     <div id="dualPricePlaceholder" class="hidden">
                         <!-- Removed dualPriceGroup as per user request -->
                     </div>
+                    @php
+                        $allColumns = old('custom_columns', $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'vat', 'row_total']);
+                        if (!is_array($allColumns)) {
+                            $allColumns = [];
+                        }
+                        if (!in_array('product_id', $allColumns)) {
+                            $legacyCustomColumns = $allColumns;
+                            $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $legacyCustomColumns);
+                        } else {
+                            if (!in_array('row_total', $allColumns)) {
+                                $allColumns[] = 'row_total';
+                            }
+                            $legacyCustomColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
+                        }
+                        
+                        $oldProducts = old('products');
+                        if ($oldProducts) {
+                            $renderedItems = [];
+                            foreach ($oldProducts as $idx => $oldItem) {
+                                $renderedItems[] = (object)[
+                                    'id' => null,
+                                    'product_id' => $oldItem['product_id'] ?? null,
+                                    'product_name' => $oldItem['product_name'] ?? '',
+                                    'description' => $oldItem['description'] ?? '',
+                                    'quantity' => $oldItem['quantity'] ?? 1,
+                                    'price' => $oldItem['price'] ?? 0,
+                                    'vat' => $oldItem['vat'] ?? 8,
+                                    'total' => ($oldItem['quantity'] ?? 1) * ($oldItem['price'] ?? 0),
+                                    'custom_fields' => $oldItem['custom_fields'] ?? [],
+                                ];
+                            }
+                        } else {
+                            $renderedItems = $quotation->items;
+                        }
+                    @endphp
+
+                    <div id="customColumnsInputs">
+                        @foreach($allColumns as $colName)
+                            <input type="hidden" name="custom_columns[]" value="{{ $colName }}" id="hidden-col-{{ $colName }}">
+                        @endforeach
+                    </div>
                 </div>
-            </div>
-
-            <!-- Products -->
-            @php
-                $customColumns = old('custom_columns', $quotation->custom_columns ?? []);
-                if (!is_array($customColumns)) {
-                    $customColumns = [];
-                }
-                
-                $oldProducts = old('products');
-                if ($oldProducts) {
-                    $renderedItems = [];
-                    foreach ($oldProducts as $idx => $oldItem) {
-                        $renderedItems[] = (object)[
-                            'id' => null,
-                            'product_id' => $oldItem['product_id'] ?? null,
-                            'product_name' => $oldItem['product_name'] ?? '',
-                            'description' => $oldItem['description'] ?? '',
-                            'quantity' => $oldItem['quantity'] ?? 1,
-                            'price' => $oldItem['price'] ?? 0,
-                            'vat' => $oldItem['vat'] ?? 8,
-                            'total' => ($oldItem['quantity'] ?? 1) * ($oldItem['price'] ?? 0),
-                            'custom_fields' => $oldItem['custom_fields'] ?? [],
-                        ];
-                    }
-                } else {
-                    $renderedItems = $quotation->items;
-                }
-            @endphp
-
-            <div id="customColumnsInputs">
-                @foreach($customColumns as $colName)
-                    <input type="hidden" name="custom_columns[]" value="{{ $colName }}" id="hidden-col-{{ $colName }}">
-                @endforeach
             </div>
 
             <div class="p-4 border-b border-gray-200 flex justify-between items-center">
@@ -207,31 +216,57 @@
                     <table class="min-w-full divide-y divide-gray-200 table-fixed" id="quotationTable">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[280px]">
-                                    Sản phẩm / Dịch vụ / Mô tả
-                                </th>
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px]">
-                                    SL
-                                </th>
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[150px]">
-                                    Đơn giá (<span class="currency-symbol">₫</span>)
-                                </th>
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px]">
-                                    VAT (%)
-                                </th>
-                                @foreach($customColumns as $colName)
-                                    <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px]" data-column-name="{{ $colName }}">
-                                        <span class="flex items-center justify-between gap-1">
-                                            {{ $colName }}
-                                            <button type="button" onclick="removeCustomColumn('{{ $colName }}')" class="text-red-500 hover:text-red-700 text-xs focus:outline-none">
-                                                <i class="fas fa-times-circle"></i>
-                                            </button>
-                                        </span>
-                                    </th>
+                                @foreach($allColumns as $colName)
+                                    @if($colName === 'product_id')
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[280px] draggable-col" draggable="true" data-column-id="product_id">
+                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                                <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                Sản phẩm / Dịch vụ / Mô tả
+                                            </span>
+                                        </th>
+                                    @elseif($colName === 'quantity')
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px] draggable-col" draggable="true" data-column-id="quantity">
+                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                                <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                SL
+                                            </span>
+                                        </th>
+                                    @elseif($colName === 'price')
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[150px] draggable-col" draggable="true" data-column-id="price">
+                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                                <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                Đơn giá (<span class="currency-symbol">₫</span>)
+                                            </span>
+                                        </th>
+                                    @elseif($colName === 'vat')
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px] draggable-col" draggable="true" data-column-id="vat">
+                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                                <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                VAT (%)
+                                            </span>
+                                        </th>
+                                    @elseif($colName === 'row_total')
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[200px] row-total-header draggable-col whitespace-nowrap" draggable="true" data-column-id="row_total">
+                                            <span class="flex items-center gap-1 cursor-move select-none whitespace-nowrap">
+                                                <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                Thành tiền (gồm VAT) (<span class="currency-symbol">₫</span>)
+                                            </span>
+                                        </th>
+                                    @else
+                                        {{-- Custom Column --}}
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="{{ $colName }}" data-column-name="{{ $colName }}">
+                                            <span class="flex items-center justify-between gap-1 select-none">
+                                                <span class="flex items-center gap-1 cursor-move">
+                                                    <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                    {{ $colName }}
+                                                </span>
+                                                <button type="button" onclick="removeCustomColumn('{{ $colName }}')" class="text-red-500 hover:text-red-700 text-xs focus:outline-none">
+                                                    <i class="fas fa-times-circle"></i>
+                                                </button>
+                                            </span>
+                                        </th>
+                                    @endif
                                 @endforeach
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[160px] row-total-header">
-                                    Thành tiền (<span class="currency-symbol">₫</span>)
-                                </th>
                                 <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[60px]">
                                     <button type="button" onclick="addCustomColumnPrompt()" class="text-primary hover:text-primary-dark" title="Thêm cột tùy chỉnh">
                                         <i class="fas fa-plus-circle text-lg"></i>
@@ -249,88 +284,95 @@
                                 }
                             @endphp
                             <tr class="product-item" data-index="{{ $index }}">
-                                <td class="px-3 py-2">
-                                    <div class="flex justify-between items-center mb-1">
-                                        <label class="block text-[11px] font-medium text-gray-400 product-label">{{ $isManual ? 'Tên dịch vụ' : 'Sản phẩm' }}</label>
-                                        <button type="button" class="toggle-mode-btn inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors duration-150 focus:outline-none {{ $isManual ? 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200' }}" onclick="toggleRowMode(this)">
-                                            <i class="fas {{ $isManual ? 'fa-list' : 'fa-edit' }} mr-1 text-[9px]"></i> {{ $isManual ? 'Chọn từ kho' : 'Nhập ngoài' }}
-                                        </button>
-                                    </div>
-                                    <div class="select2-wrapper {{ $isManual ? 'hidden' : '' }}">
-                                        <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
-                                            @if($productIdVal && !$isManual)
-                                                <option value="{{ $productIdVal }}" selected>{{ $item->product_code ?? '' }}</option>
-                                            @endif
-                                        </select>
-                                    </div>
-                                    <div class="manual-wrapper {{ $isManual ? '' : 'hidden' }}">
-                                        <input type="text" name="products[{{ $index }}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                                               value="{{ $isManual ? $item->product_name : '' }}">
-                                    </div>
-                                    <div class="mt-2">
-                                        <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                                        <textarea name="products[{{ $index }}][description]" 
-                                               class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                               placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2">{{ $item->description }}</textarea>
-                                    </div>
-                                </td>
-                                <td class="px-3 py-2 align-top">
-                                    <input type="number" name="products[{{ $index }}][quantity]"
-                                        value="{{ $item->quantity }}" min="1" required
-                                        onchange="calculateRowTotal({{ $index }})"
-                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
-                                </td>
-                                <td class="px-3 py-2 align-top">
-                                    <input type="text" name="products[{{ $index }}][price]"
-                                        value="{{ is_numeric($item->price) ? number_format($item->price, $decimals, '.', ',') : $item->price }}" required
-                                        onchange="calculateRowTotal({{ $index }})"
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                                    <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none">
-                                        @if(isset($item->product) && !$isManual)
-                                            Giá gốc kho: {{ number_format($item->product->calculated_selling_price ?? $item->product->price, 0, '.', ',') }} ₫
-                                        @endif
-                                    </small>
-                                </td>
-                                <td class="px-3 py-2 align-top">
-                                    @php
-                                        $vatVal = isset($item->vat) ? (float)$item->vat : (isset($item['vat']) ? (float)$item['vat'] : 8.0);
-                                    @endphp
-                                    <select name="products[{{ $index }}][vat]"
-                                            onchange="handleVatChange(this)"
-                                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
-                                        <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
-                                        <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
-                                        <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
-                                        <option value="8" {{ $vatVal == 8 ? 'selected' : '' }}>8%</option>
-                                        <option value="10" {{ $vatVal == 10 ? 'selected' : '' }}>10%</option>
-                                        @if(!in_array($vatVal, [-1, 0, 5, 8, 10]))
-                                            <option value="{{ $vatVal }}" selected>{{ $vatVal }}%</option>
-                                        @endif
-                                        <option value="custom">Khác...</option>
-                                    </select>
-                                </td>
-                                @foreach($customColumns as $colName)
-                                    @php
-                                        $val = '';
-                                        if (isset($item->custom_fields) && is_array($item->custom_fields)) {
-                                            $val = $item->custom_fields[$colName] ?? '';
-                                        } elseif (isset($item->custom_fields) && is_object($item->custom_fields)) {
-                                            $val = $item->custom_fields->$colName ?? '';
-                                        }
-                                    @endphp
-                                    <td class="px-3 py-2 align-top custom-col-cell" data-column-name="{{ $colName }}">
-                                        <input type="text" name="products[{{ $index }}][custom_fields][{{ $colName }}]"
-                                               value="{{ $val }}"
-                                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                               placeholder="Nhập {{ $colName }}...">
-                                    </td>
+                                @foreach($allColumns as $colName)
+                                    @if($colName === 'product_id')
+                                        <td class="px-3 py-2">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <label class="block text-[11px] font-medium text-gray-400 product-label">{{ $isManual ? 'Tên dịch vụ' : 'Sản phẩm' }}</label>
+                                                <button type="button" class="toggle-mode-btn inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors duration-150 focus:outline-none {{ $isManual ? 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200' }}" onclick="toggleRowMode(this)">
+                                                    <i class="fas {{ $isManual ? 'fa-list' : 'fa-edit' }} mr-1 text-[9px]"></i> {{ $isManual ? 'Chọn từ kho' : 'Nhập ngoài' }}
+                                                </button>
+                                            </div>
+                                            <div class="select2-wrapper {{ $isManual ? 'hidden' : '' }}">
+                                                <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
+                                                    @if($productIdVal && !$isManual)
+                                                        <option value="{{ $productIdVal }}" selected>{{ $item->product_code ?? '' }}</option>
+                                                    @endif
+                                                </select>
+                                            </div>
+                                            <div class="manual-wrapper {{ $isManual ? '' : 'hidden' }}">
+                                                <input type="text" name="products[{{ $index }}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
+                                                       value="{{ $isManual ? $item->product_name : '' }}">
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
+                                                <textarea name="products[{{ $index }}][description]" 
+                                                       class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2">{{ $item->description }}</textarea>
+                                            </div>
+                                        </td>
+                                    @elseif($colName === 'quantity')
+                                        <td class="px-3 py-2 align-top">
+                                            <input type="number" name="products[{{ $index }}][quantity]"
+                                                value="{{ $item->quantity }}" min="1" required
+                                                onchange="calculateRowTotal({{ $index }})"
+                                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                        </td>
+                                    @elseif($colName === 'price')
+                                        <td class="px-3 py-2 align-top">
+                                            <input type="text" name="products[{{ $index }}][price]"
+                                                value="{{ is_numeric($item->price) ? number_format($item->price, $decimals, '.', ',') : $item->price }}" required
+                                                onchange="calculateRowTotal({{ $index }})"
+                                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                            <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none">
+                                                @if(isset($item->product) && !$isManual)
+                                                    Giá gốc kho: {{ number_format($item->product->calculated_selling_price ?? $item->product->price, 0, '.', ',') }} ₫
+                                                @endif
+                                            </small>
+                                        </td>
+                                    @elseif($colName === 'vat')
+                                        <td class="px-3 py-2 align-top">
+                                            @php
+                                                $vatVal = isset($item->vat) ? (float)$item->vat : (isset($item['vat']) ? (float)$item['vat'] : 8.0);
+                                            @endphp
+                                            <select name="products[{{ $index }}][vat]"
+                                                    onchange="handleVatChange(this)"
+                                                    class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                                <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
+                                                <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
+                                                <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
+                                                <option value="8" {{ $vatVal == 8 ? 'selected' : '' }}>8%</option>
+                                                <option value="10" {{ $vatVal == 10 ? 'selected' : '' }}>10%</option>
+                                                @if(!in_array($vatVal, [-1, 0, 5, 8, 10]))
+                                                    <option value="{{ $vatVal }}" selected>{{ $vatVal }}%</option>
+                                                @endif
+                                                <option value="custom">Khác...</option>
+                                            </select>
+                                        </td>
+                                    @elseif($colName === 'row_total')
+                                        <td class="px-3 py-2 align-top row-total-cell">
+                                            <input type="text" readonly
+                                                class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total"
+                                                value="{{ is_numeric($item->total) ? number_format($item->total, $decimals, '.', ',') : $item->total }}">
+                                        </td>
+                                    @else
+                                        @php
+                                            $val = '';
+                                            if (isset($item->custom_fields) && is_array($item->custom_fields)) {
+                                                $val = $item->custom_fields[$colName] ?? '';
+                                            } elseif (isset($item->custom_fields) && is_object($item->custom_fields)) {
+                                                $val = $item->custom_fields->$colName ?? '';
+                                            }
+                                        @endphp
+                                        <td class="px-3 py-2 align-top custom-col-cell" data-column-name="{{ $colName }}">
+                                            <input type="text" name="products[{{ $index }}][custom_fields][{{ $colName }}]"
+                                                   value="{{ $val }}"
+                                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                                   placeholder="Nhập {{ $colName }}...">
+                                        </td>
+                                    @endif
                                 @endforeach
-                                <td class="px-3 py-2 align-top row-total-cell">
-                                    <input type="text" readonly
-                                        class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total"
-                                        value="{{ is_numeric($item->total) ? number_format($item->total, $decimals, '.', ',') : $item->total }}">
-                                </td>
                                 <td class="px-3 py-2 text-center align-top">
                                     <button type="button" onclick="removeProductRow(this)"
                                         class="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm"
@@ -440,22 +482,26 @@
                             </div>
                         </div>
                     </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="flex justify-between mb-3">
-                            <span class="text-gray-600">Tổng tiền hàng:</span>
+                    <div class="bg-gray-50 p-4 rounded-lg space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tổng tiền hàng (chưa VAT):</span>
                             <span id="subtotal" class="font-medium text-lg">0 ₫</span>
                         </div>
-                        <div class="flex justify-between items-center mb-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tổng tiền hàng (đã gồm VAT):</span>
+                            <span id="subtotalWithVat" class="font-medium text-lg">0 ₫</span>
+                        </div>
+                        <div class="flex justify-between items-center">
                             <span class="text-gray-600">Chiết khấu (%):</span>
                             <div class="flex items-center gap-2">
                                 <span id="discountAmount" class="text-gray-500 text-sm">0 đ</span>
                                 <input type="number" name="discount" id="discount"
                                     value="{{ old('discount', (float)$quotation->discount) }}" min="0" max="100"
-                                    onchange="calculateTotal()"
+                                    oninput="calculateTotal()" onchange="calculateTotal()"
                                     class="w-20 border border-gray-300 rounded px-2 py-1 text-right focus:ring-1 focus:ring-primary">
                             </div>
                         </div>
-                        <div class="flex justify-between items-center mb-3">
+                        <div class="flex justify-between items-center">
                             <span class="text-gray-600">Thuế VAT:</span>
                             <div class="flex items-center gap-2">
                                 <span id="vatAmount" class="font-medium">0 đ</span>
@@ -463,8 +509,8 @@
                             </div>
                         </div>
                         <hr class="my-2">
-                        <div class="flex justify-between items-center pt-3 border-t">
-                            <span class="text-lg font-semibold">Tổng cộng:</span>
+                        <div class="flex justify-between items-center pt-2 border-t">
+                            <span class="text-lg font-semibold">Tổng cộng (gồm VAT & CK):</span>
                             <div class="text-right">
                                 <span id="total" class="text-2xl font-bold text-primary">0 ₫</span>
                                 <small id="totalVndReference" class="block text-sm text-gray-500 mt-1 text-right"></small>
@@ -488,6 +534,158 @@
         </form>
     </div>
 
+    <!-- Quick Add Customer Modal -->
+    <div id="addCustomerModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Overlay -->
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="modalOverlay"></div>
+
+            <!-- Trick to center the modal contents -->
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <!-- Modal panel -->
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[80vh] overflow-y-auto">
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <h3 class="text-lg leading-6 font-semibold text-gray-900" id="modal-title">
+                            <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm khách hàng nhanh
+                        </h3>
+                        <button type="button" id="closeCustomerModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                            <i class="fas fa-times text-lg"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Validation Error Message Block -->
+                    <div id="modalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                    <form id="customerModalForm" class="space-y-4">
+                        @csrf
+                        <!-- MST with lookup -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Mã số thuế (MST) <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <input type="text" name="tax_code" required
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                       placeholder="Nhập MST để tra cứu...">
+                                <button type="button" id="btn-modal-search-tax"
+                                        class="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-primary transition-colors focus:outline-none"
+                                        title="Tra cứu thông tin doanh nghiệp từ MST">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Tên khách hàng/Công ty <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="name" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập tên khách hàng...">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Tên viết tắt <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="abv_name" required
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                       placeholder="VD: ADG, IIJ...">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Email công ty
+                                </label>
+                                <input type="email" name="email"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                       placeholder="email@company.com">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Số điện thoại công ty
+                                </label>
+                                <input type="text" name="phone"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                       placeholder="0123456789">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Địa chỉ
+                                </label>
+                                <input type="text" name="address"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                       placeholder="Nhập địa chỉ...">
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Contacts Section -->
+                        <div class="border-t pt-3 mt-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-sm font-semibold text-gray-900">
+                                    <i class="fas fa-users text-blue-500 mr-1.5"></i> Danh sách người liên hệ <span class="text-red-500">*</span>
+                                </h4>
+                                <button type="button" id="modalAddContactBtn"
+                                        class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                    <i class="fas fa-plus mr-1"></i> Thêm người liên hệ
+                                </button>
+                            </div>
+                            <div id="modalContactsContainer" class="space-y-3">
+                                <!-- First contact card (always present) -->
+                                <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50" data-contact-index="0">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #1</span>
+                                        <div class="flex items-center gap-3">
+                                            <label class="flex items-center cursor-pointer">
+                                                <input type="radio" name="modal_primary_contact" value="0" checked class="form-radio text-primary h-3.5 w-3.5">
+                                                <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                                            </label>
+                                            <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors hidden">
+                                                <i class="fas fa-trash text-xs"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                                            <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                            <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                                            <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                                            <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                    <button type="button" id="saveCustomerBtn"
+                            class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                        <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                    </button>
+                    <button type="button" id="cancelCustomerBtn"
+                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                        Hủy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -498,14 +696,51 @@
 
     <script>
         let rowIndex = {{ old('products') ? count(old('products')) : count($quotation->items) }};
-        window.customColumns = @json($customColumns);
+        window.customColumns = @json($legacyCustomColumns);
+
+        function matchCustomer(params, data) {
+            if ($.trim(params.term) === '') {
+                return data;
+            }
+            if (typeof data.text === 'undefined') {
+                return null;
+            }
+            var term = params.term.toLowerCase();
+            var text = data.text.toLowerCase();
+            
+            var taxCode = '';
+            var abvName = '';
+            if (data.element) {
+                taxCode = $(data.element).data('tax-code') ? $(data.element).data('tax-code').toString().toLowerCase() : '';
+                abvName = $(data.element).data('abv-name') ? $(data.element).data('abv-name').toString().toLowerCase() : '';
+            }
+
+            if (text.indexOf(term) > -1 || taxCode.indexOf(term) > -1 || abvName.indexOf(term) > -1) {
+                return data;
+            }
+            return null;
+        }
 
         $(document).ready(function () {
             // Initialize Select2 for Customer
             $('select[name="customer_id"]').select2({
                 placeholder: "Chọn khách hàng",
                 allowClear: true,
-                width: '100%'
+                width: '100%',
+                matcher: matchCustomer,
+                language: {
+                    noResults: function () {
+                        return `<div class="p-2 text-center text-gray-500">
+                                    <div class="mb-1 text-xs">Không tìm thấy khách hàng nào</div>
+                                    <button type="button" id="btn-quick-add-customer" class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                        <i class="fas fa-plus mr-1"></i> Thêm khách hàng nhanh
+                                    </button>
+                                </div>`;
+                    }
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                }
             });
 
             // Initialize product selects for existing rows
@@ -526,6 +761,12 @@
                 });
             });
 
+            $('.product-item').each(function () {
+                const index = $(this).data('index');
+                if (index !== undefined && index !== null) {
+                    calculateRowTotal(index);
+                }
+            });
             calculateTotal();
 
             // Auto-format price input on typing
@@ -533,11 +774,21 @@
                 formatInput(this);
             });
 
-            $('#tableBody').on('input', '.price-input, .quantity-input, .vat-input', function () {
+            $('#tableBody').on('input change', '.price-input, .quantity-input, .vat-input', function () {
                 const name = $(this).closest('.product-item').find('.quantity-input').attr('name');
                 const match = name && name.match(/products\[(\d+)\]/);
                 if (match) calculateRowTotal(match[1]);
             });
+
+            // Bind column drag and drop events
+            $('#quotationTable').on('dragstart', '.draggable-col', handleDragStart);
+            $('#quotationTable').on('dragover', '.draggable-col', handleDragOver);
+            $('#quotationTable').on('dragenter', '.draggable-col', handleDragEnter);
+            $('#quotationTable').on('dragleave', '.draggable-col', handleDragLeave);
+            $('#quotationTable').on('drop', '.draggable-col', handleDrop);
+            $('#quotationTable').on('dragend', '.draggable-col', handleDragEnd);
+
+            saveColumnOrder();
         });
 
         function initProductSelect(element) {
@@ -755,14 +1006,14 @@
         function addCustomColumn(colName) {
             window.customColumns.push(colName);
             
-            // Add hidden input to form
-            $('#customColumnsInputs').append(`<input type="hidden" name="custom_columns[]" value="${colName}" id="hidden-col-${colName}">`);
-            
             // Add TH to header before the Row Total header
             const th = `
-                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px]" data-column-name="${colName}">
-                    <span class="flex items-center justify-between gap-1">
-                        ${colName}
+                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="${colName}" data-column-name="${colName}">
+                    <span class="flex items-center justify-between gap-1 select-none">
+                        <span class="flex items-center gap-1 cursor-move">
+                            <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                            ${colName}
+                        </span>
                         <button type="button" onclick="removeCustomColumn('${colName}')" class="text-red-500 hover:text-red-700 text-xs focus:outline-none">
                             <i class="fas fa-times-circle"></i>
                         </button>
@@ -784,6 +1035,8 @@
                 `;
                 $(td).insertBefore(row.find('.row-total-cell'));
             });
+
+            saveColumnOrder();
         }
 
         function removeCustomColumn(colName) {
@@ -801,15 +1054,102 @@
                     // Remove from array
                     window.customColumns = window.customColumns.filter(c => c !== colName);
                     
-                    // Remove hidden input
-                    $(`#hidden-col-${colName}`).remove();
-                    
                     // Remove TH
                     $(`.custom-col-header[data-column-name="${colName}"]`).remove();
                     
                     // Remove TD from all rows
                     $(`.custom-col-cell[data-column-name="${colName}"]`).remove();
+
+                    saveColumnOrder();
                 }
+            });
+        }
+
+        // Drag-and-drop reorder columns logic
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            dragSrcEl = this;
+            e.originalEvent.dataTransfer.effectAllowed = 'move';
+            e.originalEvent.dataTransfer.setData('text/html', this.innerHTML);
+            $(this).addClass('bg-blue-50');
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.originalEvent.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragEnter(e) {
+            $(this).addClass('border-l-4 border-blue-500');
+        }
+
+        function handleDragLeave(e) {
+            $(this).removeClass('border-l-4 border-blue-500');
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            if (dragSrcEl !== this) {
+                const fromIndex = $(dragSrcEl).index();
+                const toIndex = $(this).index();
+                
+                if ($(dragSrcEl).hasClass('draggable-col') && $(this).hasClass('draggable-col')) {
+                    moveTableColumn(fromIndex, toIndex);
+                    saveColumnOrder();
+                }
+            }
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            $('.draggable-col').removeClass('bg-blue-50 border-l-4 border-blue-500');
+        }
+
+        function moveTableColumn(fromIndex, toIndex) {
+            // Move headers
+            const headers = $('#quotationTable thead tr th');
+            const headerFrom = headers.eq(fromIndex);
+            if (fromIndex < toIndex) {
+                headerFrom.insertAfter(headers.eq(toIndex));
+            } else {
+                headerFrom.insertBefore(headers.eq(toIndex));
+            }
+            
+            // Move cell elements in each body row
+            $('#tableBody tr').each(function() {
+                const row = $(this);
+                const cells = row.find('td');
+                const cellFrom = cells.eq(fromIndex);
+                if (fromIndex < toIndex) {
+                    cellFrom.insertAfter(cells.eq(toIndex));
+                } else {
+                    cellFrom.insertBefore(cells.eq(toIndex));
+                }
+            });
+        }
+
+        function saveColumnOrder() {
+            // Remove existing hidden inputs
+            $('#customColumnsInputs').empty();
+            
+            // Re-create ordered custom_columns[] inputs
+            $('#quotationTable thead tr th.draggable-col').each(function() {
+                const colId = $(this).attr('data-column-id');
+                $('#customColumnsInputs').append(
+                    $('<input>').attr({
+                        type: 'hidden',
+                        name: 'custom_columns[]',
+                        value: colId,
+                        id: `hidden-col-${colId}`
+                    })
+                );
             });
         }
 
@@ -819,68 +1159,100 @@
             newRow.className = 'product-item';
             newRow.setAttribute('data-index', rowIndex);
             
-            // Build custom columns TDs
-            let customColsHtml = '';
-            window.customColumns.forEach(colName => {
-                customColsHtml += `
-                    <td class="px-3 py-2 align-top custom-col-cell" data-column-name="${colName}">
-                        <input type="text" name="products[${rowIndex}][custom_fields][${colName}]" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                               placeholder="Nhập ${colName}...">
-                    </td>`;
+            // Get current column order from table headers
+            const colOrder = [];
+            $('#quotationTable thead tr th.draggable-col').each(function() {
+                colOrder.push($(this).attr('data-column-id'));
+            });
+            if (colOrder.length === 0) {
+                // Fallback to default
+                colOrder.push('product_id', 'quantity', 'price', 'vat', 'row_total');
+            }
+
+            // Cell templates
+            const cells = {
+                product_id: `
+                    <td class="px-3 py-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-[11px] font-medium text-gray-400 product-label">Sản phẩm</label>
+                            <button type="button" class="toggle-mode-btn inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 transition-colors duration-150 focus:outline-none" onclick="toggleRowMode(this)">
+                                <i class="fas fa-edit mr-1 text-[9px]"></i> Nhập ngoài
+                            </button>
+                        </div>
+                        <div class="select2-wrapper">
+                            <select name="products[${rowIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <div class="manual-wrapper hidden">
+                            <input type="text" name="products[${rowIndex}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                   placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
+                        </div>
+                        <div class="mt-2">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
+                            <textarea name="products[${rowIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                   placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2"></textarea>
+                        </div>
+                    </td>
+                `,
+                quantity: `
+                    <td class="px-3 py-2 align-top">
+                        <input type="number" name="products[${rowIndex}][quantity]" value="1" min="1" required
+                               onchange="calculateRowTotal(${rowIndex})"
+                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                    </td>
+                `,
+                price: `
+                    <td class="px-3 py-2 align-top">
+                        <input type="text" name="products[${rowIndex}][price]" value="0" required
+                               onchange="calculateRowTotal(${rowIndex})"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                    </td>
+                `,
+                vat: `
+                    <td class="px-3 py-2 align-top">
+                        <select name="products[${rowIndex}][vat]"
+                                onchange="handleVatChange(this)"
+                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                            <option value="-1">KCT</option>
+                            <option value="0">0%</option>
+                            <option value="5">5%</option>
+                            <option value="8" selected>8%</option>
+                            <option value="10">10%</option>
+                            <option value="custom">Khác...</option>
+                        </select>
+                    </td>
+                `,
+                row_total: `
+                    <td class="px-3 py-2 align-top row-total-cell">
+                        <input type="text" readonly
+                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                    </td>
+                `
+            };
+
+            // Dynamic custom columns cell generation
+            colOrder.forEach(col => {
+                if (!cells[col]) {
+                    cells[col] = `
+                        <td class="px-3 py-2 align-top custom-col-cell" data-column-name="${col}">
+                            <input type="text" name="products[${rowIndex}][custom_fields][${col}]" 
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập ${col}...">
+                        </td>
+                    `;
+                }
             });
 
-            newRow.innerHTML = `
-                <td class="px-3 py-2">
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="block text-[11px] font-medium text-gray-400 product-label">Sản phẩm</label>
-                        <button type="button" class="toggle-mode-btn inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 transition-colors duration-150 focus:outline-none" onclick="toggleRowMode(this)">
-                            <i class="fas fa-edit mr-1 text-[9px]"></i> Nhập ngoài
-                        </button>
-                    </div>
-                    <div class="select2-wrapper">
-                        <select name="products[${rowIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
-                            <option value=""></option>
-                        </select>
-                    </div>
-                    <div class="manual-wrapper hidden">
-                        <input type="text" name="products[${rowIndex}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
-                    </div>
-                    <div class="mt-2">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả sản phẩm</label>
-                        <textarea name="products[${rowIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                               placeholder="Mô tả chi tiết sản phẩm cho dòng này..." rows="2"></textarea>
-                    </div>
-                </td>
-                <td class="px-3 py-2 align-top">
-                    <input type="number" name="products[${rowIndex}][quantity]" value="1" min="1" required
-                           onchange="calculateRowTotal(${rowIndex})"
-                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
-                </td>
-                <td class="px-3 py-2 align-top">
-                    <input type="text" name="products[${rowIndex}][price]" value="0" required
-                           onchange="calculateRowTotal(${rowIndex})"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                    <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
-                </td>
-                <td class="px-3 py-2 align-top">
-                    <select name="products[${rowIndex}][vat]"
-                            onchange="handleVatChange(this)"
-                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
-                        <option value="-1">KCT</option>
-                        <option value="0">0%</option>
-                        <option value="5">5%</option>
-                        <option value="8" selected>8%</option>
-                        <option value="10">10%</option>
-                        <option value="custom">Khác...</option>
-                    </select>
-                </td>
-                ${customColsHtml}
-                <td class="px-3 py-2 align-top row-total-cell">
-                    <input type="text" readonly
-                           class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
-                </td>
+            // Put it all together in the correct order
+            let innerHTML = '';
+            colOrder.forEach(col => {
+                innerHTML += cells[col];
+            });
+
+            // Append the fixed columns at the end
+            innerHTML += `
                 <td class="px-3 py-2 text-center align-top">
                     <button type="button" onclick="removeProductRow(this)"
                             class="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm"
@@ -889,6 +1261,8 @@
                     </button>
                 </td>
             `;
+
+            newRow.innerHTML = innerHTML;
             tableBody.appendChild(newRow);
             initProductSelect($(newRow).find('.product-select'));
             rowIndex++;
@@ -906,7 +1280,11 @@
             const row = $(`.quantity-input[name="products[${index}][quantity]"]`).closest('.product-item');
             const qty = parseFloat(row.find('.quantity-input').val()) || 0;
             const price = unformatMoney(row.find('.price-input').val());
-            const total = qty * price;
+            let vatPercent = parseFloat(row.find('.vat-input').val()) || 0;
+            if (vatPercent < 0) {
+                vatPercent = 0;
+            }
+            const total = qty * price * (1 + vatPercent / 100);
             row.find('.row-total').val(formatMoney(total));
             calculateTotal();
         }
@@ -915,6 +1293,7 @@
             const option = $('#currencySelect option:selected');
             const symbol = option.data('symbol') || '';
             let subtotal = 0;
+            let subtotalWithVat = 0;
             let totalVatAmount = 0;
             const discount = parseFloat($('#discount').val()) || 0;
 
@@ -929,6 +1308,9 @@
                 if (vatPercent < 0) {
                     vatPercent = 0;
                 }
+                const rowSubtotalWithVat = rowSubtotal * (1 + vatPercent / 100);
+                subtotalWithVat += rowSubtotalWithVat;
+
                 const rowDiscount = rowSubtotal * discount / 100;
                 const rowBaseForVat = rowSubtotal - rowDiscount;
                 const rowVatAmount = rowBaseForVat * vatPercent / 100;
@@ -939,6 +1321,7 @@
             const total = subtotal - discountAmount + totalVatAmount;
 
             $('#subtotal').text(formatMoney(subtotal) + ' ' + symbol);
+            $('#subtotalWithVat').text(formatMoney(subtotalWithVat) + ' ' + symbol);
             $('#discountAmount').text(formatMoney(discountAmount) + ' ' + symbol);
             $('#vatAmount').text(formatMoney(totalVatAmount) + ' ' + symbol);
             $('#total').text(formatMoney(total) + ' ' + symbol);
@@ -953,6 +1336,11 @@
 
         function handleVatChange(selectEl) {
             const val = selectEl.value;
+            const row = $(selectEl).closest('.product-item');
+            const name = row.find('.quantity-input').attr('name');
+            const match = name && name.match(/products\[(\d+)\]/);
+            const index = match ? match[1] : null;
+
             if (val === 'custom') {
                 Swal.fire({
                     title: 'Nhập % thuế VAT',
@@ -974,21 +1362,23 @@
                             if (option.length === 0) {
                                 $(`<option value="${customVal}">${customVal}%</option>`).insertBefore($(selectEl).find('option[value="custom"]'));
                             }
-                            $(selectEl).val(customVal).trigger('change');
+                            $(selectEl).val(customVal);
+                            $(selectEl).data('prev', customVal);
+                            if (index !== null) calculateRowTotal(index);
                         } else {
                             const prevVal = $(selectEl).data('prev') || 8;
-                            $(selectEl).val(prevVal).trigger('change');
+                            $(selectEl).val(prevVal);
+                            if (index !== null) calculateRowTotal(index);
                         }
                     } else {
                         const prevVal = $(selectEl).data('prev') || 8;
-                        $(selectEl).val(prevVal).trigger('change');
+                        $(selectEl).val(prevVal);
+                        if (index !== null) calculateRowTotal(index);
                     }
                 });
             } else {
                 $(selectEl).data('prev', val);
-                const row = $(selectEl).closest('.product-item');
-                const index = row.attr('data-index');
-                calculateRowTotal(index);
+                if (index !== null) calculateRowTotal(index);
             }
         }
 
@@ -1172,6 +1562,284 @@
         $('textarea[name="payment_terms"]').on('input', function() {
             $('#paymentMilestoneRatioSelect').val('custom');
             $('#paymentTermSelect').val('custom');
+        });
+
+        // Dynamic contact index tracker
+        let modalContactCount = 1;
+
+        function updateModalContactHeaders() {
+            const cards = $('#modalContactsContainer .modal-contact-card');
+            cards.each(function(idx, el) {
+                $(el).find('.contact-label').text(`Người liên hệ #${idx + 1}`);
+                // Only show delete button if count > 1
+                if (cards.length > 1) {
+                    $(el).find('.btn-remove-modal-contact').removeClass('hidden');
+                } else {
+                    $(el).find('.btn-remove-modal-contact').addClass('hidden');
+                }
+            });
+        }
+
+        // Add contact card
+        $(document).on('click', '#modalAddContactBtn', function(e) {
+            e.preventDefault();
+            const newIndex = modalContactCount++;
+            const contactCardHtml = `
+                <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50 mt-3" data-contact-index="${newIndex}">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #${newIndex + 1}</span>
+                        <div class="flex items-center gap-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="modal_primary_contact" value="${newIndex}" class="form-radio text-primary h-3.5 w-3.5">
+                                <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                            </label>
+                            <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                            <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                            <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                            <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                            <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('#modalContactsContainer').append(contactCardHtml);
+            updateModalContactHeaders();
+        });
+
+        // Remove contact card
+        $(document).on('click', '.btn-remove-modal-contact', function(e) {
+            e.preventDefault();
+            const card = $(this).closest('.modal-contact-card');
+            const wasChecked = card.find('input[name="modal_primary_contact"]').is(':checked');
+            card.remove();
+            
+            // If primary contact was deleted, assign primary to the first one remaining
+            if (wasChecked) {
+                $('#modalContactsContainer .modal-contact-card').first().find('input[name="modal_primary_contact"]').prop('checked', true);
+            }
+            updateModalContactHeaders();
+        });
+
+        // Tax ID Search Logic inside Modal
+        $(document).on('click', '#btn-modal-search-tax', async function(e) {
+            e.preventDefault();
+            const taxCode = $('#customerModalForm input[name="tax_code"]').val().trim();
+            if (!taxCode) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Thông báo',
+                    text: 'Vui lòng nhập mã số thuế trước khi tra cứu',
+                    confirmButtonColor: '#3085d6',
+                });
+                return;
+            }
+
+            const btn = $(this);
+            const originalIcon = btn.html();
+            btn.html('<i class="fas fa-spinner fa-spin text-primary"></i>').prop('disabled', true);
+
+            try {
+                const response = await fetch(`https://api.vietqr.io/v2/business/${taxCode}`);
+                const data = await response.json();
+                
+                if (data.code === '00' && data.data) {
+                    const biz = data.data;
+                    if (biz.name) {
+                        $('#customerModalForm input[name="name"]').val(biz.name);
+                    }
+                    if (biz.address) {
+                        $('#customerModalForm input[name="address"]').val(biz.address);
+                    }
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: 'Đã lấy được thông tin doanh nghiệp',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                } else {
+                    throw new Error(data.desc || 'Không tìm thấy thông tin cho mã số thuế này');
+                }
+            } catch (error) {
+                console.error('Tax lookup error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi tra cứu',
+                    text: error.message || 'Có lỗi xảy ra khi tra cứu mã số thuế',
+                    confirmButtonColor: '#d33',
+                });
+            } finally {
+                btn.html(originalIcon).prop('disabled', false);
+            }
+        });
+
+        // Modal quick add customer event handlers
+        $(document).on('click', '#btn-quick-add-customer', function(e) {
+            e.preventDefault();
+            $('select[name="customer_id"]').select2('close');
+            $('#addCustomerModal').removeClass('hidden');
+            // Try to pre-fill the name with current search term
+            const select2Search = $('.select2-search__field').val() || '';
+            if (select2Search) {
+                $('#customerModalForm input[name="name"]').val(select2Search);
+            }
+        });
+
+        function resetCustomerModal() {
+            $('#addCustomerModal').addClass('hidden');
+            $('#customerModalForm')[0].reset();
+            $('#modalErrors').addClass('hidden').html('');
+            
+            // Revert back to exactly 1 contact card
+            const container = $('#modalContactsContainer');
+            container.find('.modal-contact-card').slice(1).remove();
+            
+            const firstCard = container.find('.modal-contact-card').first();
+            firstCard.attr('data-contact-index', '0');
+            firstCard.find('input[name="modal_primary_contact"]').val('0').prop('checked', true);
+            firstCard.find('.contact-name').val('');
+            firstCard.find('.contact-position').val('');
+            firstCard.find('.contact-phone').val('');
+            firstCard.find('.contact-email').val('');
+            
+            modalContactCount = 1;
+            updateModalContactHeaders();
+        }
+
+        $('#closeCustomerModal, #cancelCustomerBtn, #modalOverlay').on('click', function() {
+            resetCustomerModal();
+        });
+
+        $('#saveCustomerBtn').on('click', async function() {
+            const form = $('#customerModalForm');
+            const saveBtn = $(this);
+            const errorsDiv = $('#modalErrors');
+
+            // Client-side validation
+            const name = form.find('input[name="name"]').val().trim();
+            const taxCode = form.find('input[name="tax_code"]').val().trim();
+            const abvName = form.find('input[name="abv_name"]').val().trim();
+
+            if (!name || !taxCode || !abvName) {
+                errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc của doanh nghiệp (*).');
+                return;
+            }
+
+            // Gather contact cards
+            const contacts = [];
+            let contactsValid = true;
+
+            $('#modalContactsContainer .modal-contact-card').each(function() {
+                const card = $(this);
+                const cName = card.find('.contact-name').val().trim();
+                const cPosition = card.find('.contact-position').val().trim();
+                const cPhone = card.find('.contact-phone').val().trim();
+                const cEmail = card.find('.contact-email').val().trim();
+                const isPrimary = card.find('input[name="modal_primary_contact"]').is(':checked') ? 1 : 0;
+
+                if (!cName || !cPosition || !cPhone || !cEmail) {
+                    contactsValid = false;
+                    return false; // Break loop
+                }
+
+                contacts.push({
+                    name: cName,
+                    position: cPosition,
+                    phone: cPhone,
+                    email: cEmail,
+                    is_primary: isPrimary
+                });
+            });
+
+            if (!contactsValid || contacts.length === 0) {
+                errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các trường thông tin bắt buộc (*) của tất cả người liên hệ.');
+                return;
+            }
+
+            // Disable buttons and show loading
+            saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+            $('#cancelCustomerBtn').prop('disabled', true);
+            errorsDiv.addClass('hidden').html('');
+
+            try {
+                const response = await fetch("{{ route('customers.store-ajax') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        tax_code: taxCode,
+                        abv_name: abvName,
+                        phone: form.find('input[name="phone"]').val().trim(),
+                        email: form.find('input[name="email"]').val().trim(),
+                        address: form.find('input[name="address"]').val().trim(),
+                        contacts: contacts
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Success!
+                    const customer = result.customer;
+                    const displayName = customer.name + (customer.code ? ' (' + customer.code + ')' : '');
+                    
+                    // Create new option
+                    const newOption = new Option(displayName, customer.id, true, true);
+                    // Add extra data attributes so relative search matches it in the future
+                    $(newOption).attr('data-tax-code', customer.tax_code || '');
+                    $(newOption).attr('data-abv-name', customer.abv_name || '');
+                    $(newOption).attr('data-debt-days', customer.debt_days || '');
+                    $(newOption).attr('data-payment-terms', JSON.stringify(customer.payment_terms || null));
+                    
+                    // Append and trigger select2 update
+                    $('#customer_id').append(newOption).trigger('change');
+
+                    // Close modal and reset form
+                    resetCustomerModal();
+                    
+                    // Success alert
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: 'Đã thêm khách hàng mới thành công!',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    // Validation errors or server error
+                    let errorMsg = result.message || 'Có lỗi xảy ra khi tạo khách hàng.';
+                    if (result.errors) {
+                        errorMsg = Object.values(result.errors).flat().join('<br>');
+                    }
+                    errorsDiv.removeClass('hidden').html(errorMsg);
+                }
+            } catch (error) {
+                console.error('Error adding customer:', error);
+                errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+            } finally {
+                saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+                $('#cancelCustomerBtn').prop('disabled', false);
+            }
         });
     </script>
 

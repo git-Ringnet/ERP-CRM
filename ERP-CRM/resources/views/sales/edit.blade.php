@@ -213,7 +213,7 @@
                     <div class="md:col-span-1 text-center">VAT (%)</div>
                     <div class="md:col-span-1">Bảo hành</div>
                     <div class="md:col-span-1 text-center product-tax-header">Thuế nhà thầu</div>
-                    <div class="md:col-span-2 text-right">Thành tiền</div>
+                    <div class="md:col-span-2 text-right">Thành tiền (gồm VAT)</div>
                     <div class="md:col-span-1 text-center"><i class="fas fa-cog"></i></div>
                 </div>
 
@@ -281,7 +281,7 @@
                                        {{ $isLocked ? 'disabled' : '' }}>
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
+                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
                                 <input type="text" readonly value="{{ number_format($item->total, $decimals, '.', ',') }}"
                                        class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
                             </div>
@@ -325,8 +325,13 @@
             <div class="border-t pt-4">
                 <div class="space-y-3 max-w-md ml-auto">
                     <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium text-gray-700">Tổng tiền hàng (<span class="currency-symbol">₫</span>)</label>
+                        <label class="text-sm font-medium text-gray-700">Tổng tiền hàng (chưa VAT) (<span class="currency-symbol">₫</span>)</label>
                         <input type="text" id="subtotal" readonly value="{{ number_format($sale->subtotal, 0, '.', ',') }}"
+                               class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium text-gray-700">Tổng tiền hàng (đã gồm VAT) (<span class="currency-symbol">₫</span>)</label>
+                        <input type="text" id="subtotalWithVat" readonly value=""
                                class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2">
                     </div>
                     <div class="flex justify-between items-center">
@@ -341,13 +346,13 @@
                         </div>
                     </div>
                     <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium text-gray-700">Thuế GTGT</label>
+                        <label class="text-sm font-medium text-gray-700">Thuế VAT</label>
                         <input type="hidden" name="vat" id="vat" value="0">
                         <input type="text" id="vatAmount" readonly
                                class="w-48 text-right border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-blue-600">
                     </div>
                     <div class="flex justify-between items-center pt-2 border-t">
-                        <label class="text-base font-bold text-gray-900">Tổng cộng (<span class="currency-symbol">₫</span>)</label>
+                        <label class="text-base font-bold text-gray-900">Tổng cộng (gồm VAT & CK) (<span class="currency-symbol">₫</span>)</label>
                         <div class="text-right">
                             <input type="text" id="total" readonly value="{{ number_format($isForeign ? ($sale->total_foreign ?? ($sale->total / ($sale->exchange_rate ?: 1))) : $sale->total, $decimals, '.', ',') }}"
                                    class="w-48 text-right border border-gray-200 bg-primary/10 rounded-lg px-3 py-2 font-bold text-lg text-primary">
@@ -831,7 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     
-    calculateTotal();
+    calculateRowTotal();
 });
 
 // PIC Selection logic
@@ -902,7 +907,7 @@ function addProductRow() {
     newRow.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
             <div class="md:col-span-3 product-name-col">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
                 <div class="searchable-select product-searchable" data-index="${productIndex}" data-ajax-url="{{ route('api.products.search') }}">
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
@@ -912,13 +917,13 @@ function addProductRow() {
                 <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
             </div>
             <div class="md:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
                 <input type="number" name="products[${productIndex}][quantity]" min="1" value="1" required
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
                 <input type="text" name="products[${productIndex}][price]" min="0" required
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
@@ -937,19 +942,19 @@ function addProductRow() {
                 </select>
             </div>
             <div class="md:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
                 <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value=""
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
                        placeholder="0">
             </div>
             <div class="md:col-span-1 text-center product-tax-col">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
                 <input type="hidden" name="products[${productIndex}][contractor_tax_enabled]" value="0">
                 <input type="checkbox" name="products[${productIndex}][contractor_tax_enabled]" value="1"
                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Thành tiền (<span class="currency-symbol">₫</span>)</label>
+                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT) (<span class="currency-symbol">₫</span>)</label>
                 <input type="text" readonly
                        class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
             </div>
@@ -985,7 +990,11 @@ function calculateRowTotal(index) {
     rows.forEach(row => {
         const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
         const price = unformatMoney(row.querySelector('.price-input').value);
-        const total = qty * price;
+        let vatPercent = parseFloat(row.querySelector('.vat-input').value) || 0;
+        if (vatPercent < 0) {
+            vatPercent = 0;
+        }
+        const total = qty * price * (1 + vatPercent / 100);
         row.querySelector('.row-total').value = formatMoney(total);
     });
     calculateTotal();
@@ -997,6 +1006,7 @@ function calculateTotal() {
     const symbol = option.dataset.symbol || '';
 
     let subtotal = 0;
+    let subtotalWithVat = 0;
     let totalVatAmount = 0;
     const discount = parseFloat(document.getElementById('discount').value) || 0;
 
@@ -1010,6 +1020,9 @@ function calculateTotal() {
         if (vatPercent < 0) {
             vatPercent = 0;
         }
+        const rowSubtotalWithVat = rowSubtotal * (1 + vatPercent / 100);
+        subtotalWithVat += Math.round(rowSubtotalWithVat * 100) / 100;
+
         const rowDiscount = rowSubtotal * discount / 100;
         const rowBaseForVat = rowSubtotal - rowDiscount;
         const rowVatAmount = rowBaseForVat * vatPercent / 100;
@@ -1020,6 +1033,10 @@ function calculateTotal() {
     const total = Math.round((subtotal - discountAmount + totalVatAmount) * 100) / 100;
     
     document.getElementById('subtotal').value = formatMoney(subtotal);
+    const subtotalWithVatEl = document.getElementById('subtotalWithVat');
+    if (subtotalWithVatEl) {
+        subtotalWithVatEl.value = formatMoney(subtotalWithVat);
+    }
     document.getElementById('discountAmount').value = discountAmount > 0 ? formatMoney(discountAmount) : '0';
     document.getElementById('vatAmount').value = totalVatAmount > 0 ? formatMoney(totalVatAmount) : '0';
     document.getElementById('total').value = formatMoney(total);
@@ -1087,13 +1104,13 @@ function handleVatChange(selectEl) {
         });
     } else {
         selectEl.dataset.prev = val;
-        calculateTotal();
+        calculateRowTotal();
     }
 }
 
 // Calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
-    calculateTotal();
+    calculateRowTotal();
 });
 
 function calculateMargin() {
