@@ -70,6 +70,7 @@
                         <tr class="bg-yellow-200 text-xs border-b border-gray-300">
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] align-middle">Vendor <span class="text-red-500">*</span></th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[100px] align-middle">Type <span class="text-red-500">*</span></th>
+                            <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle" title="Cấp CQ riêng (chỉ FTN+HW)">CQ</th>
                             <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[150px] align-middle">P/N <span class="text-red-500">*</span></th>
                             <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[80px] align-middle">SL <span class="text-red-500">*</span></th>
                             <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle">Đơn vị</th>
@@ -81,8 +82,8 @@
                             <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                         </tr>
                         <tr class="bg-yellow-200 text-xs border-b border-gray-300">
-                            <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">EU Name <span class="text-red-500">*</span></th>
-                            <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px]">MST <span class="text-red-500">*</span></th>
+                            <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">EU Name</th>
+                            <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px]">MST</th>
                             <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px]">Address</th>
                         </tr>
                     </thead>
@@ -92,21 +93,32 @@
                                 <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">
                                     <td class="px-1 py-1.5">
                                         <select name="order_request_items[{{ $idx }}][vendor_id]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                            class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                            onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
                                             <option value="">-- Chọn --</option>
                                             @foreach($suppliers ?? [] as $s)
-                                                <option value="{{ $s->id }}" {{ $item->vendor_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                                <option value="{{ $s->id }}" data-name="{{ $s->name }}" {{ $item->vendor_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                                             @endforeach
                                         </select>
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <select name="order_request_items[{{ $idx }}][type]" required
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                            class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                            onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
                                             <option value="">-- Chọn --</option>
                                             @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
                                                 <option value="{{ $t }}" {{ $item->type == $t ? 'selected' : '' }}>{{ $t }}</option>
                                             @endforeach
                                         </select>
+                                    </td>
+                                    <td class="px-1 py-1.5 text-center cq-checkbox-cell">
+                                        <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng">
+                                            <input type="checkbox" name="order_request_items[{{ $idx }}][needs_cq]" value="1"
+                                                class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                                {{ $item->needs_cq ? 'checked' : '' }}
+                                                onchange="handleNeedsCqChange(this.closest('.order-request-row'))">
+                                            <span class="text-[10px] text-gray-600">CQ</span>
+                                        </label>
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
@@ -148,17 +160,17 @@
                                         $euNameVal = $parts[0] ?? '';
                                         $mstVal = $parts[1] ?? '';
                                     @endphp
-                                    <td class="px-1 py-1.5">
-                                        <input type="text" name="order_request_items[{{ $idx }}][eu_name]" required
+                                    <td class="px-1 py-1.5 eu-field">
+                                        <input type="text" name="order_request_items[{{ $idx }}][eu_name]"
                                             value="{{ $euNameVal }}" placeholder="EU Name"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                            class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
-                                    <td class="px-1 py-1.5">
-                                        <input type="text" name="order_request_items[{{ $idx }}][mst]" required
+                                    <td class="px-1 py-1.5 eu-field">
+                                        <input type="text" name="order_request_items[{{ $idx }}][mst]"
                                             value="{{ $mstVal }}" placeholder="MST"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                            class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
-                                    <td class="px-1 py-1.5">
+                                    <td class="px-1 py-1.5 eu-field">
                                         <input type="text" name="order_request_items[{{ $idx }}][address]"
                                             value="{{ $item->address }}"
                                             class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
@@ -185,61 +197,84 @@
                                 <td class="px-1 py-1.5">
                                     <select name="order_request_items[0][type]" required
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                        <option value="">-- Chọn --</option>
-                                        @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
-                                            <option value="{{ $t }}">{{ $t }}</option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][part_number]" required placeholder="P/N"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][serial_number]" placeholder="SN"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][exp_date]" placeholder="YYYY-MM-DD"
-                                        class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][pos_id]" placeholder="POS ID"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][eu_name]" required
-                                        placeholder="EU Name"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][mst]" required
-                                        placeholder="MST"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5">
-                                    <input type="text" name="order_request_items[0][address]" placeholder="Address"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
-                                </td>
-                                <td class="px-1 py-1.5 text-center">
-                                    <button type="button" onclick="removeOrderRequestRow(this)"
-                                        class="text-red-400 hover:text-red-600">
-                                        <i class="fas fa-trash-alt text-xs"></i>
-                                    </button>
-                                </td>
-                            </tr>
+                             <tr class="order-request-row border-b border-gray-100 hover:bg-gray-50" data-index="0">
+                                 <td class="px-1 py-1.5">
+                                     <select name="order_request_items[0][vendor_id]" required
+                                         class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                         onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
+                                         <option value="">-- Chọn --</option>
+                                         @foreach($suppliers ?? [] as $s)
+                                             <option value="{{ $s->id }}" data-name="{{ $s->name }}">{{ $s->name }}</option>
+                                         @endforeach
+                                     </select>
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <select name="order_request_items[0][type]" required
+                                         class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                         onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
+                                         <option value="">-- Chọn --</option>
+                                         @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
+                                             <option value="{{ $t }}">{{ $t }}</option>
+                                         @endforeach
+                                     </select>
+                                 </td>
+                                 <td class="px-1 py-1.5 text-center cq-checkbox-cell">
+                                     <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng">
+                                         <input type="checkbox" name="order_request_items[0][needs_cq]" value="1"
+                                             class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                             onchange="handleNeedsCqChange(this.closest('.order-request-row'))">
+                                         <span class="text-[10px] text-gray-600">CQ</span>
+                                     </label>
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][part_number]" required placeholder="P/N"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][serial_number]" placeholder="SN"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][exp_date]" placeholder="YYYY-MM-DD"
+                                         class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][si_name]" required placeholder="SI Name"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5">
+                                     <input type="text" name="order_request_items[0][pos_id]" placeholder="POS ID"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5 eu-field">
+                                     <input type="text" name="order_request_items[0][eu_name]"
+                                         placeholder="EU Name"
+                                         class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5 eu-field">
+                                     <input type="text" name="order_request_items[0][mst]"
+                                         placeholder="MST"
+                                         class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5 eu-field">
+                                     <input type="text" name="order_request_items[0][address]" placeholder="Address"
+                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 </td>
+                                 <td class="px-1 py-1.5 text-center">
+                                     <button type="button" onclick="removeOrderRequestRow(this)"
+                                         class="text-red-400 hover:text-red-600">
+                                         <i class="fas fa-trash-alt text-xs"></i>
+                                     </button>
+                                 </td>
+                             </tr>
                         @endif
                     </tbody>
                 </table>

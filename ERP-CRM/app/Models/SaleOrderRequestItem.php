@@ -13,6 +13,7 @@ class SaleOrderRequestItem extends Model
         'vendor_id',
         'vendor',
         'type',
+        'needs_cq',
         'part_number',
         'product_id',
         'quantity',
@@ -30,6 +31,7 @@ class SaleOrderRequestItem extends Model
     protected $casts = [
         'exp_date' => 'date',
         'is_cancelled' => 'boolean',
+        'needs_cq' => 'boolean',
     ];
 
     public function saleOrderRequest(): BelongsTo

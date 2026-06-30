@@ -192,7 +192,10 @@
                                 {{ ($sales->currentPage() - 1) * $sales->perPage() + $loop->iteration }}
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
-                                <span class="font-medium text-gray-900">{{ $sale->code }}</span>
+                                <a href="{{ route('sales.show', $sale->id) }}"
+                                    class="font-medium text-blue-600 hover:underline">
+                                    {{ $sale->code }}
+                                </a>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 @if($sale->quotation)
@@ -428,7 +431,10 @@
                     <div class="flex justify-between items-start mb-2">
                         <div class="flex-1">
                             <div class="font-medium text-gray-900">
-                                {{ $sale->code }}
+                                <a href="{{ route('sales.show', $sale->id) }}"
+                                    class="text-blue-600 hover:underline">
+                                    {{ $sale->code }}
+                                </a>
                                 @if($sale->quotation)
                                     <span class="mx-1 text-gray-300">|</span>
                                     <a href="{{ route('quotations.show', $sale->quotation) }}"

@@ -265,6 +265,7 @@
                                         <tr class="border-b border-gray-300">
                                             <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Vendor</th>
                                             <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Type</th>
+                                            <th rowspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 align-middle" title="Cấp CQ riêng">CQ</th>
                                             <th rowspan="2" class="px-2 py-1.5 text-left font-bold text-gray-800 border-r border-gray-300 align-middle">Part Number</th>
                                             <th rowspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 align-middle">Qty</th>
                                             <th rowspan="2" class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 align-middle">Unit</th>
@@ -281,10 +282,24 @@
                                     </thead>
                                     <tbody class="divide-y divide-gray-100">
                                         @foreach($req->items as $item)
+                                            @php
+                                                $isFtnHw = stripos($item->vendor->name ?? $item->vendor ?? '', 'Fortinet') !== false && $item->type === 'HW';
+                                            @endphp
                                             <tr class="hover:bg-gray-50">
                                                 <td class="px-2 py-1.5 font-medium">{{ $item->vendor->name ?? $item->vendor }}</td>
                                                 <td class="px-2 py-1.5"><span
                                                         class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">{{ $item->type }}</span>
+                                                </td>
+                                                <td class="px-2 py-1.5 text-center">
+                                                    @if($isFtnHw)
+                                                        @if($item->needs_cq)
+                                                            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-bold" title="Cần cấp CQ riêng">CQ</span>
+                                                        @else
+                                                            <span class="px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 text-[10px] font-bold" title="Hàng stock / runrate">Stock</span>
+                                                        @endif
+                                                    @else
+                                                        <span class="text-gray-300">-</span>
+                                                    @endif
                                                 </td>
                                                 <td class="px-2 py-1.5 font-medium text-emerald-700">{{ $item->part_number }}</td>
                                                 <td class="px-2 py-1.5 text-center font-bold">{{ number_format($item->quantity, 2) }}</td>
@@ -294,7 +309,7 @@
                                                     {{ $item->exp_date ? $item->exp_date->format('d/m/Y') : '-' }}</td>
                                                 <td class="px-2 py-1.5">{{ $item->si_name }}</td>
                                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->pos_id ?: '-' }}</td>
-                                                <td class="px-2 py-1.5">{{ $item->eu_name_mst }}</td>
+                                                <td class="px-2 py-1.5">{{ $item->eu_name_mst ?: '-' }}</td>
                                                 <td class="px-2 py-1.5 text-gray-600">{{ $item->address ?: '-' }}</td>
                                             </tr>
                                         @endforeach

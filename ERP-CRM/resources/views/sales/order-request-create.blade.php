@@ -59,13 +59,13 @@
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">EU Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="global_eu_name" name="global_eu_name" required
+                    <label class="block text-sm font-medium text-gray-700 mb-1">EU Name</label>
+                    <input type="text" id="global_eu_name" name="global_eu_name"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">MST <span class="text-red-500">*</span></label>
-                    <input type="text" id="global_mst" name="global_mst" required
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MST</label>
+                    <input type="text" id="global_mst" name="global_mst"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
@@ -120,6 +120,7 @@
                             <tr class="bg-yellow-200 text-[10px] border-b border-gray-300">
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] align-middle uppercase">Vendor <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[90px] align-middle uppercase">Type <span class="text-red-500">*</span></th>
+                                <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle uppercase" title="Cấp CQ riêng (chỉ FTN+HW)">CQ</th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[180px] align-middle uppercase">Part Number <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Qty <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Unit</th>
@@ -131,8 +132,8 @@
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 w-10 align-middle"></th>
                             </tr>
                             <tr class="bg-yellow-200 text-[10px] border-b border-gray-300">
-                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name <span class="text-red-500">*</span></th>
-                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px] uppercase">MST <span class="text-red-500">*</span></th>
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">EU Name</th>
+                                <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[100px] uppercase">MST</th>
                                 <th class="px-2 py-1.5 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[140px] uppercase">Address</th>
                             </tr>
                         </thead>
@@ -144,21 +145,31 @@
                             <tr class="item-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">
                                 <td class="px-1 py-1">
                                     <select name="order_request_items[{{ $idx }}][vendor_id]" required
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                        onchange="handleVendorTypeChange(this.closest('.item-row'))">
                                         <option value="">-- Chọn --</option>
                                         @foreach($suppliers as $s)
-                                            <option value="{{ $s->id }}" {{ $s->id == $saleItem->vendor_id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                            <option value="{{ $s->id }}" data-name="{{ $s->name }}" {{ $s->id == $saleItem->vendor_id ? 'selected' : '' }}>{{ $s->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
                                 <td class="px-1 py-1">
                                     <select name="order_request_items[{{ $idx }}][type]" required
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                        onchange="handleVendorTypeChange(this.closest('.item-row'))">
                                         <option value="">-- Chọn --</option>
                                         @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
                                             <option value="{{ $t }}" {{ $saleItem->type == $t ? 'selected' : '' }}>{{ $t }}</option>
                                         @endforeach
                                     </select>
+                                </td>
+                                <td class="px-1 py-1 text-center cq-checkbox-cell">
+                                    <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng cho item này">
+                                        <input type="checkbox" name="order_request_items[{{ $idx }}][needs_cq]" value="1"
+                                            class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                            onchange="handleNeedsCqChange(this.closest('.item-row'))">
+                                        <span class="text-[10px] text-gray-600">CQ</span>
+                                    </label>
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
@@ -191,13 +202,13 @@
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][pos_id]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
                                 </td>
-                                <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
+                                <td class="px-1 py-1 eu-field">
+                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name]" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
                                 </td>
-                                <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][mst]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
+                                <td class="px-1 py-1 eu-field">
+                                    <input type="text" name="order_request_items[{{ $idx }}][mst]" class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
                                 </td>
-                                <td class="px-1 py-1">
+                                <td class="px-1 py-1 eu-field">
                                     <input type="text" name="order_request_items[{{ $idx }}][address]"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
                                 </td>
@@ -477,11 +488,38 @@
         const eu = document.getElementById('global_eu_name').value;
         const mst = document.getElementById('global_mst').value;
         const addr = document.getElementById('global_address').value;
-        document.querySelectorAll('input[name$="[si_name]"]').forEach(el => el.value = si);
-        document.querySelectorAll('input[name$="[pos_id]"]').forEach(el => el.value = pos);
-        document.querySelectorAll('input[name$="[eu_name]"]').forEach(el => el.value = eu);
-        document.querySelectorAll('input[name$="[mst]"]').forEach(el => el.value = mst);
-        document.querySelectorAll('input[name$="[address]"]').forEach(el => el.value = addr);
+        
+        document.querySelectorAll('.item-row').forEach(row => {
+            const isFTN = isFortinetVendor(row);
+            const typeSelect = row.querySelector('.type-select');
+            const isHW = typeSelect && typeSelect.value === 'HW';
+            const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+            
+            // Determine if this is a Fortinet HW row with unchecked CQ
+            const isFtnHwNoCq = isFTN && isHW && cqCheckbox && !cqCheckbox.checked;
+            
+            // SI and POS are always synced
+            const siInput = row.querySelector('input[name$="[si_name]"]');
+            if (siInput) siInput.value = si;
+            
+            const posInput = row.querySelector('input[name$="[pos_id]"]');
+            if (posInput) posInput.value = pos;
+            
+            // EU name, MST, and Address are only synced if NOT Fortinet HW with unchecked CQ
+            const euInput = row.querySelector('.eu-name-input');
+            const mstInput = row.querySelector('.mst-input');
+            const addrInput = row.querySelector('input[name$="[address]"]');
+            
+            if (isFtnHwNoCq) {
+                if (euInput) euInput.value = '';
+                if (mstInput) mstInput.value = '';
+                if (addrInput) addrInput.value = '';
+            } else {
+                if (euInput) euInput.value = eu;
+                if (mstInput) mstInput.value = mst;
+                if (addrInput) addrInput.value = addr;
+            }
+        });
     }
 
     document.getElementById('global_si_name').addEventListener('input', syncGlobalToRows);
@@ -510,6 +548,11 @@
                 select.value = globalType;
             });
         }
+
+        // Trigger handleVendorTypeChange for all rows to show/hide CQ checkbox
+        document.querySelectorAll('.item-row').forEach(row => {
+            handleVendorTypeChange(row);
+        });
     }
 
     function addRow() {
@@ -522,7 +565,7 @@
 
         let supplierOptions = '<option value="">-- Chọn --</option>';
         suppliers.forEach(s => {
-            supplierOptions += `<option value="${s.id}" ${globalVendor == s.id ? 'selected' : ''}>${s.name}</option>`;
+            supplierOptions += `<option value="${s.id}" data-name="${s.name}" ${globalVendor == s.id ? 'selected' : ''}>${s.name}</option>`;
         });
 
         let typeOptions = '<option value="">-- Chọn --</option>';
@@ -538,15 +581,25 @@
         tr.innerHTML = `
             <td class="px-1 py-1">
                 <select name="order_request_items[${rowIdx}][vendor_id]" required
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                    class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                    onchange="handleVendorTypeChange(this.closest('.item-row'))">
                     ${supplierOptions}
                 </select>
             </td>
             <td class="px-1 py-1">
                 <select name="order_request_items[${rowIdx}][type]" required
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                    class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                    onchange="handleVendorTypeChange(this.closest('.item-row'))">
                     ${typeOptions}
                 </select>
+            </td>
+            <td class="px-1 py-1 text-center cq-checkbox-cell">
+                <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng cho item này">
+                    <input type="checkbox" name="order_request_items[${rowIdx}][needs_cq]" value="1"
+                        class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                        onchange="handleNeedsCqChange(this.closest('.item-row'))">
+                    <span class="text-[10px] text-gray-600">CQ</span>
+                </label>
             </td>
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][part_number]" required placeholder="P/N"
@@ -578,15 +631,15 @@
                 <input type="text" name="order_request_items[${rowIdx}][pos_id]" value="${posGlobal}"
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID">
             </td>
-            <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][eu_name]" value="${euGlobal}" required
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name">
+            <td class="px-1 py-1 eu-field">
+                <input type="text" name="order_request_items[${rowIdx}][eu_name]" value="${euGlobal}"
+                    class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name">
             </td>
-            <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][mst]" value="${mstGlobal}" required
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST">
+            <td class="px-1 py-1 eu-field">
+                <input type="text" name="order_request_items[${rowIdx}][mst]" value="${mstGlobal}"
+                    class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST">
             </td>
-            <td class="px-1 py-1">
+            <td class="px-1 py-1 eu-field">
                 <input type="text" name="order_request_items[${rowIdx}][address]" value="${addrGlobal}"
                     class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin">
             </td>
@@ -599,6 +652,7 @@
         
         tbody.appendChild(tr);
         initExpDatePicker(tr.querySelector('.exp-date-picker'));
+        handleVendorTypeChange(tr);
         rowIdx++;
     }
 
@@ -616,9 +670,145 @@
         if (siSelect) {
             initSearchableSelect(siSelect, () => syncGlobalToRows());
         }
+        
+        // Initialize CQ checkbox visibility for all existing rows FIRST
+        document.querySelectorAll('.item-row').forEach(row => {
+            handleVendorTypeChange(row);
+        });
+        
+        // Then sync global values
         syncGlobalToRows();
+        
         initExpDatePicker(".exp-date-picker");
     });
+
+    /**
+     * Check if the selected vendor is Fortinet
+     */
+    function isFortinetVendor(row) {
+        const vendorSelect = row.querySelector('.vendor-select');
+        if (!vendorSelect || !vendorSelect.value) return false;
+        const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
+        const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.textContent) : '';
+        return vendorName.toLowerCase().includes('fortinet');
+    }
+
+    /**
+     * Handle vendor or type dropdown change:
+     * - If vendor=Fortinet AND type=HW → show CQ checkbox, hide EU fields (unless CQ is checked)
+     * - Otherwise → hide CQ checkbox, show EU fields as required
+     */
+    function handleVendorTypeChange(row) {
+        const typeSelect = row.querySelector('.type-select');
+        const cqLabel = row.querySelector('.cq-checkbox-label');
+        const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+        const euFields = row.querySelectorAll('.eu-field');
+        const euNameInput = row.querySelector('.eu-name-input');
+        const mstInput = row.querySelector('.mst-input');
+        const addrInput = row.querySelector('input[name$="[address]"]');
+
+        if (!cqLabel || !typeSelect) return;
+
+        // Auto set unit based on type
+        const unitInput = row.querySelector('input[name$="[unit]"]');
+        if (unitInput) {
+            if (typeSelect.value === 'HW') {
+                unitInput.value = 'Cái';
+            } else if (typeSelect.value && typeSelect.value.toLowerCase().startsWith('lic')) {
+                unitInput.value = 'Bộ';
+            }
+        }
+
+        const isFTN = isFortinetVendor(row);
+        const isHW = typeSelect.value === 'HW';
+
+        if (isFTN && isHW) {
+            // Show CQ checkbox label
+            cqLabel.style.display = '';
+            
+            // If CQ not checked → hide EU fields (stock item)
+            if (!cqCheckbox.checked) {
+                euFields.forEach(td => {
+                    td.style.opacity = '0.3';
+                    const inputs = td.querySelectorAll('input');
+                    inputs.forEach(inp => {
+                        inp.removeAttribute('required');
+                        inp.setAttribute('tabindex', '-1');
+                    });
+                });
+                // Clear EU fields for stock item
+                if (euNameInput) euNameInput.value = '';
+                if (mstInput) mstInput.value = '';
+                if (addrInput) addrInput.value = '';
+            } else {
+                // CQ checked → show EU fields as required
+                euFields.forEach(td => {
+                    td.style.opacity = '1';
+                    const inputs = td.querySelectorAll('input');
+                    inputs.forEach(inp => inp.removeAttribute('tabindex'));
+                });
+                if (euNameInput) euNameInput.setAttribute('required', 'required');
+                if (mstInput) mstInput.setAttribute('required', 'required');
+            }
+        } else {
+            // Non-Fortinet or non-HW: hide CQ checkbox label, EU fields required
+            cqLabel.style.display = 'none';
+            cqCheckbox.checked = false;
+            
+            euFields.forEach(td => {
+                td.style.opacity = '1';
+                const inputs = td.querySelectorAll('input');
+                inputs.forEach(inp => inp.removeAttribute('tabindex'));
+            });
+            if (euNameInput) euNameInput.setAttribute('required', 'required');
+            if (mstInput) mstInput.setAttribute('required', 'required');
+        }
+    }
+
+    /**
+     * Handle CQ checkbox change:
+     * - Checked → show EU fields, make EU Name & MST required
+     * - Unchecked → dim EU fields, remove required (stock item)
+     */
+    function handleNeedsCqChange(row) {
+        const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+        const euFields = row.querySelectorAll('.eu-field');
+        const euNameInput = row.querySelector('.eu-name-input');
+        const mstInput = row.querySelector('.mst-input');
+        const addrInput = row.querySelector('input[name$="[address]"]');
+
+        if (cqCheckbox.checked) {
+            euFields.forEach(td => {
+                td.style.opacity = '1';
+                const inputs = td.querySelectorAll('input');
+                inputs.forEach(inp => inp.removeAttribute('tabindex'));
+            });
+            if (euNameInput) euNameInput.setAttribute('required', 'required');
+            if (mstInput) mstInput.setAttribute('required', 'required');
+
+            // Auto fill from global inputs if empty
+            const globalEu = document.getElementById('global_eu_name') ? document.getElementById('global_eu_name').value : '';
+            const globalMst = document.getElementById('global_mst') ? document.getElementById('global_mst').value : '';
+            const globalAddr = document.getElementById('global_address') ? document.getElementById('global_address').value : '';
+            
+            if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
+            if (mstInput && !mstInput.value) mstInput.value = globalMst;
+            if (addrInput && !addrInput.value) addrInput.value = globalAddr;
+        } else {
+            euFields.forEach(td => {
+                td.style.opacity = '0.3';
+                const inputs = td.querySelectorAll('input');
+                inputs.forEach(inp => {
+                    inp.removeAttribute('required');
+                    inp.setAttribute('tabindex', '-1');
+                });
+            });
+            // Clear EU fields if unchecked
+            if (euNameInput) euNameInput.value = '';
+            if (mstInput) mstInput.value = '';
+            if (addrInput) addrInput.value = '';
+        }
+    }
 
     // === Double-Enter to submit with confirmation modal ===
     let lastEnterTime = 0;

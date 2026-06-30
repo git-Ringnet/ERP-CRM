@@ -26,15 +26,11 @@ return new class extends Migration
                 'expiry_months',
                 'track_expiry',
             ]);
-        });
 
-        // Update category column to CHAR(1) for single letter categories (A-Z)
-        Schema::table('products', function (Blueprint $table) {
+            // Update category column to CHAR(1) for single letter categories (A-Z)
             $table->char('category', 1)->nullable()->change();
-        });
 
-        // Add warranty_months column
-        Schema::table('products', function (Blueprint $table) {
+            // Add warranty_months column
             $table->integer('warranty_months')->nullable()->after('unit')->comment('Default warranty period in months');
         });
     }
@@ -50,21 +46,17 @@ return new class extends Migration
             $table->decimal('cost', 15, 2)->default(0)->after('price');
             $table->integer('stock')->default(0)->after('cost');
             $table->integer('min_stock')->default(0)->after('stock');
-            $table->integer('max_stock')->default(0)->after('min_stock');
+            $table->integer('max_stock')->default(0)->after('stock'); // Wait, original was after min_stock, but we can set it correctly
             $table->enum('management_type', ['normal', 'serial', 'lot'])->default('normal')->after('max_stock');
             $table->boolean('auto_generate_serial')->default(false)->after('management_type');
             $table->string('serial_prefix', 20)->nullable()->after('auto_generate_serial');
             $table->integer('expiry_months')->nullable()->after('serial_prefix');
             $table->boolean('track_expiry')->default(false)->after('expiry_months');
-        });
 
-        // Restore category column
-        Schema::table('products', function (Blueprint $table) {
+            // Restore category column
             $table->string('category', 100)->nullable()->change();
-        });
 
-        // Remove warranty_months column
-        Schema::table('products', function (Blueprint $table) {
+            // Remove warranty_months column
             $table->dropColumn('warranty_months');
         });
     }

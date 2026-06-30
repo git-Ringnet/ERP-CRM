@@ -93,6 +93,11 @@ function applyGlobalVendorType(context) {
             select.value = globalType;
         });
     }
+
+    // Trigger handleVendorTypeChange for all rows to show/hide CQ checkbox
+    tbody.querySelectorAll('.order-request-row').forEach(row => {
+        handleVendorTypeChange(row);
+    });
 }
 
 function addOrderRequestRow(data = null) {
@@ -124,16 +129,24 @@ function addOrderRequestRow(data = null) {
     tr.dataset.index = i;
     tr.innerHTML = `
         <td class="px-1 py-1.5">
-            <select name="order_request_items[${i}][vendor_id]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <select name="order_request_items[${i}][vendor_id]" required class="vendor-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400" onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
                 <option value="">-- Chọn --</option>
-                ${suppliers.map(s => `<option value="${s.id}" ${data ? (data.vendor_id == s.id ? 'selected' : '') : (selectedVendor == s.id ? 'selected' : '')}>${s.name}</option>`).join('')}
+                ${suppliers.map(s => `<option value="${s.id}" data-name="${s.name}" ${data ? (data.vendor_id == s.id ? 'selected' : '') : (selectedVendor == s.id ? 'selected' : '')}>${s.name}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5">
-            <select name="order_request_items[${i}][type]" required class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+            <select name="order_request_items[${i}][type]" required class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400" onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
                 <option value="">-- Chọn --</option>
                 ${types.map(t => `<option value="${t}" ${data ? (data.type == t ? 'selected' : '') : (selectedType ? (selectedType == t ? 'selected' : '') : (t === 'Hardware' ? 'selected' : ''))}>${t}</option>`).join('')}
             </select>
+        </td>
+        <td class="px-1 py-1.5 text-center cq-checkbox-cell">
+            <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng">
+                <input type="checkbox" name="order_request_items[${i}][needs_cq]" value="1"
+                    class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                    onchange="handleNeedsCqChange(this.closest('.order-request-row'))">
+                <span class="text-[10px] text-gray-600">CQ</span>
+            </label>
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][part_number]" value="${data ? data.part_number : ''}" required placeholder="P/N" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
@@ -157,13 +170,13 @@ function addOrderRequestRow(data = null) {
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][pos_id]" value="${data ? (data.pos_id || '') : ''}" placeholder="POS ID" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
-        <td class="px-1 py-1.5">
-            <input type="text" name="order_request_items[${i}][eu_name]" required placeholder="EU Name" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+        <td class="px-1 py-1.5 eu-field">
+            <input type="text" name="order_request_items[${i}][eu_name]" placeholder="EU Name" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
-        <td class="px-1 py-1.5">
-            <input type="text" name="order_request_items[${i}][mst]" required placeholder="MST" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+        <td class="px-1 py-1.5 eu-field">
+            <input type="text" name="order_request_items[${i}][mst]" placeholder="MST" class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
-        <td class="px-1 py-1.5">
+        <td class="px-1 py-1.5 eu-field">
             <input type="text" name="order_request_items[${i}][address]" placeholder="Address" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
         <td class="px-1 py-1.5 text-center">
@@ -173,6 +186,7 @@ function addOrderRequestRow(data = null) {
         </td>
     `;
     tbody.appendChild(tr);
+    handleVendorTypeChange(tr);
     if (typeof window.initExpDatePicker === 'function') {
         window.initExpDatePicker(tr.querySelector('.exp-date-picker'));
     } else if (typeof flatpickr !== 'undefined') {
@@ -219,3 +233,142 @@ function importFromItems() {
         });
     }
 }
+
+/**
+ * Check if the selected vendor is Fortinet
+ */
+function isFortinetVendor(row) {
+    const vendorSelect = row.querySelector('.vendor-select');
+    if (!vendorSelect || !vendorSelect.value) return false;
+    const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
+    const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.textContent) : '';
+    return vendorName.toLowerCase().includes('fortinet');
+}
+
+/**
+ * Handle vendor or type dropdown change:
+ * - If vendor=Fortinet AND type=HW → show CQ checkbox, hide EU fields (unless CQ is checked)
+ * - Otherwise → hide CQ checkbox, show EU fields as required
+ */
+function handleVendorTypeChange(row) {
+    const typeSelect = row.querySelector('.type-select');
+    const cqLabel = row.querySelector('.cq-checkbox-label');
+    const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+    const euFields = row.querySelectorAll('.eu-field');
+    const euNameInput = row.querySelector('.eu-name-input');
+    const mstInput = row.querySelector('.mst-input');
+    const addrInput = row.querySelector('input[name$="[address]"]');
+
+    if (!cqLabel || !typeSelect) return;
+
+    // Auto set unit based on type
+    const unitInput = row.querySelector('input[name$="[unit]"]');
+    if (unitInput) {
+        if (typeSelect.value === 'HW') {
+            unitInput.value = 'Cái';
+        } else if (typeSelect.value && typeSelect.value.toLowerCase().startsWith('lic')) {
+            unitInput.value = 'Bộ';
+        }
+    }
+
+    const isFTN = isFortinetVendor(row);
+    const isHW = typeSelect.value === 'HW';
+
+    if (isFTN && isHW) {
+        // Show CQ checkbox label
+        cqLabel.style.display = '';
+        
+        // If CQ not checked → hide EU fields (stock item)
+        if (!cqCheckbox.checked) {
+            euFields.forEach(td => {
+                td.style.opacity = '0.3';
+                const inputs = td.querySelectorAll('input');
+                inputs.forEach(inp => {
+                    inp.removeAttribute('required');
+                    inp.setAttribute('tabindex', '-1');
+                });
+            });
+            // Clear EU fields for stock item
+            if (euNameInput) euNameInput.value = '';
+            if (mstInput) mstInput.value = '';
+            if (addrInput) addrInput.value = '';
+        } else {
+            // CQ checked → show EU fields as required
+            euFields.forEach(td => {
+                td.style.opacity = '1';
+                const inputs = td.querySelectorAll('input');
+                inputs.forEach(inp => inp.removeAttribute('tabindex'));
+            });
+            if (euNameInput) euNameInput.setAttribute('required', 'required');
+            if (mstInput) mstInput.setAttribute('required', 'required');
+        }
+    } else {
+        // Non-Fortinet or non-HW: hide CQ checkbox label, EU fields required
+        cqLabel.style.display = 'none';
+        cqCheckbox.checked = false;
+        
+        euFields.forEach(td => {
+            td.style.opacity = '1';
+            const inputs = td.querySelectorAll('input');
+            inputs.forEach(inp => inp.removeAttribute('tabindex'));
+        });
+        if (euNameInput) euNameInput.setAttribute('required', 'required');
+        if (mstInput) mstInput.setAttribute('required', 'required');
+    }
+}
+
+/**
+ * Handle CQ checkbox change:
+ * - Checked → show EU fields, make EU Name & MST required
+ * - Unchecked → dim EU fields, remove required (stock item)
+ */
+function handleNeedsCqChange(row) {
+    const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+    const euFields = row.querySelectorAll('.eu-field');
+    const euNameInput = row.querySelector('.eu-name-input');
+    const mstInput = row.querySelector('.mst-input');
+    const addrInput = row.querySelector('input[name$="[address]"]');
+
+    if (cqCheckbox.checked) {
+        euFields.forEach(td => {
+            td.style.opacity = '1';
+            const inputs = td.querySelectorAll('input');
+            inputs.forEach(inp => inp.removeAttribute('tabindex'));
+        });
+        if (euNameInput) euNameInput.setAttribute('required', 'required');
+        if (mstInput) mstInput.setAttribute('required', 'required');
+
+        // Auto fill from global inputs if empty and if they exist
+        const globalEuEl = document.getElementById('global_eu_name');
+        const globalMstEl = document.getElementById('global_mst');
+        const globalAddrEl = document.getElementById('global_address');
+
+        const globalEu = globalEuEl ? globalEuEl.value : '';
+        const globalMst = globalMstEl ? globalMstEl.value : '';
+        const globalAddr = globalAddrEl ? globalAddrEl.value : '';
+        
+        if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
+        if (mstInput && !mstInput.value) mstInput.value = globalMst;
+        if (addrInput && !addrInput.value) addrInput.value = globalAddr;
+    } else {
+        euFields.forEach(td => {
+            td.style.opacity = '0.3';
+            const inputs = td.querySelectorAll('input');
+            inputs.forEach(inp => {
+                inp.removeAttribute('required');
+                inp.setAttribute('tabindex', '-1');
+            });
+        });
+        // Clear EU fields if unchecked
+        if (euNameInput) euNameInput.value = '';
+        if (mstInput) mstInput.value = '';
+        if (addrInput) addrInput.value = '';
+    }
+}
+
+// Initial initialization for existing edit rows on load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.order-request-row').forEach(row => {
+        handleVendorTypeChange(row);
+    });
+});

@@ -2398,6 +2398,7 @@ class SaleController extends Controller
                 'order_request_items' => 'required|array|min:1',
                 'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
                 'order_request_items.*.type' => 'required|string|max:100',
+                'order_request_items.*.needs_cq' => 'nullable|boolean',
                 'order_request_items.*.part_number' => 'required|string|max:255',
                 'order_request_items.*.product_id' => 'nullable|exists:products,id',
                 'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
@@ -2407,8 +2408,8 @@ class SaleController extends Controller
                 'order_request_items.*.exp_date' => 'nullable|date',
                 'order_request_items.*.si_name' => 'required|string|max:255',
                 'order_request_items.*.pos_id' => 'nullable|string|max:255',
-                'order_request_items.*.eu_name' => 'required|string|max:255',
-                'order_request_items.*.mst' => 'required|string|max:255',
+                'order_request_items.*.eu_name' => 'nullable|string|max:255',
+                'order_request_items.*.mst' => 'nullable|string|max:255',
                 'order_request_items.*.address' => 'nullable|string|max:500',
                 'order_request_note' => 'nullable|string|max:2000',
                 'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
@@ -2433,11 +2434,32 @@ class SaleController extends Controller
                 // Get supplier name for legacy 'vendor' column
                 $supplier = \App\Models\Supplier::find($item['vendor_id']);
                 
+                // Determine if this is a Fortinet HW item
+                $isFortinet = $supplier && stripos($supplier->name, 'Fortinet') !== false;
+                $isHW = ($item['type'] ?? '') === 'HW';
+                $needsCq = ($isFortinet && $isHW) ? !empty($item['needs_cq']) : true;
+                
+                // Validate EU info is required when needs_cq is true or non-Fortinet-HW
+                if ($needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . $item['part_number']]
+                    ]);
+                }
+                
+                // Build eu_name_mst string
+                $euNameMst = '';
+                if (!empty($item['eu_name']) && !empty($item['mst'])) {
+                    $euNameMst = trim($item['eu_name']) . ' - ' . trim($item['mst']);
+                } elseif (!empty($item['eu_name'])) {
+                    $euNameMst = trim($item['eu_name']);
+                }
+                
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
                     'vendor_id' => $item['vendor_id'],
                     'vendor' => $supplier?->name,
                     'type' => $item['type'],
+                    'needs_cq' => $needsCq,
                     'part_number' => $item['part_number'],
                     'product_id' => $item['product_id'] ?? null,
                     'sale_item_id' => $item['sale_item_id'] ?? null,
@@ -2447,7 +2469,7 @@ class SaleController extends Controller
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'],
                     'pos_id' => $item['pos_id'] ?? null,
-                    'eu_name_mst' => trim($item['eu_name']) . ' - ' . trim($item['mst']),
+                    'eu_name_mst' => $euNameMst,
                     'address' => $item['address'] ?? null,
                 ]);
             }
@@ -2525,6 +2547,7 @@ class SaleController extends Controller
             'order_request_items' => 'required|array|min:1',
             'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
             'order_request_items.*.type' => 'required|string|max:100',
+            'order_request_items.*.needs_cq' => 'nullable|boolean',
             'order_request_items.*.part_number' => 'required|string|max:255',
             'order_request_items.*.product_id' => 'nullable|exists:products,id',
             'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
@@ -2534,8 +2557,8 @@ class SaleController extends Controller
             'order_request_items.*.exp_date' => 'nullable|date',
             'order_request_items.*.si_name' => 'required|string|max:255',
             'order_request_items.*.pos_id' => 'nullable|string|max:255',
-            'order_request_items.*.eu_name' => 'required|string|max:255',
-            'order_request_items.*.mst' => 'required|string|max:255',
+            'order_request_items.*.eu_name' => 'nullable|string|max:255',
+            'order_request_items.*.mst' => 'nullable|string|max:255',
             'order_request_items.*.address' => 'nullable|string|max:500',
             'order_request_note' => 'nullable|string|max:2000',
             'order_request_files.*' => 'nullable|file|max:20480',
@@ -2549,11 +2572,32 @@ class SaleController extends Controller
             foreach ($validated['order_request_items'] as $item) {
                 $supplier = \App\Models\Supplier::find($item['vendor_id']);
                 
+                // Determine if this is a Fortinet HW item
+                $isFortinet = $supplier && stripos($supplier->name, 'Fortinet') !== false;
+                $isHW = ($item['type'] ?? '') === 'HW';
+                $needsCq = ($isFortinet && $isHW) ? !empty($item['needs_cq']) : true;
+                
+                // Validate EU info is required when needs_cq is true or non-Fortinet-HW
+                if ($needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . $item['part_number']]
+                    ]);
+                }
+                
+                // Build eu_name_mst string
+                $euNameMst = '';
+                if (!empty($item['eu_name']) && !empty($item['mst'])) {
+                    $euNameMst = trim($item['eu_name']) . ' - ' . trim($item['mst']);
+                } elseif (!empty($item['eu_name'])) {
+                    $euNameMst = trim($item['eu_name']);
+                }
+                
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
                     'vendor_id' => $item['vendor_id'],
                     'vendor' => $supplier?->name,
                     'type' => $item['type'],
+                    'needs_cq' => $needsCq,
                     'part_number' => $item['part_number'],
                     'product_id' => $item['product_id'] ?? null,
                     'sale_item_id' => $item['sale_item_id'] ?? null,
@@ -2563,7 +2607,7 @@ class SaleController extends Controller
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'],
                     'pos_id' => $item['pos_id'] ?? null,
-                    'eu_name_mst' => trim($item['eu_name']) . ' - ' . trim($item['mst']),
+                    'eu_name_mst' => $euNameMst,
                     'address' => $item['address'] ?? null,
                 ]);
             }
