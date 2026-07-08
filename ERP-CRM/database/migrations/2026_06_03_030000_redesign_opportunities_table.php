@@ -12,30 +12,32 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('opportunities', function (Blueprint $table) {
-            // Drop old columns (nếu tồn tại)
-            if (Schema::hasColumn('opportunities', 'amount')) {
-                $table->dropColumn(['amount']);
-            }
-            if (Schema::hasColumn('opportunities', 'currency')) {
-                $table->dropColumn(['currency']);
-            }
-            if (Schema::hasColumn('opportunities', 'probability')) {
-                $table->dropColumn(['probability']);
-            }
-            if (Schema::hasColumn('opportunities', 'stage')) {
-                $table->dropColumn(['stage']);
-            }
-            if (Schema::hasColumn('opportunities', 'expected_close_date')) {
-                $table->dropColumn(['expected_close_date']);
-            }
-            if (Schema::hasColumn('opportunities', 'closed_at')) {
-                $table->dropColumn(['closed_at']);
-            }
-            if (Schema::hasColumn('opportunities', 'next_action_date')) {
-                $table->dropColumn(['next_action_date']);
-            }
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('opportunities', function (Blueprint $table) {
+                // Drop old columns (nếu tồn tại)
+                if (Schema::hasColumn('opportunities', 'amount')) {
+                    $table->dropColumn(['amount']);
+                }
+                if (Schema::hasColumn('opportunities', 'currency')) {
+                    $table->dropColumn(['currency']);
+                }
+                if (Schema::hasColumn('opportunities', 'probability')) {
+                    $table->dropColumn(['probability']);
+                }
+                if (Schema::hasColumn('opportunities', 'stage')) {
+                    $table->dropColumn(['stage']);
+                }
+                if (Schema::hasColumn('opportunities', 'expected_close_date')) {
+                    $table->dropColumn(['expected_close_date']);
+                }
+                if (Schema::hasColumn('opportunities', 'closed_at')) {
+                    $table->dropColumn(['closed_at']);
+                }
+                if (Schema::hasColumn('opportunities', 'next_action_date')) {
+                    $table->dropColumn(['next_action_date']);
+                }
+            });
+        }
 
         Schema::table('opportunities', function (Blueprint $table) {
             // Thay đổi customer_id thành nullable (vì EU không có customer record)

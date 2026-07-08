@@ -362,9 +362,83 @@
                 </div>
             </div>
 
+            <!-- Payment terms type and Milestones Editor -->
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết
+                </h4>
+                
+                <input type="hidden" name="payment_term_type" id="payment_term_type" value="{{ $sale->payment_term_type }}">
+                <div class="grid grid-cols-1 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
+                        <select id="milestonePresetSelect"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">-- Chọn điều khoản thanh toán --</option>
+                            <option value="customer_default">Mặc định theo khách hàng</option>
+                            @foreach($paymentTemplates as $tpl)
+                                <option value="template_{{ $tpl->id }}" data-items="{{ json_encode($tpl->items) }}" data-code="{{ $tpl->code }}">{{ $tpl->name }}</option>
+                            @endforeach
+                            <option value="custom">Tùy chỉnh...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="bodExceptionFileInput" class="hidden mt-3">
+                    <label class="block text-xs font-medium text-red-700 mb-1">
+                        <i class="fas fa-exclamation-triangle"></i> Tệp phê duyệt của BOD (Có thể tải lên tệp mới)
+                    </label>
+                    @if($sale->payment_exception_file)
+                        <div class="mb-1 text-xs text-green-700 flex items-center">
+                            <i class="fas fa-check-circle mr-1"></i> Đã có tệp đính kèm: 
+                            <a href="{{ asset('storage/' . $sale->payment_exception_file) }}" target="_blank" class="underline ml-1 font-medium">Xem tệp</a>
+                        </div>
+                    @endif
+                    <input type="file" name="payment_exception_file" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
+                </div>
+
+                <datalist id="milestone-names">
+                    <option value="Đợt 1">
+                    <option value="Đợt 2">
+                    <option value="Đợt 3">
+                    <option value="Đặt cọc (Deposit)">
+                    <option value="Thanh toán cuối (Final Payment)">
+                </datalist>
+
+                <div id="milestonesTableContainer" class="hidden mt-3">
+                    <div class="overflow-x-auto pb-2">
+                        <table class="w-full text-left border-collapse min-w-[1200px]">
+                            <thead>
+                                <tr class="bg-gray-100 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                                    <th class="p-2 min-w-[250px] text-sm">Tên đợt thanh toán</th>
+                                    <th class="p-2 min-w-[90px] text-sm">Tỷ lệ (%)</th>
+                                    <th class="p-2 min-w-[160px] text-sm">Số tiền (Tự tính)</th>
+                                    <th class="p-2 min-w-[180px] text-sm">Thời điểm thanh toán</th>
+                                    <th class="p-2 min-w-[160px] text-sm">Giai đoạn kiểm soát</th>
+                                    <th class="p-2 min-w-[80px] text-sm">Có chặn?</th>
+                                    <th class="p-2 min-w-[140px] text-sm">Chứng từ bắt buộc</th>
+                                    <th class="p-2 min-w-[100px] text-sm">Hạn (ngày)</th>
+                                    <th class="p-2 w-10 text-center text-sm">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="milestoneList" class="divide-y divide-gray-100">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
+                        <span id="milestonePercentSumIndicator" class="text-sm font-semibold text-gray-700">Tổng tỷ lệ: 0%</span>
+                        <button type="button" onclick="addPaymentMilestone()" class="btn-secondary text-xs py-1.5 px-3">
+                            <i class="fas fa-plus mr-1"></i> Thêm đợt thanh toán
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả điều khoản thanh toán</label>
                     <textarea name="payment_term" rows="2" placeholder="VD: Tạm ứng 30%..., thanh toán 70%..."
                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">{{ old('payment_term', $sale->payment_term) }}</textarea>
                 </div>
@@ -426,6 +500,11 @@
     padding: 8px 12px;
     color: #6b7280;
     font-style: italic;
+}
+/* Hide black arrow icon on datalist inputs */
+input[list]::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none;
 }
 </style>
 @endpush
@@ -1060,6 +1139,9 @@ function calculateTotal() {
 
     calculateMargin();
     calculateDebt();
+    if (typeof calculateMilestoneAmounts === 'function') {
+        calculateMilestoneAmounts();
+    }
 }
 
 function handleVatChange(selectEl) {
@@ -1249,6 +1331,9 @@ function validateAndSubmit() {
                     input.value = unformatMoney(input.value);
                 });
                 document.querySelectorAll('.expense-amount').forEach(input => {
+                    input.value = unformatMoney(input.value);
+                });
+                document.querySelectorAll('.milestone-amount-input').forEach(input => {
                     input.value = unformatMoney(input.value);
                 });
                 const paidAmount = document.getElementById('paid_amount');
@@ -1572,7 +1657,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const milestoneListEl = document.getElementById('milestoneList');
     if (milestoneListEl) {
         milestoneListEl.addEventListener('input', function(e) {
-            if (e.target.tagName === 'INPUT') {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
                 switchMilestonePresetToCustom();
             }
         });
@@ -1583,44 +1668,339 @@ document.addEventListener('DOMContentLoaded', function() {
     if (currentCustomerOpt) {
         window.selectedCustomerDebtDays = parseInt(currentCustomerOpt.dataset.debtDays) || 0;
     }
+
+    // Load existing milestones if editing
+    const existingType = '{{ $sale->payment_term_type }}';
+    const presetSelect = document.getElementById('milestonePresetSelect');
+    const tableContainer = document.getElementById('milestonesTableContainer');
+    const exceptionFileInput = document.getElementById('bodExceptionFileInput');
+    
+    if (existingType) {
+        if (tableContainer) tableContainer.classList.remove('hidden');
+        if (presetSelect) {
+            if (existingType === 'prepaid_100') {
+                const opt = Array.from(presetSelect.options).find(o => o.dataset.code && o.dataset.code.includes('TRUOC_KHI_DAT_HANG'));
+                if (opt) presetSelect.value = opt.value;
+            } else if (existingType === 'postpaid') {
+                const opt = Array.from(presetSelect.options).find(o => o.dataset.code && o.dataset.code.includes('SAU_KHI_GIAO_HANG'));
+                if (opt) presetSelect.value = opt.value;
+            } else if (existingType === 'bod_exception') {
+                const opt = Array.from(presetSelect.options).find(o => o.dataset.code && o.dataset.code.includes('NGOAI_LE'));
+                if (opt) presetSelect.value = opt.value;
+                if (exceptionFileInput) exceptionFileInput.classList.remove('hidden');
+            } else {
+                presetSelect.value = 'custom';
+            }
+        }
+        
+        const savedMilestones = {!! json_encode($sale->payment_terms ?? []) !!};
+        if (savedMilestones && savedMilestones.length > 0) {
+            const list = document.getElementById('milestoneList');
+            if (list) {
+                list.innerHTML = '';
+                milestoneIndex = 0;
+                savedMilestones.forEach(ms => addPaymentMilestone(ms));
+            }
+        }
+    }
 });
 
 // --- Payment Term & Due Date Functions ---
 window.selectedCustomerDebtDays = 0;
+let milestoneIndex = 0;
 
 function onMilestonePresetChange(preset) {
     const list = document.getElementById('milestoneList');
-    if (!list) return;
+    const tableContainer = document.getElementById('milestonesTableContainer');
+    const exceptionFileInput = document.getElementById('bodExceptionFileInput');
+    const typeInput = document.getElementById('payment_term_type');
+    
+    if (!list || !tableContainer) return;
+    
     list.innerHTML = '';
     milestoneIndex = 0;
     
-    switch (preset) {
-        case 'customer_default':
-            const customerHidden = document.querySelector('input[name="customer_id"]');
-            if (customerHidden && customerHidden.value) {
-                const customerOpt = document.querySelector(`#customerSelect .searchable-option[data-value="${customerHidden.value}"]`);
-                if (customerOpt && customerOpt.dataset.milestones) {
-                    try {
-                        const milestones = JSON.parse(customerOpt.dataset.milestones);
-                        if (milestones && milestones.length > 0) {
-                            milestones.forEach(ms => addPaymentMilestone(ms));
-                        }
-                    } catch (e) { console.error('Error parsing milestones:', e); }
+    if (exceptionFileInput) exceptionFileInput.classList.add('hidden');
+    
+    if (!preset) {
+        tableContainer.classList.add('hidden');
+        if (typeInput) typeInput.value = '';
+        return;
+    }
+    
+    tableContainer.classList.remove('hidden');
+    
+    if (preset === 'customer_default') {
+        if (typeInput) typeInput.value = 'milestones';
+        const customerHidden = document.querySelector('input[name="customer_id"]');
+        if (customerHidden && customerHidden.value) {
+            const customerOpt = document.querySelector(`#customerSelect .searchable-option[data-value="${customerHidden.value}"]`);
+            if (customerOpt && customerOpt.dataset.milestones) {
+                try {
+                    const milestones = JSON.parse(customerOpt.dataset.milestones);
+                    if (milestones && milestones.length > 0) {
+                        milestones.forEach(ms => addPaymentMilestone(ms));
+                    }
+                } catch (e) {
+                    console.error('Error parsing milestones:', e);
                 }
             }
-            break;
-        case '30-70':
-            addPaymentMilestone({ label: 'Cọc', percent: 30, days: 5 });
-            addPaymentMilestone({ label: 'Thanh toán cuối', percent: 70, days: 30 });
-            break;
-        case '50-50':
-            addPaymentMilestone({ label: 'Cọc', percent: 50, days: 5 });
-            addPaymentMilestone({ label: 'Thanh toán cuối', percent: 50, days: 30 });
-            break;
-        case '100-prepaid':
-            addPaymentMilestone({ label: 'Thanh toán toàn bộ', percent: 100, days: 0 });
-            break;
-        case 'custom': break;
+        }
+    } else if (preset.startsWith('template_')) {
+        const presetSelect = document.getElementById('milestonePresetSelect');
+        const selectedOpt = presetSelect.querySelector(`option[value="${preset}"]`);
+        
+        // Auto set hidden payment_term_type based on template code
+        const code = selectedOpt.dataset.code || '';
+        if (typeInput) {
+            if (code.includes('NGOAI_LE')) {
+                typeInput.value = 'bod_exception';
+                if (exceptionFileInput) exceptionFileInput.classList.remove('hidden');
+            } else if (code.includes('TRUOC_KHI_DAT_HANG')) {
+                typeInput.value = 'prepaid_100';
+            } else if (code.includes('SAU_KHI_GIAO_HANG')) {
+                typeInput.value = 'postpaid';
+            } else {
+                typeInput.value = 'milestones';
+            }
+        }
+
+        if (selectedOpt && selectedOpt.dataset.items) {
+            try {
+                const items = JSON.parse(selectedOpt.dataset.items);
+                items.forEach(item => {
+                    let requiredBefore = 'after_delivery';
+                    let isBlocking = 'no';
+                    if (item.blocking_stage) {
+                        isBlocking = 'yes';
+                        if (item.blocking_stage === 'BLOCK_PO_SEND') {
+                            requiredBefore = 'before_order';
+                        } else if (item.blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                            requiredBefore = 'before_export';
+                        }
+                    }
+                    
+                    let timing = 'after_contract';
+                    if (item.trigger_type === 'ON_GOODS_DELIVERED') {
+                        timing = 'after_delivery';
+                    } else if (item.trigger_type === 'ON_INVOICE_ISSUED') {
+                        timing = 'after_invoice';
+                    } else if (item.trigger_type === 'ON_DELIVERY_NOTICE') {
+                        timing = 'after_delivery_notice';
+                    } else if (item.trigger_type === 'BEFORE_EXPORT') {
+                        timing = 'before_export';
+                    }
+
+                    addPaymentMilestone({
+                        milestone_name: item.milestone_name,
+                        percentage: item.percentage,
+                        timing: timing,
+                        required_before: requiredBefore,
+                        is_blocking: isBlocking,
+                        required_docs: item.required_docs,
+                        due_days: item.due_days,
+                    });
+                });
+            } catch (e) {
+                console.error('Error parsing template items:', e);
+            }
+        }
+    } else if (preset === 'custom') {
+        if (typeInput) typeInput.value = 'milestones';
+        addPaymentMilestone({
+            milestone_name: 'Đợt 1',
+            percentage: 100,
+            timing: 'after_contract',
+            required_before: 'after_delivery',
+            is_blocking: 'no',
+            required_docs: 'none',
+            due_days: 0
+        });
+    }
+}
+
+function getContractTotal() {
+    const totalEl = document.getElementById('total');
+    let totalValue = 0;
+    if (totalEl) {
+        const rawVal = totalEl.value || totalEl.innerText || '0';
+        totalValue = parseFloat(rawVal.replace(/[^0-9.-]/g, '')) || 0;
+    }
+    return totalValue;
+}
+
+function addPaymentMilestone(ms = {}) {
+    const list = document.getElementById('milestoneList');
+    if (!list) return;
+
+    const index = milestoneIndex++;
+    const label = ms.milestone_name || ms.label || '';
+    const percent = ms.percentage || ms.percent || 0;
+    const timing = ms.timing || 'after_contract';
+    const requiredBefore = ms.required_before || 'after_delivery';
+    const isBlocking = ms.is_blocking || 'yes';
+    const requiredDocs = ms.required_docs || 'none';
+    const dueDays = ms.due_days || ms.days || 0;
+
+    const total = getContractTotal();
+    let numAmount = unformatMoney(ms.amount || 0);
+    if (!numAmount && percent > 0 && total > 0) {
+        numAmount = Math.round(total * percent / 100);
+    }
+    const formattedAmount = formatMoney(numAmount);
+
+    const row = document.createElement('tr');
+    row.className = 'border-b border-gray-100 hover:bg-gray-50';
+    row.id = `milestone-row-${index}`;
+    row.innerHTML = `
+        <td class="p-2">
+            <input type="text" name="payment_terms[${index}][milestone_name]" value="${label}" required
+                   list="milestone-names" placeholder="VD: Cọc, Đợt 1,..." class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        </td>
+        <td class="p-2">
+            <div class="flex items-center">
+                <input type="number" name="payment_terms[${index}][percentage]" value="${percent}" required min="0" max="100" step="any"
+                       class="milestone-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right">
+                <span class="ml-1 text-sm text-gray-500">%</span>
+            </div>
+        </td>
+        <td class="p-2">
+            <div class="flex items-center">
+                <input type="text" inputmode="numeric" name="payment_terms[${index}][amount]" value="${formattedAmount}" required
+                       class="milestone-amount-input w-36 border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium">
+                <span class="ml-1 text-sm text-gray-500">₫</span>
+            </div>
+        </td>
+        <td class="p-2">
+            <select name="payment_terms[${index}][timing]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                <option value="after_contract" ${timing === 'after_contract' ? 'selected' : ''}>Sau khi ký HĐMB</option>
+                <option value="after_delivery_notice" ${timing === 'after_delivery_notice' ? 'selected' : ''}>Sau khi có thông báo giao hàng</option>
+                <option value="before_export" ${timing === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
+                <option value="after_delivery" ${timing === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
+                <option value="after_invoice" ${timing === 'after_invoice' ? 'selected' : ''}>Sau khi xuất hóa đơn</option>
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="payment_terms[${index}][required_before]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                <option value="before_order" ${requiredBefore === 'before_order' ? 'selected' : ''}>Trước khi đặt hàng</option>
+                <option value="before_export" ${requiredBefore === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
+                <option value="after_delivery" ${requiredBefore === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="payment_terms[${index}][is_blocking]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                <option value="yes" ${isBlocking === 'yes' ? 'selected' : ''}>Có</option>
+                <option value="no" ${isBlocking === 'no' ? 'selected' : ''}>Không</option>
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="payment_terms[${index}][required_docs]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                <option value="unc" ${requiredDocs === 'unc' ? 'selected' : ''}>UNC</option>
+                <option value="credit_note" ${requiredDocs === 'credit_note' ? 'selected' : ''}>Giấy báo có</option>
+                <option value="other" ${requiredDocs === 'other' ? 'selected' : ''}>Chứng từ khác</option>
+                <option value="none" ${requiredDocs === 'none' ? 'selected' : ''}>Không yêu cầu</option>
+            </select>
+        </td>
+        <td class="p-2">
+            <div class="flex items-center">
+                <input type="number" name="payment_terms[${index}][due_days]" value="${dueDays}" required min="0"
+                       class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right">
+                <span class="ml-1 text-xs text-gray-500">ngày</span>
+            </div>
+            <input type="hidden" name="payment_terms[${index}][status]" value="${ms.status || 'unpaid'}">
+            <input type="hidden" name="payment_terms[${index}][confirmed_by]" value="${ms.confirmed_by || ''}">
+            <input type="hidden" name="payment_terms[${index}][confirmed_at]" value="${ms.confirmed_at || ''}">
+            <input type="hidden" name="payment_terms[${index}][proof_file_path]" value="${ms.proof_file_path || ''}">
+            <input type="hidden" name="payment_terms[${index}][bod_approval_file_path]" value="${ms.bod_approval_file_path || ''}">
+            <input type="hidden" name="payment_terms[${index}][delegated_to_id]" value="${ms.delegated_to_id || ''}">
+        </td>
+        <td class="p-2 text-center">
+            <button type="button" onclick="removePaymentMilestone(${index})" class="text-red-500 hover:text-red-700">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </td>
+    `;
+    list.appendChild(row);
+    calculateMilestoneAmounts();
+    
+    row.querySelector('.milestone-percent-input').addEventListener('input', function() {
+        const totalValue = getContractTotal();
+        const pct = parseFloat(this.value) || 0;
+        const amtInput = row.querySelector('.milestone-amount-input');
+        if (amtInput) {
+            amtInput.value = formatMoney(Math.round(totalValue * pct / 100));
+        }
+        calculateMilestoneAmounts(true);
+        switchMilestonePresetToCustom();
+    });
+
+    row.querySelector('.milestone-amount-input').addEventListener('input', function() {
+        const cursorPos = this.selectionStart;
+        const oldLength = this.value.length;
+        
+        const amt = unformatMoney(this.value);
+        this.value = formatMoney(amt);
+        
+        const newLength = this.value.length;
+        const diff = newLength - oldLength;
+        if (this.setSelectionRange && cursorPos !== null) {
+            this.setSelectionRange(cursorPos + diff, cursorPos + diff);
+        }
+
+        const totalValue = getContractTotal();
+        const pctInput = row.querySelector('.milestone-percent-input');
+        if (pctInput && totalValue > 0) {
+            pctInput.value = (amt / totalValue * 100).toFixed(2);
+        }
+        calculateMilestoneAmounts(true);
+        switchMilestonePresetToCustom();
+    });
+}
+
+function removePaymentMilestone(index) {
+    const row = document.getElementById(`milestone-row-${index}`);
+    if (row) {
+        row.remove();
+        calculateMilestoneAmounts();
+        switchMilestonePresetToCustom();
+    }
+}
+
+function calculateMilestoneAmounts(fromManualInput = false) {
+    const totalValue = getContractTotal();
+    const rows = document.querySelectorAll('#milestoneList tr');
+    let percentSum = 0;
+    
+    rows.forEach(row => {
+        const pctInput = row.querySelector('.milestone-percent-input');
+        const amtInput = row.querySelector('.milestone-amount-input');
+        if (pctInput && amtInput) {
+            let pct = parseFloat(pctInput.value) || 0;
+            let amt = unformatMoney(amtInput.value);
+            
+            if (totalValue > 0) {
+                if (!fromManualInput) {
+                    if (amt > 0) {
+                        pct = amt / totalValue * 100;
+                        pctInput.value = pct.toFixed(2);
+                    } else if (pct > 0) {
+                        amt = Math.round(totalValue * pct / 100);
+                        amtInput.value = formatMoney(amt);
+                    }
+                }
+            }
+            percentSum += pct;
+        }
+    });
+    
+    const indicator = document.getElementById('milestonePercentSumIndicator');
+    if (indicator) {
+        indicator.innerText = `Tổng tỷ lệ: ${percentSum.toFixed(1)}%`;
+        if (Math.abs(percentSum - 100) > 0.01) {
+            indicator.className = 'text-sm font-semibold text-red-600';
+        } else {
+            indicator.className = 'text-sm font-semibold text-green-600';
+        }
     }
 }
 

@@ -4,6 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+use Illuminate\Support\Facades\DB;
+
 return new class extends Migration
 {
     /**
@@ -13,9 +15,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            $table->decimal('technical_poc_percent', 5, 2)->nullable()->after('technical_poc_cost');
-            $table->decimal('implementation_cost_percent', 5, 2)->nullable()->after('implementation_cost');
-            $table->decimal('contractor_tax_percent', 5, 2)->nullable()->after('contractor_tax');
+            $table->decimal('technical_poc_percent', 5, 2)->nullable();
+            $table->decimal('implementation_cost_percent', 5, 2)->nullable();
+            $table->decimal('contractor_tax_percent', 5, 2)->nullable();
         });
     }
 
@@ -25,11 +27,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            $table->dropColumn([
-                'technical_poc_percent',
-                'implementation_cost_percent',
-                'contractor_tax_percent',
-            ]);
+            $table->dropColumn(['technical_poc_percent', 'implementation_cost_percent', 'contractor_tax_percent']);
         });
     }
 };

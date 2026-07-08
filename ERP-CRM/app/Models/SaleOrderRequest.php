@@ -32,6 +32,7 @@ class SaleOrderRequest extends Model
      * PR Statuses
      */
     public const STATUS_DRAFT = 'draft';
+    public const STATUS_PENDING_ADMIN = 'pending_admin';
     public const STATUS_SUBMITTED = 'submitted';
     public const STATUS_NEED_INFO = 'need_info';
     public const STATUS_PROCESSING = 'processing';
@@ -41,6 +42,7 @@ class SaleOrderRequest extends Model
     {
         return [
             self::STATUS_DRAFT => 'Bản nháp',
+            self::STATUS_PENDING_ADMIN => 'Chờ Admin duyệt',
             self::STATUS_SUBMITTED => 'Đã gửi',
             self::STATUS_NEED_INFO => 'Thiếu thông tin',
             self::STATUS_PROCESSING => 'Đang xử lý',
@@ -57,6 +59,7 @@ class SaleOrderRequest extends Model
     {
         return [
             self::STATUS_DRAFT => 'gray',
+            self::STATUS_PENDING_ADMIN => 'yellow',
             self::STATUS_SUBMITTED => 'blue',
             self::STATUS_NEED_INFO => 'orange',
             self::STATUS_PROCESSING => 'purple',
@@ -150,7 +153,7 @@ class SaleOrderRequest extends Model
     public function checkAndUpdateStatus(): void
     {
         // Cho phép revert từ completed
-        if (!in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_PROCESSING, self::STATUS_COMPLETED])) {
+        if (!in_array($this->status, [self::STATUS_PROCESSING, self::STATUS_COMPLETED])) {
             return;
         }
 
@@ -170,19 +173,12 @@ class SaleOrderRequest extends Model
 
         $newStatus = $this->status;
         if ($items->isEmpty()) {
-            // Tất cả items bị hủy → revert về submitted
-            $newStatus = self::STATUS_SUBMITTED;
+            // Tất cả items bị hủy → revert về processing
+            $newStatus = self::STATUS_PROCESSING;
         } elseif ($allCompleted) {
             $newStatus = self::STATUS_COMPLETED;
-        } elseif ($anyOrdered) {
-            $newStatus = self::STATUS_PROCESSING;
         } else {
-            // Không có item nào được ordered → Nếu đang là submitted thì giữ submitted, nếu đang là processing/completed thì giữ processing (đã duyệt nhưng chưa đặt hàng)
-            if ($this->status === self::STATUS_SUBMITTED) {
-                $newStatus = self::STATUS_SUBMITTED;
-            } else {
-                $newStatus = self::STATUS_PROCESSING;
-            }
+            $newStatus = self::STATUS_PROCESSING;
         }
 
         if ($newStatus !== $this->status) {

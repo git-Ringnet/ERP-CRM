@@ -11,18 +11,42 @@
             <a href="{{ route('exports.export-excel', $export) }}" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>
-            @if($export->status === 'pending')
+            @if($export->status === 'draft' || $export->status === 'rejected')
+                @if($export->status === 'draft')
+                    <form action="{{ route('exports.request-export', $export) }}" method="POST" class="inline">
+                        @csrf
+                        <button type="submit" class="px-3 py-1.5 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700">
+                            <i class="fas fa-file-export mr-1"></i>Yêu cầu xuất kho
+                        </button>
+                    </form>
+                @endif
                 <a href="{{ route('exports.edit', $export) }}" 
                    class="px-3 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600">
                     <i class="fas fa-edit mr-1"></i>Chỉnh sửa
                 </a>
-                <button onclick="confirmApprove('{{ route('exports.approve', $export) }}', 'phiếu xuất kho')"
-                        class="px-3 py-1.5 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600">
-                    <i class="fas fa-check mr-1"></i>Duyệt phiếu
+            @endif
+
+            @php
+                $user = auth()->user();
+                $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                $isAccountant = $user && $user->hasRole('accountant');
+            @endphp
+
+            @if($export->status === 'pending_admin' && $isAdmin)
+                <button onclick="confirmApprove('{{ route('exports.admin-approve', $export) }}', 'phiếu đề xuất xuất kho')"
+                        class="px-3 py-1.5 text-sm text-white bg-green-500 hover:bg-green-600 rounded-lg">
+                    <i class="fas fa-check mr-1"></i>Duyệt xuất kho
                 </button>
-                <button onclick="confirmReject('{{ route('exports.reject', $export) }}', 'phiếu xuất kho')"
-                        class="px-3 py-1.5 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600">
+                <button onclick="confirmReject('{{ route('exports.admin-reject', $export) }}', 'phiếu đề xuất xuất kho')"
+                        class="px-3 py-1.5 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg">
                     <i class="fas fa-times mr-1"></i>Từ chối
+                </button>
+            @endif
+
+            @if($export->status === 'pending_invoice' && ($isAccountant || $user->hasRole('super_admin')))
+                <button onclick="confirmApprove('{{ route('exports.approve', $export) }}', 'phiếu xuất kho')"
+                        class="px-3 py-1.5 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">
+                    <i class="fas fa-truck mr-1"></i>Xác nhận giao hàng & Trừ kho
                 </button>
             @endif
             <a href="{{ url()->previous() }}" 
@@ -38,12 +62,20 @@
             <span class="px-3 py-1 text-sm font-semibold rounded-full bg-orange-100 text-orange-800">
                 <i class="fas fa-arrow-up mr-1"></i>Xuất kho
             </span>
-            @if($export->status === 'pending')
-                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>
+            @if($export->status === 'draft')
+                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800">Bản nháp</span>
+            @elseif($export->status === 'pending_admin')
+                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ Admin duyệt xuất (Kho chuẩn bị hàng)</span>
+            @elseif($export->status === 'pending_invoice')
+                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-orange-100 text-orange-800">Chờ KT xuất hóa đơn</span>
             @elseif($export->status === 'rejected')
                 <span class="px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">Đã từ chối</span>
             @else
-                <span class="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành</span>
+                @if($linkedSale && $linkedSale->delivery_date)
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành (Đã giao hàng & trừ kho)</span>
+                @else
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800">Đã xuất kho (Chờ giao hàng thành công)</span>
+                @endif
             @endif
         </div>
 
@@ -83,8 +115,15 @@
             
             <div class="space-y-3">
                 <div>
-                    <label class="text-sm text-gray-500">Ngày xuất</label>
-                    <p class="font-medium text-gray-900">{{ $export->date->format('d/m/Y') }}</p>
+                    <label class="text-sm text-gray-500">Ngày xuất / Ngày giao hàng thành công</label>
+                    <p class="font-medium text-gray-900 flex items-center gap-2">
+                        {{ $export->date->format('d/m/Y') }}
+                        @if($export->status === 'completed')
+                            <button onclick="openDeliveryModal()" class="text-xs text-indigo-650 hover:text-indigo-850 hover:underline">
+                                <i class="fas fa-edit"></i> Thay đổi
+                            </button>
+                        @endif
+                    </p>
                 </div>
                 <div>
                     <label class="text-sm text-gray-500">Nhân viên</label>
@@ -102,6 +141,93 @@
             <label class="text-sm text-gray-500">Ghi chú</label>
             <p class="font-medium text-gray-900">{{ $export->note }}</p>
         </div>
+        @endif
+
+        @if($linkedSale)
+            @php
+                $payStatus = $linkedSale->getPaymentConditionStatus();
+            @endphp
+            <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                    <i class="fas fa-file-invoice-dollar text-teal-600"></i> Điều khoản & Trạng thái thanh toán của Đơn hàng (SO: {{ $linkedSale->code }})
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                    <div class="space-y-1.5 text-gray-600">
+                        <div>Tổng tiền đơn hàng: <span class="font-semibold text-gray-800">{{ number_format($linkedSale->total, 0) }}đ</span></div>
+                        <div>Đã thanh toán: <span class="font-semibold text-green-600">{{ number_format($linkedSale->paid_amount, 0) }}đ</span></div>
+                        <div>Hình thức thanh toán: <span class="font-semibold text-gray-700">
+                            {{ $linkedSale->payment_term_type === 'prepaid_100' ? 'Thanh toán trước 100%' : ($linkedSale->payment_term_type === 'postpaid' ? 'Thanh toán sau giao hàng' : ($linkedSale->payment_term_type === 'milestones' ? 'Thanh toán từng đợt' : ($linkedSale->payment_term_type === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : $linkedSale->payment_term_type))) }}
+                        </span></div>
+                        <div class="flex items-center gap-1.5 mt-2">
+                            <span>Điều kiện xuất kho:</span>
+                            @if($payStatus['eligible_for_export'])
+                                <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold uppercase text-[9px]"><i class="fas fa-check mr-1"></i>ĐỦ ĐIỀU KIỆN</span>
+                            @else
+                                <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase text-[9px]"><i class="fas fa-ban mr-1"></i>CHƯA ĐỦ ĐIỀU KIỆN</span>
+                            @endif
+                            @if($payStatus['has_exception'])
+                                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold uppercase text-[9px]"><i class="fas fa-exclamation-circle mr-1"></i>NGOẠI LỆ BOD</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-gray-700 mb-2">Chi tiết các đợt thanh toán:</h4>
+                        @if(empty($payStatus['milestones']))
+                            <p class="text-gray-400 italic">Không có đợt thanh toán nào được cấu hình.</p>
+                        @else
+                            <div class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                @foreach($payStatus['milestones'] as $ms)
+                                    <div class="flex items-start justify-between border-b border-gray-100 pb-1.5">
+                                        <div>
+                                            <div class="font-medium text-gray-800">{{ $ms['milestone_name'] }} ({{ $ms['percentage'] }}% - {{ number_format($ms['amount'], 0) }}đ)</div>
+                                            <div class="text-[10px] text-gray-500">
+                                                Chặn: <span class="font-medium text-red-600">
+                                                    {{ $ms['required_before'] === 'before_order' ? 'Trước khi đặt hàng' : ($ms['required_before'] === 'before_export' ? 'Trước khi xuất kho' : ($ms['required_before'] === 'after_delivery' ? 'Sau khi giao hàng' : $ms['required_before'])) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            @php
+                                                $colorMap = [
+                                                    'paid' => 'bg-green-100 text-green-800',
+                                                    'approved_preload' => 'bg-amber-100 text-amber-800',
+                                                    'approved_export_before_payment' => 'bg-purple-100 text-purple-800',
+                                                    'overdue' => 'bg-red-100 text-red-800',
+                                                    'due' => 'bg-orange-100 text-orange-800',
+                                                    'not_yet_due' => 'bg-gray-100 text-gray-800',
+                                                    'unpaid' => 'bg-gray-100 text-gray-600',
+                                                ];
+                                                $labelMap = [
+                                                    'paid' => 'Đã thu',
+                                                    'approved_preload' => 'Ngoại lệ',
+                                                    'approved_export_before_payment' => 'Cho xuất',
+                                                    'overdue' => 'Quá hạn',
+                                                    'due' => 'Đến hạn',
+                                                    'not_yet_due' => 'Chưa đến',
+                                                    'unpaid' => 'Chưa thu',
+                                                ];
+                                                $badgeClass = $colorMap[$ms['status']] ?? 'bg-gray-100 text-gray-600';
+                                                $badgeLabel = $labelMap[$ms['status']] ?? $ms['status'];
+                                            @endphp
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                            @if(isset($ms['proof_file_path']) && $ms['proof_file_path'])
+                                                <div class="mt-1">
+                                                    <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank" class="text-[10px] text-blue-600 hover:underline"><i class="fas fa-file-download mr-0.5"></i> UNC</a>
+                                                </div>
+                                            @endif
+                                            @if(isset($ms['bod_approval_file_path']) && $ms['bod_approval_file_path'])
+                                                <div class="mt-1">
+                                                    <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank" class="text-[10px] text-amber-600 hover:underline"><i class="fas fa-file-download mr-0.5"></i> Phê duyệt BOD</a>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
         @endif
 
         <!-- Items Table - Grouped by Warehouse -->
@@ -303,7 +429,41 @@
             </div>
         </div>
     </div>
-</div>
+    <!-- Delivery Date Modal -->
+    <div id="deliveryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Cập nhật ngày giao hàng thành công</h3>
+            <form action="{{ route('exports.updateDeliveryDate', $export->id) }}" method="POST">
+                @csrf
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ngày giao hàng thành công <span class="text-red-500">*</span></label>
+                        <input type="date" name="delivery_date" value="{{ $export->date ? $export->date->format('Y-m-d') : date('Y-m-d') }}" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-6">
+                    <button type="button" onclick="closeDeliveryModal()"
+                            class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm font-medium">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                            class="flex-1 px-4 py-2 bg-indigo-650 hover:bg-indigo-700 bg-indigo-600 text-white rounded-lg transition-colors text-sm font-medium">
+                        Xác nhận
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openDeliveryModal() {
+        document.getElementById('deliveryModal').classList.remove('hidden');
+    }
+    function closeDeliveryModal() {
+        document.getElementById('deliveryModal').classList.add('hidden');
+    }
+    </script>
 
 @include('accounting.journal._widget', ['journalType' => 'export', 'journalReferenceId' => $export->id])
 @endsection

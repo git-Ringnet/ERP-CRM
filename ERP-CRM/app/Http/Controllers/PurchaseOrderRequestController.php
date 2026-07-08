@@ -33,6 +33,12 @@ class PurchaseOrderRequestController extends Controller
 
         $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'attachments']);
 
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
+        if (!$isAdmin) {
+            $query->where('status', '!=', SaleOrderRequest::STATUS_PENDING_ADMIN);
+        }
+
         if ($status) {
             $query->where('status', $status);
         }
@@ -145,6 +151,7 @@ class PurchaseOrderRequestController extends Controller
             if (!isset($vendorGroups[$vId]['sales_orders'][$soKey])) {
                 // Lấy mã SO thực tế nếu có, không thì lấy mã PR
                 $displayCode = ($pr->sale && $pr->sale->code) ? $pr->sale->code : $pr->code;
+                $payStatus = $pr->sale ? $pr->sale->getPaymentConditionStatus() : null;
                 
                 $vendorGroups[$vId]['sales_orders'][$soKey] = [
                     'id' => $pr->id,
@@ -158,6 +165,7 @@ class PurchaseOrderRequestController extends Controller
                     'note' => $pr->note, // Thêm ghi chú PR
                     'attachments' => $pr->attachments, // Thêm file đính kèm PR
                     'sale_id' => $pr->sale_id, // Thêm sale_id để tạo link
+                    'pay_status' => $payStatus,
                     'products' => []
                 ];
             }
@@ -273,7 +281,20 @@ class PurchaseOrderRequestController extends Controller
 
             // Fetch items for later use in price calculation
             $prItemIds = array_column($validated['items'], 'pr_item_id');
-            $prItemsForCurrency = SaleOrderRequestItem::whereIn('id', $prItemIds)->with('saleItem')->get();
+            $prItemsForCurrency = SaleOrderRequestItem::whereIn('id', $prItemIds)->with('saleItem', 'saleOrderRequest.sale')->get();
+
+            // Validate that all linked Sales are eligible for ordering
+            $ruleEngine = resolve(\App\Services\PaymentRuleEngine::class);
+            foreach ($prItemsForCurrency as $prItem) {
+                if ($prItem->saleOrderRequest && $prItem->saleOrderRequest->sale) {
+                    $sale = $prItem->saleOrderRequest->sale;
+                    $check = $ruleEngine->canSendPO($sale);
+                    if (!$check['allowed']) {
+                        $pendingList = implode(', ', $check['blocked_milestones']);
+                        throw new \Exception("Đơn hàng {$sale->code} chưa đủ điều kiện thanh toán để đặt hàng do chưa thanh toán/Finance chưa xác nhận đợt: {$pendingList}");
+                    }
+                }
+            }
 
             // 1. Tạo Purchase Order
             $po = PurchaseOrder::create([
@@ -481,9 +502,22 @@ class PurchaseOrderRequestController extends Controller
 
         DB::beginTransaction();
         try {
-            $po = PurchaseOrder::findOrFail($id);
+            $po = PurchaseOrder::with('items.saleOrderRequestItem.saleOrderRequest.sale')->findOrFail($id);
             if ($po->status !== 'draft') {
                 return back()->with('error', 'Đơn hàng không ở trạng thái nháp!');
+            }
+
+            // Check payment conditions of all linked sales
+            $ruleEngine = resolve(\App\Services\PaymentRuleEngine::class);
+            foreach ($po->items as $item) {
+                if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale) {
+                    $sale = $item->saleOrderRequestItem->saleOrderRequest->sale;
+                    $check = $ruleEngine->canSendPO($sale);
+                    if (!$check['allowed']) {
+                        $pendingList = implode(', ', $check['blocked_milestones']);
+                        return back()->with('error', "Không thể xác nhận PO nháp. Đơn hàng {$sale->code} chưa đủ điều kiện thanh toán để đặt hàng do chưa thanh toán/Finance chưa xác nhận đợt: {$pendingList}");
+                    }
+                }
             }
 
             // Cập nhật thông tin và đổi trạng thái sang pending_approval (chờ duyệt)
@@ -756,7 +790,7 @@ class PurchaseOrderRequestController extends Controller
         
         $this->authorize('delete', $pr);
 
-        if (!in_array($pr->status, [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_NEED_INFO])) {
+        if (!in_array($pr->status, [SaleOrderRequest::STATUS_DRAFT, SaleOrderRequest::STATUS_PENDING_ADMIN, SaleOrderRequest::STATUS_SUBMITTED, SaleOrderRequest::STATUS_NEED_INFO])) {
             return back()->with('error', 'Không thể xóa yêu cầu đặt hàng đã được duyệt hoặc đang xử lý!');
         }
 

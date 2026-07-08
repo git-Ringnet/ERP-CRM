@@ -895,30 +895,74 @@
     }
 
     function submitPnlFormAction(url, message) {
-        if (confirm(message)) {
-            const pnlForm = document.getElementById('pnlForm');
-            if (pnlForm) {
-                // Unformat money values before submit
-                document.querySelectorAll('.extra-expense-money').forEach((input) => {
-                    input.value = (input.value || '').toString().replace(/,/g, '');
-                });
-                
-                // Thêm flag để backend biết cần gửi duyệt sau khi lưu
-                let flag = pnlForm.querySelector('input[name="_submit_for_approval"]');
-                if (!flag) {
-                    flag = document.createElement('input');
-                    flag.type = 'hidden';
-                    flag.name = '_submit_for_approval';
-                    pnlForm.appendChild(flag);
-                }
-                flag.value = '1';
-
-                // Đóng gói dữ liệu JSON và disable input con
-                preparePnlJsonData(pnlForm);
-                
-                pnlForm.submit();
-            }
+        // Kiểm tra xem đã chọn điều khoản thanh toán chưa
+        const paymentTermType = '{{ $sale->payment_term_type }}';
+        if (!paymentTermType) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Chưa cấu hình điều khoản thanh toán',
+                text: 'Vui lòng thiết lập và chọn mẫu điều khoản thanh toán cho đơn hàng trước khi gửi duyệt P&L.',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'Đồng ý'
+            });
+            return;
         }
+
+        // Kiểm tra xem tổng tỷ lệ các đợt có bằng 100% không
+        const milestones = {!! json_encode($sale->payment_terms ?? []) !!};
+        let percentSum = 0;
+        if (milestones && milestones.length > 0) {
+            milestones.forEach(ms => {
+                percentSum += parseFloat(ms.percentage || ms.percent || 0);
+            });
+        }
+        if (milestones.length === 0 || Math.abs(percentSum - 100) > 0.01) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Tỷ lệ thanh toán không hợp lệ',
+                text: `Tổng tỷ lệ phần trăm các đợt thanh toán phải bằng chính xác 100% (Hiện tại: ${percentSum.toFixed(1)}%). Vui lòng cấu hình lại trước khi gửi duyệt P&L.`,
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'Đóng'
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Xác nhận gửi duyệt P&L?',
+            text: message,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Đồng ý',
+            cancelButtonText: 'Hủy',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const pnlForm = document.getElementById('pnlForm');
+                if (pnlForm) {
+                    // Unformat money values before submit
+                    document.querySelectorAll('.extra-expense-money').forEach((input) => {
+                        input.value = (input.value || '').toString().replace(/,/g, '');
+                    });
+                    
+                    // Thêm flag để backend biết cần gửi duyệt sau khi lưu
+                    let flag = pnlForm.querySelector('input[name="_submit_for_approval"]');
+                    if (!flag) {
+                        flag = document.createElement('input');
+                        flag.type = 'hidden';
+                        flag.name = '_submit_for_approval';
+                        pnlForm.appendChild(flag);
+                    }
+                    flag.value = '1';
+
+                    // Đóng gói dữ liệu JSON và disable input con
+                    preparePnlJsonData(pnlForm);
+                    
+                    pnlForm.submit();
+                }
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => { 
@@ -2023,7 +2067,7 @@
                     <form action="{{ route('sales.approvePnL', $sale) }}" method="POST" class="inline" id="approveForm">
                         @csrf
                         <input type="hidden" name="comment" id="approveComment" value="">
-                        <button type="submit" onclick="this.form.comment.value = prompt('Ghi chú duyệt (tùy chọn):') ?? ''"
+                        <button type="submit"
                             class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 transition ease-in-out duration-150">
                             <i class="fas fa-check mr-2"></i> Duyệt P&L
                         </button>

@@ -208,7 +208,7 @@
         </div>
         <div class="divide-y divide-gray-100">
             @foreach($sale->orderRequests()->with(['creator', 'items', 'attachments'])->latest()->get() as $req)
-                <div class="p-4" x-data="{ open: {{ $req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO ? 'true' : 'false' }}, editMode: false }">
+                <div class="p-4" x-data="{ open: {{ $req->status === \App\Models\SaleOrderRequest::STATUS_NEED_INFO ? 'true' : 'false' }}, editMode: false, showAdminRejectForm: false }">
                     {{-- Request Header --}}
                     <div class="flex items-center justify-between cursor-pointer" @click="open = !open">
                         <div class="flex items-center gap-3 flex-wrap">
@@ -239,8 +239,44 @@
                                     <span x-text="editMode ? 'Hủy chỉnh sửa' : 'Chỉnh sửa & Gửi lại'"></span>
                                 </button>
                             @endif
+
+                            @php
+                                $user = auth()->user();
+                                $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                            @endphp
+
+                            @if($req->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $isAdmin)
+                                {{-- Approve Button --}}
+                                <form action="{{ route('sales.order-request.admin-approve', [$sale->id, $req->id]) }}" method="POST" class="inline" @click.stop>
+                                    @csrf
+                                    <button type="submit" onclick="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')"
+                                        class="ml-1 px-3 py-1 text-[11px] font-bold bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all shadow-sm">
+                                        <i class="fas fa-check mr-1"></i> Duyệt PR
+                                    </button>
+                                </form>
+
+                                {{-- Reject Button --}}
+                                <button type="button" @click.stop="showAdminRejectForm = !showAdminRejectForm; open = true"
+                                    class="ml-1 px-3 py-1 text-[11px] font-bold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all shadow-sm">
+                                    <i class="fas fa-times mr-1"></i> Từ chối
+                                </button>
+                            @endif
                         </div>
                         <i class="fas fa-chevron-down text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                    </div>
+
+                    {{-- Admin Rejection Form --}}
+                    <div x-show="showAdminRejectForm" x-transition class="mt-3 bg-red-50 rounded-lg p-3 text-sm text-red-800 border border-red-200" @click.stop>
+                        <form action="{{ route('sales.order-request.admin-reject', [$sale->id, $req->id]) }}" method="POST">
+                            @csrf
+                            <label class="block text-xs font-bold text-red-700 mb-1">Lý do từ chối (bắt buộc):</label>
+                            <textarea name="rejection_note" rows="2" required placeholder="Nhập lý do từ chối yêu cầu đặt hàng này..."
+                                class="w-full border border-red-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"></textarea>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" @click="showAdminRejectForm = false" class="px-3 py-1 bg-white border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button type="submit" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Xác nhận từ chối</button>
+                            </div>
+                        </form>
                     </div>
 
                     {{-- Rejection Note Banner (always visible when need_info) --}}

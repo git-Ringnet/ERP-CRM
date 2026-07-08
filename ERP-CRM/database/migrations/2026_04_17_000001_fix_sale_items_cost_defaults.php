@@ -12,16 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            // Thay đổi các trường chi phí từ default sang nullable
             $table->decimal('finance_cost_percent', 5, 2)->nullable()->default(null)->change();
             $table->decimal('management_cost_percent', 5, 2)->nullable()->default(null)->change();
             $table->decimal('support_247_cost_percent', 5, 2)->nullable()->default(null)->change();
         });
         
         // Reset các giá trị mặc định cũ về NULL cho các record chưa được chỉnh sửa P&L
-        DB::statement("UPDATE sale_items SET finance_cost_percent = NULL WHERE finance_cost_percent = 1.00");
-        DB::statement("UPDATE sale_items SET management_cost_percent = NULL WHERE management_cost_percent = 1.00");
-        DB::statement("UPDATE sale_items SET support_247_cost_percent = NULL WHERE support_247_cost_percent = 0.50");
+        DB::table('sale_items')->where('finance_cost_percent', 1.00)->update(['finance_cost_percent' => null]);
+        DB::table('sale_items')->where('management_cost_percent', 1.00)->update(['management_cost_percent' => null]);
+        DB::table('sale_items')->where('support_247_cost_percent', 0.50)->update(['support_247_cost_percent' => null]);
     }
 
     /**
@@ -30,9 +29,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            $table->decimal('finance_cost_percent', 5, 2)->default(1.00)->change();
-            $table->decimal('management_cost_percent', 5, 2)->default(1.00)->change();
-            $table->decimal('support_247_cost_percent', 5, 2)->default(0.50)->change();
+            $table->decimal('finance_cost_percent', 5, 2)->nullable()->default(1.00)->change();
+            $table->decimal('management_cost_percent', 5, 2)->nullable()->default(1.00)->change();
+            $table->decimal('support_247_cost_percent', 5, 2)->nullable()->default(0.50)->change();
         });
     }
 };

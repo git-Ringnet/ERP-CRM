@@ -15,6 +15,7 @@ use App\Services\ProductItemService;
 use App\Services\InventoryService;
 use App\Services\NotificationService;
 use App\Services\WarehouseJournalService;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -166,7 +167,12 @@ class ExportController extends Controller
             ->get()
             ->groupBy('product_id');
 
-        return view('exports.show', compact('export', 'exportedItems'));
+        $linkedSale = null;
+        if ($export->reference_type === 'sale') {
+            $linkedSale = \App\Models\Sale::find($export->reference_id);
+        }
+
+        return view('exports.show', compact('export', 'exportedItems', 'linkedSale'));
     }
 
     /**
@@ -321,11 +327,26 @@ class ExportController extends Controller
     {
         $this->authorize('approve', $export);
 
-        if ($export->status !== 'pending') {
+        if ($export->status !== 'pending_invoice') {
             return response()->json([
                 'success' => false,
-                'message' => 'Chỉ có thể duyệt phiếu đang chờ xử lý.'
+                'message' => 'Chỉ có thể duyệt và giao hàng cho phiếu đã được Admin phê duyệt (Chờ KT xuất hóa đơn).'
             ], 400);
+        }
+
+        if ($export->reference_type === 'sale') {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                $ruleEngine = resolve(\App\Services\PaymentRuleEngine::class);
+                $check = $ruleEngine->canExportWarehouse($sale);
+                if (!$check['allowed']) {
+                    $pendingList = implode(', ', $check['blocked_milestones']);
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Đơn hàng {$sale->code} chưa đủ điều kiện xuất kho do chưa thanh toán/Finance chưa xác nhận đợt: {$pendingList}"
+                    ], 400);
+                }
+            }
         }
 
         try {
@@ -341,6 +362,8 @@ class ExportController extends Controller
                     'unit' => $item->unit,
                 ])->toArray(),
             ], $export);
+
+
 
             // Tạo bút toán kế toán tự động
             try {
@@ -515,5 +538,183 @@ class ExportController extends Controller
             ->get();
 
         return \Excel::download(new \App\Exports\MisaInventoryExport($items, 'export'), 'phieu-xuat-kho-' . $export->code . '.xlsx');
+    }
+
+    /**
+     * Sales requests export.
+     */
+    public function requestExport(Export $export)
+    {
+        // Only draft or rejected exports can be requested
+        if (!in_array($export->status, ['draft', 'rejected'])) {
+            return back()->with('error', 'Chỉ có thể yêu cầu xuất kho cho phiếu nháp hoặc bị từ chối.');
+        }
+
+        $export->update(['status' => 'pending_admin']);
+
+        // Notify Admins
+        $admins = User::whereHas('roles', function ($q) {
+            $q->whereIn('slug', ['admin', 'super_admin']);
+        })->get();
+
+        $senderName = auth()->user()->name ?? 'Sales';
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'export_request',
+                'title' => 'Đề xuất xuất kho mới',
+                'message' => "{$senderName} đã đề xuất xuất kho cho đơn {$export->code} cần phê duyệt.",
+                'link' => route('sales.show', $export->reference_id),
+                'icon' => 'fas fa-file-export',
+                'color' => 'yellow',
+            ]);
+        }
+
+        // Notify Warehouse Team to prepare goods
+        $warehouseUsers = User::whereHas('roles', function ($q) {
+            $q->whereIn('slug', ['warehouse_manager', 'warehouse_staff']);
+        })->get();
+
+        foreach ($warehouseUsers as $whUser) {
+            Notification::create([
+                'user_id' => $whUser->id,
+                'type' => 'export_prepare',
+                'title' => 'Chuẩn bị hàng xuất kho',
+                'message' => "Đơn hàng {$export->code} đã gửi đề xuất xuất kho. Vui lòng chuẩn bị trước hàng hóa.",
+                'link' => route('exports.show', $export->id),
+                'icon' => 'fas fa-boxes',
+                'color' => 'blue',
+            ]);
+        }
+
+        return back()->with('success', 'Đã gửi yêu cầu xuất kho đến Admin và thông báo cho Kho chuẩn bị hàng.');
+    }
+
+    /**
+     * Admin approves export request, moving it to pending_invoice (transferring to Accountant).
+     */
+    public function approveExportByAdmin(Export $export)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện hành động này.'], 403);
+        }
+
+        if ($export->status !== 'pending_admin') {
+            return response()->json(['success' => false, 'message' => 'Phiếu xuất không ở trạng thái Chờ Admin duyệt.'], 400);
+        }
+
+        // Check payment conditions (Policy check)
+        if ($export->reference_type === 'sale') {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                $ruleEngine = resolve(\App\Services\PaymentRuleEngine::class);
+                $check = $ruleEngine->canExportWarehouse($sale);
+                if (!$check['allowed']) {
+                    $pendingList = implode(', ', $check['blocked_milestones']);
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Đơn hàng {$sale->code} chưa đủ điều kiện xuất kho do chưa thanh toán/Finance chưa xác nhận đợt: {$pendingList}"
+                    ], 400);
+                }
+            }
+        }
+
+        $export->update(['status' => 'pending_invoice']);
+
+        // Notify Accountants
+        $accountants = User::whereHas('roles', function ($q) {
+            $q->where('slug', 'accountant');
+        })->get();
+
+        $adminName = $user->name;
+        foreach ($accountants as $accountant) {
+            Notification::create([
+                'user_id' => $accountant->id,
+                'type' => 'export_invoice_request',
+                'title' => 'Yêu cầu xuất hóa đơn & giao hàng',
+                'message' => "Admin {$adminName} đã duyệt đề xuất xuất kho cho đơn {$export->code}. Vui lòng xuất hóa đơn và bàn giao hàng.",
+                'link' => route('exports.show', $export->id),
+                'icon' => 'fas fa-file-invoice-dollar',
+                'color' => 'orange',
+            ]);
+        }
+
+        // Notify Sales (creator)
+        if ($export->employee_id) {
+            Notification::create([
+                'user_id' => $export->employee_id,
+                'type' => 'export_approved',
+                'title' => 'Đề xuất xuất kho đã được Admin duyệt',
+                'message' => "Đề xuất xuất kho cho đơn {$export->code} đã được Admin duyệt và chuyển Kế toán xuất hóa đơn.",
+                'link' => route('sales.show', $export->reference_id),
+                'icon' => 'fas fa-check-circle',
+                'color' => 'green',
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Đã duyệt đề xuất xuất kho, chuyển cho Kế toán xuất hóa đơn.']);
+    }
+
+    /**
+     * Admin rejects export request, returning it to draft.
+     */
+    public function rejectExportByAdmin(Request $request, Export $export)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện hành động này.'], 403);
+        }
+
+        if ($export->status !== 'pending_admin') {
+            return response()->json(['success' => false, 'message' => 'Phiếu xuất không ở trạng thái Chờ Admin duyệt.'], 400);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|min:5',
+        ]);
+
+        $export->update([
+            'status' => 'draft',
+            'note' => ($export->note ? $export->note . "\n\n" : '') . "Admin từ chối xuất kho vì: " . $request->reason,
+        ]);
+
+        // Notify Sales (creator)
+        if ($export->employee_id) {
+            Notification::create([
+                'user_id' => $export->employee_id,
+                'type' => 'export_rejected',
+                'title' => 'Đề xuất xuất kho bị từ chối',
+                'message' => "Đề xuất xuất kho cho đơn {$export->code} bị Admin từ chối vì: \"{$request->reason}\".",
+                'link' => route('sales.show', $export->reference_id),
+                'icon' => 'fas fa-exclamation-triangle',
+                'color' => 'red',
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Đã từ chối đề xuất xuất kho và chuyển về Bản nháp.']);
+    }
+
+    /**
+     * Update delivery date
+     */
+    public function updateDeliveryDate(Request $request, Export $export)
+    {
+        $request->validate([
+            'delivery_date' => 'required|date',
+        ]);
+
+        $date = $request->input('delivery_date');
+        $export->update(['date' => $date]);
+
+        if ($export->reference_type === 'sale') {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                $sale->update(['delivery_date' => $date]);
+                $sale->updateMilestoneDueDates();
+            }
+        }
+
+        return back()->with('success', 'Đã cập nhật ngày giao hàng thành công và tính lại các hạn thanh toán.');
     }
 }

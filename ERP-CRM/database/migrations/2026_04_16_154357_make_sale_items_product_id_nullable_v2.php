@@ -12,11 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            // Drop foreign key first if it exists (standard Laravel behavior for foreignId)
-            // Note: In some DBs we need to drop the constraint before changing the column
-            $table->dropForeign(['product_id']);
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->dropForeign(['product_id']);
+            }
             $table->unsignedBigInteger('product_id')->nullable()->change();
-            $table->foreign('product_id')->references('id')->on('products')->nullOnDelete();
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->foreign('product_id')->references('id')->on('products')->nullOnDelete();
+            }
         });
     }
 
@@ -26,9 +28,13 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('sale_items', function (Blueprint $table) {
-            $table->dropForeign(['product_id']);
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->dropForeign(['product_id']);
+            }
             $table->unsignedBigInteger('product_id')->nullable(false)->change();
-            $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
+            }
         });
     }
 };

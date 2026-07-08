@@ -13,13 +13,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sales', function (Blueprint $table) {
-            $table->decimal('paid_amount_foreign', 18, 4)->default(0)->after('paid_amount');
-            $table->decimal('debt_amount_foreign', 18, 4)->default(0)->after('debt_amount');
+            $table->decimal('paid_amount_foreign', 18, 4)->default(0);
+            $table->decimal('debt_amount_foreign', 18, 4)->default(0);
         });
 
         Schema::table('purchase_orders', function (Blueprint $table) {
-            $table->decimal('paid_amount_foreign', 18, 4)->default(0)->after('paid_amount');
-            $table->decimal('debt_amount_foreign', 18, 4)->default(0)->after('debt_amount');
+            $table->decimal('paid_amount_foreign', 18, 4)->default(0);
+            $table->decimal('debt_amount_foreign', 18, 4)->default(0);
         });
 
         // Data migration: update existing foreign currency records

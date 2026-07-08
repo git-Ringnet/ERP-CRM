@@ -46,21 +46,30 @@ return new class extends Migration
         }
 
         // 3. Modify customers table
-        Schema::table('customers', function (Blueprint $table) {
-            // Drop code and contact_person
-            if (Schema::hasColumn('customers', 'code')) {
-                $table->dropUnique(['code']); // Drop unique index first if exists
+        if (Schema::hasColumn('customers', 'code')) {
+            Schema::table('customers', function (Blueprint $table) {
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->dropUnique(['code']);
+                }
                 $table->dropColumn('code');
-            }
-            if (Schema::hasColumn('customers', 'contact_person')) {
+            });
+        }
+        if (Schema::hasColumn('customers', 'contact_person')) {
+            Schema::table('customers', function (Blueprint $table) {
                 $table->dropColumn('contact_person');
-            }
+            });
+        }
+
+        Schema::table('customers', function (Blueprint $table) {
 
             // Make tax_code mandatory and unique
             // Handle NULL tax_codes before changing constraint
-            DB::table('customers')->whereNull('tax_code')->update([
-                'tax_code' => DB::raw("CONCAT('TEMP-', id)")
-            ]);
+            $nullTaxCustomers = DB::table('customers')->whereNull('tax_code')->get();
+            foreach ($nullTaxCustomers as $c) {
+                DB::table('customers')->where('id', $c->id)->update([
+                    'tax_code' => 'TEMP-' . $c->id
+                ]);
+            }
 
             // Handle duplicate tax_codes before adding unique constraint
             $duplicates = DB::table('customers')

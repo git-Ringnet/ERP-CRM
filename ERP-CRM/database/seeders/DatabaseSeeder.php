@@ -53,7 +53,8 @@ class DatabaseSeeder extends Seeder
 
             //NCC
             SupplierSeeder::class,
-            SupplierPoConfigSeeder::class
+            SupplierPoConfigSeeder::class,
+            PaymentTemplateSeeder::class,
         ]);
     }
 }

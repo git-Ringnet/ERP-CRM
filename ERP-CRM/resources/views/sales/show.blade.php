@@ -44,7 +44,7 @@
         @php
             $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
         @endphp
-        @if($sale->debt_amount > 0 && ($hasOfficialInvoiceForPayment || in_array($sale->status, ['shipping', 'completed'])))
+        @if($sale->debt_amount > 0)
         <button onclick="openPaymentModal()" 
                 class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
             <i class="fas fa-money-bill mr-2"></i> Ghi nhận thanh toán
@@ -250,15 +250,37 @@
             <div class="flex items-center gap-3">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Kho & Giao nhận:</span>
                 @if($linkedExport)
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 flex-wrap">
                         <a href="{{ route('exports.show', $linkedExport->id) }}" class="text-sm font-bold text-blue-600 hover:underline">
                             <i class="fas fa-file-invoice mr-1"></i>{{ $linkedExport->code }}
                         </a>
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $linkedExport->status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700' }}">
-                            {{ $linkedExport->status === 'completed' ? 'Đã xuất kho (Trừ tồn)' : 'Chờ xuất kho' }}
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-{{ $linkedExport->status_color }}-100 text-{{ $linkedExport->status_color }}-700 uppercase">
+                            {{ $linkedExport->status_label }}
                         </span>
-                        @if($linkedExport->status !== 'completed' && auth()->user()->hasRole('admin'))
-                            <span class="text-[10px] text-red-500 italic font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Vui lòng duyệt phiếu xuất để hoàn tất trừ tồn kho</span>
+
+                        @if($linkedExport->status === 'draft' || $linkedExport->status === 'rejected')
+                            <form action="{{ route('exports.request-export', $linkedExport->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button type="submit" class="text-[10px] bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded hover:bg-green-100 transition-all font-bold">
+                                    <i class="fas fa-file-export mr-1"></i>YÊU CẦU XUẤT KHO
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($linkedExport->status === 'pending_admin')
+                            @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('purchase_manager'))
+                                <span class="text-[10px] text-red-500 italic font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Chờ bạn duyệt xuất. Hãy nhấn vào mã phiếu để Duyệt/Từ chối.</span>
+                            @else
+                                <span class="text-[10px] text-blue-500 italic font-medium"><i class="fas fa-info-circle mr-1"></i>Kho đang chuẩn bị hàng...</span>
+                            @endif
+                        @endif
+
+                        @if($linkedExport->status === 'pending_invoice')
+                            @if(auth()->user()->hasRole('accountant') || auth()->user()->hasRole('super_admin'))
+                                <span class="text-[10px] text-orange-500 italic font-medium"><i class="fas fa-file-invoice-dollar mr-1"></i>Vui lòng xuất hóa đơn và nhấn Giao hàng trên mã phiếu.</span>
+                            @else
+                                <span class="text-[10px] text-orange-500 italic font-medium"><i class="fas fa-info-circle mr-1"></i>Kế toán đang xử lý hóa đơn xuất hàng...</span>
+                            @endif
                         @endif
                     </div>
                 @else
@@ -364,6 +386,18 @@
                                         <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
                                     </span>
                                 @endif
+                            @elseif($sale->delivery_date)
+                                @php
+                                    $debtDays = $sale->customer->debt_days ?? 0;
+                                    $dueDate = \Carbon\Carbon::parse($sale->delivery_date)->addDays($debtDays);
+                                    $isOverdue = $dueDate->isPast() && $sale->payment_status !== 'paid';
+                                @endphp
+                                <span>{{ $dueDate->format('d/m/Y') }} (Tính từ ngày giao hàng {{ \Carbon\Carbon::parse($sale->delivery_date)->format('d/m/Y') }} + {{ $debtDays }} ngày nợ)</span>
+                                @if($isOverdue)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 ml-1" title="Đã quá hạn thanh toán!">
+                                        <i class="fas fa-exclamation-triangle mr-0.5"></i> Quá hạn
+                                    </span>
+                                @endif
                             @elseif($sale->invoice_date)
                                 @php
                                     $debtDays = $sale->customer->debt_days ?? 0;
@@ -377,7 +411,7 @@
                                     </span>
                                 @endif
                             @else
-                                <span class="text-gray-500 italic">Tính khi xuất hóa đơn</span>
+                                <span class="text-gray-500 italic">Tính khi giao hàng hoặc xuất HĐ</span>
                             @endif
                         </dd>
                     </div>
@@ -528,72 +562,483 @@
         @endif
 
         @php
-            $displayTerms = ($sale->payment_terms && count($sale->payment_terms) > 0)
-                ? $sale->payment_terms
-                : [];
+            $payStatus = $sale->getPaymentConditionStatus();
+            $milestones = $payStatus['milestones'] ?? [];
+            $currentUser = auth()->user();
+            $isBOD = $currentUser->hasRole('director') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
+            $isFinance = $currentUser->hasRole('accountant') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
+            $hasCompletedExport = $sale->exports()->where('status', 'completed')->exists();
         @endphp
-        @if(count($displayTerms) > 0)
-        <div class="mt-8 pt-6 border-t border-gray-100">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>
-                Lộ trình thanh toán & Công nợ
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                @foreach($displayTerms as $ms)
-                @php
-                    $msDays = (int)($ms['days'] ?? 0);
-                    $approvedDate = $sale->approved_at ?? $sale->created_at;
-                    $dueDate = $approvedDate ? \Carbon\Carbon::parse($approvedDate)->addDays($msDays) : null;
-                    $now = now();
-                    $daysLeft = $dueDate ? $now->diffInDays($dueDate, false) : null;
 
-                    // Determine status
-                    if ($daysLeft === null) {
-                        $deadlineStatus = null;
-                    } elseif ($daysLeft < 0) {
-                        $deadlineStatus = 'overdue';
-                        $deadlineLabel = 'Quá hạn ' . abs((int)$daysLeft) . ' ngày';
-                        $deadlineColor = 'bg-red-100 text-red-700 border-red-200';
-                        $deadlineIcon = 'fas fa-exclamation-circle';
-                    } elseif ($daysLeft <= 3) {
-                        $deadlineStatus = 'due_soon';
-                        $deadlineLabel = $daysLeft == 0 ? 'Tới hạn hôm nay' : 'Còn ' . (int)$daysLeft . ' ngày';
-                        $deadlineColor = 'bg-yellow-100 text-yellow-700 border-yellow-200';
-                        $deadlineIcon = 'fas fa-clock';
-                    } else {
-                        $deadlineStatus = 'normal';
-                        $deadlineLabel = 'Còn ' . (int)$daysLeft . ' ngày';
-                        $deadlineColor = 'bg-green-100 text-green-700 border-green-200';
-                        $deadlineIcon = 'far fa-calendar-check';
-                    }
-                @endphp
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 {{ $deadlineStatus === 'overdue' ? 'ring-2 ring-red-300' : ($deadlineStatus === 'due_soon' ? 'ring-2 ring-yellow-300' : '') }}">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-sm font-bold text-gray-700">{{ $ms['label'] }}</span>
-                        <span class="text-xs font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">{{ $ms['percent'] }}%</span>
-                    </div>
-                    <div class="text-lg font-bold text-gray-900 mb-1">
-                        {{ number_format(($sale->total * $ms['percent'] / 100)) }} <span class="text-xs font-normal">₫</span>
-                    </div>
-                    @if($dueDate)
-                    <div class="text-[10px] text-gray-500 italic mb-1.5">
-                        Hạn: {{ $dueDate->format('d/m/Y') }}
-                    </div>
-                    @if($sale->payment_status !== 'paid')
-                    <div class="text-[10px] font-bold px-2 py-1 rounded border {{ $deadlineColor }} inline-flex items-center gap-1">
-                        <i class="{{ $deadlineIcon }}"></i> {{ $deadlineLabel }}
-                    </div>
+        <div class="mt-8 pt-6 border-t border-gray-100 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                    <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>
+                    Lộ trình thanh toán & Kiểm soát quy trình
+                </h3>
+                <div class="flex items-center gap-2">
+                    @if($sale->delivery_date)
+                        <span class="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full flex items-center gap-1">
+                            <i class="fas fa-shipping-fast"></i> Đã giao hàng: {{ $sale->delivery_date->format('d/m/Y') }}
+                        </span>
+                    @elseif($hasCompletedExport)
+                        <span class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full flex items-center gap-1">
+                            <i class="fas fa-warehouse"></i> Đã xuất kho (Chờ giao hàng)
+                        </span>
                     @endif
-                    @else
-                    <div class="text-[10px] text-gray-500 italic">
-                        Thời hạn: {{ $msDays }} ngày kể từ ngày duyệt
-                    </div>
+                    @if($hasCompletedExport)
+                        <button onclick="openDeliveryModal()" class="px-3 py-1 bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold rounded-full flex items-center gap-1 shadow-sm transition-colors">
+                            <i class="fas fa-calendar-alt"></i> Cập nhật ngày giao hàng
+                        </button>
+                    @endif
+                    @if($sale->payment_term_type)
+                        <span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">
+                            Loại: {{ $sale->payment_term_type === 'prepaid_100' ? '100% trước đặt hàng' : ($sale->payment_term_type === 'postpaid' ? 'Thanh toán sau giao hàng' : ($sale->payment_term_type === 'milestones' ? 'Thanh toán từng đợt' : ($sale->payment_term_type === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : $sale->payment_term_type))) }}
+                        </span>
                     @endif
                 </div>
-                @endforeach
+            </div>
+
+            <!-- Giao đoạn Kiểm soát Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- 1. Đặt hàng -->
+                <div class="border rounded-xl p-4 flex items-center justify-between {{ $payStatus['eligible_for_order'] ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' }}">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-3 rounded-lg {{ $payStatus['eligible_for_order'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                            <i class="fas fa-shopping-cart text-xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Giai đoạn Đặt hàng (PR/PO)</span>
+                            <span class="text-sm font-bold {{ $payStatus['eligible_for_order'] ? 'text-green-700' : 'text-red-700' }}">
+                                @if($payStatus['eligible_for_order'])
+                                    @if($sale->is_payment_exception)
+                                        Được duyệt ngoại lệ bởi BOD
+                                    @else
+                                        Đủ điều kiện đặt hàng
+                                    @endif
+                                @else
+                                    Chưa đủ điều kiện đặt hàng
+                                @endif
+                            </span>
+                            @if(!$payStatus['eligible_for_order'])
+                                <p class="text-xs text-red-600 mt-1">Cần cọc/thanh toán đợt trước đặt hàng.</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Xuất hàng -->
+                <div class="border rounded-xl p-4 flex items-center justify-between {{ $payStatus['eligible_for_export'] ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' }}">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-3 rounded-lg {{ $payStatus['eligible_for_export'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                            <i class="fas fa-truck-loading text-xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Giai đoạn Xuất hàng (Logistics)</span>
+                            <span class="text-sm font-bold {{ $payStatus['eligible_for_export'] ? 'text-green-700' : 'text-red-700' }}">
+                                @if($payStatus['eligible_for_export'])
+                                    @if($sale->is_payment_exception)
+                                        Được duyệt ngoại lệ bởi BOD
+                                    @else
+                                        Đủ điều kiện xuất hàng
+                                    @endif
+                                @else
+                                    Chưa đủ điều kiện xuất hàng
+                                @endif
+                            </span>
+                            @if(!$payStatus['eligible_for_export'])
+                                <p class="text-xs text-red-600 mt-1">Cần thanh toán trước khi xuất kho.</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phê duyệt ngoại lệ cấp Đơn hàng bởi Giám đốc (BOD) -->
+            @php
+                $canApproveSaleException = $isBOD || ($sale->payment_exception_delegated_to === auth()->id()) || ($sale->user_id === auth()->id());
+            @endphp
+            @if((!$payStatus['eligible_for_order'] || !$payStatus['eligible_for_export']) && $canApproveSaleException && !$sale->is_payment_exception)
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-red-100 pb-2 mb-3">
+                        <h4 class="text-xs font-bold text-red-700 uppercase tracking-wider flex items-center">
+                            <i class="fas fa-shield-alt mr-1"></i> Phê duyệt ngoại lệ thanh toán đơn hàng (BOD Approval)
+                        </h4>
+                        <!-- BOD Delegation form -->
+                        @if($isBOD)
+                            <div class="flex items-center space-x-2 text-xs text-gray-700 mt-2 md:mt-0">
+                                <form action="{{ route('sales.delegatePaymentException', $sale->id) }}" method="POST" class="flex items-center space-x-1">
+                                    @csrf
+                                    <span class="font-bold text-red-700">Ủy quyền duyệt:</span>
+                                    <select name="delegate_user_id" onchange="this.form.submit()" class="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white">
+                                        <option value="">-- Chọn người nhận ủy quyền --</option>
+                                        @foreach(\App\Models\User::orderBy('name')->get() as $u)
+                                            @if($u->id !== auth()->id())
+                                                <option value="{{ $u->id }}" {{ $sale->payment_exception_delegated_to === $u->id ? 'selected' : '' }}>
+                                                    {{ $u->name }} ({{ $u->roles->first()->name ?? 'No Role' }})
+                                                </option>
+                                            @endif
+                                        @endforeach
+                                    </select>
+                                </form>
+                            </div>
+                        @endif
+                    </div>
+                    
+                    @if($sale->payment_exception_delegated_to)
+                        @php $delegatedUserObj = \App\Models\User::find($sale->payment_exception_delegated_to); @endphp
+                        @if($delegatedUserObj)
+                            <div class="text-xs text-indigo-700 font-bold mb-3 flex items-center">
+                                <i class="fas fa-user-shield mr-1"></i> Đang ủy quyền duyệt ngoại lệ cho: <span class="ml-1 px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full font-bold text-[10px]">{{ $delegatedUserObj->name }}</span>
+                            </div>
+                        @endif
+                    @endif
+
+                    <p class="text-xs text-red-600 mb-4">Chức năng này dành cho Giám đốc/BOD hoặc người được ủy quyền để cho phép đặt hàng hoặc xuất hàng trước khi thanh toán.</p>
+                    <form action="{{ route('sales.approvePaymentException', $sale->id) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-bold text-red-700 uppercase tracking-wider mb-2">Tài liệu phê duyệt đính kèm (Bắt buộc, hỗ trợ chọn nhiều file)</label>
+                            <input type="file" name="payment_exception_files[]" multiple required
+                                   class="block w-full text-xs text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-700 hover:file:bg-red-200">
+                        </div>
+                        <div class="flex justify-start">
+                            <button type="submit" class="inline-flex items-center px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm focus:outline-none transition-colors duration-200">
+                                <i class="fas fa-check mr-1.5"></i> Phê duyệt Ngoại lệ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            @endif
+
+            @if($sale->is_payment_exception && $sale->payment_exception_file)
+                @php
+                    $exceptionFiles = [];
+                    $decoded = json_decode($sale->payment_exception_file, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $exceptionFiles = $decoded;
+                    } elseif ($sale->payment_exception_file) {
+                        $exceptionFiles = [$sale->payment_exception_file];
+                    }
+                @endphp
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="flex items-center space-x-2 text-blue-700 text-xs font-medium">
+                        <i class="fas fa-check-circle text-lg"></i>
+                        <span>Đơn hàng đã được duyệt ngoại lệ thanh toán.</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($exceptionFiles as $index => $file)
+                            <a href="{{ asset('storage/' . $file) }}" target="_blank"
+                               class="btn-secondary text-xs py-1 px-3 bg-blue-100 hover:bg-blue-200 border-none text-blue-800 font-bold rounded-md flex items-center">
+                                <i class="fas fa-download mr-1"></i> Tải file {{ count($exceptionFiles) > 1 ? '#' . ($index + 1) : 'phê duyệt' }}
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Bảng chi tiết đợt thanh toán (Milestones Table) -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">
+                            <th class="p-3">Đợt thanh toán</th>
+                            <th class="p-3 text-right">Tỷ lệ</th>
+                            <th class="p-3 text-right">Số tiền</th>
+                            <th class="p-3">Thời điểm</th>
+                            <th class="p-3">Giai đoạn chặn</th>
+                            <th class="p-3 text-center">Có chặn?</th>
+                            <th class="p-3">Hạn thanh toán</th>
+                            <th class="p-3">Trạng thái</th>
+                            <th class="p-3 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-sm">
+                        @foreach($milestones as $index => $ms)
+                            @php
+                                $status = $ms['status'] ?? 'unpaid';
+                                $requiredBefore = $ms['required_before'] ?? 'after_delivery';
+                                $canApproveMilestone = $isBOD || 
+                                                       (($ms['delegated_to_id'] ?? null) === $currentUser->id) || 
+                                                       ($sale->payment_exception_delegated_to === $currentUser->id) ||
+                                                       ($sale->user_id === $currentUser->id);
+                                
+                                $statusLabel = 'Chưa thanh toán';
+                                $statusColor = 'bg-gray-100 text-gray-700';
+                                if ($status === 'paid') {
+                                    $statusLabel = 'Đã thanh toán';
+                                    $statusColor = 'bg-green-100 text-green-700';
+                                } elseif ($status === 'pending_finance') {
+                                    $statusLabel = 'Chờ Finance xác nhận';
+                                    $statusColor = 'bg-yellow-100 text-yellow-700';
+                                } elseif ($status === 'approved_preload') {
+                                    $statusLabel = 'Chưa thanh toán/Ngoại lệ';
+                                    $statusColor = 'bg-purple-100 text-purple-700 font-bold border border-purple-200';
+                                } elseif ($status === 'approved_export_before_payment') {
+                                    $statusLabel = 'Chưa thanh toán/Ngoại lệ';
+                                    $statusColor = 'bg-purple-100 text-purple-700 font-bold border border-purple-200';
+                                } elseif ($status === 'not_yet_due') {
+                                    $statusLabel = 'Chưa đến hạn';
+                                    $statusColor = 'bg-gray-100 text-gray-500 border border-gray-200';
+                                } elseif ($status === 'due') {
+                                    $statusLabel = 'Đến hạn';
+                                    $statusColor = 'bg-orange-100 text-orange-700';
+                                } elseif ($status === 'overdue') {
+                                    $statusLabel = 'Quá hạn (' . ($ms['overdue_days'] ?? 0) . ' ngày)';
+                                    $statusColor = 'bg-red-100 text-red-700 ring-1 ring-red-300';
+                                }
+                            @endphp
+                            <tr class="hover:bg-gray-50/50">
+                                <td class="p-3 font-medium text-gray-900">
+                                    {{ $ms['milestone_name'] }}
+                                    @if(isset($ms['delegated_to_id']) && $ms['delegated_to_id'])
+                                        @php $delUser = \App\Models\User::find($ms['delegated_to_id']); @endphp
+                                        @if($delUser)
+                                            <span class="text-[10px] text-indigo-600 font-normal block mt-1" title="Ủy quyền duyệt ngoại lệ">
+                                                <i class="fas fa-user-shield mr-1"></i> UQ: {{ $delUser->name }}
+                                            </span>
+                                        @endif
+                                    @endif
+                                </td>
+                                <td class="p-3 text-right font-semibold text-gray-700">{{ $ms['percentage'] }}%</td>
+                                <td class="p-3 text-right font-bold text-gray-900">{{ number_format($ms['amount']) }} ₫</td>
+                                <td class="p-3">
+                                    <span class="text-xs text-gray-600">
+                                        @if(($ms['timing'] ?? '') === 'after_contract') Sau khi ký HĐMB
+                                        @elseif(($ms['timing'] ?? '') === 'after_delivery_notice') Sau thông báo giao hàng
+                                        @elseif(($ms['timing'] ?? '') === 'before_export') Trước khi xuất hàng
+                                        @elseif(($ms['timing'] ?? '') === 'after_delivery') Sau khi giao hàng
+                                        @elseif(($ms['timing'] ?? '') === 'after_invoice') Sau khi xuất hóa đơn
+                                        @else {{ $ms['timing'] ?? '-' }}
+                                        @endif
+                                    </span>
+                                </td>
+                                <td class="p-3">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $requiredBefore === 'before_order' ? 'bg-orange-50 text-orange-700 border border-orange-200' : ($requiredBefore === 'before_export' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-600') }}">
+                                        {{ $requiredBefore === 'before_order' ? 'Trước đặt hàng' : ($requiredBefore === 'before_export' ? 'Trước xuất kho' : 'Sau giao hàng') }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-center">
+                                    @if(($ms['is_blocking'] ?? 'yes') === 'yes')
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                                            <i class="fas fa-lock mr-1"></i>Có
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                            <i class="fas fa-lock-open mr-1"></i>Không
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="p-3">
+                                    @if($ms['due_date'])
+                                        <span class="text-xs font-semibold text-gray-700">{{ \Carbon\Carbon::parse($ms['due_date'])->format('d/m/Y') }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400 italic">{{ $ms['due_days'] ?? 0 }} ngày</span>
+                                    @endif
+                                </td>
+                                <td class="p-3">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-bold {{ $statusColor }}">
+                                        {{ $statusLabel }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-center">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <!-- Actions for unpaid milestones -->
+                                        @if(in_array($status, ['unpaid', 'due', 'overdue']))
+                                            <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
+                                                    class="px-2.5 py-1 text-xs bg-primary text-white font-bold rounded-md hover:bg-primary-hover shadow-sm">
+                                                <i class="fas fa-upload mr-1"></i> Upload UNC
+                                            </button>
+                                            
+                                            @if($isFinance)
+                                                <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block">
+                                                    @csrf
+                                                    <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm"
+                                                            onclick="return confirm('Xác nhận khách hàng đã thanh toán đợt này?')">
+                                                        <i class="fas fa-check mr-1"></i> Xác nhận TT
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            
+                                            @if($canApproveMilestone)
+                                                <button onclick="openExceptionModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
+                                                        class="px-2.5 py-1 text-xs {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'bg-indigo-650 hover:bg-indigo-700 bg-indigo-600' : 'bg-red-600 hover:bg-red-700' }} text-white font-bold rounded-md shadow-sm">
+                                                    <i class="fas fa-shield-alt mr-1"></i> Duyệt {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'UQ' : 'BOD' }}
+                                                </button>
+                                            @endif
+                                            
+                                            @if($isBOD)
+                                                <form action="{{ route('sales.milestones.delegateException', [$sale->id, $index]) }}" method="POST" class="inline-block">
+                                                    @csrf
+                                                    <select name="delegate_user_id" onchange="this.form.submit()" class="text-[10px] border border-gray-300 rounded px-1.5 py-0.5 bg-white max-w-[100px]" title="Ủy quyền duyệt đợt này">
+                                                        <option value="">-- UQ --</option>
+                                                        @foreach(\App\Models\User::orderBy('name')->get() as $u)
+                                                            @if($u->id !== auth()->id())
+                                                                <option value="{{ $u->id }}" {{ ($ms['delegated_to_id'] ?? null) === $u->id ? 'selected' : '' }}>
+                                                                    {{ $u->name }}
+                                                                </option>
+                                                            @endif
+                                                        @endforeach
+                                                    </select>
+                                                </form>
+                                            @endif
+                                        @endif
+
+                                        <!-- Finance confirmation action -->
+                                        @if($status === 'pending_finance')
+                                            @if($ms['proof_file_path'])
+                                                <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank"
+                                                   class="text-xs font-bold text-blue-600 hover:underline flex items-center mr-2">
+                                                    <i class="fas fa-file-download mr-1"></i> UNC
+                                                </a>
+                                            @endif
+                                            
+                                            @if($isFinance || $sale->user_id === $currentUser->id)
+                                                <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block mr-2">
+                                                    @csrf
+                                                    <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm">
+                                                        <i class="fas fa-check mr-1"></i> Xác nhận
+                                                    </button>
+                                                </form>
+                                            @endif
+
+                                            @if($canApproveMilestone)
+                                                <button onclick="openExceptionModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
+                                                        class="px-2.5 py-1 text-xs {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'bg-indigo-650 hover:bg-indigo-700 bg-indigo-600' : 'bg-red-600 hover:bg-red-700' }} text-white font-bold rounded-md shadow-sm">
+                                                    <i class="fas fa-shield-alt mr-1"></i> Duyệt {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'UQ' : 'BOD' }}
+                                                </button>
+                                            @endif
+                                            
+                                            @if($isBOD)
+                                                <form action="{{ route('sales.milestones.delegateException', [$sale->id, $index]) }}" method="POST" class="inline-block">
+                                                    @csrf
+                                                    <select name="delegate_user_id" onchange="this.form.submit()" class="text-[10px] border border-gray-300 rounded px-1.5 py-0.5 bg-white max-w-[100px]" title="Ủy quyền duyệt đợt này">
+                                                        <option value="">-- UQ --</option>
+                                                        @foreach(\App\Models\User::orderBy('name')->get() as $u)
+                                                            @if($u->id !== auth()->id())
+                                                                <option value="{{ $u->id }}" {{ ($ms['delegated_to_id'] ?? null) === $u->id ? 'selected' : '' }}>
+                                                                    {{ $u->name }}
+                                                                </option>
+                                                            @endif
+                                                        @endforeach
+                                                    </select>
+                                                </form>
+                                            @endif
+                                        @endif
+
+                                        <!-- Exceptions display -->
+                                        @if(in_array($status, ['approved_preload', 'approved_export_before_payment']))
+                                            @if($ms['bod_approval_file_path'])
+                                                @php
+                                                    $msFiles = [];
+                                                    $decodedMs = json_decode($ms['bod_approval_file_path'], true);
+                                                    if (json_last_error() === JSON_ERROR_NONE && is_array($decodedMs)) {
+                                                        $msFiles = $decodedMs;
+                                                    } else {
+                                                        $msFiles = [$ms['bod_approval_file_path']];
+                                                    }
+                                                @endphp
+                                                @foreach($msFiles as $mIndex => $mFile)
+                                                    <a href="{{ asset('storage/' . $mFile) }}" target="_blank"
+                                                       class="text-xs font-bold text-red-600 hover:underline flex items-center mr-2 mb-1" title="{{ basename($mFile) }}">
+                                                        <i class="fas fa-file-signature mr-1"></i> File {{ count($msFiles) > 1 ? '#' . ($mIndex + 1) : 'BOD' }}
+                                                    </a>
+                                                @endforeach
+                                            @endif
+                                            <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
+                                                    class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded border hover:bg-gray-200">
+                                                Trả UNC bù
+                                            </button>
+                                        @endif
+
+                                        @if($status === 'paid')
+                                            <span class="text-[10px] text-gray-500 italic block">
+                                                Finance: {{ $ms['confirmed_by'] }} <br>
+                                                {{ \Carbon\Carbon::parse($ms['confirmed_at'])->format('d/m H:i') }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
-        @endif
+
+        <!-- MODALS -->
+        <!-- 1. Upload proof modal -->
+        <div id="proofModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-800" id="proofModalTitle">Upload UNC thanh toán</h3>
+                    <button onclick="closeProofModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="proofForm" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Đính kèm UNC/Ủy nhiệm chi (UNC)</label>
+                        <input type="file" name="proof_file" required
+                               class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" onclick="closeProofModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
+                        <button type="submit" class="btn-primary text-xs px-4 py-2 font-bold text-white bg-primary hover:bg-primary-hover border-none rounded-lg">Tải lên & Gửi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 2. BOD Approval modal -->
+        <div id="exceptionModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-red-800" id="exceptionModalTitle">Phê duyệt ngoại lệ đợt</h3>
+                    <button onclick="closeExceptionModal()" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="exceptionForm" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Tệp phê duyệt đính kèm (Bắt buộc, hỗ trợ chọn nhiều file)</label>
+                        <input type="file" name="bod_approval_files[]" multiple required
+                               class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" onclick="closeExceptionModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
+                        <button type="submit" class="btn-primary text-xs px-4 py-2 bg-red-600 hover:bg-red-700 border-none font-bold text-white shadow-sm rounded-lg">Duyệt Ngoại Lệ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            function openProofModal(index, name) {
+                const modal = document.getElementById('proofModal');
+                const form = document.getElementById('proofForm');
+                const title = document.getElementById('proofModalTitle');
+                if (modal && form) {
+                    title.innerText = `Upload UNC: ${name}`;
+                    form.action = `{{ url('/') }}/sales/{{ $sale->id }}/milestones/${index}/submit-proof`;
+                    modal.classList.remove('hidden');
+                }
+            }
+            function closeProofModal() {
+                document.getElementById('proofModal').classList.add('hidden');
+            }
+            function openExceptionModal(index, name) {
+                const modal = document.getElementById('exceptionModal');
+                const form = document.getElementById('exceptionForm');
+                const title = document.getElementById('exceptionModalTitle');
+                if (modal && form) {
+                    title.innerText = `Duyệt ngoại lệ BOD: ${name}`;
+                    form.action = `{{ url('/') }}/sales/{{ $sale->id }}/milestones/${index}/approve-exception`;
+                    modal.classList.remove('hidden');
+                }
+            }
+            function closeExceptionModal() {
+                document.getElementById('exceptionModal').classList.add('hidden');
+            }
+        </script>
     </div>
 
     <!-- Tabs Header -->
@@ -625,6 +1070,15 @@
                     :class="activeTab === 'procurement' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
                     <i class="fas fa-shopping-cart mr-2"></i> Thông tin mua hàng (PO)
+                </button>
+                <button @click="activeTab = 'payment_history'"
+                    :class="activeTab === 'payment_history' ? 'border-indigo-605 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
+                    <i class="fas fa-history mr-2"></i> Lịch sử Phê duyệt
+                    @php $logCount = $sale->paymentApprovalLogs->count(); @endphp
+                    @if($logCount > 0)
+                        <span class="ml-1.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ $logCount }}</span>
+                    @endif
                 </button>
             </nav>
         </div>
@@ -875,6 +1329,65 @@
             </div>
         </div>
 
+        <!-- Tab: Payment Approval History -->
+        <div x-show="activeTab === 'payment_history'" class="mt-4">
+            <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                <h4 class="text-sm font-bold text-gray-900 mb-4 flex items-center border-b border-gray-100 pb-3">
+                    <i class="fas fa-history text-primary mr-2"></i>
+                    Nhật ký Phê duyệt & Thay đổi Điều khoản Thanh toán
+                </h4>
+                <div class="relative border-l border-gray-200 ml-4 pl-6 space-y-6">
+                    @forelse($sale->paymentApprovalLogs as $log)
+                        <div class="relative">
+                            <!-- Circle icon on line -->
+                            <span class="absolute -left-[36px] top-0.5 flex items-center justify-center w-6 h-6 rounded-full ring-4 ring-white
+                                @if($log->action === 'proof_uploaded') bg-blue-100 text-blue-700
+                                @elseif($log->action === 'finance_confirmed') bg-green-100 text-green-700
+                                @elseif($log->action === 'bod_exception_approved') bg-purple-100 text-purple-700
+                                @elseif($log->action === 'delegated') bg-indigo-100 text-indigo-700
+                                @elseif($log->action === 'delegation_revoked') bg-yellow-100 text-yellow-700
+                                @else bg-gray-100 text-gray-700 @endif">
+                                @if($log->action === 'proof_uploaded') <i class="fas fa-upload text-[10px]"></i>
+                                @elseif($log->action === 'finance_confirmed') <i class="fas fa-check text-[10px]"></i>
+                                @elseif($log->action === 'bod_exception_approved') <i class="fas fa-shield-alt text-[10px]"></i>
+                                @elseif($log->action === 'delegated') <i class="fas fa-user-shield text-[10px]"></i>
+                                @elseif($log->action === 'delegation_revoked') <i class="fas fa-user-slash text-[10px]"></i>
+                                @else <i class="fas fa-info text-[10px]"></i> @endif
+                            </span>
+                            <div>
+                                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                                    <span class="font-bold text-gray-900">{{ $log->performer->name ?? 'System' }}</span>
+                                    <span>{{ $log->performed_at->format('d/m/Y H:i:s') }}</span>
+                                </div>
+                                <p class="text-sm text-gray-800 font-semibold">
+                                    @if($log->action === 'proof_uploaded') Đã tải lên UNC thanh toán đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
+                                    @elseif($log->action === 'finance_confirmed') Finance đã xác nhận thanh toán đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
+                                    @elseif($log->action === 'bod_exception_approved') Đã duyệt ngoại lệ đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
+                                    @elseif($log->action === 'delegated') Đã ủy quyền duyệt ngoại lệ cho "{{ $log->new_value }}"
+                                    @elseif($log->action === 'delegation_revoked') Đã hủy ủy quyền duyệt ngoại lệ
+                                    @else Thay đổi trạng thái
+                                    @endif
+                                </p>
+                                @if($log->reason)
+                                    <p class="text-xs text-gray-500 mt-1 italic">"{{ $log->reason }}"</p>
+                                @endif
+                                @if($log->attachment_path)
+                                    <div class="mt-2">
+                                        <a href="{{ asset('storage/' . $log->attachment_path) }}" target="_blank"
+                                           class="inline-flex items-center text-xs font-bold text-primary hover:underline">
+                                            <i class="fas fa-paperclip mr-1"></i> Xem tệp đính kèm
+                                        </a>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm text-gray-400 italic">Chưa có nhật ký hoạt động nào cho điều khoản thanh toán đơn hàng này.</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
     </div>
     <!-- End Tabs Wrapper -->
 
@@ -889,7 +1402,7 @@
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
             <div class="p-6" x-data="paymentForm()">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Ghi nhận thanh toán</h3>
-                <form action="{{ route('sales.payment', $sale->id) }}" method="POST">
+                <form action="{{ route('sales.payment', $sale->id) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
@@ -1039,6 +1552,11 @@
                             </select>
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Chứng từ UNC (Minh chứng thanh toán) <span class="text-red-500">*</span></label>
+                            <input type="file" name="proof_file" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                             <textarea name="note" rows="2"
                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
@@ -1058,9 +1576,43 @@
             </div>
         </div>
     </div>
+    <!-- Delivery Date Modal -->
+    <div id="deliveryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Cập nhật ngày giao hàng thành công</h3>
+            <form action="{{ route('sales.updateDeliveryDate', $sale->id) }}" method="POST">
+                @csrf
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ngày giao hàng thành công <span class="text-red-500">*</span></label>
+                        <input type="date" name="delivery_date" value="{{ $sale->delivery_date ? $sale->delivery_date->format('Y-m-d') : date('Y-m-d') }}" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-6">
+                    <button type="button" onclick="closeDeliveryModal()"
+                            class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm font-medium">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                            class="flex-1 px-4 py-2 bg-indigo-650 hover:bg-indigo-700 bg-indigo-600 text-white rounded-lg transition-colors text-sm font-medium">
+                        Xác nhận
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
+<script>
+function openDeliveryModal() {
+    document.getElementById('deliveryModal').classList.remove('hidden');
+}
+function closeDeliveryModal() {
+    document.getElementById('deliveryModal').classList.add('hidden');
+}
+</script>
 <script>
 function paymentForm() {
     const allMilestones = @json(

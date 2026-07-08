@@ -11,6 +11,8 @@ class Sale extends Model
 {
     use HasFactory, LogsActivity;
 
+    public $tempPaymentTerms;
+
     protected $fillable = [
         'code',
         'type',
@@ -44,13 +46,19 @@ class Sale extends Model
         'pl_approved_at',
         'pl_approved_by',
         'invoice_date',
+        'delivery_date',
         'payment_terms',
         'payment_term',
+        'payment_term_type',
+        'is_payment_exception',
+        'payment_exception_file',
+        'payment_exception_delegated_to',
     ];
 
     protected $casts = [
         'date' => 'date',
         'invoice_date' => 'date',
+        'delivery_date' => 'date',
         'payment_due_date' => 'date',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
@@ -63,12 +71,238 @@ class Sale extends Model
         'paid_amount' => 'decimal:2',
         'debt_amount' => 'decimal:2',
         'exchange_rate' => 'decimal:6',
-        'payment_terms' => 'array',
         'total_foreign' => 'decimal:4',
         'paid_amount_foreign' => 'decimal:4',
         'debt_amount_foreign' => 'decimal:4',
         'pl_approved_at' => 'datetime',
+        'is_payment_exception' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::saved(function ($sale) {
+            if ($sale->tempPaymentTerms !== null) {
+                $sale->syncPaymentSchedules($sale->tempPaymentTerms);
+                $sale->tempPaymentTerms = null;
+            }
+            if ($sale->wasChanged('delivery_date') || $sale->wasChanged('invoice_date')) {
+                $sale->updateMilestoneDueDates();
+            }
+        });
+    }
+
+    /**
+     * Relationship with SalePaymentSchedule
+     */
+    public function paymentSchedules()
+    {
+        return $this->hasMany(SalePaymentSchedule::class, 'sale_id')->orderBy('sort_order');
+    }
+
+    /**
+     * Relationship with PaymentApprovalLog
+     */
+    public function paymentApprovalLogs()
+    {
+        return $this->hasMany(PaymentApprovalLog::class, 'sale_id')->orderBy('performed_at', 'desc');
+    }
+
+    public function paymentExceptionDelegatedTo()
+    {
+        return $this->belongsTo(User::class, 'payment_exception_delegated_to');
+    }
+
+    /**
+     * Accessor for payment_terms (backward compatibility)
+     */
+    public function getPaymentTermsAttribute()
+    {
+        // Try getting from temp if not saved or empty relation
+        if ($this->tempPaymentTerms !== null) {
+            return $this->tempPaymentTerms;
+        }
+
+        $schedules = $this->paymentSchedules;
+        if ($schedules->isEmpty()) {
+            return [];
+        }
+
+        $milestones = [];
+        foreach ($schedules as $index => $ms) {
+            $timing = 'after_contract';
+            if ($ms->trigger_type === 'ON_GOODS_DELIVERED') {
+                $timing = 'after_delivery';
+            } elseif ($ms->trigger_type === 'ON_INVOICE_ISSUED') {
+                $timing = 'after_invoice';
+            } elseif ($ms->trigger_type === 'ON_DELIVERY_NOTICE') {
+                $timing = 'after_delivery_notice';
+            } elseif ($ms->trigger_type === 'BEFORE_EXPORT') {
+                $timing = 'before_export';
+            }
+
+            $requiredBefore = 'after_delivery';
+            if ($ms->blocking_stage === 'BLOCK_PO_SEND') {
+                $requiredBefore = 'before_order';
+            } elseif ($ms->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                $requiredBefore = 'before_export';
+            }
+
+            $oldStatus = 'unpaid';
+            if ($ms->status === 'paid') {
+                $oldStatus = 'paid';
+            } elseif ($ms->status === 'exception_approved') {
+                if ($ms->blocking_stage === 'BLOCK_PO_SEND') {
+                    $oldStatus = 'approved_preload';
+                } else {
+                    $oldStatus = 'approved_export_before_payment';
+                }
+            } elseif ($ms->status === 'overdue') {
+                $oldStatus = 'overdue';
+            }
+
+            $milestones[] = [
+                'milestone_name' => $ms->milestone_name,
+                'percentage' => $ms->percentage,
+                'amount' => $ms->amount,
+                'timing' => $timing,
+                'required_before' => $requiredBefore,
+                'is_blocking' => $ms->blocking_stage ? 'yes' : 'no',
+                'required_docs' => $ms->required_docs ?? 'none',
+                'status' => $oldStatus,
+                'due_days' => $ms->due_days,
+                'due_date' => $ms->due_date ? $ms->due_date->format('Y-m-d') : null,
+                'proof_file_path' => $ms->proof_file_path,
+                'bod_approval_file_path' => $ms->bod_approval_file_path,
+                'confirmed_by' => $ms->confirmed_by,
+                'confirmed_at' => $ms->confirmed_at ? $ms->confirmed_at->toDateTimeString() : null,
+                'delegated_to_id' => $ms->delegated_to_id,
+            ];
+        }
+
+        return $milestones;
+    }
+
+    /**
+     * Mutator for payment_terms (backward compatibility)
+     */
+    public function setPaymentTermsAttribute($value)
+    {
+        $this->tempPaymentTerms = is_string($value) ? json_decode($value, true) : $value;
+    }
+
+    public function syncPaymentSchedules(array $milestones)
+    {
+        $this->paymentSchedules()->delete();
+
+        foreach ($milestones as $index => $ms) {
+            $milestoneName = $ms['milestone_name'] ?? $ms['label'] ?? ('Đợt ' . ($index + 1));
+            $percentage = (float)($ms['percentage'] ?? $ms['percent'] ?? 0);
+            $amount = (float)($ms['amount'] ?? 0);
+            $timing = $ms['timing'] ?? 'after_contract';
+            $requiredBefore = $ms['required_before'] ?? 'after_delivery';
+            $isBlocking = ($ms['is_blocking'] ?? 'yes') === 'yes';
+            $requiredDocs = $ms['required_docs'] ?? 'none';
+            $status = $ms['status'] ?? 'unpaid';
+            $dueDays = (int)($ms['due_days'] ?? $ms['days'] ?? 0);
+            $dueDate = isset($ms['due_date']) ? $ms['due_date'] : null;
+            $confirmedBy = $ms['confirmed_by'] ?? null;
+            $confirmedAt = isset($ms['confirmed_at']) ? $ms['confirmed_at'] : null;
+            $proofFilePath = $ms['proof_file_path'] ?? null;
+            $bodApprovalFilePath = $ms['bod_approval_file_path'] ?? null;
+
+            $triggerType = 'ON_CONTRACT_SIGNED';
+            $dueBase = 'contract_date';
+            if ($timing === 'after_delivery') {
+                $triggerType = 'ON_GOODS_DELIVERED';
+                $dueBase = 'delivery_date';
+            } elseif ($timing === 'after_invoice') {
+                $triggerType = 'ON_INVOICE_ISSUED';
+                $dueBase = 'invoice_date';
+            } elseif ($timing === 'after_delivery_notice') {
+                $triggerType = 'ON_DELIVERY_NOTICE';
+                $dueBase = 'delivery_date';
+            } elseif ($timing === 'before_export') {
+                $triggerType = 'BEFORE_EXPORT';
+                $dueBase = 'contract_date';
+            }
+
+            $blockingStage = null;
+            if ($isBlocking) {
+                if ($requiredBefore === 'before_order') {
+                    $blockingStage = 'BLOCK_PO_SEND';
+                } elseif ($requiredBefore === 'before_export') {
+                    $blockingStage = 'BLOCK_WAREHOUSE_EXPORT';
+                }
+            }
+
+            $newStatus = 'pending';
+            if ($status === 'paid') {
+                $newStatus = 'paid';
+            } elseif ($status === 'approved_preload' || $status === 'approved_export_before_payment' || $status === 'exception_approved') {
+                $newStatus = 'exception_approved';
+            } elseif ($status === 'overdue') {
+                $newStatus = 'overdue';
+            }
+
+            $this->paymentSchedules()->create([
+                'sort_order' => $index + 1,
+                'milestone_name' => $milestoneName,
+                'percentage' => $percentage,
+                'amount' => $amount,
+                'trigger_type' => $triggerType,
+                'blocking_stage' => $blockingStage,
+                'due_base' => $dueBase,
+                'due_days' => $dueDays,
+                'required_docs' => $requiredDocs,
+                'status' => $newStatus,
+                'due_date' => $dueDate,
+                'proof_file_path' => $proofFilePath,
+                'bod_approval_file_path' => $bodApprovalFilePath,
+                'confirmed_by' => $confirmedBy,
+                'confirmed_at' => $confirmedAt,
+            ]);
+        }
+    }
+
+    public function updateMilestoneDueDates(): void
+    {
+        $deliveryDate = $this->delivery_date ? \Carbon\Carbon::parse($this->delivery_date) : null;
+        if (!$deliveryDate) {
+            $completedExport = Export::where('reference_id', $this->id)
+                ->where('reference_type', 'sale')
+                ->where('status', 'completed')
+                ->latest()
+                ->first();
+            if ($completedExport) {
+                $deliveryDate = $completedExport->date ? \Carbon\Carbon::parse($completedExport->date) : \Carbon\Carbon::parse($completedExport->updated_at);
+            }
+        }
+        
+        $invoiceDate = $this->invoice_date ? \Carbon\Carbon::parse($this->invoice_date) : null;
+        
+        foreach ($this->paymentSchedules as $schedule) {
+            $dueBase = $schedule->due_base;
+            $dueDays = $schedule->due_days;
+            
+            $newDueDate = null;
+            if ($dueBase === 'delivery_date') {
+                if ($deliveryDate) {
+                    $newDueDate = $deliveryDate->copy()->addDays($dueDays);
+                }
+            } elseif ($dueBase === 'invoice_date') {
+                if ($invoiceDate) {
+                    $newDueDate = $invoiceDate->copy()->addDays($dueDays);
+                }
+            }
+            
+            if ($newDueDate) {
+                $schedule->update([
+                    'due_date' => $newDueDate,
+                    'trigger_date' => $dueBase === 'delivery_date' ? $deliveryDate : ($dueBase === 'invoice_date' ? $invoiceDate : null),
+                ]);
+            }
+        }
+    }
 
     /**
      * Relationship with Currency
@@ -860,6 +1094,66 @@ class Sale extends Model
             $this->debt_amount_foreign = $this->total_foreign - $this->paid_amount_foreign;
         }
 
+        // Auto allocate paid_amount to milestones in order
+        if ($this->exists) {
+            $schedules = $this->paymentSchedules()->orderBy('sort_order')->get();
+            if ($schedules->isNotEmpty()) {
+                $remainingPaid = (float) $this->paid_amount;
+                $total = (float) $this->total;
+                
+                foreach ($schedules as $ms) {
+                    $percent = (float) $ms->percentage;
+                    $amount = (float)$ms->amount > 0 ? (float)$ms->amount : round(($total * $percent) / 100, 2);
+                    
+                    if ($amount > 0 && $remainingPaid >= $amount) {
+                        if ($ms->status !== 'paid') {
+                            $ms->status = 'paid';
+                            $ms->confirmed_by = $ms->confirmed_by ?? 'System Auto';
+                            $ms->confirmed_at = $ms->confirmed_at ?? now();
+                            $ms->save();
+                        }
+                        $remainingPaid -= $amount;
+                    } else {
+                        if ($ms->status === 'paid' && in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                            $ms->status = 'pending';
+                            $ms->confirmed_by = null;
+                            $ms->confirmed_at = null;
+                            $ms->save();
+                        }
+                    }
+                }
+            }
+        } else {
+            $milestones = $this->payment_terms ?? [];
+            if (!empty($milestones)) {
+                $remainingPaid = (float) $this->paid_amount;
+                $total = (float) $this->total;
+                
+                foreach ($milestones as $index => &$ms) {
+                    $percent = (float) ($ms['percentage'] ?? ($ms['percent'] ?? 0));
+                    $amount = isset($ms['amount']) && (float)$ms['amount'] > 0
+                        ? (float)$ms['amount']
+                        : round(($total * $percent) / 100, 2);
+                    
+                    if ($amount > 0 && $remainingPaid >= $amount) {
+                        if (($ms['status'] ?? '') !== 'paid') {
+                            $ms['status'] = 'paid';
+                            $ms['confirmed_by'] = $ms['confirmed_by'] ?? 'System Auto';
+                            $ms['confirmed_at'] = $ms['confirmed_at'] ?? now()->toDateTimeString();
+                        }
+                        $remainingPaid -= $amount;
+                    } else {
+                        if (($ms['status'] ?? '') === 'paid' && in_array($ms['confirmed_by'] ?? '', ['System Auto', null, ''])) {
+                            $ms['status'] = 'unpaid';
+                            unset($ms['confirmed_by']);
+                            unset($ms['confirmed_at']);
+                        }
+                    }
+                }
+                $this->payment_terms = $milestones;
+            }
+        }
+
         // Update payment status
         if ($this->paid_amount <= 0) {
             $this->payment_status = 'unpaid';
@@ -868,5 +1162,168 @@ class Sale extends Model
         } else {
             $this->payment_status = 'partial';
         }
+    }
+
+    /**
+     * Get polymorphic exports relationship.
+     */
+    public function exports()
+    {
+        return $this->hasMany(Export::class, 'reference_id')->where('reference_type', 'sale');
+    }
+
+    /**
+     * Compute and get detailed payment conditions status
+     */
+    public function getPaymentConditionStatus(): array
+    {
+        if ($this->exists) {
+            $milestones = $this->paymentSchedules()->orderBy('sort_order')->get()->map(function($s) {
+                return [
+                    'milestone_name' => $s->milestone_name,
+                    'percentage' => $s->percentage,
+                    'amount' => $s->amount,
+                    'timing' => $s->trigger_type === 'ON_CONTRACT_SIGNED' ? 'after_contract' : ($s->trigger_type === 'ON_GOODS_DELIVERED' ? 'after_delivery' : ($s->trigger_type === 'ON_INVOICE_ISSUED' ? 'after_invoice' : ($s->trigger_type === 'ON_DELIVERY_NOTICE' ? 'after_delivery_notice' : ($s->trigger_type === 'BEFORE_EXPORT' ? 'before_export' : $s->trigger_type)))),
+                    'required_before' => $s->blocking_stage === 'BLOCK_PO_SEND' ? 'before_order' : ($s->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT' ? 'before_export' : 'after_delivery'),
+                    'is_blocking' => $s->blocking_stage ? 'yes' : 'no',
+                    'required_docs' => $s->required_docs,
+                    'status' => $s->status,
+                    'due_days' => $s->due_days,
+                    'due_date' => $s->due_date ? $s->due_date->format('Y-m-d') : null,
+                    'proof_file_path' => $s->proof_file_path,
+                    'bod_approval_file_path' => $s->bod_approval_file_path,
+                    'confirmed_by' => $s->confirmed_by,
+                    'confirmed_at' => $s->confirmed_at,
+                    'delegated_to_id' => $s->delegated_to_id,
+                ];
+            })->toArray();
+        } else {
+            $milestones = $this->payment_terms ?? [];
+        }
+        $total = (float) $this->total;
+        $paid = (float) $this->paid_amount;
+        
+        $eligibleForOrder = true;
+        $eligibleForExport = true;
+        
+        $pendingOrderMilestones = [];
+        $pendingExportMilestones = [];
+        
+        // Find completed delivery date if any
+        $deliveryDate = $this->delivery_date ? \Carbon\Carbon::parse($this->delivery_date) : null;
+        if (!$deliveryDate) {
+            $completedExport = Export::where('reference_id', $this->id)
+                ->where('reference_type', 'sale')
+                ->where('status', 'completed')
+                ->latest()
+                ->first();
+            if ($completedExport) {
+                $deliveryDate = $completedExport->date ? \Carbon\Carbon::parse($completedExport->date) : \Carbon\Carbon::parse($completedExport->updated_at);
+            }
+        }
+        
+        $invoiceDate = $this->invoice_date ? \Carbon\Carbon::parse($this->invoice_date) : null;
+        $today = \Carbon\Carbon::today();
+        
+        $updatedMilestones = [];
+        $allPaid = true;
+        
+        foreach ($milestones as $index => $ms) {
+            $name = $ms['milestone_name'] ?? ($ms['label'] ?? ('Đợt ' . ($index + 1)));
+            $percent = (float) ($ms['percentage'] ?? ($ms['percent'] ?? 0));
+            $amount = isset($ms['amount']) && (float)$ms['amount'] > 0
+                ? (float)$ms['amount']
+                : round(($total * $percent) / 100, 2);
+            
+            $requiredBefore = $ms['required_before'] ?? 'after_delivery';
+            $status = $ms['status'] ?? 'unpaid';
+            $timing = $ms['timing'] ?? 'after_contract';
+            $dueDays = (int) ($ms['due_days'] ?? ($ms['days'] ?? 0));
+            
+            $dueDate = null;
+            if (isset($ms['due_date']) && $ms['due_date']) {
+                $dueDate = \Carbon\Carbon::parse($ms['due_date']);
+            } else {
+                // Auto calculate due date
+                if ($requiredBefore === 'after_delivery' || $timing === 'after_delivery') {
+                    if ($deliveryDate) {
+                        $dueDate = $deliveryDate->copy()->addDays($dueDays);
+                    }
+                } elseif ($timing === 'after_invoice') {
+                    if ($invoiceDate) {
+                        $dueDate = $invoiceDate->copy()->addDays($dueDays);
+                    }
+                }
+            }
+            
+            $overdueDays = 0;
+            // Update status based on due dates if not paid / approved / pending finance
+            if (!in_array($status, ['paid', 'pending_finance', 'approved_preload', 'approved_export_before_payment', 'exception_approved'])) {
+                if ($dueDate) {
+                    if ($today->gt($dueDate)) {
+                        $status = 'overdue';
+                        $overdueDays = $today->diffInDays($dueDate);
+                    } elseif ($today->equalTo($dueDate)) {
+                        $status = 'due';
+                    } else {
+                        $status = 'not_yet_due';
+                    }
+                } else {
+                    $status = 'unpaid';
+                }
+            }
+            
+            if ($status !== 'paid') {
+                $allPaid = false;
+            }
+            
+            // Check eligibility blocks
+            $isBlocking = ($ms['is_blocking'] ?? 'yes') === 'yes';
+            if ($requiredBefore === 'before_order' && $isBlocking) {
+                if ($status !== 'paid' && $status !== 'approved_preload') {
+                    $eligibleForOrder = false;
+                    $pendingOrderMilestones[] = $name;
+                }
+            } elseif ($requiredBefore === 'before_export' && $isBlocking) {
+                if ($status !== 'paid' && $status !== 'approved_export_before_payment' && $status !== 'approved_preload') {
+                    $eligibleForExport = false;
+                    $pendingExportMilestones[] = $name;
+                }
+            }
+            
+            $updatedMilestones[] = [
+                'milestone_name' => $name,
+                'percentage' => $percent,
+                'amount' => $amount,
+                'timing' => $timing,
+                'required_before' => $requiredBefore,
+                'is_blocking' => $isBlocking ? 'yes' : 'no',
+                'required_docs' => $ms['required_docs'] ?? 'none',
+                'status' => $status,
+                'due_days' => $dueDays,
+                'due_date' => $dueDate ? $dueDate->format('Y-m-d') : null,
+                'overdue_days' => $overdueDays,
+                'proof_file_path' => $ms['proof_file_path'] ?? null,
+                'bod_approval_file_path' => $ms['bod_approval_file_path'] ?? null,
+                'confirmed_by' => $ms['confirmed_by'] ?? null,
+                'confirmed_at' => $ms['confirmed_at'] ?? null,
+            ];
+        }
+        
+        // If sale-level exception is active, bypass blocks
+        if ($this->is_payment_exception) {
+            $eligibleForOrder = true;
+            $eligibleForExport = true;
+        }
+        
+        return [
+            'eligible_for_order' => $eligibleForOrder,
+            'eligible_for_export' => $eligibleForExport,
+            'pending_order_milestones' => $pendingOrderMilestones,
+            'pending_export_milestones' => $pendingExportMilestones,
+            'milestones' => $updatedMilestones,
+            'all_paid' => $allPaid,
+            'has_exception' => (bool) $this->is_payment_exception,
+        ];
     }
 }

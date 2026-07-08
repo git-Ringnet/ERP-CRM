@@ -176,8 +176,9 @@ class SaleController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
-        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId', 'suppliers'));
+        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
     }
 
     /**
@@ -249,8 +250,10 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
-            'payment_term' => ['nullable', 'string', 'max:100'],
+            'payment_term' => ['nullable', 'string', 'max:1000'],
+            'payment_term_type' => ['nullable', 'string', 'max:100'],
             'payment_due_date' => ['nullable', 'date'],
+            'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
 
         DB::beginTransaction();
@@ -303,6 +306,13 @@ class SaleController extends Controller
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
 
+            $exceptionFilePath = null;
+            $isPaymentException = false;
+            if (($validated['payment_term_type'] ?? null) === 'bod_exception' && $request->hasFile('payment_exception_file')) {
+                $exceptionFilePath = $request->file('payment_exception_file')->store('payment_exceptions', 'public');
+                $isPaymentException = true;
+            }
+
             // Create sale
             $sale = Sale::create([
                 'code' => $code,
@@ -332,7 +342,10 @@ class SaleController extends Controller
                 'total_foreign' => $totalForeign,
                 'payment_terms' => $request->input('payment_terms'),
                 'payment_term' => $validated['payment_term'] ?? null,
+                'payment_term_type' => $validated['payment_term_type'] ?? null,
                 'payment_due_date' => $validated['payment_due_date'] ?? null,
+                'is_payment_exception' => $isPaymentException,
+                'payment_exception_file' => $exceptionFilePath,
             ]);
 
             // Create sale items with cost price and project
@@ -419,6 +432,7 @@ class SaleController extends Controller
                         'created_by' => auth()->id(),
                         'note' => $request->input('order_request_note'),
                         'sent_at' => now(),
+                        'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
                     ]);
 
                     foreach ($request->input('order_request_items') as $item) {
@@ -505,8 +519,9 @@ class SaleController extends Controller
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
-        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers'));
+        return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
     }
 
     /**
@@ -560,8 +575,10 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
-            'payment_term' => ['nullable', 'string', 'max:100'],
+            'payment_term' => ['nullable', 'string', 'max:1000'],
+            'payment_term_type' => ['nullable', 'string', 'max:100'],
             'payment_due_date' => ['nullable', 'date'],
+            'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
 
         DB::beginTransaction();
@@ -607,6 +624,18 @@ class SaleController extends Controller
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
 
+            $isPaymentException = $sale->is_payment_exception;
+            $exceptionFilePath = $sale->payment_exception_file;
+            if ($request->hasFile('payment_exception_file')) {
+                $exceptionFilePath = $request->file('payment_exception_file')->store('payment_exceptions', 'public');
+                $isPaymentException = true;
+            } elseif (($validated['payment_term_type'] ?? null) === 'bod_exception') {
+                $isPaymentException = true;
+            } else {
+                $isPaymentException = false;
+                $exceptionFilePath = null;
+            }
+
             // Update sale
             $sale->update([
                 'code' => $validated['code'],
@@ -631,7 +660,10 @@ class SaleController extends Controller
                 'total_foreign' => $totalForeign,
                 'payment_terms' => $request->input('payment_terms'),
                 'payment_term' => $validated['payment_term'] ?? null,
+                'payment_term_type' => $validated['payment_term_type'] ?? null,
                 'payment_due_date' => $validated['payment_due_date'] ?? null,
+                'is_payment_exception' => $isPaymentException,
+                'payment_exception_file' => $exceptionFilePath,
             ]);
 
             // 1. Thu thập dữ liệu P&L từ request 'items' (đã thêm các input ẩn trong pnl-tab)
@@ -886,6 +918,7 @@ class SaleController extends Controller
 
                     $orderRequest->update([
                         'note' => $request->input('order_request_note'),
+                        'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
                     ]);
 
                     // Recreate items
@@ -1099,7 +1132,12 @@ class SaleController extends Controller
             'payment_label' => ['nullable', 'string', 'max:100'],
             'payment_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'note' => ['nullable', 'string'],
+            'proof_file' => ['required', 'file', 'max:20480'], // Yêu cầu UNC
         ]);
+
+        if (!$request->hasFile('proof_file')) {
+            return back()->with('error', 'Vui lòng tải lên chứng từ UNC.');
+        }
 
         DB::beginTransaction();
         try {
@@ -1107,58 +1145,80 @@ class SaleController extends Controller
             $paymentCurrencyId = $validated['currency_id'] ?? $sale->currency_id;
             $paymentRate = $validated['exchange_rate'] ?? 1;
 
-            // Nếu thanh toán bằng ngoại tệ, cần tính số VND thực tế (nếu amount truyền vào là ngoại tệ)
-            // Tuy nhiên, logic hiện tại trong form là user nhập amount theo loại tiền đã chọn.
-            // Để thống nhất với recordPayment cũ, ta giả định $validated['amount'] là số tiền theo $paymentCurrencyId.
-            
             $isBase = $paymentCurrencyId == \App\Models\Currency::getBaseCurrencyId();
             $actualAmountVnd = $isBase ? $amountVnd : round($amountVnd * $paymentRate, 0);
-            $actualAmountForeign = $amountVnd; // Số tiền theo loại tiền thanh toán
 
-            $newPaidAmountVnd = $sale->paid_amount + $actualAmountVnd;
+            // Tải lên file
+            $file = $request->file('proof_file');
+            $path = $file->store('payment-proofs/' . $sale->id, 'public');
 
-            if ($newPaidAmountVnd > $sale->total + 100) { // Thêm sai số nhỏ để tránh lỗi làm tròn
-                return back()->with('error', 'Số tiền thanh toán vượt quá tổng đơn hàng.');
+            // Tìm hoặc tạo Milestone tương ứng
+            $label = $validated['payment_label'] ?: 'Khác';
+            $schedule = $sale->paymentSchedules()->where('milestone_name', $label)->first();
+
+            if (!$schedule) {
+                // Tạo một mốc thanh toán ad-hoc nếu không tìm thấy tên phù hợp
+                $schedule = $sale->paymentSchedules()->create([
+                    'sale_id' => $sale->id,
+                    'milestone_name' => $label,
+                    'percentage' => $validated['payment_percent'] ?? 0,
+                    'amount' => $actualAmountVnd,
+                    'trigger_type' => 'MANUAL',
+                    'due_base' => 'contract_date',
+                    'status' => 'pending_finance',
+                    'proof_file_path' => $path,
+                ]);
+            } else {
+                $schedule->status = 'pending_finance';
+                $schedule->proof_file_path = $path;
+                $schedule->save();
             }
 
-            $sale->paid_amount = $newPaidAmountVnd;
-            
-            // Cập nhật paid_amount_foreign
-            // Nếu Sale theo USD, ta cần biết số USD đã trả.
-            if ($sale->currency_id && $sale->currency_id != \App\Models\Currency::getBaseCurrencyId()) {
-                if ($paymentCurrencyId == $sale->currency_id) {
-                    $sale->paid_amount_foreign += $actualAmountForeign;
-                } else {
-                    // Thanh toán bằng loại tiền khác, quy đổi về tiền của đơn hàng
-                    // Cách tốt nhất là: $actualAmountVnd / $sale->exchange_rate (tỷ giá gốc) 
-                    // HOẶC dùng tỷ giá thanh toán? Thường là dùng tỷ giá thanh toán để quy đổi.
-                    $sale->paid_amount_foreign += ($actualAmountVnd / ($sale->exchange_rate ?: 1));
-                }
+            // Tạo chứng từ PaymentEvidence
+            \App\Models\PaymentEvidence::create([
+                'schedule_id' => $schedule->id,
+                'doc_type' => 'unc',
+                'reference_number' => $sale->code,
+                'amount' => $actualAmountVnd,
+                'file_path' => $path,
+                'uploaded_by' => auth()->id(),
+                'status' => 'pending',
+                'notes' => $validated['note'] ?? null,
+            ]);
+
+            // Ghi log phê duyệt thanh toán
+            \App\Models\PaymentApprovalLog::create([
+                'schedule_id' => $schedule->id,
+                'sale_id' => $sale->id,
+                'action' => 'proof_uploaded',
+                'old_value' => 'pending',
+                'new_value' => 'pending_finance',
+                'reason' => 'Sales ghi nhận thanh toán kèm UNC qua modal. Ghi chú: ' . ($validated['note'] ?? ''),
+                'attachment_path' => $path,
+                'performed_by' => auth()->id(),
+                'performed_at' => now(),
+            ]);
+
+            // Gửi thông báo cho Kế toán / Admin
+            $accountants = User::whereHas('roles', function ($q) {
+                $q->whereIn('slug', ['accountant', 'admin', 'super_admin']);
+            })->get();
+
+            $senderName = auth()->user()->name ?? 'Sales';
+            foreach ($accountants as $acc) {
+                \App\Models\Notification::create([
+                    'user_id' => $acc->id,
+                    'type' => 'payment_alert',
+                    'title' => 'Yêu cầu xác nhận thanh toán',
+                    'message' => "{$senderName} đã upload UNC ghi nhận thanh toán đợt \"" . ($schedule->milestone_name) . "\" của đơn {$sale->code}.",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-file-invoice-dollar',
+                    'color' => 'yellow',
+                ]);
             }
-
-            $sale->updateDebt();
-            $sale->save();
-
-            // Tạo giao dịch thu vào financial_transactions
-            $paymentLabel = $validated['payment_label'] ?? '';
-            $paymentPercent = $validated['payment_percent'] ?? null;
-            $enrichedNote = trim(implode(' - ', array_filter([
-                $paymentLabel ? $paymentLabel . ($paymentPercent ? " ({$paymentPercent}%)" : '') : '',
-                $validated['note'] ?? '',
-            ])));
-
-            $financialService = app(\App\Services\FinancialTransactionService::class);
-            $financialService->createFromSale(
-                $sale,
-                $actualAmountForeign,
-                $validated['payment_method'],
-                $enrichedNote ?: null,
-                $paymentCurrencyId,
-                $paymentRate
-            );
 
             DB::commit();
-            return back()->with('success', 'Đã ghi nhận thanh toán ' . number_format($validated['amount']) . ' đ và tạo phiếu thu');
+            return back()->with('success', 'Đã tải lên UNC và gửi yêu cầu xác nhận thanh toán đến phòng Tài chính/Kế toán.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
@@ -2107,6 +2167,24 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
+        // Validate payment terms before P&L submission
+        if (!$sale->payment_term_type) {
+            return back()->with('error', 'Vui lòng chọn loại điều khoản thanh toán trước khi gửi duyệt P&L.');
+        }
+
+        $milestones = $sale->payment_terms ?? [];
+        if (empty($milestones)) {
+            return back()->with('error', 'Vui lòng thiết lập ít nhất một mốc thanh toán trước khi gửi duyệt P&L.');
+        }
+
+        $totalPercent = collect($milestones)->sum(function($ms) {
+            return (float) ($ms['percentage'] ?? ($ms['percent'] ?? 0));
+        });
+
+        if (abs($totalPercent - 100) > 0.01) {
+            return back()->with('error', 'Tổng tỷ lệ phần trăm các đợt thanh toán phải bằng chính xác 100% (Hiện tại: ' . $totalPercent . '%).');
+        }
+
         // Xóa lịch sử duyệt đang chờ cũ để tránh xung đột
         ApprovalHistory::where('document_type', 'sale_pnl')
             ->where('document_id', $sale->id)
@@ -2371,13 +2449,16 @@ class SaleController extends Controller
         }
     }
 
-    /**
-     * Show form to create a new order request
-     */
     public function createOrderRequest(Sale $sale)
     {
         if ($sale->pl_status !== 'approved') {
             return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
+        }
+
+        $status = $sale->getPaymentConditionStatus();
+        if (!$status['eligible_for_order']) {
+            $pendingList = implode(', ', $status['pending_order_milestones']);
+            return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
         }
 
         $sale->load(['items.product', 'customer']);
@@ -2392,6 +2473,16 @@ class SaleController extends Controller
      */
     public function storeOrderRequest(Request $request, Sale $sale)
     {
+        if ($sale->pl_status !== 'approved') {
+            return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
+        }
+
+        $status = $sale->getPaymentConditionStatus();
+        if (!$status['eligible_for_order']) {
+            $pendingList = implode(', ', $status['pending_order_milestones']);
+            return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
+        }
+
         \Log::info('storeOrderRequest raw input: ' . json_encode($request->all()));
         try {
             $validated = $request->validate([
@@ -2427,6 +2518,7 @@ class SaleController extends Controller
                 'created_by' => auth()->id(),
                 'note' => $request->input('order_request_note'),
                 'sent_at' => now(),
+                'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
             ]);
 
             // Create items
@@ -2627,35 +2719,28 @@ class SaleController extends Controller
                 }
             }
 
-            // Cập nhật PR: trạng thái → submitted, xóa rejection_note
+            // Cập nhật PR: trạng thái → pending_admin, xóa rejection_note
             $orderRequest->update([
-                'status' => \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
                 'rejection_note' => null,
                 'note' => $request->input('order_request_note'),
                 'sent_at' => now(),
             ]);
 
-            // Gửi thông báo cho PO team (gửi lại)
-            $poUsers = User::whereHas('roles', function ($q) {
-                $q->where('slug', 'admin')
-                  ->orWhere('slug', 'purchase_manager');
+            // Gửi thông báo cho Admin (gửi lại)
+            $adminUsers = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'admin');
             })->get();
 
-            if ($poUsers->isEmpty()) {
-                $poUsers = User::whereHas('roles', function ($q) {
-                    $q->where('slug', 'admin');
-                })->get();
-            }
-
             $senderName = auth()->user()->name ?? 'Sales';
-            foreach ($poUsers as $user) {
+            foreach ($adminUsers as $user) {
                 if ($user->id === auth()->id()) continue;
 
                 Notification::create([
                     'user_id' => $user->id,
                     'type' => 'order_request',
                     'title' => 'Yêu cầu đặt hàng đã được gửi lại',
-                    'message' => "{$senderName} đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                    'message' => "{$senderName} đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) cần phê duyệt cho đơn {$sale->code}",
                     'link' => route('sales.show', $sale->id),
                     'icon' => 'fas fa-redo',
                     'color' => 'blue',
@@ -2670,6 +2755,96 @@ class SaleController extends Controller
             Log::error('Update order request failed: ' . $e->getMessage());
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Admin approves a purchase request
+     */
+    public function approveOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+            return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
+        }
+
+        if ($orderRequest->status !== \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN) {
+            return back()->with('error', 'Yêu cầu không ở trạng thái Chờ Admin duyệt.');
+        }
+
+        $orderRequest->update([
+            'status' => \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+            'rejection_note' => null,
+        ]);
+
+        // Notify PO Team (Purchase managers / purchase staff)
+        $poUsers = User::whereHas('roles', function ($q) {
+            $q->whereIn('slug', ['purchase_manager', 'purchase_staff']);
+        })->get();
+
+        $adminName = $user->name;
+        foreach ($poUsers as $poUser) {
+            Notification::create([
+                'user_id' => $poUser->id,
+                'type' => 'order_request',
+                'title' => 'Yêu cầu đặt hàng mới đã được duyệt',
+                'message' => "Admin {$adminName} đã duyệt yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}. Sẵn sàng để gom hàng.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-cart-plus',
+                'color' => 'blue',
+            ]);
+        }
+
+        // Notify creator (Salesperson)
+        if ($orderRequest->created_by) {
+            Notification::create([
+                'user_id' => $orderRequest->created_by,
+                'type' => 'order_request',
+                'title' => 'Yêu cầu đặt hàng đã được duyệt',
+                'message' => "Yêu cầu đặt hàng ({$orderRequest->code}) của bạn đã được Admin duyệt.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-check-circle',
+                'color' => 'green',
+            ]);
+        }
+
+        return back()->with('success', 'Đã duyệt yêu cầu đặt hàng #' . $orderRequest->code);
+    }
+
+    /**
+     * Admin rejects/requests info for a purchase request
+     */
+    public function rejectOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+            return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
+        }
+
+        if ($orderRequest->status !== \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN) {
+            return back()->with('error', 'Yêu cầu không ở trạng thái Chờ Admin duyệt.');
+        }
+
+        $request->validate(['rejection_note' => 'required|string|max:1000']);
+
+        $orderRequest->update([
+            'status' => \App\Models\SaleOrderRequest::STATUS_NEED_INFO,
+            'rejection_note' => $request->input('rejection_note'),
+        ]);
+
+        // Notify creator (Salesperson)
+        if ($orderRequest->created_by) {
+            Notification::create([
+                'user_id' => $orderRequest->created_by,
+                'type' => 'order_request',
+                'title' => 'Yêu cầu đặt hàng bị trả về',
+                'message' => "Yêu cầu đặt hàng ({$orderRequest->code}) của bạn bị Admin trả về vì: \"{$orderRequest->rejection_note}\".",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-exclamation-triangle',
+                'color' => 'orange',
+            ]);
+        }
+
+        return back()->with('success', 'Đã trả yêu cầu đặt hàng #' . $orderRequest->code . ' về cho bộ phận Sales.');
     }
 
     /**
@@ -2995,6 +3170,510 @@ class SaleController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * BOD approves payment exception for the whole Sale
+     */
+    public function approvePaymentException(Request $request, Sale $sale)
+    {
+        $user = auth()->user();
+        $isAuthorized = $user->hasRole('director') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin') || 
+                        ($sale->payment_exception_delegated_to === $user->id) ||
+                        ($sale->user_id === $user->id);
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
+        }
+
+        $request->validate([
+            'payment_exception_file' => 'nullable|file|max:20480',
+            'payment_exception_files' => 'nullable|array',
+            'payment_exception_files.*' => 'file|max:20480',
+        ]);
+
+        $paths = [];
+        if ($request->hasFile('payment_exception_file')) {
+            $paths[] = $request->file('payment_exception_file')->store('payment-exceptions/' . $sale->id, 'public');
+        }
+        if ($request->hasFile('payment_exception_files')) {
+            foreach ($request->file('payment_exception_files') as $file) {
+                $paths[] = $file->store('payment-exceptions/' . $sale->id, 'public');
+            }
+        }
+
+        if (empty($paths)) {
+            return back()->with('error', 'Vui lòng đính kèm tệp phê duyệt.');
+        }
+
+        $sale->is_payment_exception = true;
+        $sale->payment_exception_file = count($paths) === 1 ? $paths[0] : json_encode($paths);
+        $sale->save();
+
+        // Ghi log Audit Trail
+        \App\Models\PaymentApprovalLog::create([
+            'sale_id' => $sale->id,
+            'action' => 'bod_exception_approved',
+            'new_value' => 'exception_approved',
+            'reason' => 'Đã duyệt ngoại lệ toàn đơn hàng. Người thực hiện: ' . $user->name,
+            'attachment_path' => count($paths) === 1 ? $paths[0] : json_encode($paths),
+            'performed_by' => $user->id,
+            'performed_at' => now(),
+        ]);
+
+        // Create notification for Sales
+        $salesPerson = $sale->user;
+        if ($salesPerson) {
+            \App\Models\Notification::create([
+                'user_id' => $salesPerson->id,
+                'type' => 'payment_alert',
+                'title' => 'Đơn hàng được duyệt ngoại lệ',
+                'message' => "Đơn hàng {$sale->code} đã được duyệt ngoại lệ thanh toán.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-shield-alt',
+                'color' => 'blue',
+            ]);
+        }
+
+        return back()->with('success', 'Đã duyệt ngoại lệ thanh toán cho đơn hàng thành công!');
+    }
+
+    /**
+     * Sales uploads UNC/Proof for a specific milestone
+     */
+    public function submitMilestoneProof(Request $request, Sale $sale, $index)
+    {
+        $request->validate([
+            'proof_file' => 'required|file|max:20480',
+        ]);
+
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        if ($request->hasFile('proof_file')) {
+            $file = $request->file('proof_file');
+            $path = $file->store('payment-proofs/' . $sale->id, 'public');
+            
+            $oldStatus = $schedule->status;
+            $schedule->status = 'pending_finance';
+            $schedule->proof_file_path = $path;
+            $schedule->save();
+
+            // Create PaymentEvidence record
+            \App\Models\PaymentEvidence::create([
+                'schedule_id' => $schedule->id,
+                'doc_type' => $schedule->required_docs !== 'none' ? $schedule->required_docs : 'unc',
+                'reference_number' => $request->input('reference_number'),
+                'amount' => $schedule->amount,
+                'file_path' => $path,
+                'uploaded_by' => auth()->id(),
+                'status' => 'pending',
+            ]);
+
+            // Ghi log
+            \App\Models\PaymentApprovalLog::create([
+                'schedule_id' => $schedule->id,
+                'sale_id' => $sale->id,
+                'action' => 'proof_uploaded',
+                'old_value' => $oldStatus,
+                'new_value' => 'pending_finance',
+                'reason' => 'Sales uploaded proof document.',
+                'attachment_path' => $path,
+                'performed_by' => auth()->id(),
+                'performed_at' => now(),
+            ]);
+
+            // Notify Finance/Accountants
+            $accountants = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'accountant')
+                  ->orWhere('slug', 'admin')
+                  ->orWhere('slug', 'super_admin');
+            })->get();
+
+            $senderName = auth()->user()->name ?? 'Sales';
+            foreach ($accountants as $acc) {
+                \App\Models\Notification::create([
+                    'user_id' => $acc->id,
+                    'type' => 'payment_alert',
+                    'title' => 'Yêu cầu xác nhận thanh toán',
+                    'message' => "{$senderName} đã upload UNC cho đợt " . ($schedule->milestone_name) . " của đơn {$sale->code}.",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-file-invoice-dollar',
+                    'color' => 'yellow',
+                ]);
+            }
+
+            return back()->with('success', 'Đã tải lên chứng từ thanh toán thành công. Chờ Finance xác nhận.');
+        }
+
+        return back()->with('error', 'Vui lòng chọn tệp chứng từ.');
+    }
+
+    /**
+     * Finance confirms payment for a milestone
+     */
+    public function confirmMilestonePayment(Request $request, Sale $sale, $index)
+    {
+        $user = auth()->user();
+        $isAuthorized = $user->hasRole('accountant') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin') || 
+                        ($sale->user_id === $user->id);
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Bạn không có quyền xác nhận thanh toán.');
+        }
+
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        $oldStatus = $schedule->status;
+        $schedule->status = 'paid';
+        $schedule->confirmed_by = $user->name;
+        $schedule->confirmed_at = now();
+        $schedule->save();
+
+        // Update PaymentEvidence status
+        $evidence = $schedule->evidences()->where('status', 'pending')->latest()->first();
+        if ($evidence) {
+            $evidence->update([
+                'status' => 'verified',
+                'verified_by' => $user->name,
+                'verified_at' => now(),
+            ]);
+        }
+
+        // Ghi log
+        \App\Models\PaymentApprovalLog::create([
+            'schedule_id' => $schedule->id,
+            'sale_id' => $sale->id,
+            'action' => 'finance_confirmed',
+            'old_value' => $oldStatus,
+            'new_value' => 'paid',
+            'reason' => 'Finance confirmed payment.',
+            'performed_by' => $user->id,
+            'performed_at' => now(),
+        ]);
+        
+        // Recalculate total paid amount based on paid milestones
+        $totalPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
+        $sale->paid_amount = $totalPaid;
+        $sale->updateDebt();
+        $sale->save();
+
+        // Create financial transaction
+        try {
+            $financialService = app(\App\Services\FinancialTransactionService::class);
+            $enrichedNote = "Xác nhận thanh toán đợt \"" . $schedule->milestone_name . "\"";
+            if ($schedule->percentage > 0) {
+                $enrichedNote .= " ({$schedule->percentage}%)";
+            }
+            
+            $financialService->createFromSale(
+                $sale,
+                $schedule->amount,
+                'bank_transfer',
+                $enrichedNote,
+                $sale->currency_id ?: \App\Models\Currency::getBaseCurrencyId(),
+                $sale->exchange_rate ?: 1
+            );
+        } catch (\Exception $ex) {
+            \Illuminate\Support\Facades\Log::warning('Could not create financial transaction for confirmed milestone: ' . $ex->getMessage());
+        }
+
+        // Notify Sales
+        $salesPerson = $sale->user;
+        if ($salesPerson) {
+            \App\Models\Notification::create([
+                'user_id' => $salesPerson->id,
+                'type' => 'payment_alert',
+                'title' => 'Thanh toán đã được xác nhận',
+                'message' => "Finance đã xác nhận thanh toán cho đợt " . ($schedule->milestone_name) . " của đơn {$sale->code}.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-check-circle',
+                'color' => 'green',
+            ]);
+        }
+
+        // Also notify PO/Logistics if blocking was cleared
+        if ($schedule->blocking_stage) {
+            $notifyRoles = [];
+            if ($schedule->blocking_stage === 'BLOCK_PO_SEND') {
+                $notifyRoles = ['po', 'buyer', 'admin', 'super_admin'];
+            } elseif ($schedule->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                $notifyRoles = ['warehouse', 'logistics', 'admin', 'super_admin'];
+            }
+
+            if (!empty($notifyRoles)) {
+                $recipientUsers = User::whereHas('roles', function($q) use ($notifyRoles) {
+                    $q->whereIn('slug', $notifyRoles);
+                })->get();
+
+                foreach ($recipientUsers as $ru) {
+                    \App\Models\Notification::create([
+                        'user_id' => $ru->id,
+                        'type' => 'payment_alert',
+                        'title' => 'Mở khóa đơn hàng',
+                        'message' => "Đơn hàng {$sale->code} đã được mở khóa {$schedule->blocking_stage} sau khi Finance xác nhận thanh toán đợt {$schedule->milestone_name}.",
+                        'link' => route('sales.show', $sale->id),
+                        'icon' => 'fas fa-unlock',
+                        'color' => 'indigo',
+                    ]);
+                }
+            }
+        }
+
+        return back()->with('success', 'Xác nhận thanh toán đợt thành công!');
+    }
+
+    /**
+     * BOD approves exception for a specific milestone
+     */
+    public function approveMilestoneException(Request $request, Sale $sale, $index)
+    {
+        $user = auth()->user();
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        $isAuthorized = $user->hasRole('director') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin') || 
+                        ($schedule->delegated_to_id === $user->id) ||
+                        ($sale->payment_exception_delegated_to === $user->id) ||
+                        ($sale->user_id === $user->id);
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
+        }
+
+        $request->validate([
+            'bod_approval_file' => 'nullable|file|max:20480',
+            'bod_approval_files' => 'nullable|array',
+            'bod_approval_files.*' => 'file|max:20480',
+        ]);
+
+        $paths = [];
+        if ($request->hasFile('bod_approval_file')) {
+            $paths[] = $request->file('bod_approval_file')->store('milestone-exceptions/' . $sale->id, 'public');
+        }
+        if ($request->hasFile('bod_approval_files')) {
+            foreach ($request->file('bod_approval_files') as $file) {
+                $paths[] = $file->store('milestone-exceptions/' . $sale->id, 'public');
+            }
+        }
+
+        if (empty($paths)) {
+            return back()->with('error', 'Vui lòng đính kèm tệp phê duyệt.');
+        }
+
+        $oldStatus = $schedule->status;
+        $schedule->status = 'exception_approved';
+        $schedule->bod_approval_file_path = count($paths) === 1 ? $paths[0] : json_encode($paths);
+        $schedule->save();
+
+        // Ghi log
+        \App\Models\PaymentApprovalLog::create([
+            'schedule_id' => $schedule->id,
+            'sale_id' => $sale->id,
+            'action' => 'bod_exception_approved',
+            'old_value' => $oldStatus,
+            'new_value' => 'exception_approved',
+            'reason' => $request->input('exception_reason', 'Đã duyệt ngoại lệ cho đợt: ' . $schedule->milestone_name . '. Người thực hiện: ' . $user->name),
+            'attachment_path' => count($paths) === 1 ? $paths[0] : json_encode($paths),
+            'performed_by' => $user->id,
+            'performed_at' => now(),
+        ]);
+
+            // Notify Sales
+            $salesPerson = $sale->user;
+            if ($salesPerson) {
+                \App\Models\Notification::create([
+                    'user_id' => $salesPerson->id,
+                    'type' => 'payment_alert',
+                    'title' => 'Đợt thanh toán được duyệt ngoại lệ',
+                    'message' => "Đợt " . ($schedule->milestone_name) . " của đơn {$sale->code} đã được duyệt ngoại lệ.",
+                    'link' => route('sales.show', $sale->id),
+                    'icon' => 'fas fa-unlock-alt',
+                    'color' => 'blue',
+                ]);
+            }
+
+            // Also notify PO/Logistics
+            if ($schedule->blocking_stage) {
+                $notifyRoles = [];
+                if ($schedule->blocking_stage === 'BLOCK_PO_SEND') {
+                    $notifyRoles = ['po', 'buyer', 'admin', 'super_admin'];
+                } elseif ($schedule->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                    $notifyRoles = ['warehouse', 'logistics', 'admin', 'super_admin'];
+                }
+
+                if (!empty($notifyRoles)) {
+                    $recipientUsers = User::whereHas('roles', function($q) use ($notifyRoles) {
+                        $q->whereIn('slug', $notifyRoles);
+                    })->get();
+
+                    foreach ($recipientUsers as $ru) {
+                        \App\Models\Notification::create([
+                            'user_id' => $ru->id,
+                            'type' => 'payment_alert',
+                            'title' => 'Ngoại lệ được phê duyệt',
+                            'message' => "Đơn hàng {$sale->code} đã được mở khóa ngoại lệ cho giai đoạn {$schedule->blocking_stage}.",
+                            'link' => route('sales.show', $sale->id),
+                            'icon' => 'fas fa-shield-alt',
+                            'color' => 'purple',
+                        ]);
+                    }
+                }
+            }
+
+            return back()->with('success', 'Đã duyệt ngoại lệ thanh toán đợt thành công!');
+    }
+
+    /**
+     * BOD delegates exception approval of the whole sale to a specific user
+     */
+    public function delegateSaleException(Request $request, Sale $sale)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('director') && !$user->hasRole('super_admin') && !$user->hasRole('admin')) {
+            return back()->with('error', 'Chỉ BOD mới có quyền ủy quyền duyệt ngoại lệ.');
+        }
+
+        $request->validate([
+            'delegate_user_id' => 'nullable|exists:users,id',
+        ]);
+
+        $delegateUserId = $request->input('delegate_user_id');
+        $sale->payment_exception_delegated_to = $delegateUserId;
+        $sale->save();
+
+        if ($delegateUserId) {
+            $delegateUser = User::find($delegateUserId);
+            \App\Models\PaymentApprovalLog::create([
+                'sale_id' => $sale->id,
+                'action' => 'delegated',
+                'new_value' => $delegateUser->name,
+                'reason' => 'BOD delegated exception approval of this sale to ' . $delegateUser->name,
+                'performed_by' => $user->id,
+                'performed_at' => now(),
+            ]);
+
+            \App\Models\Notification::create([
+                'user_id' => $delegateUserId,
+                'type' => 'payment_alert',
+                'title' => 'Bạn được ủy quyền duyệt ngoại lệ',
+                'message' => "BOD đã ủy quyền cho bạn duyệt ngoại lệ thanh toán cho đơn hàng {$sale->code}.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-user-shield',
+                'color' => 'indigo',
+            ]);
+
+            return back()->with('success', 'Đã ủy quyền duyệt ngoại lệ đơn hàng cho ' . $delegateUser->name . ' thành công!');
+        } else {
+            \App\Models\PaymentApprovalLog::create([
+                'sale_id' => $sale->id,
+                'action' => 'delegation_revoked',
+                'reason' => 'BOD revoked exception approval delegation of this sale.',
+                'performed_by' => $user->id,
+                'performed_at' => now(),
+            ]);
+
+            return back()->with('success', 'Đã hủy ủy quyền duyệt ngoại lệ đơn hàng.');
+        }
+    }
+
+    /**
+     * BOD delegates exception approval of a specific milestone to a specific user
+     */
+    public function delegateMilestoneException(Request $request, Sale $sale, $index)
+    {
+        $user = auth()->user();
+        if (!$user->hasRole('director') && !$user->hasRole('super_admin') && !$user->hasRole('admin')) {
+            return back()->with('error', 'Chỉ BOD mới có quyền ủy quyền duyệt ngoại lệ.');
+        }
+
+        $request->validate([
+            'delegate_user_id' => 'nullable|exists:users,id',
+        ]);
+
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        $delegateUserId = $request->input('delegate_user_id');
+        $schedule->delegated_to_id = $delegateUserId;
+        $schedule->save();
+
+        if ($delegateUserId) {
+            $delegateUser = User::find($delegateUserId);
+            \App\Models\PaymentApprovalLog::create([
+                'schedule_id' => $schedule->id,
+                'sale_id' => $sale->id,
+                'action' => 'delegated',
+                'new_value' => $delegateUser->name,
+                'reason' => 'BOD delegated exception approval of milestone ' . $schedule->milestone_name . ' to ' . $delegateUser->name,
+                'performed_by' => $user->id,
+                'performed_at' => now(),
+            ]);
+
+            \App\Models\Notification::create([
+                'user_id' => $delegateUserId,
+                'type' => 'payment_alert',
+                'title' => 'Bạn được ủy quyền duyệt ngoại lệ đợt',
+                'message' => "BOD đã ủy quyền cho bạn duyệt ngoại lệ đợt {$schedule->milestone_name} cho đơn hàng {$sale->code}.",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-user-shield',
+                'color' => 'indigo',
+            ]);
+
+            return back()->with('success', 'Đã ủy quyền duyệt ngoại lệ đợt cho ' . $delegateUser->name . ' thành công!');
+        } else {
+            \App\Models\PaymentApprovalLog::create([
+                'schedule_id' => $schedule->id,
+                'sale_id' => $sale->id,
+                'action' => 'delegation_revoked',
+                'reason' => 'BOD revoked exception approval delegation of milestone ' . $schedule->milestone_name . '.',
+                'performed_by' => $user->id,
+                'performed_at' => now(),
+            ]);
+
+            return back()->with('success', 'Đã hủy ủy quyền duyệt ngoại lệ đợt.');
+        }
+    }
+
+    /**
+     * Update delivery date
+     */
+    public function updateDeliveryDate(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'delivery_date' => 'required|date',
+        ]);
+
+        $date = $request->input('delivery_date');
+        $sale->update(['delivery_date' => $date]);
+        $sale->updateMilestoneDueDates();
+
+        // Also update any completed export voucher linked to this sale
+        $completedExport = \App\Models\Export::where('reference_id', $sale->id)
+            ->where('reference_type', 'sale')
+            ->where('status', 'completed')
+            ->latest()
+            ->first();
+        if ($completedExport) {
+            $completedExport->update(['date' => $date]);
+        }
+
+        return back()->with('success', 'Đã cập nhật ngày giao hàng thành công và tính lại các hạn thanh toán.');
     }
 }
 

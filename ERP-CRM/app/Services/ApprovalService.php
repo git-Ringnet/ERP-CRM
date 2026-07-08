@@ -24,7 +24,7 @@ class ApprovalService
         }
 
         $amount = $document->total ?? 0;
-        $firstLevel = $this->findNextApplicableLevel($workflow, 0, $amount);
+        $firstLevel = $this->findNextApplicableLevel($workflow, 0, $amount, $document);
 
         if (!$firstLevel) {
             // Không có cấp nào cần duyệt (số tiền nhỏ), tự động duyệt luôn
@@ -117,7 +117,7 @@ class ApprovalService
                 $document->current_approval_level = $currentLevel->level;
                 
                 // Tìm cấp tiếp theo phù hợp số tiền
-                $nextNextLevel = $this->findNextApplicableLevel($workflow, $currentLevel->level, $amount);
+                $nextNextLevel = $this->findNextApplicableLevel($workflow, $currentLevel->level, $amount, $document);
 
                 if (!$nextNextLevel) {
                     // Hoàn thành quy trình
@@ -332,9 +332,9 @@ class ApprovalService
     /**
      * Tìm cấp duyệt tiếp theo phù hợp với số tiền
      */
-    public function findNextApplicableLevel(ApprovalWorkflow $workflow, int $currentLevel, float $amount): ?ApprovalLevel
+    public function findNextApplicableLevel(ApprovalWorkflow $workflow, int $currentLevel, float $amount, Model $document = null): ?ApprovalLevel
     {
-        return $workflow->levels()
+        $nextLevel = $workflow->levels()
             ->where('level', '>', $currentLevel)
             ->where(function ($query) use ($amount) {
                 // Return if within amount range OR if explicitly required
@@ -348,6 +348,16 @@ class ApprovalService
             })
             ->orderBy('level')
             ->first();
+
+        // Nếu cấp tiếp theo là Cấp 2 của sale_pnl (BOD), nhưng đơn hàng không phải là ngoại lệ BOD phê duyệt,
+        // thì bỏ qua Cấp 2 (BOD) và chuyển sang kiểm tra cấp kế tiếp.
+        if ($nextLevel && $workflow->document_type === 'sale_pnl' && $nextLevel->level == 2) {
+            if ($document && isset($document->payment_term_type) && $document->payment_term_type !== 'bod_exception') {
+                return $this->findNextApplicableLevel($workflow, 2, $amount, $document);
+            }
+        }
+
+        return $nextLevel;
     }
 
     /**

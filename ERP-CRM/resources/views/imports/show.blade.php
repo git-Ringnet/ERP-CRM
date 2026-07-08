@@ -47,6 +47,48 @@
             @endif
         </div>
 
+        @php
+            $linkedSale = null;
+            if ($import->reference_type === 'purchase_order' && $import->purchaseOrder) {
+                $linkedSale = $import->purchaseOrder->sale;
+            }
+            
+            $hasUnpaidWarning = false;
+            $unpaidMilestones = [];
+            
+            if ($linkedSale) {
+                $payStatus = $linkedSale->getPaymentConditionStatus();
+                foreach ($payStatus['milestones'] as $ms) {
+                    if ($ms['required_before'] === 'before_export' && !in_array($ms['status'] ?? 'unpaid', ['paid', 'approved_preload', 'approved_export_before_payment'])) {
+                        $hasUnpaidWarning = true;
+                        $unpaidMilestones[] = $ms;
+                    }
+                }
+            }
+        @endphp
+
+        @if($hasUnpaidWarning)
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3 shadow-sm">
+            <div class="p-2 bg-red-100 text-red-700 rounded-lg">
+                <i class="fas fa-exclamation-triangle text-lg"></i>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-red-800">CẢNH BÁO THANH TOÁN (LOGISTICS & SALES)</h4>
+                <p class="text-xs text-red-700 mt-1">
+                    Đơn hàng bán liên kết <a href="{{ route('sales.show', $linkedSale->id) }}" class="underline font-bold" target="_blank">{{ $linkedSale->code }}</a> có các đợt thanh toán bắt buộc hoàn thành trước khi xuất hàng nhưng chưa thanh toán hoặc chưa được Finance xác nhận:
+                </p>
+                <ul class="list-disc list-inside text-xs text-red-700 mt-2 space-y-1">
+                    @foreach($unpaidMilestones as $ms)
+                        <li><strong>{{ $ms['milestone_name'] }}</strong>: {{ $ms['percentage'] }}% ({{ number_format($ms['amount']) }} ₫) - Hạn: {{ $ms['due_date'] ? \Carbon\Carbon::parse($ms['due_date'])->format('d/m/Y') : 'N/A' }}</li>
+                    @endforeach
+                </ul>
+                <p class="text-xs text-red-600 mt-2 font-semibold">
+                    Vui lòng thông báo cho bộ phận Sales liên hệ khách hàng để thanh toán và tải lên UNC trước khi thực hiện xuất hàng.
+                </p>
+            </div>
+        </div>
+        @endif
+
         <!-- Info Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="space-y-3">

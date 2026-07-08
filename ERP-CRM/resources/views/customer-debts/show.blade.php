@@ -89,6 +89,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã đơn</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Điều khoản thanh toán</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hạn thanh toán</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
@@ -115,6 +116,31 @@
                             <tr class="{{ $rowClass }}">
                                 <td class="px-4 py-3 text-sm font-medium text-primary">
                                     <a href="{{ route('sales.show', $sale) }}">{{ $sale->code }}</a>
+                                </td>
+                                <td class="px-4 py-3 text-sm">
+                                    <div class="font-medium text-gray-900">
+                                        @if($sale->payment_term_type)
+                                            {{ $sale->payment_term_type === 'prepaid_100' ? '100% trước đặt hàng' : ($sale->payment_term_type === 'postpaid' ? 'Sau giao hàng' : ($sale->payment_term_type === 'milestones' ? 'Nhiều đợt' : 'Ngoại lệ BOD')) }}
+                                        @else
+                                            Mặc định
+                                        @endif
+                                    </div>
+                                    @php
+                                        $payStatus = $sale->getPaymentConditionStatus();
+                                        $unpaidStages = [];
+                                        foreach($payStatus['milestones'] ?? [] as $ms) {
+                                            if(($ms['status'] ?? 'unpaid') !== 'paid') {
+                                                $unpaidStages[] = ($ms['milestone_name'] ?? 'Đợt') . ' (' . number_format($ms['amount'] ?? 0) . 'đ)';
+                                            }
+                                        }
+                                    @endphp
+                                    @if(count($unpaidStages) > 0)
+                                        <div class="text-[10px] text-red-500 mt-0.5">
+                                            Nợ đợt: {{ implode(', ', $unpaidStages) }}
+                                        </div>
+                                    @else
+                                        <div class="text-[10px] text-green-600 mt-0.5 font-semibold">Đã hoàn thành</div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $sale->date->format('d/m/Y') }}</td>
                                 <td class="px-4 py-3 text-sm">
@@ -185,7 +211,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">Không có đơn hàng</td>
+                                <td colspan="9" class="px-4 py-8 text-center text-gray-500">Không có đơn hàng</td>
                             </tr>
                         @endforelse
                     </tbody>

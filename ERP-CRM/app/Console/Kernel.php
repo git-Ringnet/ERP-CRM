@@ -23,6 +23,9 @@ class Kernel extends ConsoleKernel
 
         // Kiểm tra hạn thanh toán đơn hàng và thông báo mỗi ngày lúc 8h sáng
         $schedule->command('sales:check-payment-due')->dailyAt('08:00');
+
+        // Kiểm tra hạn thanh toán từng đợt (milestones) mỗi ngày lúc 8h sáng
+        $schedule->command('payment:check-due-dates')->dailyAt('08:00');
     }
 
     /**

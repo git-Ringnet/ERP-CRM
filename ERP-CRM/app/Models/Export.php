@@ -112,6 +112,9 @@ class Export extends Model
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {
+            'draft' => 'Bản nháp',
+            'pending_admin' => 'Chờ Admin duyệt xuất',
+            'pending_invoice' => 'Chờ KT xuất hóa đơn',
             'pending' => 'Chờ xử lý',
             'completed' => 'Hoàn thành',
             'cancelled' => 'Đã hủy',
@@ -136,7 +139,10 @@ class Export extends Model
     public function getStatusColorAttribute(): string
     {
         return match($this->status) {
-            'pending' => 'yellow',
+            'draft' => 'gray',
+            'pending_admin' => 'yellow',
+            'pending_invoice' => 'orange',
+            'pending' => 'blue',
             'completed' => 'green',
             'cancelled' => 'gray',
             'rejected' => 'red',

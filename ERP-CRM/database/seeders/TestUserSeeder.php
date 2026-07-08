@@ -76,6 +76,14 @@ class TestUserSeeder extends Seeder
                 'position' => 'Accountant',
                 'department' => 'Finance'
             ],
+            [
+                'email' => 'sales_admin@erp.com',
+                'name' => 'Sales Admin User',
+                'employee_code' => 'SA001',
+                'role_slug' => 'admin',
+                'position' => 'Sales Admin',
+                'department' => 'Sales'
+            ],
         ];
 
         // Get admin user for 'assigned_by' reference

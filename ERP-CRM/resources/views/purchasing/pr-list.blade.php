@@ -132,6 +132,26 @@
                             <td
                                 class="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-gray-50 z-10 shadow-[-8px_0_10px_-8px_rgba(0,0,0,0.15)] transition-colors">
                                 <div class="flex justify-end gap-2">
+                                    @php
+                                        $currentUser = auth()->user();
+                                        $canApproveAdmin = $currentUser && ($currentUser->hasRole('admin') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('purchase_manager'));
+                                    @endphp
+
+                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
+                                        <form action="{{ route('sales.order-request.admin-approve', [$request->sale_id, $request->id]) }}" method="POST"
+                                            onsubmit="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')">
+                                            @csrf
+                                            <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt PR">
+                                                <i class="fas fa-check-circle text-lg"></i>
+                                            </button>
+                                        </form>
+                                        <button type="button"
+                                            onclick="showAdminRejectModal('{{ $request->id }}', '{{ $request->code }}', '{{ $request->sale_id }}')"
+                                            class="text-red-600 hover:text-red-800 p-1" title="Trả về Sales">
+                                            <i class="fas fa-times-circle text-lg"></i>
+                                        </button>
+                                    @endif
+
                                     @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
                                         <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST"
                                             onsubmit="return confirm('Duyệt yêu cầu này?')">
@@ -218,6 +238,94 @@
                                             @endforeach
                                         </tbody>
                                     </table>
+
+                                    @if($request->sale)
+                                        @php
+                                            $payStatus = $request->sale->getPaymentConditionStatus();
+                                        @endphp
+                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-200/80 text-xs">
+                                            <div>
+                                                <h5 class="font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                                    <i class="fas fa-file-invoice-dollar text-teal-600"></i> Điều khoản & Trạng thái thanh toán (SO: {{ $request->sale->code }})
+                                                </h5>
+                                                <div class="space-y-1 text-gray-600">
+                                                    <div>Tổng tiền đơn hàng: <span class="font-semibold text-gray-800">{{ number_format($request->sale->total, 0) }}đ</span></div>
+                                                    <div>Đã thanh toán: <span class="font-semibold text-green-600">{{ number_format($request->sale->paid_amount, 0) }}đ</span></div>
+                                                    <div>Hình thức: <span class="font-semibold text-gray-700">
+                                                        {{ $request->sale->payment_term_type === 'prepaid_100' ? 'Thanh toán trước 100%' : ($request->sale->payment_term_type === 'postpaid' ? 'Thanh toán sau giao hàng' : ($request->sale->payment_term_type === 'milestones' ? 'Thanh toán từng đợt' : ($request->sale->payment_term_type === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : $request->sale->payment_term_type))) }}
+                                                    </span></div>
+                                                    <div class="flex items-center gap-1.5 mt-1.5">
+                                                        <span>Điều kiện đặt hàng:</span>
+                                                        @if($payStatus['eligible_for_order'])
+                                                            <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold uppercase text-[9px]"><i class="fas fa-check mr-1"></i>ĐỦ ĐIỀU KIỆN</span>
+                                                        @else
+                                                            <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase text-[9px]"><i class="fas fa-ban mr-1"></i>CHƯA ĐỦ ĐIỀU KIỆN</span>
+                                                        @endif
+                                                        @if($payStatus['has_exception'])
+                                                            <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold uppercase text-[9px]"><i class="fas fa-exclamation-circle mr-1"></i>NGOẠI LỆ BOD</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h5 class="font-bold text-gray-700 mb-2">Chi tiết các đợt thanh toán:</h5>
+                                                @if(empty($payStatus['milestones']))
+                                                    <p class="text-gray-400 italic">Không có đợt thanh toán nào được cấu hình.</p>
+                                                @else
+                                                    <div class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                                        @foreach($payStatus['milestones'] as $ms)
+                                                            <div class="flex items-start justify-between border-b border-gray-100 pb-1.5">
+                                                                <div>
+                                                                    <div class="font-medium text-gray-800">{{ $ms['milestone_name'] }} ({{ $ms['percentage'] }}% - {{ number_format($ms['amount'], 0) }}đ)</div>
+                                                                    <div class="text-[10px] text-gray-500">
+                                                                        Chặn: <span class="font-medium text-red-600">
+                                                                            {{ $ms['required_before'] === 'before_order' ? 'Trước khi đặt hàng' : ($ms['required_before'] === 'before_export' ? 'Trước khi xuất kho' : ($ms['required_before'] === 'after_delivery' ? 'Sau khi giao hàng' : $ms['required_before'])) }}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="text-right">
+                                                                    @php
+                                                                        $colorMap = [
+                                                                            'paid' => 'bg-green-100 text-green-800',
+                                                                            'approved_preload' => 'bg-amber-100 text-amber-800',
+                                                                            'approved_export_before_payment' => 'bg-purple-100 text-purple-800',
+                                                                            'overdue' => 'bg-red-100 text-red-800',
+                                                                            'due' => 'bg-orange-100 text-orange-800',
+                                                                            'not_yet_due' => 'bg-gray-100 text-gray-800',
+                                                                            'unpaid' => 'bg-gray-100 text-gray-600',
+                                                                        ];
+                                                                        $labelMap = [
+                                                                            'paid' => 'Đã thu',
+                                                                            'approved_preload' => 'BOD Ngoại lệ',
+                                                                            'approved_export_before_payment' => 'BOD Cho xuất',
+                                                                            'overdue' => 'Quá hạn',
+                                                                            'due' => 'Đến hạn',
+                                                                            'not_yet_due' => 'Chưa đến hạn',
+                                                                            'unpaid' => 'Chưa thu',
+                                                                        ];
+                                                                        $badgeClass = $colorMap[$ms['status']] ?? 'bg-gray-100 text-gray-600';
+                                                                        $badgeLabel = $labelMap[$ms['status']] ?? $ms['status'];
+                                                                    @endphp
+                                                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                                                    @if(isset($ms['proof_file_path']) && $ms['proof_file_path'])
+                                                                        <div class="mt-1">
+                                                                            <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank" class="text-[10px] text-blue-600 hover:underline"><i class="fas fa-file-download mr-0.5"></i> UNC</a>
+                                                                        </div>
+                                                                    @endif
+                                                                    @if(isset($ms['bod_approval_file_path']) && $ms['bod_approval_file_path'])
+                                                                        <div class="mt-1">
+                                                                            <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank" class="text-[10px] text-amber-600 hover:underline"><i class="fas fa-file-download mr-0.5"></i> Phê duyệt BOD</a>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endif
+
                                     @if($request->note)
                                         <div class="mt-3 p-2 bg-yellow-50 rounded border border-yellow-100 text-xs text-yellow-800">
                                             <strong>Ghi chú từ Sales:</strong> {{ $request->note }}
@@ -304,6 +412,28 @@
         </div>
     </div>
 
+    <!-- Admin Reject Modal -->
+    <div id="adminRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-bold mb-4">Trả yêu cầu <span id="adminRejectPrCode"></span> về cho Sales</h3>
+            <form id="adminRejectForm" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Lý do trả về (Yêu cầu Sales bổ sung gì?)</label>
+                    <textarea name="rejection_note" required rows="4"
+                        class="w-full border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"
+                        placeholder="Ví dụ: Điều khoản thanh toán chưa hợp lý, cần bổ sung UNC..."></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeAdminRejectModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800">Hủy</button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">Xác nhận trả về</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     @push('scripts')
         <script>
             function toggleDetails(id) {
@@ -319,6 +449,16 @@
 
             function closeRejectModal() {
                 document.getElementById('rejectModal').classList.add('hidden');
+            }
+
+            function showAdminRejectModal(id, code, saleId) {
+                document.getElementById('adminRejectPrCode').innerText = '#' + code;
+                document.getElementById('adminRejectForm').action = `/sales/${saleId}/order-request/${id}/admin-reject`;
+                document.getElementById('adminRejectModal').classList.remove('hidden');
+            }
+
+            function closeAdminRejectModal() {
+                document.getElementById('adminRejectModal').classList.add('hidden');
             }
 
             function showNoteModal(id, code, note) {

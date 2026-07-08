@@ -6,22 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('activity_logs', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('activity_logs', function (Blueprint $table) {
+                $table->dropForeign(['user_id']);
+            });
+        }
 
         Schema::table('activity_logs', function (Blueprint $table) {
             $table->bigInteger('user_id')->unsigned()->nullable()->change();
         });
 
-        Schema::table('activity_logs', function (Blueprint $table) {
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('activity_logs', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+            });
+        }
     }
 
     /**
@@ -29,16 +30,20 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('activity_logs', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('activity_logs', function (Blueprint $table) {
+                $table->dropForeign(['user_id']);
+            });
+        }
 
         Schema::table('activity_logs', function (Blueprint $table) {
             $table->bigInteger('user_id')->unsigned()->nullable(false)->change();
         });
 
-        Schema::table('activity_logs', function (Blueprint $table) {
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('activity_logs', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            });
+        }
     }
 };

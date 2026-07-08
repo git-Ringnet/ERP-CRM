@@ -344,6 +344,54 @@
             </div>
         </div>
 
+        @php
+            $linkedSales = collect();
+            if ($purchaseOrder->sale) {
+                $linkedSales->push($purchaseOrder->sale);
+            }
+            foreach ($purchaseOrder->items as $item) {
+                if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale) {
+                    $linkedSales->push($item->saleOrderRequestItem->saleOrderRequest->sale);
+                }
+            }
+            $linkedSales = $linkedSales->unique('id');
+        @endphp
+
+        @if($linkedSales->isNotEmpty())
+            <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Trạng thái thanh toán của Đơn bán (Sales) liên kết
+                </h4>
+                <div class="space-y-3">
+                    @foreach($linkedSales as $sale)
+                        @php
+                            $payStatus = $sale->getPaymentConditionStatus();
+                        @endphp
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-white border border-gray-100 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-bold text-gray-900">
+                                    Đơn bán: <a href="{{ route('sales.show', $sale->id) }}" target="_blank" class="text-blue-600 hover:underline font-bold">{{ $sale->code }}</a>
+                                </span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
+                                    {{ $sale->customer_name }}
+                                </span>
+                            </div>
+                            <div class="mt-2 sm:mt-0 flex flex-wrap gap-2 items-center">
+                                <span class="px-2 py-0.5 rounded text-xs font-bold {{ $payStatus['eligible_for_order'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                                    {{ $payStatus['eligible_for_order'] ? 'Đủ điều kiện đặt hàng' : 'Chưa đủ điều kiện đặt hàng' }}
+                                </span>
+                                @if($sale->is_payment_exception)
+                                    <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">
+                                        <i class="fas fa-shield-alt"></i> BOD Exception
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <!-- Status Timeline -->
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between">

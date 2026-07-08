@@ -20,6 +20,10 @@
                 <i class="fas fa-file-invoice mr-2 text-primary"></i>
                 Cấu hình Biểu mẫu PO
             </a>
+            <a href="{{ route('settings.payment-templates.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors text-sm font-medium">
+                <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>
+                Cấu hình Mẫu Điều khoản
+            </a>
             {{-- Any other admin links can go here --}}
         </div>
     </div>

@@ -183,6 +183,83 @@
 
                                                         {{-- PR Notes and Attachments --}}
                                                         <div class="bg-gray-50 p-4 border-t border-gray-100 flex flex-col md:flex-row gap-6 text-xs">
+                                                            @if(!empty($so['pay_status']))
+                                                                @php
+                                                                    $payStatus = $so['pay_status'];
+                                                                @endphp
+                                                                <div class="w-full md:w-96 shrink-0 bg-white p-3 rounded-lg border border-gray-200">
+                                                                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                                        <i class="fas fa-file-invoice-dollar text-teal-600"></i> Điều khoản & Trạng thái thanh toán
+                                                                    </h4>
+                                                                    <div class="space-y-1.5 text-xs">
+                                                                        <div class="flex justify-between">
+                                                                            <span class="text-gray-500">Đơn hàng:</span>
+                                                                            <span class="font-semibold text-gray-800">{{ $so['code'] }}</span>
+                                                                        </div>
+                                                                        <div class="flex justify-between">
+                                                                            <span class="text-gray-500">Đã thanh toán:</span>
+                                                                            <span class="font-semibold text-green-600">{{ number_format($payStatus['milestones'] ? collect($payStatus['milestones'])->where('status', 'paid')->sum('amount') : 0, 0) }}đ</span>
+                                                                        </div>
+                                                                        <div class="flex items-center justify-between">
+                                                                            <span class="text-gray-500">Điều kiện đặt hàng:</span>
+                                                                            @if($payStatus['eligible_for_order'])
+                                                                                <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold uppercase text-[9px]"><i class="fas fa-check mr-1"></i>ĐỦ ĐIỀU KIỆN</span>
+                                                                            @else
+                                                                                <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase text-[9px]"><i class="fas fa-ban mr-1"></i>CHƯA ĐỦ ĐIỀU KIỆN</span>
+                                                                            @endif
+                                                                        </div>
+                                                                        
+                                                                        {{-- Chi tiết các đợt thanh toán --}}
+                                                                        <div class="mt-2 border-t border-gray-100 pt-2 space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                                                                            @foreach($payStatus['milestones'] as $ms)
+                                                                                <div class="flex items-start justify-between text-[11px] border-b border-gray-50 pb-1">
+                                                                                    <div>
+                                                                                        <span class="font-medium text-gray-700 text-[10px]">{{ $ms['milestone_name'] }}</span>
+                                                                                        <span class="text-gray-400 text-[9px]">({{ $ms['percentage'] }}%)</span>
+                                                                                        <div class="text-[9px] text-gray-400 mt-0.5">
+                                                                                            Chặn: <span class="font-medium text-red-600">
+                                                                                                {{ $ms['required_before'] === 'before_order' ? 'Trước khi đặt hàng' : ($ms['required_before'] === 'before_export' ? 'Trước khi xuất kho' : ($ms['required_before'] === 'after_delivery' ? 'Sau khi giao hàng' : $ms['required_before'])) }}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div class="text-right">
+                                                                                        @php
+                                                                                            $colorMap = [
+                                                                                                'paid' => 'bg-green-100 text-green-800',
+                                                                                                'approved_preload' => 'bg-amber-100 text-amber-800',
+                                                                                                'approved_export_before_payment' => 'bg-purple-100 text-purple-800',
+                                                                                                'overdue' => 'bg-red-100 text-red-800',
+                                                                                                'due' => 'bg-orange-100 text-orange-800',
+                                                                                                'not_yet_due' => 'bg-gray-100 text-gray-800',
+                                                                                                'unpaid' => 'bg-gray-100 text-gray-600',
+                                                                                            ];
+                                                                                            $labelMap = [
+                                                                                                'paid' => 'Đã thu',
+                                                                                                'approved_preload' => 'Ngoại lệ',
+                                                                                                'approved_export_before_payment' => 'Cho xuất',
+                                                                                                'overdue' => 'Quá hạn',
+                                                                                                'due' => 'Đến hạn',
+                                                                                                'not_yet_due' => 'Chưa đến',
+                                                                                                'unpaid' => 'Chưa thu',
+                                                                                            ];
+                                                                                            $badgeClass = $colorMap[$ms['status']] ?? 'bg-gray-100 text-gray-600';
+                                                                                            $badgeLabel = $labelMap[$ms['status']] ?? $ms['status'];
+                                                                                        @endphp
+                                                                                        <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                                                                        @if(isset($ms['proof_file_path']) && $ms['proof_file_path'])
+                                                                                            <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank" class="ml-1 text-[9px] text-blue-600 hover:underline" title="Tải UNC"><i class="fas fa-file-download"></i></a>
+                                                                                        @endif
+                                                                                        @if(isset($ms['bod_approval_file_path']) && $ms['bod_approval_file_path'])
+                                                                                            <a href="{{ asset('storage/' . $ms['bod_approval_file_path']) }}" target="_blank" class="ml-1 text-[9px] text-amber-600 hover:underline" title="Tải phê duyệt BOD"><i class="fas fa-file-download"></i></a>
+                                                                                        @endif
+                                                                                    </div>
+                                                                                </div>
+                                                                            @endforeach
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+
                                                             <div class="flex-1">
                                                                 <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ghi chú yêu cầu (PR)</h4>
                                                                 @if(!empty($so['note']))

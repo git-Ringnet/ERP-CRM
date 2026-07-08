@@ -111,9 +111,13 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('exports', ExportController::class);
     Route::post('/exports/{export}/approve', [ExportController::class, 'approve'])->name('exports.approve');
     Route::post('/exports/{export}/reject', [ExportController::class, 'reject'])->name('exports.reject');
+    Route::post('/exports/{export}/request-export', [ExportController::class, 'requestExport'])->name('exports.request-export');
+    Route::post('/exports/{export}/admin-approve', [ExportController::class, 'approveExportByAdmin'])->name('exports.admin-approve');
+    Route::post('/exports/{export}/admin-reject', [ExportController::class, 'rejectExportByAdmin'])->name('exports.admin-reject');
     Route::get('/exports/{export}/export-misa-single', [ExportController::class, 'exportMisaSingle'])->name('exports.export-misa-single');
     Route::get('/exports/{export}/print', [ExportController::class, 'print'])->name('exports.print');
     Route::get('/exports/{export}/export-excel', [ExportController::class, 'exportVoucherToExcel'])->name('exports.export-excel');
+    Route::post('/exports/{export}/update-delivery-date', [ExportController::class, 'updateDeliveryDate'])->name('exports.updateDeliveryDate');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
@@ -180,6 +184,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
     Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');
+    Route::post('/sales/{sale}/order-request/{orderRequest}/admin-approve', [SaleController::class, 'approveOrderRequestByAdmin'])->name('sales.order-request.admin-approve');
+    Route::post('/sales/{sale}/order-request/{orderRequest}/admin-reject', [SaleController::class, 'rejectOrderRequestByAdmin'])->name('sales.order-request.admin-reject');
+    Route::post('/sales/{sale}/approve-payment-exception', [SaleController::class, 'approvePaymentException'])->name('sales.approvePaymentException');
+    Route::post('/sales/{sale}/milestones/{index}/submit-proof', [SaleController::class, 'submitMilestoneProof'])->name('sales.milestones.submitProof');
+    Route::post('/sales/{sale}/milestones/{index}/confirm-payment', [SaleController::class, 'confirmMilestonePayment'])->name('sales.milestones.confirmPayment');
+    Route::post('/sales/{sale}/milestones/{index}/approve-exception', [SaleController::class, 'approveMilestoneException'])->name('sales.milestones.approveException');
+    Route::post('/sales/{sale}/delegate-payment-exception', [SaleController::class, 'delegateSaleException'])->name('sales.delegatePaymentException');
+    Route::post('/sales/{sale}/milestones/{index}/delegate-exception', [SaleController::class, 'delegateMilestoneException'])->name('sales.milestones.delegateException');
+    Route::post('/sales/{sale}/update-delivery-date', [SaleController::class, 'updateDeliveryDate'])->name('sales.updateDeliveryDate');
 
     // PNL Approval Attachment routes (File đính kèm duyệt P&L)
     Route::post('/sales/{sale}/pnl-attachments', [SaleController::class, 'uploadPnlAttachment'])->name('sales.pnl-attachments.upload');
@@ -213,6 +226,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/settings/database/import', [\App\Http\Controllers\DatabaseBackupController::class, 'import'])->name('settings.database.import');
     Route::post('/settings/database/show-password/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'showPassword'])->name('settings.database.show-password');
     Route::delete('/settings/database/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'destroy'])->name('settings.database.destroy');
+
+    // Payment Template routes
+    Route::post('/settings/payment-templates/{id}/toggle', [\App\Http\Controllers\PaymentTemplateController::class, 'toggle'])->name('settings.payment-templates.toggle');
+    Route::resource('settings/payment-templates', \App\Http\Controllers\PaymentTemplateController::class, ['names' => 'settings.payment-templates']);
 
     // Customer Debt Management routes
     Route::get('/customer-debts', [CustomerDebtController::class, 'index'])->name('customer-debts.index');

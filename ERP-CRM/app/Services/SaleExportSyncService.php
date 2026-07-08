@@ -106,7 +106,7 @@ class SaleExportSyncService
                 // Determine if we should reuse or create new. 
                 // Simplest is to update status to pending and reuse if structure matches, 
                 // but safer to just update it to pending and let user process it again.
-                $existingExport->update(['status' => 'pending']);
+                $existingExport->update(['status' => 'draft']);
                 return $existingExport;
             }
 
@@ -144,7 +144,7 @@ class SaleExportSyncService
                 'reference_type' => 'sale',
                 'reference_id' => $sale->id,
                 'note' => "Tự động tạo từ đơn hàng {$sale->code}",
-                'status' => 'pending',
+                'status' => 'draft',
             ]);
 
             $totalQty = 0;
