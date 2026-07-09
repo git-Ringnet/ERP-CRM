@@ -47,9 +47,6 @@
                     <a href="{{ route('purchase-requests.index') }}" class="text-teal-600 hover:underline mt-2 inline-block">Quay lại danh sách PR</a>
                 </div>
             @else
-                <form action="{{ route('purchase-orders.store-from-pr') }}" method="POST" id="mainPoForm">
-                    @csrf
-                    <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
 
                 <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null, currentVendor: null }">
                     @foreach($vendorGroups as $vId => $vendor)
@@ -307,53 +304,7 @@
                     @endforeach
                 </div>
 
-                <!-- Global Note & Submit (Floating bottom bar?) -->
-                <div id="submitBar"
-                    class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-teal-100 p-5 z-40 transition-all duration-300">
-                    <div class="space-y-4">
-                        <!-- Dòng 1: CPQ Đơn hàng -->
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
-                            <input type="text" name="cpq_number" id="mainCpqInput" value=""
-                                class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
-                                placeholder="CPQ/non">
-                        </div>
 
-                        <!-- Dòng 2: Ghi chú -->
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Ghi chú cho Đơn hàng
-                                (PO)</label>
-                            <input type="text" name="note"
-                                class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
-                                placeholder="Nhập ghi chú chung cho PO này...">
-                        </div>
-
-                        <input type="hidden" name="currency_id" value="{{ $baseCurrencyId }}">
-                        <input type="hidden" name="exchange_rate" value="1">
-
-                        <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-                            <div class="text-left">
-                                <p class="text-xs text-gray-400 font-medium">Đang chọn <span id="selectedCount"
-                                        class="font-bold text-teal-600">0</span> mặt hàng</p>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <button type="button" onclick="resetSelections()"
-                                    class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors">
-                                    Hủy chọn
-                                </button>
-                                <button type="button" onclick="submitDraft()"
-                                    class="bg-amber-500 text-white px-6 py-2.5 rounded-lg hover:bg-amber-600 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
-                                    <i class="fas fa-file-signature text-xs"></i> GOM NHÁP (DRAFT)
-                                </button>
-                                <button type="button" onclick="submitPo()"
-                                    class="bg-teal-600 text-white px-6 py-2.5 rounded-lg hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
-                                    <i class="fas fa-check-circle text-xs"></i> XÁC NHẬN TẠO PO
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </form>
         @endif
 
         {{-- Danh sách sản phẩm đã hủy --}}
@@ -412,6 +363,7 @@
                 </div>
             </div>
         @endif
+        </div>
     <!-- Tab 3: Đơn Ticket -->
     <div id="tab-preload" class="tab-content {{ $activeTab === 'preload' ? '' : 'hidden' }}">
         @if(empty($preloadVendorGroups))
@@ -748,6 +700,57 @@
             </form>
         </div>
     </div>
+
+    <!-- Main Purchase Order Creation Form (Hidden, with floating Submit Bar) -->
+    <form action="{{ route('purchase-orders.store-from-pr') }}" method="POST" id="mainPoForm">
+        @csrf
+        <input type="hidden" name="vendor_id" id="selectedVendorId" value="">
+        <input type="hidden" name="currency_id" value="{{ $baseCurrencyId }}">
+        <input type="hidden" name="exchange_rate" value="1">
+
+        <!-- Global Note & Submit Bar -->
+        <div id="submitBar"
+            class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-teal-100 p-5 z-40 transition-all duration-300">
+            <div class="space-y-4">
+                <!-- Dòng 1: CPQ Đơn hàng -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">CPQ đơn hàng <span class="text-red-500">*</span></label>
+                    <input type="text" name="cpq_number" id="mainCpqInput" value=""
+                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="CPQ/non">
+                </div>
+
+                <!-- Dòng 2: Ghi chú -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">Ghi chú cho Đơn hàng (PO)</label>
+                    <input type="text" name="note"
+                        class="w-full border-gray-300 rounded-lg text-sm px-4 py-2.5 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="Nhập ghi chú chung cho PO này...">
+                </div>
+
+                <div class="flex items-center justify-between border-t border-gray-100 pt-3">
+                    <div class="text-left">
+                        <p class="text-xs text-gray-400 font-medium">Đang chọn <span id="selectedCount"
+                                class="font-bold text-teal-600">0</span> mặt hàng</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button type="button" onclick="resetSelections()"
+                            class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors">
+                            Hủy chọn
+                        </button>
+                        <button type="button" onclick="submitDraft()"
+                            class="bg-amber-500 text-white px-6 py-2.5 rounded-lg hover:bg-amber-600 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
+                            <i class="fas fa-file-signature text-xs"></i> GOM NHÁP (DRAFT)
+                        </button>
+                        <button type="button" onclick="submitPo()"
+                            class="bg-teal-600 text-white px-6 py-2.5 rounded-lg hover:bg-teal-700 font-bold shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 whitespace-nowrap flex items-center gap-1.5">
+                            <i class="fas fa-check-circle text-xs"></i> XÁC NHẬN TẠO PO
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
 
     @push('scripts')
         <script>

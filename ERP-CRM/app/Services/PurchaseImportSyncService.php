@@ -109,12 +109,17 @@ class PurchaseImportSyncService
                 $totalQty += $quantity;
             }
 
-            $import->update(['total_qty' => $totalQty]);
+            $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
+            $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            $import->update([
+                'warehouse_id' => $mainImportWarehouseId ?? $warehouseId,
+                'total_qty' => $totalQty
+            ]);
 
             // Auto-complete if requested
             if ($autoComplete) {
                 $this->transactionService->processImport([
-                    'warehouse_id' => $warehouseId,
+                    'warehouse_id' => $mainImportWarehouseId ?? $warehouseId,
                 ], $import);
 
                 Log::info("Auto-completed Import #{$import->code} from PO #{$purchaseOrder->code}");
@@ -236,10 +241,17 @@ class PurchaseImportSyncService
                 return null;
             }
 
-            $import->update(['total_qty' => $import->items->sum('quantity')]);
+            $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
+            $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            $import->update([
+                'warehouse_id' => $mainImportWarehouseId ?? $warehouseId,
+                'total_qty' => $import->items()->sum('quantity')
+            ]);
 
             if ($autoComplete) {
-                $this->transactionService->processImport(['warehouse_id' => $warehouseId], $import);
+                $this->transactionService->processImport([
+                    'warehouse_id' => $mainImportWarehouseId ?? $warehouseId
+                ], $import);
             }
 
             DB::commit();
@@ -280,13 +292,28 @@ class PurchaseImportSyncService
     /**
      * Resolve correct warehouse based on PO item properties or linked SO type.
      */
-    protected function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
+    public function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
     {
         // 1. If it's a License item, it always goes to Kho License
         if ($this->isLicenseItem($poItem)) {
             $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
             if ($licenseWh) {
                 return $licenseWh->id;
+            }
+        }
+
+        // 1.5. If it's Fortinet HW with no CQ (does not require CQ), it goes to Kho Runrate
+        if ($poItem->saleOrderRequestItem) {
+            $prItem = $poItem->saleOrderRequestItem;
+            $vendorName = $prItem->vendor ?? ($poItem->purchaseOrder->supplier->name ?? '');
+            $isFortinet = stripos($vendorName, 'Fortinet') !== false;
+            $isHw = ($prItem->type === 'HW') || (!$this->isLicenseItem($poItem));
+            
+            if ($isFortinet && $isHw && !$prItem->needs_cq) {
+                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                if ($runrateWh) {
+                    return $runrateWh->id;
+                }
             }
         }
 

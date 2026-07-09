@@ -1369,11 +1369,13 @@ class PurchaseOrderController extends Controller
                 : "";
             $comment = "{$poItemTag} Hàng về từ PO " . $po->code . $saleInfo;
 
+            $itemWarehouseId = $this->purchaseImportSyncService->resolveWarehouseForPoItem($item, $import->warehouse_id);
+
             if (!$existing) {
                 \App\Models\ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $item->product_id,
-                    'warehouse_id' => $import->warehouse_id,
+                    'warehouse_id' => $itemWarehouseId,
                     'quantity' => $item->quantity,
                     'cost' => $item->unit_price, 
                     'warehouse_price' => $item->unit_price,
@@ -1382,12 +1384,18 @@ class PurchaseOrderController extends Controller
             } else {
                 $existing->update([
                     'quantity' => $item->quantity,
+                    'warehouse_id' => $itemWarehouseId,
                     'comments' => $comment,
                 ]);
             }
 
-            // 4. Cập nhật lại tổng số lượng của phiếu nhập
-            $import->update(['total_qty' => $import->items()->sum('quantity')]);
+            // 4. Cập nhật lại tổng số lượng và kho nhập chính của phiếu nhập
+            $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
+            $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            $import->update([
+                'warehouse_id' => $mainImportWarehouseId ?? $import->warehouse_id,
+                'total_qty' => $import->items()->sum('quantity')
+            ]);
 
         } catch (\Exception $e) {
             \Log::error("Lỗi tự động đồng bộ sang phiếu nhập kho: " . $e->getMessage());
