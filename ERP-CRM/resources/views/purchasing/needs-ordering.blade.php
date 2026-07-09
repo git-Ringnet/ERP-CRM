@@ -22,6 +22,10 @@
                     class="{{ $activeTab === 'needs-ordering' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-all">
                     <i class="fas fa-list mr-1.5"></i> Cần đặt hàng
                 </button>
+                <button type="button" onclick="switchTab('preload')" id="tab-preload-btn"
+                    class="{{ $activeTab === 'preload' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all">
+                    <i class="fas fa-ticket-alt mr-1.5"></i> Đơn Ticket
+                </button>
                 <button type="button" onclick="switchTab('drafts')" id="tab-drafts-btn"
                     class="{{ $activeTab === 'drafts' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all">
                     <i class="fas fa-file-signature mr-1.5"></i> Danh sách nháp
@@ -408,7 +412,139 @@
                 </div>
             </div>
         @endif
-    </div> <!-- End tab-needs-ordering -->
+    <!-- Tab 3: Đơn Ticket -->
+    <div id="tab-preload" class="tab-content {{ $activeTab === 'preload' ? '' : 'hidden' }}">
+        @if(empty($preloadVendorGroups))
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+                <i class="fas fa-ticket-alt text-5xl mb-4 text-gray-300"></i>
+                <p class="text-lg font-medium text-gray-600">Tuyệt vời! Hiện tại không có yêu cầu từ Ticket nào cần đặt mới.</p>
+            </div>
+        @else
+            <div class="grid grid-cols-1 gap-8" x-data="{ expandedSo: null }">
+                @foreach($preloadVendorGroups as $vId => $vendor)
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden vendor-section"
+                        data-vendor-id="{{ $vId }}">
+                        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center font-bold">
+                                    {{ substr($vendor['name'], 0, 1) }}
+                                </div>
+                                <div>
+                                    <h2 class="text-lg font-bold text-gray-800">{{ $vendor['name'] }}</h2>
+                                    <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Yêu cầu Ticket cần xử lý</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="preparePo('{{ $vId }}')"
+                                class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm">
+                                <i class="fas fa-plus mr-2"></i> Tạo PO cho Hãng này
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                        <th class="px-6 py-3 w-10 text-center">
+                                            <input type="checkbox"
+                                                class="rounded text-teal-600 focus:ring-teal-500 vendor-check-all"
+                                                data-vendor-id="{{ $vId }}">
+                                        </th>
+                                        <th class="px-6 py-3">Mã yêu cầu Ticket</th>
+                                        <th class="px-6 py-3 text-center">Ghi chú</th>
+                                        <th class="px-6 py-3 text-center">Đã đặt</th>
+                                        <th class="px-6 py-3 text-center">Còn thiếu</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    @foreach($vendor['sales_orders'] as $soId => $so)
+                                        @php
+                                            $soRemaining = $so['requested'] - $so['ordered'];
+                                        @endphp
+                                        <tr class="hover:bg-teal-50/30 transition-colors cursor-pointer"
+                                            @click="expandedSo === '{{ $soId }}' ? expandedSo = null : expandedSo = '{{ $soId }}'">
+                                            <td class="px-6 py-4 text-center" @click.stop>
+                                                <input type="checkbox" class="rounded text-teal-600 focus:ring-teal-500 so-checkbox"
+                                                    data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}">
+                                            </td>
+                                            <td class="px-6 py-4 font-semibold text-gray-900">
+                                                <div class="flex items-center gap-2">
+                                                    <i class="fas fa-chevron-right text-gray-300 text-xs transition-transform duration-200"
+                                                        :class="expandedSo === '{{ $soId }}' ? 'rotate-90' : ''"></i>
+                                                    {{ $so['code'] }}
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-gray-500 text-sm">
+                                                {{ Str::limit($so['note'], 50) }}
+                                            </td>
+                                            <td class="px-6 py-4 text-center font-medium text-gray-500">
+                                                {{ number_format($so['ordered'], 0) }}
+                                            </td>
+                                            <td class="px-6 py-4 text-center font-bold text-teal-600">
+                                                {{ number_format($soRemaining, 0) }}
+                                            </td>
+                                        </tr>
+
+                                        <!-- Expandable Product Detail Row -->
+                                        <tr x-show="expandedSo === '{{ $soId }}'" x-cloak class="bg-gray-50/50">
+                                            <td colspan="5" class="px-8 py-4">
+                                                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                                                    <table class="w-full text-sm">
+                                                        <thead class="bg-gray-100">
+                                                            <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                                                <th class="px-4 py-2 w-10 text-center"></th>
+                                                                <th class="px-4 py-2">Tên Part / Sản phẩm</th>
+                                                                <th class="px-4 py-2 text-center">Số lượng</th>
+                                                                <th class="px-4 py-2 text-center">Giá nhập ước tính (USD)</th>
+                                                                <th class="px-4 py-2 text-center w-16"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-gray-100">
+                                                            @foreach($so['products'] as $product)
+                                                                <tr class="hover:bg-teal-50/50 transition-colors">
+                                                                    <td class="px-4 py-3 text-center">
+                                                                        <input type="checkbox"
+                                                                            class="rounded text-teal-600 focus:ring-teal-500 item-checkbox"
+                                                                            data-vendor-id="{{ $vId }}" data-so-id="{{ $soId }}"
+                                                                            data-product-id="{{ $product['id'] }}">
+                                                                    </td>
+                                                                    <td class="px-4 py-3">
+                                                                        <div class="font-medium text-gray-800">{{ $product['part_number'] }}</div>
+                                                                        <div class="text-[10px] text-gray-400">{{ $product['unit'] ?: '-' }}</div>
+                                                                    </td>
+                                                                    <td class="px-4 py-3 text-center">
+                                                                        {{ number_format($product['requested'], 0) }}
+                                                                    </td>
+                                                                    <td class="px-4 py-3 text-center text-gray-500">
+                                                                        ${{ number_format($product['unit_price_usd'], 2) }}
+                                                                        <input type="number" name="items_data[{{ $product['id'] }}]"
+                                                                            value="{{ $product['remaining'] }}"
+                                                                            class="order-qty-input hidden" disabled
+                                                                            data-pr-item-id="{{ $product['id'] }}">
+                                                                    </td>
+                                                                    <td class="px-4 py-3 text-center">
+                                                                        <button type="button"
+                                                                            onclick="cancelPrItem({{ $product['id'] }}, '{{ addslashes($product['part_number']) }}')"
+                                                                            class="text-red-400 hover:text-red-600 transition-colors"
+                                                                            title="Hủy sản phẩm">
+                                                                            <i class="fas fa-times-circle text-sm"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
 
     <!-- Tab 2: Danh sách nháp -->
     <div id="tab-drafts" class="tab-content {{ $activeTab === 'drafts' ? '' : 'hidden' }}">
@@ -925,18 +1061,22 @@
 
                 const needsBtn = document.getElementById('tab-needs-ordering-btn');
                 const draftsBtn = document.getElementById('tab-drafts-btn');
+                const preloadBtn = document.getElementById('tab-preload-btn');
 
-                if (tabName === 'needs-ordering') {
-                    needsBtn.classList.remove(...inactiveClass);
-                    needsBtn.classList.add(...activeClass);
-                    draftsBtn.classList.remove(...activeClass);
-                    draftsBtn.classList.add(...inactiveClass);
-                } else {
-                    draftsBtn.classList.remove(...inactiveClass);
-                    draftsBtn.classList.add(...activeClass);
-                    needsBtn.classList.remove(...activeClass);
-                    needsBtn.classList.add(...inactiveClass);
+                function setTabState(btn, active) {
+                    if (!btn) return;
+                    if (active) {
+                        btn.classList.remove(...inactiveClass);
+                        btn.classList.add(...activeClass);
+                    } else {
+                        btn.classList.remove(...activeClass);
+                        btn.classList.add(...inactiveClass);
+                    }
                 }
+
+                setTabState(needsBtn, tabName === 'needs-ordering');
+                setTabState(draftsBtn, tabName === 'drafts');
+                setTabState(preloadBtn, tabName === 'preload');
 
                 const url = new URL(window.location);
                 url.searchParams.set('tab', tabName);

@@ -133,6 +133,26 @@
                     <label class="text-sm text-gray-500">Tổng số lượng</label>
                     <p class="text-xl font-bold text-orange-600">{{ number_format($export->total_qty) }}</p>
                 </div>
+                <div>
+                    <label class="text-sm text-gray-500">Kho xuất hàng</label>
+                    @if(in_array($export->status, ['draft', 'pending_admin', 'pending_invoice', 'pending', 'rejected']) && (auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('warehouse_manager') || auth()->user()->hasRole('warehouse_staff')))
+                        <form action="{{ route('exports.update-warehouse', $export->id) }}" method="POST" class="mt-1 flex items-center gap-2">
+                            @csrf
+                            <select name="warehouse_id" required class="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-orange-500 focus:border-orange-500">
+                                @foreach(\App\Models\Warehouse::where('status', 'active')->get() as $wh)
+                                    <option value="{{ $wh->id }}" {{ $export->warehouse_id == $wh->id ? 'selected' : '' }}>
+                                        {{ $wh->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 font-bold shadow transition-all">
+                                Cập nhật
+                            </button>
+                        </form>
+                    @else
+                        <p class="font-medium text-gray-900">{{ $export->warehouse->name ?? 'N/A' }}</p>
+                    @endif
+                </div>
             </div>
         </div>
 

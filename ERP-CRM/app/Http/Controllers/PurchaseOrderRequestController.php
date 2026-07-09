@@ -30,8 +30,9 @@ class PurchaseOrderRequestController extends Controller
         $status = $request->input('status');
         $sale_code = $request->input('sale_code');
         $note = $request->input('note');
+        $source_type = $request->input('source_type');
 
-        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'attachments']);
+        $query = SaleOrderRequest::with(['sale', 'creator', 'items.vendor', 'attachments', 'ticket']);
 
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
@@ -51,6 +52,10 @@ class PurchaseOrderRequestController extends Controller
 
         if ($note) {
             $query->where('note', 'like', '%' . $note . '%');
+        }
+
+        if ($source_type) {
+            $query->where('source_type', $source_type);
         }
 
         $requests = $query->orderBy('created_at', 'desc')->paginate(20);
@@ -109,8 +114,19 @@ class PurchaseOrderRequestController extends Controller
     public function needsOrdering()
     {
         // Lấy các PR items từ các PR đang chờ xử lý (LOẠI BỎ items đã bị hủy)
+        // Standard items (with SO)
         $items = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
-                $q->where('status', SaleOrderRequest::STATUS_PROCESSING);
+                $q->where('status', SaleOrderRequest::STATUS_PROCESSING)
+                  ->whereNotNull('sale_id');
+            })
+            ->where('is_cancelled', false)
+            ->with(['saleOrderRequest.sale', 'saleOrderRequest.attachments', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
+            ->get();
+
+        // Preload items (without SO)
+        $preloadItems = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
+                $q->where('status', SaleOrderRequest::STATUS_PROCESSING)
+                  ->whereNull('sale_id');
             })
             ->where('is_cancelled', false)
             ->with(['saleOrderRequest.sale', 'saleOrderRequest.attachments', 'vendor', 'product', 'purchaseOrderItems', 'saleItem'])
@@ -241,6 +257,81 @@ class PurchaseOrderRequestController extends Controller
             }
         }
 
+        // Gom nhóm Preload theo Vendor -> SaleOrderRequest
+        $preloadVendorGroups = [];
+        foreach ($preloadItems as $item) {
+            $vName = $item->vendor?->name ?? $item->vendor ?? 'Unknown Vendor';
+            $vId = $item->vendor_id;
+
+            if (!$vId) {
+                $found = Supplier::where('name', $vName)->first();
+                $vId = $found ? $found->id : 'name-' . md5($vName);
+            }
+
+            if (!isset($preloadVendorGroups[$vId])) {
+                $preloadVendorGroups[$vId] = [
+                    'id' => $vId,
+                    'name' => $vName,
+                    'sales_orders' => []
+                ];
+            }
+
+            $pr = $item->saleOrderRequest;
+            $soKey = $pr->id;
+
+            if (!isset($preloadVendorGroups[$vId]['sales_orders'][$soKey])) {
+                $preloadVendorGroups[$vId]['sales_orders'][$soKey] = [
+                    'id' => $pr->id,
+                    'code' => $pr->code, // PR code
+                    'pr_code' => $pr->code,
+                    'total_usd' => 0,
+                    'requested' => 0,
+                    'ordered' => 0,
+                    'partner' => 'Preload Order',
+                    'end_user' => 'Preload Order',
+                    'note' => $pr->note,
+                    'attachments' => $pr->attachments,
+                    'sale_id' => null,
+                    'pay_status' => null,
+                    'products' => []
+                ];
+            }
+
+            $ordered = $item->ordered_quantity_total;
+            $remaining = max(0, $item->quantity - $ordered);
+
+            if ($remaining > 0.001) {
+                $unitPriceUsd = 0;
+                $latestItem = \App\Models\ProductItem::where('product_id', $item->product_id)->latest()->first();
+                if ($latestItem) {
+                    $unitPriceUsd = (float)$latestItem->cost_usd;
+                }
+
+                $preloadVendorGroups[$vId]['sales_orders'][$soKey]['products'][] = [
+                    'id' => $item->id,
+                    'part_number' => $item->part_number,
+                    'unit' => $item->unit,
+                    'requested' => $item->quantity,
+                    'ordered' => $ordered,
+                    'remaining' => $remaining,
+                    'unit_price_usd' => $unitPriceUsd,
+                ];
+
+                $preloadVendorGroups[$vId]['sales_orders'][$soKey]['total_usd'] += ($unitPriceUsd * $remaining);
+                $preloadVendorGroups[$vId]['sales_orders'][$soKey]['requested'] += $item->quantity;
+                $preloadVendorGroups[$vId]['sales_orders'][$soKey]['ordered'] += $ordered;
+            }
+        }
+
+        foreach ($preloadVendorGroups as $vId => &$vGroup) {
+            $vGroup['sales_orders'] = array_filter($vGroup['sales_orders'], function($so) {
+                return count($so['products']) > 0;
+            });
+            if (empty($vGroup['sales_orders'])) {
+                unset($preloadVendorGroups[$vId]);
+            }
+        }
+
         $currencies = \App\Models\Currency::where('is_active', 1)->get();
         $baseCurrencyId = \App\Models\Currency::getBaseCurrencyId();
 
@@ -249,7 +340,7 @@ class PurchaseOrderRequestController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('purchasing.needs-ordering', compact('vendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos'));
+        return view('purchasing.needs-ordering', compact('vendorGroups', 'preloadVendorGroups', 'currencies', 'baseCurrencyId', 'cancelledItems', 'draftPos'));
     }
 
     /**

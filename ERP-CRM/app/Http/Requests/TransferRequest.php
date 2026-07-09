@@ -42,6 +42,7 @@ class TransferRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             $this->validateStockAndSerials($validator);
+            $this->validateTransferWarehouseAuthorization($validator);
         });
     }
 
@@ -174,6 +175,43 @@ class TransferRequest extends FormRequest
                     break;
                 }
                 $allSelectedSerials[] = $serialId;
+            }
+        }
+    }
+
+    protected function validateTransferWarehouseAuthorization($validator)
+    {
+        $items = $this->input('items', []);
+        $projectWarehouse = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+        $runrateWarehouse = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+        
+        $projectWarehouseId = $projectWarehouse ? $projectWarehouse->id : null;
+        $runrateWarehouseId = $runrateWarehouse ? $runrateWarehouse->id : null;
+        
+        if (!$projectWarehouseId || !$runrateWarehouseId) {
+            return;
+        }
+
+        $isProjectToRunrate = false;
+        foreach ($items as $item) {
+            $fromId = $item['warehouse_id'] ?? null;
+            $toId = $item['to_warehouse_id'] ?? null;
+            
+            if ($fromId && $toId && (int)$fromId === (int)$projectWarehouseId && (int)$toId === (int)$runrateWarehouseId) {
+                $isProjectToRunrate = true;
+                break;
+            }
+        }
+
+        if ($isProjectToRunrate) {
+            $user = auth()->user();
+            $isWarehouseOrAdmin = $user && $user->hasAnyRole(['super_admin', 'warehouse_manager', 'warehouse_staff']);
+            
+            if (!$isWarehouseOrAdmin) {
+                $validator->errors()->add(
+                    'items',
+                    'Chỉ có người dùng có quyền kho (Logistic Staff/Manager) mới được phép chuyển kho từ Kho dự án sang Kho runrate.'
+                );
             }
         }
     }

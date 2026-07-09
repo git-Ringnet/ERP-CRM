@@ -36,6 +36,11 @@
                                     <div class="text-sm font-bold text-gray-900">{{ $request->created_at->format('d/m/Y') }}</div>
                                     <div class="text-[10px] text-gray-500">{{ $request->created_at->format('H:i') }}</div>
                                     <div class="text-[10px] mt-1 text-indigo-600 italic">Bởi: {{ $request->requester->name }}</div>
+                                    <div class="mt-2">
+                                        <a href="{{ route('invoice-requests.show', $request->id) }}" class="inline-flex items-center text-[10px] bg-teal-50 text-teal-600 border border-teal-200 px-2 py-0.5 rounded hover:bg-teal-100 transition-all font-bold">
+                                            <i class="fas fa-external-link-alt mr-1"></i>CHI TIẾT YÊU CẦU
+                                        </a>
+                                    </div>
                                 </td>
                                 <td class="px-4 py-4">
                                     <div class="text-sm font-bold text-gray-800">{{ $request->tax_name }}</div>

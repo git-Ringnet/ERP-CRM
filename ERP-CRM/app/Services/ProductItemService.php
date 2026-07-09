@@ -83,6 +83,7 @@ class ProductItemService
                         'warranty_months' => $priceData['warranty_months'] ?? null,
                         'expiry_date' => $priceData['expiry_date'] ?? null,
                         'status' => ProductItem::STATUS_IN_STOCK,
+                        'borrower' => $priceData['borrower'] ?? null,
                     ]);
                 }
             }
@@ -106,6 +107,7 @@ class ProductItemService
                     'warranty_months' => $priceData['warranty_months'] ?? null,
                     'expiry_date' => $priceData['expiry_date'] ?? null,
                     'status' => ProductItem::STATUS_IN_STOCK,
+                    'borrower' => $priceData['borrower'] ?? null,
                 ]);
             }
         });

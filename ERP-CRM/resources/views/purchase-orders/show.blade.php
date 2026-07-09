@@ -44,117 +44,146 @@
         </div>
 
         <!-- Header Actions -->
-        <div class="flex justify-between items-center">
-            <a href="{{ url()->previous() }}" class="text-gray-600 hover:text-gray-800">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+            <a href="{{ url()->previous() }}" class="text-gray-600 hover:text-gray-800 font-semibold flex items-center text-sm">
                 <i class="fas fa-arrow-left mr-2"></i> Quay lại
             </a>
-            <div class="flex space-x-2">
-                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
-                    <a href="{{ route('purchase-orders.edit', $purchaseOrder) }}"
-                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all duration-200 transform hover:scale-105">
-                        <i class="fas fa-edit mr-2"></i> Sửa
-                    </a>
-                @endif
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- 1. Trạng thái nghiệp vụ (Workflow Actions - Prominent) -->
                 @if($purchaseOrder->status == 'draft')
-                    <form action="{{ route('purchase-orders.submit-approval', $purchaseOrder) }}" method="POST" class="inline"
-                        id="submit-approval-form">
+                    <form action="{{ route('purchase-orders.submit-approval', $purchaseOrder) }}" method="POST" class="inline" id="submit-approval-form">
                         @csrf
-                        <button type="submit"
-                            class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
+                        <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                             <i class="fas fa-paper-plane mr-2"></i> Gửi yêu cầu duyệt
                         </button>
                     </form>
                 @endif
+
                 @if($purchaseOrder->status == 'pending_approval')
-                    <form action="{{ route('purchase-orders.approve', $purchaseOrder) }}" method="POST" class="inline"
-                        id="approve-form">
+                    <form action="{{ route('purchase-orders.approve', $purchaseOrder) }}" method="POST" class="inline" id="approve-form">
                         @csrf
-                        <button type="submit"
-                            class="approve-btn px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 hover:shadow-lg">
+                        <button type="submit" class="approve-btn px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center shadow-sm">
                             <i class="fas fa-check mr-2"></i> Xác nhận Đã đặt
                         </button>
                     </form>
                     <form action="{{ route('purchase-orders.reject', $purchaseOrder) }}" method="POST" class="inline" id="reject-form">
                         @csrf
-                        <button type="submit"
-                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105"
-                            onclick="return confirm('Từ chối đơn hàng này?')">
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm" onclick="return confirm('Từ chối đơn hàng này?')">
                             <i class="fas fa-times mr-2"></i> Từ chối
                         </button>
                     </form>
                 @endif
+
                 @php
                     $hasOrderedItems = $purchaseOrder->items->where('status', 'ordered')->count() > 0;
                     $hasShippingItems = $purchaseOrder->items->where('status', 'shipping')->count() > 0;
                 @endphp
-                @if($hasOrderedItems)
+
+                @if($hasOrderedItems && in_array($purchaseOrder->status, ['approved', 'partial_received']))
                     <form action="{{ route('purchase-orders.ship', $purchaseOrder) }}" method="POST" class="inline" id="ship-form">
                         @csrf
-                        <button type="submit"
-                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 transform hover:scale-105">
+                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                             <i class="fas fa-truck-moving mr-2"></i> Chuyển sang Đang về
                         </button>
                     </form>
                 @endif
+
                 @if(in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
                     <form action="{{ route('purchase-orders.toggle-hold', $purchaseOrder) }}" method="POST" class="inline" id="hold-form">
                         @csrf
                         <input type="hidden" name="hold_reason" id="hold_reason_input">
                         @if($purchaseOrder->is_hold)
-                            <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 transform hover:scale-105">
+                            <button type="submit" class="px-4 py-2 bg-gray-600 text-white text-sm font-bold rounded-lg hover:bg-gray-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                                 <i class="fas fa-play mr-2"></i> Gỡ Hold
                             </button>
                         @else
                             <button type="button" onclick="const reason = prompt('Nhập lý do Hold đơn hàng:'); if(reason !== null) { document.getElementById('hold_reason_input').value = reason; document.getElementById('hold-form').submit(); }"
-                                class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
+                                class="px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                                 <i class="fas fa-pause mr-2"></i> Hold
                             </button>
                         @endif
                     </form>
                 @endif
+
                 @if($hasShippingItems)
                     <form action="{{ route('purchase-orders.confirm-received', $purchaseOrder) }}" method="POST" class="inline" id="confirm-received-form">
                         @csrf
                         <button type="submit" onclick="return confirm('Xác nhận nhận hàng cho tất cả sản phẩm đang ở trạng thái Đang về?')"
-                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105">
+                            class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                             <i class="fas fa-box-open mr-2"></i> Xác nhận nhận hàng
                         </button>
                     </form>
                 @endif
-                <a href="{{ route('purchase-orders.export-single', $purchaseOrder) }}"
-                    class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 transform hover:scale-105">
-                    <i class="fas fa-file-excel mr-2"></i> Xuất Excel
-                </a>
+
+                <!-- 2. Nhóm tiện ích cơ bản (Utilities group) -->
+                <div class="h-6 w-[1px] bg-gray-200 mx-1 hidden sm:block"></div>
+
+                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                    <a href="{{ route('purchase-orders.edit', $purchaseOrder) }}"
+                        class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs">
+                        <i class="fas fa-edit mr-1 text-gray-400"></i> Sửa
+                    </a>
+                @endif
+
                 <a href="{{ route('purchase-orders.preview-html', $purchaseOrder) }}"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 transform hover:scale-105"
+                    class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs"
                     target="_blank">
-                    <i class="fas fa-eye mr-2"></i> Xem trước
+                    <i class="fas fa-eye mr-1 text-gray-400"></i> Xem trước
                 </a>
-                <a href="{{ route('suppliers.po-config', $purchaseOrder->supplier_id) }}"
-                    class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border border-gray-200 transition-all duration-200 transform hover:scale-105"
-                    title="Cài đặt biểu mẫu PO">
-                    <i class="fas fa-cog"></i>
+
+                <a href="{{ route('purchase-orders.export-single', $purchaseOrder) }}"
+                    class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs">
+                    <i class="fas fa-file-excel mr-1 text-emerald-600"></i> Xuất Excel
                 </a>
 
                 @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
-                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="inline delete-form" id="cancel-form">
+                    <button type="button" onclick="document.getElementById('import-serial-file').click()"
+                        class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs">
+                        <i class="fas fa-file-upload mr-1 text-purple-600"></i> Import Serial
+                    </button>
+                    <form id="import-serial-form" action="{{ route('purchase-orders.import-serials', $purchaseOrder) }}" method="POST" enctype="multipart/form-data" class="hidden">
                         @csrf
-                        <button type="button" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all duration-200 transform hover:scale-105"
-                            onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')">
-                            <i class="fas fa-ban mr-2"></i> Hủy đơn
-                        </button>
+                        <input type="file" id="import-serial-file" name="serial_file" accept=".xlsx,.xls,.csv" onchange="this.form.submit()">
                     </form>
                 @endif
 
-                @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
-                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="inline delete-form" id="destroy-form">
-                        @csrf
-                        @method('DELETE')
-                        <button type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 transform hover:scale-105"
-                            onclick="confirmDelete(this.parentElement, 'đơn hàng')">
-                            <i class="fas fa-trash mr-2"></i> Xóa
+                <a href="{{ route('suppliers.po-config', $purchaseOrder->supplier_id) }}"
+                    class="p-2 bg-white text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 shadow-xs"
+                    title="Cài đặt biểu mẫu PO">
+                    <i class="fas fa-cog text-sm"></i>
+                </a>
+
+                <!-- 3. Dropdown Thao tác nguy hiểm / Khác -->
+                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']) || auth()->user()->hasRole('super_admin'))
+                    <div class="relative inline-block text-left" id="more-actions-dropdown">
+                        <button type="button" onclick="toggleMoreActionsDropdown()" class="p-2 bg-white text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 shadow-xs">
+                            <i class="fas fa-ellipsis-v text-sm"></i>
                         </button>
-                    </form>
+                        <div id="more-actions-menu" class="hidden origin-top-right absolute right-0 mt-2 w-44 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 border border-gray-150">
+                            <div class="py-1" role="menu" aria-orientation="vertical">
+                                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                                    <form action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" method="POST" class="block" id="cancel-form">
+                                        @csrf
+                                        <button type="button" onclick="confirmAction(this.parentElement, 'Xác nhận hủy', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Hủy ngay', '#95a5a6')"
+                                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center transition-colors font-medium" role="menuitem">
+                                            <i class="fas fa-ban mr-2 text-gray-400 text-xs"></i> Hủy đơn
+                                        </button>
+                                    </form>
+                                @endif
+                                
+                                @if(in_array($purchaseOrder->status, ['draft', 'cancelled']) && auth()->user()->can('delete', $purchaseOrder))
+                                    <form action="{{ route('purchase-orders.destroy', $purchaseOrder) }}" method="POST" class="block" id="destroy-form">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="button" onclick="confirmDelete(this.parentElement, 'đơn hàng')"
+                                            class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center transition-colors font-semibold" role="menuitem">
+                                            <i class="fas fa-trash mr-2 text-red-500 text-xs"></i> Xóa đơn
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
                 @endif
             </div>
         </div>
@@ -614,6 +643,24 @@
                                 @if($item->received_quantity > 0)
                                     <div class="text-[10px] text-green-600 font-medium">Đã nhận: {{ number_format($item->received_quantity) }}</div>
                                 @endif
+                                @if($item->serial_number)
+                                    @php
+                                        $serials = json_decode($item->serial_number, true);
+                                    @endphp
+                                    @if(is_array($serials) && count($serials) > 0)
+                                        <div class="mt-1.5 p-2 bg-purple-50 text-purple-700 rounded border border-purple-100 text-[10px]">
+                                            <div class="font-bold mb-0.5"><i class="fas fa-barcode mr-1"></i> Số Serial đã import ({{ count($serials) }}):</div>
+                                            <div class="font-mono break-all leading-tight">{{ implode(', ', $serials) }}</div>
+                                        </div>
+                                    @endif
+                                @endif
+                                @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
+                                    <button type="button" 
+                                        onclick="openManualSerialModal({{ $item->id }}, '{{ addslashes($item->product_name) }}', {{ $item->serial_number ?: '[]' }})" 
+                                        class="mt-1 text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition-colors">
+                                        <i class="fas fa-pen"></i> Nhập/Sửa Serial thủ công
+                                    </button>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-sm">
                                 @if($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest && $item->saleOrderRequestItem->saleOrderRequest->sale)
@@ -920,6 +967,36 @@
         <input type="hidden" name="file_index" id="delete-license-file-index">
     </form>
 
+    {{-- Manual Serial Input Modal --}}
+    <div id="manual-serial-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-lg overflow-hidden transform scale-95 transition-all duration-300">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="text-md font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-barcode text-purple-600"></i> Nhập/Sửa Serial thủ công
+                </h3>
+                <button type="button" onclick="closeManualSerialModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            <form id="manual-serial-form" action="" method="POST" class="p-6 space-y-4">
+                @csrf
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tên sản phẩm</label>
+                    <div id="modal-product-name" class="text-sm font-bold text-gray-800 bg-gray-50 p-2.5 rounded-lg border border-gray-200"></div>
+                </div>
+                <div>
+                    <label for="manual_serials_input" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nhập danh sách Serial <span class="text-red-500">*</span></label>
+                    <textarea id="manual_serials_input" name="serials" rows="6" placeholder="Mỗi dòng là 1 serial hoặc cách nhau bằng dấu phẩy..." class="w-full border-gray-200 rounded-lg text-sm font-mono focus:border-purple-500 focus:ring-purple-500"></textarea>
+                    <p class="text-xs text-gray-400 mt-1">Lưu ý: Các serial đã nhập kho thực tế thành công sẽ luôn được bảo toàn để bảo vệ số tồn kho.</p>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeManualSerialModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">Hủy bỏ</button>
+                    <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors shadow-sm">Lưu cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     @push('scripts')
         <script>
             // Check if coming from a successful approval
@@ -945,6 +1022,55 @@
                     }, 500);
                 }, 2000);
             @endif
+
+            // Toggle More Actions Dropdown
+            function toggleMoreActionsDropdown() {
+                const menu = document.getElementById('more-actions-menu');
+                if (menu) {
+                    menu.classList.toggle('hidden');
+                }
+            }
+
+            // Close dropdown when clicking outside
+            window.addEventListener('click', function(e) {
+                const dropdown = document.getElementById('more-actions-dropdown');
+                const menu = document.getElementById('more-actions-menu');
+                if (dropdown && !dropdown.contains(e.target) && menu) {
+                    menu.classList.add('hidden');
+                }
+            });
+
+            // Manual Serial Modal functions
+            function openManualSerialModal(itemId, productName, currentSerials) {
+                const modal = document.getElementById('manual-serial-modal');
+                const card = modal.querySelector('.bg-white');
+                const form = document.getElementById('manual-serial-form');
+                const nameDiv = document.getElementById('modal-product-name');
+                const textarea = document.getElementById('manual_serials_input');
+
+                nameDiv.textContent = productName;
+                textarea.value = Array.isArray(currentSerials) ? currentSerials.join('\n') : '';
+                form.action = `/purchase-orders/items/${itemId}/update-serials-manual`;
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    card.classList.remove('scale-95');
+                    card.classList.add('scale-100');
+                }, 50);
+            }
+
+            function closeManualSerialModal() {
+                const modal = document.getElementById('manual-serial-modal');
+                const card = modal.querySelector('.bg-white');
+
+                card.classList.remove('scale-100');
+                card.classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 150);
+            }
 
             // Add click animation to approve form
             const approveForm = document.getElementById('approve-form');

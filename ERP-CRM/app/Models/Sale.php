@@ -1101,15 +1101,29 @@ class Sale extends Model
                 $remainingPaid = (float) $this->paid_amount;
                 $total = (float) $this->total;
                 
+                // Pass 1: Subtract manually confirmed milestones first
                 foreach ($schedules as $ms) {
+                    if ($ms->status === 'paid' && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                        $percent = (float) $ms->percentage;
+                        $amount = (float)$ms->amount > 0 ? (float)$ms->amount : round(($total * $percent) / 100, 2);
+                        $remainingPaid -= $amount;
+                    }
+                }
+                
+                // Pass 2: Auto allocate/deallocate the leftover
+                foreach ($schedules as $ms) {
+                    if ($ms->status === 'paid' && !in_array($ms->confirmed_by, ['System Auto', null, ''])) {
+                        continue;
+                    }
+                    
                     $percent = (float) $ms->percentage;
                     $amount = (float)$ms->amount > 0 ? (float)$ms->amount : round(($total * $percent) / 100, 2);
                     
                     if ($amount > 0 && $remainingPaid >= $amount) {
                         if ($ms->status !== 'paid') {
                             $ms->status = 'paid';
-                            $ms->confirmed_by = $ms->confirmed_by ?? 'System Auto';
-                            $ms->confirmed_at = $ms->confirmed_at ?? now();
+                            $ms->confirmed_by = 'System Auto';
+                            $ms->confirmed_at = now();
                             $ms->save();
                         }
                         $remainingPaid -= $amount;
@@ -1129,7 +1143,27 @@ class Sale extends Model
                 $remainingPaid = (float) $this->paid_amount;
                 $total = (float) $this->total;
                 
+                // Pass 1: Subtract manually confirmed milestones first
                 foreach ($milestones as $index => &$ms) {
+                    $status = $ms['status'] ?? 'unpaid';
+                    $confirmedBy = $ms['confirmed_by'] ?? '';
+                    if ($status === 'paid' && !in_array($confirmedBy, ['System Auto', null, ''])) {
+                        $percent = (float) ($ms['percentage'] ?? ($ms['percent'] ?? 0));
+                        $amount = isset($ms['amount']) && (float)$ms['amount'] > 0
+                            ? (float)$ms['amount']
+                            : round(($total * $percent) / 100, 2);
+                        $remainingPaid -= $amount;
+                    }
+                }
+                
+                // Pass 2: Auto allocate/deallocate the leftover
+                foreach ($milestones as $index => &$ms) {
+                    $status = $ms['status'] ?? 'unpaid';
+                    $confirmedBy = $ms['confirmed_by'] ?? '';
+                    if ($status === 'paid' && !in_array($confirmedBy, ['System Auto', null, ''])) {
+                        continue;
+                    }
+                    
                     $percent = (float) ($ms['percentage'] ?? ($ms['percent'] ?? 0));
                     $amount = isset($ms['amount']) && (float)$ms['amount'] > 0
                         ? (float)$ms['amount']
@@ -1138,8 +1172,8 @@ class Sale extends Model
                     if ($amount > 0 && $remainingPaid >= $amount) {
                         if (($ms['status'] ?? '') !== 'paid') {
                             $ms['status'] = 'paid';
-                            $ms['confirmed_by'] = $ms['confirmed_by'] ?? 'System Auto';
-                            $ms['confirmed_at'] = $ms['confirmed_at'] ?? now()->toDateTimeString();
+                            $ms['confirmed_by'] = 'System Auto';
+                            $ms['confirmed_at'] = now()->toDateTimeString();
                         }
                         $remainingPaid -= $amount;
                     } else {
@@ -1180,6 +1214,8 @@ class Sale extends Model
         if ($this->exists) {
             $milestones = $this->paymentSchedules()->orderBy('sort_order')->get()->map(function($s) {
                 return [
+                    'id' => $s->id,
+                    'trigger_type' => $s->trigger_type,
                     'milestone_name' => $s->milestone_name,
                     'percentage' => $s->percentage,
                     'amount' => $s->amount,
@@ -1292,6 +1328,8 @@ class Sale extends Model
             }
             
             $updatedMilestones[] = [
+                'id' => $ms['id'] ?? null,
+                'trigger_type' => $ms['trigger_type'] ?? null,
                 'milestone_name' => $name,
                 'percentage' => $percent,
                 'amount' => $amount,

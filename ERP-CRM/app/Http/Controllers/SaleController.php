@@ -1044,7 +1044,7 @@ class SaleController extends Controller
     /**
      * Send invoice via email
      */
-    public function sendEmail(Sale $sale)
+    public function sendEmail(Sale $sale, Request $request)
     {
         // Return 404 instead of 403 if user lacks permission
         if (!auth()->user()->can('view', $sale)) {
@@ -1053,14 +1053,25 @@ class SaleController extends Controller
 
         $sale->load('items', 'customer');
 
-        if (!$sale->customer || !$sale->customer->email) {
+        $toEmail = $request->input('to_email') ?: ($sale->customer->email ?? null);
+        if (!$toEmail) {
             return back()->with('error', 'Khách hàng không có email.');
         }
 
-        try {
-            Mail::to($sale->customer->email)->send(new \App\Mail\SaleInvoiceMail($sale));
+        // Find linked official invoice request file
+        $attachmentPath = null;
+        $invoiceRequest = \App\Models\InvoiceRequest::where('sale_id', $sale->id)
+            ->where('status', 'official_issued')
+            ->orderBy('id', 'desc')
+            ->first();
+        if ($invoiceRequest && $invoiceRequest->official_path) {
+            $attachmentPath = $invoiceRequest->official_path;
+        }
 
-            return back()->with('success', 'Đã gửi hóa đơn qua email đến ' . $sale->customer->email);
+        try {
+            \Mail::to($toEmail)->send(new \App\Mail\SaleInvoiceMail($sale, $attachmentPath));
+
+            return back()->with('success', 'Đã gửi hóa đơn qua email đến ' . $toEmail);
         } catch (\Exception $e) {
             return back()->with('error', 'Không thể gửi email: ' . $e->getMessage());
         }
@@ -1263,13 +1274,9 @@ class SaleController extends Controller
 
             $export = $this->saleExportSyncService->getExport($sale);
             
-            // Nếu chưa có phiếu xuất kho, thử tạo mới nếu đang chuyển sang Shipping
-            if (!$export && $newStatus === 'shipping') {
-                try {
-                    $export = $this->saleExportSyncService->createExportFromSale($sale);
-                } catch (\Exception $e) {
-                    return back()->with('error', "Không thể tạo phiếu xuất kho tự động: " . $e->getMessage());
-                }
+            // Bị vô hiệu hóa: quy trình mới yêu cầu tạo xuất kho thủ công/từng phần
+            if (!$export) {
+                return back()->with('error', "Đơn hàng chưa có phiếu xuất kho liên kết. Vui lòng thực hiện yêu cầu xuất kho trước.");
             }
 
             if ($export && $export->status !== 'completed') {
@@ -1292,24 +1299,9 @@ class SaleController extends Controller
             
             $sale->save();
 
-            // Auto-create export when sale is approved
+            // Notify purchasing department when sale is approved
             if ($newStatus === 'approved' && $oldStatus === 'pending') {
-                $sale->load('items');
-                $warehouseId = $validated['warehouse_id'] ?? null;
-
-                // Notify purchasing department
                 $this->notifyPurchasingDepartment($sale);
-
-                try {
-                    $export = $this->saleExportSyncService->createExportFromSale($sale, $warehouseId, false);
-                    if ($export) {
-                        DB::commit();
-                        return back()->with('success', 'Đã duyệt đơn hàng và tạo phiếu xuất kho ' . $export->code . '. Vui lòng duyệt phiếu xuất kho để trừ tồn kho.');
-                    }
-                } catch (\Exception $e) {
-                    // Log error but don't fail the status update
-                    Log::warning("Could not create export for Sale #{$sale->id}: " . $e->getMessage());
-                }
             }
 
             // Auto-cancel export/restore stock when sale is cancelled
@@ -3433,6 +3425,118 @@ class SaleController extends Controller
     }
 
     /**
+     * Finance rejects payment for a milestone
+     */
+    public function rejectMilestonePayment(Request $request, Sale $sale, $index)
+    {
+        $user = auth()->user();
+        $isAuthorized = $user->hasRole('accountant') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin');
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Bạn không có quyền từ chối thanh toán.');
+        }
+
+        $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        $oldStatus = $schedule->status;
+        $reason = $request->input('reason');
+
+        // Update PaymentEvidence status to rejected
+        $evidence = $schedule->evidences()->where('status', 'pending')->latest()->first();
+        if ($evidence) {
+            $evidence->update([
+                'status' => 'rejected',
+                'notes' => $reason,
+                'verified_by' => $user->name,
+                'verified_at' => now(),
+            ]);
+        }
+
+        // Revert schedule status to unpaid
+        $schedule->status = 'unpaid';
+        $schedule->proof_file_path = null; // Clear proof path so they can upload again
+        $schedule->save();
+
+        // Ghi log
+        \App\Models\PaymentApprovalLog::create([
+            'schedule_id' => $schedule->id,
+            'sale_id' => $sale->id,
+            'action' => 'finance_rejected',
+            'old_value' => $oldStatus,
+            'new_value' => 'unpaid',
+            'reason' => $reason,
+            'performed_by' => $user->id,
+            'performed_at' => now(),
+        ]);
+        
+        // Notify Salesperson
+        if ($sale->user_id) {
+            \App\Models\Notification::create([
+                'user_id' => $sale->user_id,
+                'type' => 'payment_alert',
+                'title' => 'Chứng từ thanh toán bị từ chối',
+                'message' => "Finance đã từ chối UNC cho đợt \"{$schedule->milestone_name}\" của đơn {$sale->code}. Lý do: {$reason}",
+                'link' => route('sales.show', $sale->id),
+                'icon' => 'fas fa-times-circle',
+                'color' => 'red',
+            ]);
+        }
+
+        return back()->with('success', 'Đã từ chối chứng từ thanh toán của đợt này.');
+    }
+
+    /**
+     * Delete an ad-hoc manual payment milestone
+     */
+    public function deleteMilestone(Sale $sale, $index)
+    {
+        $user = auth()->user();
+        $isAuthorized = $user->hasRole('accountant') || 
+                        $user->hasRole('super_admin') || 
+                        $user->hasRole('admin') || 
+                        ($sale->user_id === $user->id);
+
+        if (!$isAuthorized) {
+            return back()->with('error', 'Bạn không có quyền xóa mốc thanh toán này.');
+        }
+
+        $schedule = $sale->paymentSchedules()->skip($index)->first();
+        if (!$schedule) {
+            return back()->with('error', 'Mốc thanh toán không tồn tại.');
+        }
+
+        if ($schedule->trigger_type !== 'MANUAL') {
+            return back()->with('error', 'Chỉ có thể xóa các mốc thanh toán được thêm thủ công (MANUAL).');
+        }
+
+        if ($schedule->status === 'paid') {
+            return back()->with('error', 'Không thể xóa mốc thanh toán đã hoàn thành.');
+        }
+
+        // Delete evidences and logs first
+        $schedule->evidences()->delete();
+        $schedule->logs()->delete();
+        $schedule->delete();
+
+        // Recalculate sale's paid_amount and debt
+        $totalPaid = $sale->paymentSchedules()->where('status', 'paid')->sum('amount');
+        $sale->paid_amount = $totalPaid;
+        $sale->updateDebt();
+        $sale->save();
+
+        return back()->with('success', 'Đã xóa mốc thanh toán thủ công thành công.');
+    }
+
+    /**
      * BOD approves exception for a specific milestone
      */
     public function approveMilestoneException(Request $request, Sale $sale, $index)
@@ -3674,6 +3778,157 @@ class SaleController extends Controller
         }
 
         return back()->with('success', 'Đã cập nhật ngày giao hàng thành công và tính lại các hạn thanh toán.');
+    }
+
+    public function createPartialExport(Request $request, Sale $sale)
+    {
+        $this->authorize('update', $sale);
+
+        if ($sale->status !== 'approved' && $sale->status !== 'shipping') {
+            return back()->with('error', 'Đơn hàng bán chưa được duyệt. Không thể tạo yêu cầu xuất kho.');
+        }
+
+        $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'items' => 'required|array',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.qty' => 'required|integer|min:0',
+        ]);
+
+        $itemsToExport = [];
+        $totalQty = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->items as $itemData) {
+                $productId = $itemData['product_id'];
+                $qty = (int)$itemData['qty'];
+
+                if ($qty <= 0) continue;
+
+                // Tính số lượng tối đa có thể xuất cho sản phẩm này
+                $totalOrdered = \App\Models\SaleItem::where('sale_id', $sale->id)
+                    ->where('product_id', $productId)
+                    ->sum('quantity');
+
+                $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
+                        $q->where('reference_type', 'sale')
+                          ->where('reference_id', $sale->id)
+                          ->where('status', '!=', 'cancelled');
+                    })
+                    ->where('product_id', $productId)
+                    ->sum('quantity');
+
+                $remaining = $totalOrdered - $totalExported;
+
+                if ($qty > $remaining) {
+                    throw new \Exception("Số lượng xuất cho sản phẩm ID {$productId} ({$qty}) vượt quá số lượng còn lại có thể xuất ({$remaining}).");
+                }
+
+                if ($sale->type === 'retail') {
+                    $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+                    if ($salespersonName) {
+                        $heldQty = \App\Models\ProductItem::where('product_id', $productId)
+                            ->where('warehouse_id', $request->warehouse_id)
+                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                            ->where('borrower', $salespersonName)
+                            ->count();
+
+                        if ($qty > $heldQty) {
+                            $productName = $saleItem ? $saleItem->product_name : "ID: {$productId}";
+                            throw new \Exception("Số lượng xuất cho sản phẩm '{$productName}' ({$qty}) vượt quá số lượng bạn đang giữ trong kho được chọn ({$heldQty}). Vui lòng gửi yêu cầu mượn hàng từ kho hoặc Sales khác trước!");
+                        }
+                    }
+                }
+
+                $saleItem = \App\Models\SaleItem::where('sale_id', $sale->id)
+                    ->where('product_id', $productId)
+                    ->first();
+
+                $itemsToExport[] = [
+                    'product_id' => $productId,
+                    'quantity' => $qty,
+                    'unit_price' => $saleItem ? $saleItem->price : 0,
+                    'total' => $saleItem ? ($saleItem->price * $qty) : 0,
+                    'is_liquidation' => $saleItem ? $saleItem->is_liquidation : false,
+                    'product_name' => $saleItem ? $saleItem->product_name : '',
+                ];
+
+                $totalQty += $qty;
+            }
+
+            if (empty($itemsToExport)) {
+                return back()->with('error', 'Vui lòng chọn số lượng xuất lớn hơn 0 cho ít nhất một sản phẩm.');
+            }
+
+            // Tạo mã code cho phiếu xuất
+            $dateStr = date('Ymd');
+            $prefix = 'EXP-' . $dateStr . '-';
+            $lastExport = \App\Models\Export::where('code', 'like', $prefix . '%')
+                ->orderBy('code', 'desc')
+                ->first();
+            if ($lastExport) {
+                $parts = explode('-', $lastExport->code);
+                $lastSeq = (int) end($parts);
+                $nextSeq = $lastSeq + 1;
+            } else {
+                $nextSeq = 1;
+            }
+            $exportCode = $prefix . sprintf('%04d', $nextSeq);
+
+            $export = \App\Models\Export::create([
+                'code' => $exportCode,
+                'warehouse_id' => $request->warehouse_id,
+                'project_id' => $sale->project_id,
+                'customer_id' => $sale->customer_id,
+                'date' => now(),
+                'employee_id' => auth()->id(),
+                'total_qty' => $totalQty,
+                'reference_type' => 'sale',
+                'reference_id' => $sale->id,
+                'note' => $request->note ?? "Yêu cầu xuất kho (một phần) từ đơn hàng {$sale->code}",
+                'status' => 'draft',
+            ]);
+
+            foreach ($itemsToExport as $item) {
+                \App\Models\ExportItem::create([
+                    'export_id' => $export->id,
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'requested_quantity' => $item['quantity'],
+                    'is_liquidation' => $item['is_liquidation'],
+                    'unit_price' => $item['unit_price'],
+                    'total' => $item['total'],
+                    'comments' => "Yêu cầu xuất cho sản phẩm {$item['product_name']} (Số lượng: {$item['quantity']})",
+                ]);
+            }
+
+            DB::commit();
+
+            $export->update(['status' => 'pending_admin']);
+
+            // Thông báo cho Admin/Sales Manager
+            $admins = \App\Models\User::whereHas('roles', function($q) {
+                $q->whereIn('slug', ['super_admin', 'admin', 'sales_manager']);
+            })->get();
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'type' => 'export_request',
+                    'title' => 'Yêu cầu xuất kho mới',
+                    'message' => auth()->user()->name . " đã gửi yêu cầu xuất kho {$export->code} chờ duyệt.",
+                    'link' => route('exports.show', $export->id),
+                    'icon' => 'fas fa-file-export',
+                    'color' => 'blue',
+                ]);
+            }
+
+            return back()->with('success', "Đã tạo yêu cầu xuất kho {$export->code} và gửi duyệt Admin thành công!");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Lỗi khi tạo yêu cầu xuất: ' . $e->getMessage());
+        }
     }
 }
 

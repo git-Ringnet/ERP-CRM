@@ -134,7 +134,7 @@ class PurchaseOrderController extends Controller
             'code' => 'required|unique:purchase_orders,code',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
-            'cpq_number' => 'required|string|max:255',
+            'cpq_number' => 'nullable|string|max:255',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
@@ -258,7 +258,7 @@ class PurchaseOrderController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:255|unique:purchase_orders,code,' . $purchaseOrder->id,
             'expected_delivery' => 'nullable|date',
-            'cpq_number' => 'required|string|max:255',
+            'cpq_number' => 'nullable|string|max:255',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.product_name' => 'required|string',
@@ -1491,6 +1491,379 @@ class PurchaseOrderController extends Controller
         }
         $code = PurchaseOrder::generateCode($supplierName);
         return response()->json(['code' => $code]);
+    }
+
+    public function importSerials(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $this->authorize('update', $purchaseOrder);
+
+        $request->validate([
+            'serial_file' => 'required|file|mimes:xlsx,xls,csv,txt'
+        ]);
+
+        try {
+            $data = \Maatwebsite\Excel\Facades\Excel::toArray(new class {}, $request->file('serial_file'));
+
+            if (empty($data) || empty($data[0])) {
+                return back()->with('error', 'File Excel không có dữ liệu.');
+            }
+
+            $rows = $data[0];
+            if (count($rows) < 2) {
+                return back()->with('error', 'File Excel chỉ có tiêu đề hoặc trống.');
+            }
+
+            $headers = array_map(function($h) {
+                return strtoupper(trim($h));
+            }, $rows[0]);
+
+            $partNumberIdx = array_search('PART NUMBER', $headers);
+            $serialNumberIdx = array_search('SERIAL NUMBER', $headers);
+            $poNumberIdx = array_search('PO NUMBER', $headers);
+
+            if ($partNumberIdx === false || $serialNumberIdx === false || $poNumberIdx === false) {
+                $partNumberIdx = 0;
+                $serialNumberIdx = 1;
+                $poNumberIdx = 2;
+            }
+
+            $serialsByPart = [];
+            
+            for ($i = 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                if (empty($row) || !isset($row[$partNumberIdx])) continue;
+
+                $partNumber = strtoupper(trim($row[$partNumberIdx]));
+                $serialNumber = isset($row[$serialNumberIdx]) ? trim($row[$serialNumberIdx]) : '';
+                $poNumber = isset($row[$poNumberIdx]) ? strtoupper(trim($row[$poNumberIdx])) : '';
+
+                if (!$partNumber || !$serialNumber) continue;
+
+                if ($poNumber && $poNumber !== strtoupper($purchaseOrder->code)) {
+                    continue;
+                }
+
+                if (!isset($serialsByPart[$partNumber])) {
+                    $serialsByPart[$partNumber] = [];
+                }
+                $serialsByPart[$partNumber][] = $serialNumber;
+            }
+
+            if (empty($serialsByPart)) {
+                return back()->with('error', 'Không tìm thấy dòng dữ liệu nào khớp với PO hiện tại.');
+            }
+
+            DB::beginTransaction();
+            $updatedCount = 0;
+
+            foreach ($purchaseOrder->items as $item) {
+                $productCode = $item->product ? strtoupper($item->product->code) : null;
+                if (!$productCode) {
+                    $productCode = strtoupper(trim($item->product_name));
+                }
+
+                if (isset($serialsByPart[$productCode])) {
+                    $newExcelSerials = $serialsByPart[$productCode];
+                    
+                    // Keep any existing serial numbers that are already received/transferred/sold in product_items table
+                    $existingSerials = json_decode($item->serial_number, true) ?: [];
+                    $alreadyImportedSerials = [];
+                    if (!empty($existingSerials)) {
+                        $alreadyImportedSerials = \App\Models\ProductItem::whereIn('sku', $existingSerials)
+                            ->pluck('sku')
+                            ->toArray();
+                    }
+
+                    $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newExcelSerials)));
+
+                    // Find all imports created from this PO
+                    $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
+                        ->where('reference_id', $purchaseOrder->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    // Update existing ProductItem records in the warehouse if they have placeholder SKUs
+                    if (!empty($importIds)) {
+                        $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
+                            ->where('product_id', $item->product_id)
+                            ->get();
+
+                        // Get list of existing real SKUs
+                        $existingRealSkus = $productItems->filter(function($pi) {
+                            return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                && !empty($pi->sku);
+                        })->pluck('sku')->toArray();
+
+                        // Find which new serials are not already assigned in the warehouse
+                        $serialsToAssign = array_diff($newExcelSerials, $existingRealSkus);
+
+                        // Find placeholder product items
+                        $placeholderItems = $productItems->filter(function($pi) {
+                            return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                || empty($pi->sku);
+                        });
+
+                        // Assign new serials to placeholders
+                        foreach ($placeholderItems as $pi) {
+                            if (empty($serialsToAssign)) break;
+                            $nextSerial = array_shift($serialsToAssign);
+                            $pi->update(['sku' => $nextSerial]);
+                        }
+                    }
+
+                    $item->update([
+                        'serial_number' => json_encode($mergedSerials)
+                    ]);
+                    $updatedCount += count($newExcelSerials);
+                }
+            }
+
+            DB::commit();
+
+            return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho đơn hàng.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Import thất bại: ' . $e->getMessage());
+        }
+    }
+
+    public function importSerialsBulk(Request $request)
+    {
+        $this->authorize('create', PurchaseOrder::class);
+
+        $request->validate([
+            'serial_file' => 'required|file|mimes:xlsx,xls,csv,txt'
+        ]);
+
+        try {
+            $data = \Maatwebsite\Excel\Facades\Excel::toArray(new class {}, $request->file('serial_file'));
+
+            if (empty($data) || empty($data[0])) {
+                return back()->with('error', 'File Excel không có dữ liệu.');
+            }
+
+            $rows = $data[0];
+            if (count($rows) < 2) {
+                return back()->with('error', 'File Excel chỉ có tiêu đề hoặc trống.');
+            }
+
+            $headers = array_map(function($h) {
+                return strtoupper(trim($h));
+            }, $rows[0]);
+
+            $partNumberIdx = array_search('PART NUMBER', $headers);
+            $serialNumberIdx = array_search('SERIAL NUMBER', $headers);
+            $poNumberIdx = array_search('PO NUMBER', $headers);
+
+            if ($partNumberIdx === false || $serialNumberIdx === false || $poNumberIdx === false) {
+                $partNumberIdx = 0;
+                $serialNumberIdx = 1;
+                $poNumberIdx = 2;
+            }
+
+            // Group by [PO NUMBER][PART NUMBER]
+            $serialsByPoAndPart = [];
+            
+            for ($i = 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                if (empty($row) || !isset($row[$partNumberIdx]) || !isset($row[$poNumberIdx])) continue;
+
+                $partNumber = strtoupper(trim($row[$partNumberIdx]));
+                $serialNumber = isset($row[$serialNumberIdx]) ? trim($row[$serialNumberIdx]) : '';
+                $poNumber = strtoupper(trim($row[$poNumberIdx]));
+
+                if (!$partNumber || !$serialNumber || !$poNumber) continue;
+
+                if (!isset($serialsByPoAndPart[$poNumber])) {
+                    $serialsByPoAndPart[$poNumber] = [];
+                }
+                if (!isset($serialsByPoAndPart[$poNumber][$partNumber])) {
+                    $serialsByPoAndPart[$poNumber][$partNumber] = [];
+                }
+                $serialsByPoAndPart[$poNumber][$partNumber][] = $serialNumber;
+            }
+
+            if (empty($serialsByPoAndPart)) {
+                return back()->with('error', 'Không tìm thấy dòng dữ liệu hợp lệ nào.');
+            }
+
+            DB::beginTransaction();
+            $updatedCount = 0;
+            $posUpdated = [];
+
+            $poCodes = array_keys($serialsByPoAndPart);
+            $purchaseOrders = PurchaseOrder::whereIn('code', $poCodes)
+                ->whereNotIn('status', ['received', 'cancelled'])
+                ->with('items.product')
+                ->get();
+
+            foreach ($purchaseOrders as $po) {
+                $poCodeUpper = strtoupper($po->code);
+                $partsForPo = $serialsByPoAndPart[$poCodeUpper] ?? [];
+
+                foreach ($po->items as $item) {
+                    $productCode = $item->product ? strtoupper($item->product->code) : null;
+                    if (!$productCode) {
+                        $productCode = strtoupper(trim($item->product_name));
+                    }
+
+                    if (isset($partsForPo[$productCode])) {
+                        $newExcelSerials = $partsForPo[$productCode];
+
+                        // Keep any existing serial numbers that are already received/transferred/sold in product_items table
+                        $existingSerials = json_decode($item->serial_number, true) ?: [];
+                        $alreadyImportedSerials = [];
+                        if (!empty($existingSerials)) {
+                            $alreadyImportedSerials = \App\Models\ProductItem::whereIn('sku', $existingSerials)
+                                ->pluck('sku')
+                                ->toArray();
+                        }
+
+                        $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newExcelSerials)));
+
+                        // Find all imports created from this PO
+                        $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
+                            ->where('reference_id', $po->id)
+                            ->pluck('id')
+                            ->toArray();
+
+                        // Update existing ProductItem records in the warehouse if they have placeholder SKUs
+                        if (!empty($importIds)) {
+                            $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
+                                ->where('product_id', $item->product_id)
+                                ->get();
+
+                            // Get list of existing real SKUs
+                            $existingRealSkus = $productItems->filter(function($pi) {
+                                return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                    && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                    && !empty($pi->sku);
+                            })->pluck('sku')->toArray();
+
+                            // Find which new serials are not already assigned in the warehouse
+                            $serialsToAssign = array_diff($newExcelSerials, $existingRealSkus);
+
+                            // Find placeholder product items
+                            $placeholderItems = $productItems->filter(function($pi) {
+                                return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                    || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                    || empty($pi->sku);
+                            });
+
+                            // Assign new serials to placeholders
+                            foreach ($placeholderItems as $pi) {
+                                if (empty($serialsToAssign)) break;
+                                $nextSerial = array_shift($serialsToAssign);
+                                $pi->update(['sku' => $nextSerial]);
+                            }
+                        }
+
+                        $item->update([
+                            'serial_number' => json_encode($mergedSerials)
+                        ]);
+                        $updatedCount += count($newExcelSerials);
+                        $posUpdated[$po->code] = true;
+                    }
+                }
+            }
+
+            DB::commit();
+
+            $poCount = count($posUpdated);
+            return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho {$poCount} đơn hàng PO.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Import thất bại: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update serial numbers manually for a PO item.
+     */
+    public function updateItemSerialsManual(Request $request, PurchaseOrderItem $item)
+    {
+        $purchaseOrder = $item->purchaseOrder;
+        if (in_array($purchaseOrder->status, ['received', 'cancelled'])) {
+            return back()->with('error', 'Không thể chỉnh sửa đơn hàng đã hoàn thành hoặc đã hủy.');
+        }
+
+        $request->validate([
+            'serials' => 'nullable|string',
+        ]);
+
+        // Parse serials (comma separated or newline separated)
+        $rawSerials = $request->input('serials', '');
+        $lines = preg_split('/[\n,\r]+/', $rawSerials);
+        $newSerials = [];
+        foreach ($lines as $line) {
+            $serial = trim($line);
+            if (!empty($serial)) {
+                $newSerials[] = $serial;
+            }
+        }
+
+        // Keep any existing serial numbers that are already received/transferred/sold in product_items table
+        $existingSerials = json_decode($item->serial_number, true) ?: [];
+        $alreadyImportedSerials = [];
+        if (!empty($existingSerials)) {
+            $alreadyImportedSerials = \App\Models\ProductItem::whereIn('sku', $existingSerials)
+                ->pluck('sku')
+                ->toArray();
+        }
+
+        $mergedSerials = array_values(array_unique(array_merge($alreadyImportedSerials, $newSerials)));
+
+        DB::beginTransaction();
+        try {
+            // Find all imports created from this PO
+            $importIds = \App\Models\Import::where('reference_type', 'purchase_order')
+                ->where('reference_id', $purchaseOrder->id)
+                ->pluck('id')
+                ->toArray();
+
+            // Update existing ProductItem records in the warehouse if they have placeholder SKUs
+            if (!empty($importIds)) {
+                $productItems = \App\Models\ProductItem::whereIn('import_id', $importIds)
+                    ->where('product_id', $item->product_id)
+                    ->get();
+
+                // Get list of existing real SKUs
+                $existingRealSkus = $productItems->filter(function($pi) {
+                    return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                        && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                        && !empty($pi->sku);
+                })->pluck('sku')->toArray();
+
+                // Find which new serials are not already assigned in the warehouse
+                $serialsToAssign = array_diff($mergedSerials, $existingRealSkus);
+
+                // Find placeholder product items
+                $placeholderItems = $productItems->filter(function($pi) {
+                    return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                        || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                        || empty($pi->sku);
+                });
+
+                // Assign new serials to placeholders
+                foreach ($placeholderItems as $pi) {
+                    if (empty($serialsToAssign)) break;
+                    $nextSerial = array_shift($serialsToAssign);
+                    $pi->update(['sku' => $nextSerial]);
+                }
+            }
+
+            $item->update([
+                'serial_number' => json_encode($mergedSerials)
+            ]);
+
+            DB::commit();
+            return back()->with('success', 'Cập nhật danh sách Serial thành công.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 
     /**

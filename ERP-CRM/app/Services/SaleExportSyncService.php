@@ -36,50 +36,53 @@ class SaleExportSyncService
      */
     public function cancelExportFromSale(Sale $sale): void
     {
-        $export = $this->getExport($sale);
+        $exports = Export::where('reference_type', 'sale')
+            ->where('reference_id', $sale->id)
+            ->get();
 
-        if (!$export) {
-            return;
-        }
-
-        if ($export->status === 'cancelled') {
+        if ($exports->isEmpty()) {
             return;
         }
 
         DB::beginTransaction();
         try {
-            // If export was completed, we need to revert inventory
-            if ($export->status === 'completed') {
-                foreach ($export->items as $item) {
-                    // 1. Re-add stock to inventory
-                    $this->inventoryService->updateStock(
-                        $item->product_id,
-                        $export->warehouse_id,
-                        $item->quantity,
-                        'add'
-                    );
-
-                    // 2. Revert ProductItems (if any were marked as sold)
-                    \App\Models\ProductItem::where('export_id', $export->id)
-                        ->where('product_id', $item->product_id)
-                        ->update([
-                            'status' => \App\Models\ProductItem::STATUS_IN_STOCK,
-                            'export_id' => null
-                        ]);
+            foreach ($exports as $export) {
+                if ($export->status === 'cancelled') {
+                    continue;
                 }
 
-                Log::info("Reverted inventory for cancelled Export #{$export->code} (Sale #{$sale->code})");
+                // If export was completed, we need to revert inventory
+                if ($export->status === 'completed') {
+                    foreach ($export->items as $item) {
+                        // 1. Re-add stock to inventory
+                        $this->inventoryService->updateStock(
+                            $item->product_id,
+                            $export->warehouse_id,
+                            $item->quantity,
+                            'add'
+                        );
+
+                        // 2. Revert ProductItems (if any were marked as sold)
+                        \App\Models\ProductItem::where('export_id', $export->id)
+                            ->where('product_id', $item->product_id)
+                            ->update([
+                                'status' => \App\Models\ProductItem::STATUS_IN_STOCK,
+                                'export_id' => null
+                            ]);
+                    }
+
+                    Log::info("Reverted inventory for cancelled Export #{$export->code} (Sale #{$sale->code})");
+                }
+
+                // Update status to cancelled
+                $export->update(['status' => 'cancelled']);
+                Log::info("Cancelled Export #{$export->code} because Sale #{$sale->code} was cancelled");
             }
 
-            // Update status to cancelled
-            $export->update(['status' => 'cancelled']);
-
             DB::commit();
-            Log::info("Cancelled Export #{$export->code} because Sale #{$sale->code} was cancelled");
-
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Failed to cancel export for Sale #{$sale->id}: " . $e->getMessage());
+            Log::error("Failed to cancel exports for Sale #{$sale->id}: " . $e->getMessage());
             throw $e;
         }
     }

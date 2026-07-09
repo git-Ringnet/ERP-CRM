@@ -327,11 +327,37 @@ class ExportController extends Controller
     {
         $this->authorize('approve', $export);
 
-        if ($export->status !== 'pending_invoice') {
+        if (!in_array($export->status, ['pending_invoice', 'pending'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Chỉ có thể duyệt và giao hàng cho phiếu đã được Admin phê duyệt (Chờ KT xuất hóa đơn).'
+                'message' => 'Chỉ có thể duyệt và giao hàng cho phiếu đã được Admin phê duyệt.'
             ], 400);
+        }
+
+        // Kiểm tra Kế toán đã xuất hóa đơn chính thức chưa
+        $invoiceRequestExists = \App\Models\InvoiceRequest::where('export_id', $export->id)->exists();
+        if ($invoiceRequestExists) {
+            $hasOfficialInvoice = \App\Models\InvoiceRequest::where('export_id', $export->id)
+                ->where('status', 'official_issued')
+                ->exists();
+            if (!$hasOfficialInvoice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kho không thể xuất hàng: Kế toán chưa xuất hóa đơn chính thức cho phiếu xuất này.'
+                ], 400);
+            }
+        } else {
+            if ($export->reference_type === 'sale') {
+                $hasOfficialInvoice = \App\Models\InvoiceRequest::where('sale_id', $export->reference_id)
+                    ->where('status', 'official_issued')
+                    ->exists();
+                if (!$hasOfficialInvoice) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Kho không thể xuất hàng: Kế toán chưa xuất hóa đơn chính thức cho đơn hàng này.'
+                    ], 400);
+                }
+            }
         }
 
         if ($export->reference_type === 'sale') {
@@ -716,5 +742,23 @@ class ExportController extends Controller
         }
 
         return back()->with('success', 'Đã cập nhật ngày giao hàng thành công và tính lại các hạn thanh toán.');
+    }
+
+    /**
+     * Update export warehouse
+     */
+    public function updateWarehouse(Request $request, Export $export)
+    {
+        $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+        ]);
+
+        if (!in_array($export->status, ['draft', 'pending_admin', 'pending_invoice', 'pending', 'rejected'])) {
+            return back()->with('error', 'Không thể thay đổi kho cho phiếu xuất đã hoàn thành hoặc hủy.');
+        }
+
+        $export->update(['warehouse_id' => $request->warehouse_id]);
+
+        return back()->with('success', 'Đã cập nhật kho xuất hàng thành công!');
     }
 }

@@ -599,6 +599,7 @@ class QuotationController extends Controller
                     'cost_total' => $item->quantity * $costPrice,
                     'vat' => $item->vat,
                     'vat_amount' => $item->vat_amount,
+                    'custom_fields' => $item->custom_fields,
                 ]);
             }
 

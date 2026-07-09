@@ -40,6 +40,15 @@
                         @endforeach
                     </select>
                 </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Nguồn</label>
+                    <select name="source_type"
+                        class="border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+                        <option value="">Tất cả</option>
+                        <option value="sale_order" {{ request('source_type') === 'sale_order' ? 'selected' : '' }}>Từ SO</option>
+                        <option value="ticket" {{ request('source_type') === 'ticket' ? 'selected' : '' }}>Từ Ticket</option>
+                    </select>
+                </div>
                 <button type="submit"
                     class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm shadow-sm">
                     <i class="fas fa-search mr-1"></i> Lọc dữ liệu
@@ -61,6 +70,7 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-100">
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Đơn hàng (mã SO)</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nguồn</th>
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Hãng</th>
                         <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Người yêu cầu (Sales)
                         </th>
@@ -77,10 +87,32 @@
                     @forelse($requests as $request)
                         <tr class="hover:bg-gray-50 transition-colors group">
                             <td class="px-6 py-4">
-                                <a href="{{ route('sales.show', $request->sale_id) }}"
-                                    class="text-blue-600 hover:underline font-medium">
-                                    {{ $request->sale->code ?? 'N/A' }}
-                                </a>
+                                @if($request->sale_id)
+                                    <a href="{{ route('sales.show', $request->sale_id) }}"
+                                        class="text-blue-600 hover:underline font-medium">
+                                        {{ $request->sale->code ?? 'N/A' }}
+                                    </a>
+                                @else
+                                    <span class="text-gray-400 font-medium">N/A</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4">
+                                @if($request->source_type === 'ticket')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                                        <i class="fas fa-ticket-alt mr-1.5 text-[10px]"></i>
+                                        @if($request->ticket)
+                                            <a href="{{ route('tickets.show', $request->ticket) }}" class="hover:underline">
+                                                {{ $request->ticket->code }}
+                                            </a>
+                                        @else
+                                            Ticket
+                                        @endif
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                        <i class="fas fa-file-contract mr-1.5 text-[10px]"></i> SO
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex flex-col gap-1">

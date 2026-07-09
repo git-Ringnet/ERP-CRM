@@ -94,14 +94,17 @@ class PurchaseImportSyncService
                     continue;
                 }
 
+                $itemWarehouseId = $this->resolveWarehouseForPoItem($poItem, $warehouseId);
+
                 ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $productId,
+                    'warehouse_id' => $itemWarehouseId,
                     'quantity' => $quantity,
                     'unit' => $poItem->unit,
-                    'serial_number' => null,
+                    'serial_number' => $poItem->serial_number,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
-                    'comments' => "Từ PO {$purchaseOrder->code} - {$poItem->product_name}",
+                    'comments' => "[POItem:{$poItem->id}] Từ PO {$purchaseOrder->code} - {$poItem->product_name}",
                 ]);
                 $totalQty += $quantity;
             }
@@ -213,12 +216,15 @@ class PurchaseImportSyncService
 
                 if (!$productId) continue;
 
+                $itemWarehouseId = $this->resolveWarehouseForPoItem($poItem, $warehouseId);
+
                 ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $productId,
-                    'warehouse_id' => $warehouseId, // Mỗi dòng có thể nhập vào kho riêng nếu cần
+                    'warehouse_id' => $itemWarehouseId,
                     'quantity' => $qty,
                     'unit' => $poItem->unit,
+                    'serial_number' => $poItem->serial_number,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
                     'comments' => "[POItem:{$poItem->id}] Từ PO {$purchaseOrder->code} (Nhận đợt ngày " . now()->format('d/m/Y') . ")",
                 ]);
@@ -243,5 +249,75 @@ class PurchaseImportSyncService
             Log::error("Failed to create partial import from PO #{$purchaseOrder->id}: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    protected function isLicenseItem(PurchaseOrderItem $poItem): bool
+    {
+        $productCode = $poItem->product?->code;
+        $productName = $poItem->product_name ?: ($poItem->product->name ?? '');
+
+        if ($productCode && (
+            str_starts_with($productCode, 'FC-') || 
+            stripos($productCode, 'license') !== false || 
+            stripos($productName, 'license') !== false || 
+            stripos($productCode, 'e-license') !== false || 
+            stripos($productName, 'e-license') !== false || 
+            stripos($productCode, 'subscription') !== false || 
+            stripos($productName, 'subscription') !== false || 
+            stripos($productCode, 'renewal') !== false || 
+            stripos($productName, 'renewal') !== false
+        )) {
+            return true;
+        }
+
+        if ($poItem->saleOrderRequestItem && $poItem->saleOrderRequestItem->type === 'License') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve correct warehouse based on PO item properties or linked SO type.
+     */
+    protected function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
+    {
+        // 1. If it's a License item, it always goes to Kho License
+        if ($this->isLicenseItem($poItem)) {
+            $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
+            if ($licenseWh) {
+                return $licenseWh->id;
+            }
+        }
+
+        // 2. If PO is linked to a Sale Order, check SO type
+        $po = $poItem->purchaseOrder;
+        if ($po && $po->sale) {
+            if ($po->sale->type === 'project') {
+                $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+                if ($projectWh) {
+                    return $projectWh->id;
+                }
+            } elseif ($po->sale->type === 'retail') {
+                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                if ($runrateWh) {
+                    return $runrateWh->id;
+                }
+            }
+        }
+
+        // 3. If PO item is linked to a Preload Ticket, route to Kho Runrate
+        if ($poItem->saleOrderRequestItem) {
+            $pr = $poItem->saleOrderRequestItem->saleOrderRequest;
+            if ($pr && $pr->ticket && $pr->ticket->type === 'preload') {
+                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                if ($runrateWh) {
+                    return $runrateWh->id;
+                }
+            }
+        }
+
+        // 4. Fallback to default warehouse ID passed in
+        return $defaultWarehouseId;
     }
 }

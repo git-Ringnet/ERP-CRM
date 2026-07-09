@@ -164,6 +164,8 @@ class ApprovalService
             // Nếu đã duyệt xong hoàn tất, thông báo cho người tạo
             if ($document->status === 'approved' || (isset($document->pl_status) && $document->pl_status === 'approved')) {
                 // TỰ ĐỘNG TẠO PHIẾU XUẤT KHO & PHIẾU MUA HÀNG nếu là đơn hàng bán
+                // Bị vô hiệu hóa: quy trình mới chuyển sang tạo xuất kho thủ công/từng phần bởi Sales
+                /*
                 if ($documentType === 'sale_pnl' && $document instanceof \App\Models\Sale) {
                     try {
                         // 1. Tạo phiếu xuất kho
@@ -173,6 +175,7 @@ class ApprovalService
                         \Illuminate\Support\Facades\Log::warning("Could not auto-process Sale #{$document->id} after approval: " . $e->getMessage());
                     }
                 }
+                */
 
                 $creatorId = $this->getCreatorId($document);
                 if ($creatorId) {

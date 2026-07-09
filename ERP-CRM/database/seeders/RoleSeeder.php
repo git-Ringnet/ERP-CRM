@@ -24,13 +24,13 @@ class RoleSeeder extends Seeder
                 'status' => 'active',
             ],
             [
-                'name' => 'Logistic Manager',
+                'name' => 'Quản lý kho',
                 'slug' => 'warehouse_manager',
                 'description' => 'Quản lý hoạt động kho, tồn kho và duyệt phiếu nhập/xuất',
                 'status' => 'active',
             ],
             [
-                'name' => 'Logistic Staff',
+                'name' => 'Nhân viên kho',
                 'slug' => 'warehouse_staff',
                 'description' => 'Xử lý hoạt động kho và quản lý tồn kho',
                 'status' => 'active',

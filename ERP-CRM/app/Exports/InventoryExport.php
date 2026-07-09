@@ -21,14 +21,14 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
     {
         $this->filters = $filters;
          
-        $tab = $filters['tab'] ?? 'stocking';
+        $tab = $filters['tab'] ?? 'runrate';
         // Load custom columns for the active tab
         $this->columns = InventoryCustomColumn::where('tab', $tab)->get();
     }
  
     public function collection()
     {
-        $tab = $this->filters['tab'] ?? 'stocking';
+        $tab = $this->filters['tab'] ?? 'runrate';
  
         $query = ProductItem::with([
             'product', 
@@ -88,61 +88,23 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
             });
         }
  
-        // Identify project POs and stocking POs
-        $projectPoIds = DB::table(DB::raw("(
-            SELECT id AS purchase_order_id, sale_id
-            FROM purchase_orders
-            WHERE sale_id IS NOT NULL
-            
-            UNION
-            
-            SELECT poi.purchase_order_id, sor.sale_id
-            FROM purchase_order_items poi
-            JOIN sale_order_request_items sori ON poi.sale_order_request_item_id = sori.id
-            JOIN sale_order_requests sor ON sori.sale_order_request_id = sor.id
-            WHERE sor.sale_id IS NOT NULL
-        ) as po_sos"))
-        ->groupBy('purchase_order_id')
-        ->having(DB::raw('COUNT(DISTINCT sale_id)'), '=', 1)
-        ->pluck('purchase_order_id')
-        ->toArray();
- 
-        // Apply Tab filters
-        if ($tab === 'rmodel') {
-            $query->whereHas('product', function($q) {
-                $q->where('code', 'like', '%R')
-                  ->orWhere('code', 'like', '%NFR');
-            });
-        } elseif ($tab === 'project') {
-            $query->whereHas('product', function($q) {
-                $q->where('code', 'not like', '%R')
-                  ->where('code', 'not like', '%NFR');
-            })->whereHas('import', function($impQ) use ($projectPoIds) {
-                $impQ->where('reference_type', 'purchase_order')
-                     ->whereIn('reference_id', $projectPoIds);
-            });
-        } else { // default 'stocking'
-            $query->whereHas('product', function($q) {
-                $q->where('code', 'not like', '%R')
-                  ->where('code', 'not like', '%NFR');
-            })->where(function($q) use ($projectPoIds) {
-                $q->whereNull('import_id')
-                  ->orWhereHas('import', function($impQ) use ($projectPoIds) {
-                      $impQ->where(function($subQ) use ($projectPoIds) {
-                          $subQ->where('reference_type', '!=', 'purchase_order')
-                               ->orWhereNull('reference_id')
-                               ->orWhereNotIn('reference_id', $projectPoIds);
-                      });
-                  });
-            });
-        }
+        // Resolve warehouse IDs
+        $warehouseMap = [
+            'project' => \App\Models\Warehouse::where('code', 'WH_PROJECT')->value('id'),
+            'runrate' => \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id'),
+            'license' => \App\Models\Warehouse::where('code', 'WH_LICENSE')->value('id'),
+            'rmodel' => \App\Models\Warehouse::where('code', 'WH_WARRANTY')->value('id'),
+        ];
+        
+        $targetWarehouseId = $warehouseMap[$tab] ?? $warehouseMap['runrate'];
+        $query->where('warehouse_id', $targetWarehouseId);
  
         return $query->orderBy('updated_at', 'desc')->get();
     }
  
     public function headings(): array
     {
-        $tab = $this->filters['tab'] ?? 'stocking';
+        $tab = $this->filters['tab'] ?? 'runrate';
  
         if ($tab === 'rmodel') {
             $headers = [
@@ -178,7 +140,7 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
  
     public function map($item): array
     {
-        $tab = $this->filters['tab'] ?? 'stocking';
+        $tab = $this->filters['tab'] ?? 'runrate';
          
         $serial = '';
         if (!$item->isNoSku()) {

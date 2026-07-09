@@ -118,6 +118,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/exports/{export}/print', [ExportController::class, 'print'])->name('exports.print');
     Route::get('/exports/{export}/export-excel', [ExportController::class, 'exportVoucherToExcel'])->name('exports.export-excel');
     Route::post('/exports/{export}/update-delivery-date', [ExportController::class, 'updateDeliveryDate'])->name('exports.updateDeliveryDate');
+    Route::post('/exports/{export}/update-warehouse', [ExportController::class, 'updateWarehouse'])->name('exports.update-warehouse');
 
     // Transfer Module Routes (Chuyển kho)
     Route::get('/transfers/available-items', [TransferController::class, 'getAvailableItems'])->name('transfers.available-items');
@@ -139,6 +140,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/inventory/custom-columns', [InventoryController::class, 'storeCustomColumn'])->name('inventory.custom-columns.store');
     Route::delete('/inventory/custom-columns/{id}', [InventoryController::class, 'deleteCustomColumn'])->name('inventory.custom-columns.destroy');
     Route::patch('/inventory/items/{id}', [InventoryController::class, 'updateItem'])->name('inventory.items.update');
+
+    // Ticket Routes (Yêu cầu đặt hàng/mượn hàng)
+    Route::get('/tickets/holders', [App\Http\Controllers\TicketController::class, 'getHolders'])->name('tickets.holders');
+    Route::get('/tickets/search-products', [App\Http\Controllers\TicketController::class, 'searchProducts'])->name('tickets.search-products');
+    Route::resource('tickets', App\Http\Controllers\TicketController::class);
+    Route::post('/tickets/{ticket}/approve', [App\Http\Controllers\TicketController::class, 'approve'])->name('tickets.approve');
+    Route::post('/tickets/{ticket}/reject', [App\Http\Controllers\TicketController::class, 'reject'])->name('tickets.reject');
 
     // Damaged Goods Routes
     Route::get('/ajax/damaged-goods/items', [DamagedGoodController::class, 'getProductItems'])->name('damaged-goods.items');
@@ -189,10 +197,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/approve-payment-exception', [SaleController::class, 'approvePaymentException'])->name('sales.approvePaymentException');
     Route::post('/sales/{sale}/milestones/{index}/submit-proof', [SaleController::class, 'submitMilestoneProof'])->name('sales.milestones.submitProof');
     Route::post('/sales/{sale}/milestones/{index}/confirm-payment', [SaleController::class, 'confirmMilestonePayment'])->name('sales.milestones.confirmPayment');
+    Route::post('/sales/{sale}/milestones/{index}/reject-payment', [SaleController::class, 'rejectMilestonePayment'])->name('sales.milestones.rejectPayment');
+    Route::delete('/sales/{sale}/milestones/{index}', [SaleController::class, 'deleteMilestone'])->name('sales.milestones.delete');
     Route::post('/sales/{sale}/milestones/{index}/approve-exception', [SaleController::class, 'approveMilestoneException'])->name('sales.milestones.approveException');
     Route::post('/sales/{sale}/delegate-payment-exception', [SaleController::class, 'delegateSaleException'])->name('sales.delegatePaymentException');
     Route::post('/sales/{sale}/milestones/{index}/delegate-exception', [SaleController::class, 'delegateMilestoneException'])->name('sales.milestones.delegateException');
     Route::post('/sales/{sale}/update-delivery-date', [SaleController::class, 'updateDeliveryDate'])->name('sales.updateDeliveryDate');
+    Route::post('/sales/{sale}/exports/create', [SaleController::class, 'createPartialExport'])->name('sales.exports.create');
 
     // PNL Approval Attachment routes (File đính kèm duyệt P&L)
     Route::post('/sales/{sale}/pnl-attachments', [SaleController::class, 'uploadPnlAttachment'])->name('sales.pnl-attachments.upload');
@@ -203,6 +214,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Invoice Request routes
     Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');
+    Route::get('/invoice-requests/{invoiceRequest}', [\App\Http\Controllers\InvoiceRequestController::class, 'show'])->name('invoice-requests.show');
     Route::post('/invoice-requests/{invoiceRequest}/issue-draft', [\App\Http\Controllers\InvoiceRequestController::class, 'issueDraft'])->name('invoice-requests.issue-draft');
     Route::post('/invoice-requests/{invoiceRequest}/issue-official', [\App\Http\Controllers\InvoiceRequestController::class, 'issueOfficial'])->name('invoice-requests.issue-official');
     Route::post('/invoice-requests/{invoiceRequest}/reject', [\App\Http\Controllers\InvoiceRequestController::class, 'reject'])->name('invoice-requests.reject');
@@ -317,6 +329,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders/{purchaseOrder}/import', [PurchaseOrderController::class, 'getImport'])->name('purchase-orders.import.link');
     Route::post('/purchase-orders/{purchaseOrder}/toggle-hold', [PurchaseOrderController::class, 'toggleHold'])->name('purchase-orders.toggle-hold');
     Route::post('/purchase-orders/{purchaseOrder}/update-tracking', [PurchaseOrderController::class, 'updateTracking'])->name('purchase-orders.update-tracking');
+    Route::post('/purchase-orders/{purchaseOrder}/import-serials', [PurchaseOrderController::class, 'importSerials'])->name('purchase-orders.import-serials');
+    Route::post('/purchase-orders/import-serials-bulk', [PurchaseOrderController::class, 'importSerialsBulk'])->name('purchase-orders.import-serials-bulk');
+    Route::post('/purchase-orders/items/{item}/update-serials-manual', [PurchaseOrderController::class, 'updateItemSerialsManual'])->name('purchase-orders.items.update-serials-manual');
     Route::post('/purchase-orders/{purchaseOrder}/update-expected-delivery', [PurchaseOrderController::class, 'updateExpectedDelivery'])->name('purchase-orders.update-expected-delivery');
     Route::post('/purchase-orders/{purchaseOrder}/update-manufacturer-release-date', [PurchaseOrderController::class, 'updateManufacturerReleaseDate'])->name('purchase-orders.update-manufacturer-release-date');
     Route::post('/purchase-orders/items/{item}/update-status', [PurchaseOrderController::class, 'updateItemStatus'])->name('purchase-orders.items.update-status');

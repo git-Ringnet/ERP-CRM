@@ -11,6 +11,7 @@ class InvoiceRequest extends Model
 
     protected $fillable = [
         'sale_id',
+        'export_id',
         'requester_id',
         'admin_id',
         'finance_id',
@@ -24,6 +25,14 @@ class InvoiceRequest extends Model
         'delivery_note_path',
         'note',
         'rejection_reason',
+        'seller_name',
+        'seller_company',
+        'invoice_content_note',
+        'customer_email',
+        'delivery_address',
+        'delivery_contact',
+        'delivery_phone',
+        'payment_terms_note',
     ];
 
     /**
@@ -32,6 +41,14 @@ class InvoiceRequest extends Model
     public function sale()
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * Relationship with Export
+     */
+    public function export()
+    {
+        return $this->belongsTo(Export::class);
     }
 
     /**

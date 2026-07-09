@@ -249,6 +249,12 @@
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Hàng hư hỏng</span>
                                 </a>
                             @endcan
+
+                            <a href="{{ route('tickets.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('tickets.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu (Ticket)</span>
+                            </a>
                         </div>
                     </div>
                 @endcanany

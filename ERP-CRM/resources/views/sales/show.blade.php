@@ -244,70 +244,26 @@
 
         {{-- Warehouse & Export Tracking --}}
         @php
-            $linkedExport = \App\Models\Export::where('reference_type', 'sale')->where('reference_id', $sale->id)->first();
+            $linkedExportsSummary = \App\Models\Export::where('reference_type', 'sale')->where('reference_id', $sale->id)->get();
         @endphp
         <div class="px-5 py-2.5 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Kho & Giao nhận:</span>
-                @if($linkedExport)
-                    <div class="flex items-center gap-4 flex-wrap">
-                        <a href="{{ route('exports.show', $linkedExport->id) }}" class="text-sm font-bold text-blue-600 hover:underline">
-                            <i class="fas fa-file-invoice mr-1"></i>{{ $linkedExport->code }}
-                        </a>
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-{{ $linkedExport->status_color }}-100 text-{{ $linkedExport->status_color }}-700 uppercase">
-                            {{ $linkedExport->status_label }}
+                @if($linkedExportsSummary->isNotEmpty())
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium text-gray-700">
+                            Có {{ $linkedExportsSummary->count() }} yêu cầu xuất kho:
                         </span>
-
-                        @if($linkedExport->status === 'draft' || $linkedExport->status === 'rejected')
-                            <form action="{{ route('exports.request-export', $linkedExport->id) }}" method="POST" class="inline">
-                                @csrf
-                                <button type="submit" class="text-[10px] bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded hover:bg-green-100 transition-all font-bold">
-                                    <i class="fas fa-file-export mr-1"></i>YÊU CẦU XUẤT KHO
-                                </button>
-                            </form>
-                        @endif
-
-                        @if($linkedExport->status === 'pending_admin')
-                            @if(auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('purchase_manager'))
-                                <span class="text-[10px] text-red-500 italic font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Chờ bạn duyệt xuất. Hãy nhấn vào mã phiếu để Duyệt/Từ chối.</span>
-                            @else
-                                <span class="text-[10px] text-blue-500 italic font-medium"><i class="fas fa-info-circle mr-1"></i>Kho đang chuẩn bị hàng...</span>
-                            @endif
-                        @endif
-
-                        @if($linkedExport->status === 'pending_invoice')
-                            @if(auth()->user()->hasRole('accountant') || auth()->user()->hasRole('super_admin'))
-                                <span class="text-[10px] text-orange-500 italic font-medium"><i class="fas fa-file-invoice-dollar mr-1"></i>Vui lòng xuất hóa đơn và nhấn Giao hàng trên mã phiếu.</span>
-                            @else
-                                <span class="text-[10px] text-orange-500 italic font-medium"><i class="fas fa-info-circle mr-1"></i>Kế toán đang xử lý hóa đơn xuất hàng...</span>
-                            @endif
-                        @endif
+                        <a href="javascript:void(0)" @click="activeTab = 'warehouse'" class="text-xs font-bold text-teal-600 hover:underline">
+                            Xem chi tiết ở tab Kho & Giao nhận (đã có {{ $linkedExportsSummary->count() }} phiếu)
+                        </a>
                     </div>
                 @else
-                    @if(in_array($sale->status, ['approved', 'shipping', 'completed']))
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-red-500 font-medium">
-                                <i class="fas fa-times-circle mr-1"></i>Chưa có phiếu xuất kho
-                            </span>
-                            <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                                @csrf @method('PATCH')
-                                <input type="hidden" name="status" value="{{ $sale->status }}">
-                                <button type="submit" class="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded hover:bg-red-100 transition-all font-bold">
-                                    <i class="fas fa-sync-alt mr-1"></i>TẠO LẠI PHIẾU XUẤT
-                                </button>
-                            </form>
-                        </div>
-                    @else
-                        <span class="text-xs text-gray-400 italic">Chờ duyệt đơn để tạo phiếu xuất</span>
-                    @endif
+                    <span class="text-xs text-red-500 font-medium">
+                        <i class="fas fa-times-circle mr-1"></i>Chưa có phiếu xuất kho. Vui lòng tạo ở tab Kho & Giao nhận.
+                    </span>
                 @endif
             </div>
-            
-            @if($linkedExport && $linkedExport->warehouse)
-                <div class="text-[11px] text-gray-500">
-                    <i class="fas fa-warehouse mr-1"></i>Kho: <span class="font-bold text-gray-700">{{ $linkedExport->warehouse->name }}</span>
-                </div>
-            @endif
         </div>
     </div>
     @endif
@@ -902,6 +858,13 @@
                                                 </form>
                                             @endif
 
+                                            @if($isFinance)
+                                                <button type="button" onclick="openRejectPaymentModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
+                                                        class="px-2.5 py-1 text-xs bg-red-600 text-white font-bold rounded-md hover:bg-red-700 shadow-sm">
+                                                    <i class="fas fa-times mr-1"></i> Từ chối
+                                                </button>
+                                            @endif
+
                                             @if($canApproveMilestone)
                                                 <button onclick="openExceptionModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
                                                         class="px-2.5 py-1 text-xs {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'bg-indigo-650 hover:bg-indigo-700 bg-indigo-600' : 'bg-red-600 hover:bg-red-700' }} text-white font-bold rounded-md shadow-sm">
@@ -957,6 +920,16 @@
                                                 {{ \Carbon\Carbon::parse($ms['confirmed_at'])->format('d/m H:i') }}
                                             </span>
                                         @endif
+
+                                        @if(($ms['trigger_type'] ?? null) === 'MANUAL' && $status !== 'paid')
+                                            <form action="{{ route('sales.milestones.delete', [$sale->id, $index]) }}" method="POST" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mốc thanh toán thủ công này?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-bold border border-red-200 rounded shadow-sm inline-flex items-center" title="Xóa mốc thanh toán thủ công">
+                                                    <i class="fas fa-trash-alt mr-1"></i> Xóa mốc
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -1011,6 +984,28 @@
             </div>
         </div>
 
+        <!-- 3. Reject Payment modal -->
+        <div id="rejectPaymentModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-red-800" id="rejectPaymentModalTitle">Từ chối chứng từ thanh toán</h3>
+                    <button onclick="closeRejectPaymentModal()" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="rejectPaymentForm" method="POST" class="p-6 space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Lý do từ chối <span class="text-red-500">*</span></label>
+                        <textarea name="reason" required rows="3" placeholder="Nhập lý do từ chối xác nhận thanh toán..."
+                                  class="w-full text-sm border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" onclick="closeRejectPaymentModal()" class="btn-secondary text-xs px-4 py-2">Hủy</button>
+                        <button type="submit" class="btn-primary text-xs px-4 py-2 bg-red-600 hover:bg-red-700 border-none font-bold text-white shadow-sm rounded-lg">Xác nhận Từ chối</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <script>
             function openProofModal(index, name) {
                 const modal = document.getElementById('proofModal');
@@ -1037,6 +1032,19 @@
             }
             function closeExceptionModal() {
                 document.getElementById('exceptionModal').classList.add('hidden');
+            }
+            function openRejectPaymentModal(index, name) {
+                const modal = document.getElementById('rejectPaymentModal');
+                const form = document.getElementById('rejectPaymentForm');
+                const title = document.getElementById('rejectPaymentModalTitle');
+                if (modal && form) {
+                    title.innerText = `Từ chối UNC đợt: ${name}`;
+                    form.action = `{{ url('/') }}/sales/{{ $sale->id }}/milestones/${index}/reject-payment`;
+                    modal.classList.remove('hidden');
+                }
+            }
+            function closeRejectPaymentModal() {
+                document.getElementById('rejectPaymentModal').classList.add('hidden');
             }
         </script>
     </div>
@@ -1070,6 +1078,18 @@
                     :class="activeTab === 'procurement' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
                     <i class="fas fa-shopping-cart mr-2"></i> Thông tin mua hàng (PO)
+                </button>
+                <button @click="activeTab = 'warehouse'"
+                    :class="activeTab === 'warehouse' ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
+                    <i class="fas fa-warehouse mr-2"></i> Kho & Giao nhận
+                    @php
+                        $linkedExports = \App\Models\Export::where('reference_type', 'sale')->where('reference_id', $sale->id)->get();
+                        $activeExportsCount = $linkedExports->filter(fn($e) => in_array($e->status, ['draft', 'pending_admin', 'pending_invoice']))->count();
+                    @endphp
+                    @if($activeExportsCount > 0)
+                        <span class="ml-1.5 bg-teal-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{{ $activeExportsCount }}</span>
+                    @endif
                 </button>
                 <button @click="activeTab = 'payment_history'"
                     :class="activeTab === 'payment_history' ? 'border-indigo-605 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -1343,12 +1363,14 @@
                             <span class="absolute -left-[36px] top-0.5 flex items-center justify-center w-6 h-6 rounded-full ring-4 ring-white
                                 @if($log->action === 'proof_uploaded') bg-blue-100 text-blue-700
                                 @elseif($log->action === 'finance_confirmed') bg-green-100 text-green-700
+                                @elseif($log->action === 'finance_rejected') bg-red-100 text-red-700
                                 @elseif($log->action === 'bod_exception_approved') bg-purple-100 text-purple-700
                                 @elseif($log->action === 'delegated') bg-indigo-100 text-indigo-700
                                 @elseif($log->action === 'delegation_revoked') bg-yellow-100 text-yellow-700
                                 @else bg-gray-100 text-gray-700 @endif">
                                 @if($log->action === 'proof_uploaded') <i class="fas fa-upload text-[10px]"></i>
                                 @elseif($log->action === 'finance_confirmed') <i class="fas fa-check text-[10px]"></i>
+                                @elseif($log->action === 'finance_rejected') <i class="fas fa-times text-[10px]"></i>
                                 @elseif($log->action === 'bod_exception_approved') <i class="fas fa-shield-alt text-[10px]"></i>
                                 @elseif($log->action === 'delegated') <i class="fas fa-user-shield text-[10px]"></i>
                                 @elseif($log->action === 'delegation_revoked') <i class="fas fa-user-slash text-[10px]"></i>
@@ -1362,6 +1384,7 @@
                                 <p class="text-sm text-gray-800 font-semibold">
                                     @if($log->action === 'proof_uploaded') Đã tải lên UNC thanh toán đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
                                     @elseif($log->action === 'finance_confirmed') Finance đã xác nhận thanh toán đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
+                                    @elseif($log->action === 'finance_rejected') Finance đã từ chối xác nhận thanh toán đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
                                     @elseif($log->action === 'bod_exception_approved') Đã duyệt ngoại lệ đợt "{{ $log->schedule->milestone_name ?? 'N/A' }}"
                                     @elseif($log->action === 'delegated') Đã ủy quyền duyệt ngoại lệ cho "{{ $log->new_value }}"
                                     @elseif($log->action === 'delegation_revoked') Đã hủy ủy quyền duyệt ngoại lệ
@@ -1388,8 +1411,431 @@
             </div>
         </div>
 
+        <!-- Tab: Warehouse & Export -->
+        <div x-show="activeTab === 'warehouse'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95">
+            <div class="bg-white rounded-b-lg shadow-sm p-6 border border-gray-200">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">Chi tiết hàng hóa & Xuất kho</h3>
+                        <p class="text-xs text-gray-500 mt-1">Theo dõi số lượng hàng về, số lượng đã xuất và số lượng còn lại có thể xuất.</p>
+                    </div>
+                    
+                    @if(in_array($sale->status, ['approved', 'shipping']))
+                        @php
+                            $hasRemainingToExport = false;
+                            foreach($sale->items as $item) {
+                                $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
+                                        $q->where('reference_type', 'sale')
+                                          ->where('reference_id', $sale->id)
+                                          ->where('status', '!=', 'cancelled');
+                                    })
+                                    ->where('product_id', $item->product_id)
+                                    ->sum('quantity');
+
+                                if ($sale->type === 'retail') {
+                                    // For retail/runrate orders: Sales can borrow from warehouse stock, limited to the ordered quantity on the SO
+                                    $remainingToExport = $item->quantity - $totalExported;
+                                } else {
+                                    // For project orders: Must match quantity received from linked POs
+                                    $totalReceived = 0;
+                                    $prItems = \App\Models\SaleOrderRequestItem::where('sale_item_id', $item->id)->get();
+                                    foreach ($prItems as $prItem) {
+                                        $totalReceived += $prItem->received_quantity_total;
+                                    }
+                                    $remainingToExport = $totalReceived - $totalExported;
+                                }
+
+                                if ($remainingToExport > 0) {
+                                    $hasRemainingToExport = true;
+                                    break;
+                                }
+                            }
+                        @endphp
+                        
+                        @if($hasRemainingToExport)
+                            <button type="button" onclick="openExportModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-md">
+                                <i class="fas fa-file-export mr-2"></i> YÊU CẦU XUẤT HÀNG
+                            </button>
+                        @endif
+                    @endif
+                </div>
+
+                <div class="overflow-x-auto mb-8 border border-gray-100 rounded-lg">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50">
+                            <tr class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                <th class="px-4 py-3">STT</th>
+                                <th class="px-4 py-3">Tên sản phẩm / Part Number</th>
+                                <th class="px-4 py-3 text-center">Số lượng bán (SO)</th>
+                                <th class="px-4 py-3 text-center">Hàng đã về (Nhập kho)</th>
+                                <th class="px-4 py-3 text-center">Đã xuất kho</th>
+                                <th class="px-4 py-3 text-center">Số lượng còn lại</th>
+                                <th class="px-4 py-3 text-center">Trạng thái</th>
+                                <th class="px-4 py-3 text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 text-sm">
+                            @foreach($sale->items as $index => $item)
+                                @php
+                                    $totalOrdered = $item->quantity;
+                                    $totalReceived = 0;
+                                    $prItems = \App\Models\SaleOrderRequestItem::where('sale_item_id', $item->id)->get();
+                                    foreach ($prItems as $prItem) {
+                                        $totalReceived += $prItem->received_quantity_total;
+                                    }
+
+                                    $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
+                                            $q->where('reference_type', 'sale')
+                                              ->where('reference_id', $sale->id)
+                                              ->where('status', 'completed');
+                                        })
+                                        ->where('product_id', $item->product_id)
+                                        ->sum('quantity');
+
+                                    $remainingToExport = max(0, $totalOrdered - $totalExported);
+                                    
+                                    $isLicense = false;
+                                    $productCode = $item->product?->code;
+                                    $productName = $item->product?->name ?? $item->product_name;
+                                    if ($productCode && (
+                                        str_starts_with($productCode, 'FC-') || 
+                                        stripos($productCode, 'license') !== false || 
+                                        stripos($productName, 'license') !== false || 
+                                        stripos($productCode, 'e-license') !== false || 
+                                        stripos($productName, 'e-license') !== false || 
+                                        stripos($productCode, 'subscription') !== false || 
+                                        stripos($productName, 'subscription') !== false || 
+                                        stripos($productCode, 'renewal') !== false || 
+                                        stripos($productName, 'renewal') !== false
+                                    )) {
+                                        $isLicense = true;
+                                    }
+                                @endphp
+                                <tr class="hover:bg-gray-50/50 transition-colors">
+                                    <td class="px-4 py-3 text-gray-500">{{ $index + 1 }}</td>
+                                    <td class="px-4 py-3 font-semibold text-gray-800">
+                                        {{ $item->product?->code ?? $item->product_name }}
+                                        <div class="text-xs font-normal text-gray-500 mt-0.5">{{ $item->product_name }}</div>
+                                    </td>
+                                    <td class="px-4 py-3 text-center font-bold text-gray-800">{{ number_format($totalOrdered) }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @if($isLicense)
+                                            <span class="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full"><i class="fas fa-key mr-1"></i>License (K.Nhập)</span>
+                                        @else
+                                            <span class="font-semibold text-gray-600">{{ number_format($totalReceived) }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-center font-semibold text-emerald-600">{{ number_format($totalExported) }}</td>
+                                    <td class="px-4 py-3 text-center font-bold text-red-500">{{ number_format($remainingToExport) }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @if($remainingToExport == 0)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase"><i class="fas fa-check-circle mr-1"></i>Đã xuất đủ</span>
+                                        @elseif($totalExported > 0)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 uppercase"><i class="fas fa-hourglass-half mr-1"></i>Xuất một phần</span>
+                                        @else
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-800 uppercase"><i class="fas fa-minus-circle mr-1"></i>Chưa xuất</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                                        @if($item->product_id)
+                                            <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn hàng cho sản phẩm này">
+                                                <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
+                                            </a>
+                                        @else
+                                            <span class="text-gray-400">-</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <i class="fas fa-receipt text-gray-400"></i> Lịch sử / Danh sách yêu cầu xuất kho
+                    </h4>
+                    
+                    @if($linkedExports->isEmpty())
+                        <div class="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                            <i class="fas fa-receipt text-3xl mb-2 text-gray-300"></i>
+                            <p class="text-sm">Chưa có yêu cầu xuất kho nào cho đơn hàng này.</p>
+                        </div>
+                    @else
+                        <div class="overflow-x-auto border border-gray-100 rounded-lg">
+                            <table class="w-full text-left border-collapse text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                        <th class="px-4 py-3">Mã phiếu</th>
+                                        <th class="px-4 py-3">Kho xuất</th>
+                                        <th class="px-4 py-3">Ngày tạo</th>
+                                        <th class="px-4 py-3">Tổng số lượng</th>
+                                        <th class="px-4 py-3">Ghi chú</th>
+                                        <th class="px-4 py-3 text-center">Trạng thái</th>
+                                        <th class="px-4 py-3 text-center">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach($linkedExports as $export)
+                                        <tr class="hover:bg-gray-50/50 transition-colors">
+                                            <td class="px-4 py-3 font-semibold">
+                                                <a href="{{ route('exports.show', $export->id) }}" class="text-blue-600 hover:underline">
+                                                    {{ $export->code }}
+                                                </a>
+                                            </td>
+                                            <td class="px-4 py-3 text-gray-600">{{ $export->warehouse->name ?? 'N/A' }}</td>
+                                            <td class="px-4 py-3 text-gray-500">{{ $export->created_at->format('d/m/Y H:i') }}</td>
+                                            <td class="px-4 py-3 font-medium">{{ number_format($export->total_qty) }}</td>
+                                            <td class="px-4 py-3 text-xs text-gray-500 max-w-xs truncate" title="{{ $export->note }}">{{ $export->note ?: '-' }}</td>
+                                            <td class="px-4 py-3 text-center">
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-{{ $export->status_color }}-100 text-{{ $export->status_color }}-700 uppercase">
+                                                    {{ $export->status_label }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                @php
+                                                    $user = auth()->user();
+                                                    $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                                                @endphp
+                                                @if(in_array($export->status, ['pending_admin', 'pending']))
+                                                    @if($isAdmin)
+                                                        <div class="flex items-center justify-center gap-1.5">
+                                                            <!-- Approve Button -->
+                                                            <button type="button" onclick="confirmApprove('{{ route('exports.admin-approve', $export->id) }}', 'phiếu đề xuất xuất kho')"
+                                                                    class="px-2.5 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded font-bold shadow-sm flex items-center gap-1 transition-all">
+                                                                <i class="fas fa-check text-[10px]"></i> Duyệt
+                                                            </button>
+                                                            
+                                                            <!-- Reject Button -->
+                                                            <button type="button" onclick="confirmReject('{{ route('exports.admin-reject', $export->id) }}', 'phiếu đề xuất xuất kho')"
+                                                                    class="px-2.5 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded font-bold shadow-sm flex items-center gap-1 transition-all">
+                                                                <i class="fas fa-times text-[10px]"></i> Từ chối
+                                                            </button>
+                                                        </div>
+                                                    @else
+                                                        <span class="text-xs text-gray-400">Chờ duyệt</span>
+                                                    @endif
+                                                @elseif($export->status === 'draft')
+                                                    @if(auth()->user()->id === $export->employee_id || $isAdmin)
+                                                        <form action="{{ route('exports.request-export', $export->id) }}" method="POST" class="inline" onsubmit="return confirm('Xác nhận gửi yêu cầu xuất kho này để Admin duyệt?')">
+                                                            @csrf
+                                                            <button type="submit" class="px-2.5 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded font-bold shadow-sm flex items-center gap-1 transition-all">
+                                                                <i class="fas fa-paper-plane text-[10px]"></i> Gửi duyệt
+                                                            </button>
+                                                        </form>
+                                                    @else
+                                                        <span class="text-xs text-gray-400">Bản nháp</span>
+                                                    @endif
+                                                @elseif($export->status === 'pending_invoice')
+                                                    <span class="text-xs text-gray-400 font-semibold text-yellow-600">Chờ xuất HĐ</span>
+                                                @elseif($export->status === 'completed')
+                                                    <span class="text-xs text-gray-400 font-semibold text-green-600">Đã hoàn thành</span>
+                                                @else
+                                                    <span class="text-gray-400">-</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
     </div>
     <!-- End Tabs Wrapper -->
+
+    <!-- Modal Yêu cầu xuất kho -->
+    <div id="exportModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden" onclick="if(event.target === this) closeExportModal()">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-slide-up mx-4">
+            <div class="px-6 py-4 bg-teal-600 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold"><i class="fas fa-file-export mr-2"></i>Tạo yêu cầu xuất kho</h3>
+                <button type="button" onclick="closeExportModal()" class="text-white hover:text-gray-200 font-bold text-xl">&times;</button>
+            </div>
+            <form action="{{ route('sales.exports.create', $sale->id) }}" method="POST" class="p-6">
+                @csrf
+                <!-- Warehouse Selector -->
+                @php
+                    $defaultExportWarehouseId = '';
+                    if ($sale->items->every(fn($i) => stripos($i->product?->code ?? '', 'FC-') === 0 || stripos($i->product?->code ?? '', 'license') !== false)) {
+                        $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
+                        if ($licenseWh) $defaultExportWarehouseId = $licenseWh->id;
+                    } elseif ($sale->type === 'project') {
+                        $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+                        if ($projectWh) $defaultExportWarehouseId = $projectWh->id;
+                    } elseif ($sale->type === 'retail') {
+                        $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                        if ($runrateWh) $defaultExportWarehouseId = $runrateWh->id;
+                    }
+                @endphp
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Chọn kho xuất hàng <span class="text-red-500">*</span></label>
+                    <select name="warehouse_id" id="export_warehouse_select" onchange="updateExportMaxQuantities()" required class="w-full border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500">
+                        <option value="">-- Chọn Kho --</option>
+                        @foreach(\App\Models\Warehouse::where('status', 'active')->get() as $wh)
+                            <option value="{{ $wh->id }}" {{ $defaultExportWarehouseId == $wh->id ? 'selected' : '' }}>{{ $wh->name }} ({{ $wh->product_type }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Products Table -->
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Danh sách sản phẩm xuất kho</label>
+                    <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 sticky top-0 z-10">
+                                <tr class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                    <th class="px-4 py-2.5">Sản phẩm</th>
+                                    <th class="px-4 py-2.5 text-center">SL chưa xuất</th>
+                                    <th class="px-4 py-2.5 text-center w-28">SL xuất đợt này</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-150">
+                                @php $itemIndex = 0; @endphp
+                                @foreach($sale->items as $item)
+                                    @php
+                                        $totalReceived = 0;
+                                        $prItems = \App\Models\SaleOrderRequestItem::where('sale_item_id', $item->id)->get();
+                                        foreach ($prItems as $prItem) {
+                                            $totalReceived += $prItem->received_quantity_total;
+                                        }
+
+                                        $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
+                                                $q->where('reference_type', 'sale')
+                                                  ->where('reference_id', $sale->id)
+                                                  ->where('status', '!=', 'cancelled');
+                                            })
+                                            ->where('product_id', $item->product_id)
+                                            ->sum('quantity');
+
+                                        if ($sale->type === 'retail') {
+                                            // Retail/runrate: remaining to export is SO ordered quantity - already exported
+                                            $remaining = max(0, $item->quantity - $totalExported);
+                                        } else {
+                                            // Project: remaining to export is limited to received PO quantity - already exported
+                                            $remaining = max(0, $totalReceived - $totalExported);
+                                        }
+                                    @endphp
+                                    @if($remaining > 0)
+                                        <tr class="product-export-row" data-product-id="{{ $item->product_id }}" data-remaining-so="{{ $remaining }}">
+                                            <td class="px-4 py-3 font-medium">
+                                                {{ $item->product?->code ?? $item->product_name }}
+                                                <div class="text-xs text-gray-500">{{ $item->product_name }}</div>
+                                                <input type="hidden" name="items[{{ $itemIndex }}][product_id]" value="{{ $item->product_id }}">
+                                            </td>
+                                            <td class="px-4 py-3 text-center font-bold text-red-500">
+                                                {{ number_format($remaining) }}
+                                                @if($sale->type === 'retail')
+                                                    <div class="text-[10px] text-gray-400 font-normal mt-0.5">
+                                                        Đang giữ: <span class="held-qty-display font-bold text-teal-600">0</span>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                <input type="number" name="items[{{ $itemIndex }}][qty]" value="{{ $remaining }}" min="0" max="{{ $remaining }}" required class="export-qty-input w-full border border-gray-300 rounded text-center text-sm py-1 focus:ring-teal-500 focus:border-teal-500 font-semibold">
+                                            </td>
+                                        </tr>
+                                        @php $itemIndex++; @endphp
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="mb-6">
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-2">Ghi chú yêu cầu xuất kho</label>
+                    <textarea name="note" rows="2" placeholder="Nhập ghi chú hoặc lý do xuất kho (nếu có)..." class="w-full border-gray-300 rounded-lg text-sm focus:ring-teal-500 focus:border-teal-500"></textarea>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex justify-end gap-3 border-t border-gray-150 pt-4">
+                    <button type="button" onclick="closeExportModal()" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors text-gray-700">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 rounded-lg text-white text-sm font-bold shadow transition-colors"><i class="fas fa-paper-plane mr-1.5"></i>Gửi yêu cầu xuất kho</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @php
+        $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+        $heldStockData = \App\Models\ProductItem::where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+            ->where('borrower', $salespersonName)
+            ->select('product_id', 'warehouse_id', \Illuminate\Support\Facades\DB::raw('count(*) as qty'))
+            ->groupBy('product_id', 'warehouse_id')
+            ->get();
+    @endphp
+    <!-- JS script for Modal -->
+    <script>
+        // Held stock data for the salesperson (only relevant for retail SOs)
+        window.saleType = @json($sale->type);
+        window.salesHeldStock = @json($heldStockData);
+
+        function openExportModal() {
+            document.getElementById('exportModal').classList.remove('hidden');
+            updateExportMaxQuantities();
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportModal').classList.add('hidden');
+        }
+
+        function updateExportMaxQuantities() {
+            if (window.saleType !== 'retail') return;
+
+            var warehouseSelect = document.getElementById('export_warehouse_select');
+            var selectedWarehouseId = warehouseSelect ? parseInt(warehouseSelect.value) : 0;
+            var rows = document.querySelectorAll('.product-export-row');
+
+            rows.forEach(function(row) {
+                var productId = parseInt(row.dataset.productId);
+                var remainingSo = parseInt(row.dataset.remainingSo);
+                var heldQtyDisplay = row.querySelector('.held-qty-display');
+                var qtyInput = row.querySelector('.export-qty-input');
+
+                // Find held quantity for this product in the selected warehouse
+                var heldQty = 0;
+                if (selectedWarehouseId) {
+                    for (var i = 0; i < window.salesHeldStock.length; i++) {
+                        var stock = window.salesHeldStock[i];
+                        if (parseInt(stock.product_id) === productId && parseInt(stock.warehouse_id) === selectedWarehouseId) {
+                            heldQty = parseInt(stock.qty);
+                            break;
+                        }
+                    }
+                }
+
+                // Update held quantity display
+                if (heldQtyDisplay) {
+                    heldQtyDisplay.textContent = heldQty;
+                    heldQtyDisplay.style.color = heldQty > 0 ? '#0d9488' : '#ef4444';
+                }
+
+                // Calculate new max: min of SO remaining and held qty
+                var newMax = Math.min(remainingSo, heldQty);
+
+                if (qtyInput) {
+                    qtyInput.max = newMax;
+                    // Adjust current value if it exceeds new max
+                    if (parseInt(qtyInput.value) > newMax) {
+                        qtyInput.value = newMax;
+                    }
+                    // Visual feedback
+                    if (newMax === 0) {
+                        qtyInput.style.borderColor = '#ef4444';
+                        qtyInput.style.backgroundColor = '#fef2f2';
+                        qtyInput.value = 0;
+                    } else {
+                        qtyInput.style.borderColor = '#d1d5db';
+                        qtyInput.style.backgroundColor = '#ffffff';
+                    }
+                }
+            });
+        }
+    </script>
 
 
 

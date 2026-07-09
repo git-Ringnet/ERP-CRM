@@ -47,6 +47,7 @@ class ExportRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             $this->validateStockAndSerials($validator);
+            $this->validateProjectWarehouseAuthorization($validator);
         });
     }
 
@@ -143,6 +144,55 @@ class ExportRequest extends FormRequest
                     break;
                 }
                 $allSelectedSerials[] = $serialId;
+            }
+        }
+    }
+
+    protected function validateProjectWarehouseAuthorization($validator)
+    {
+        $items = $this->input('items', []);
+        $projectWarehouse = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+        $projectWarehouseId = $projectWarehouse ? $projectWarehouse->id : null;
+        
+        if (!$projectWarehouseId) {
+            return;
+        }
+
+        $hasProjectItem = false;
+        foreach ($items as $item) {
+            if (isset($item['warehouse_id']) && (int)$item['warehouse_id'] === (int)$projectWarehouseId) {
+                $hasProjectItem = true;
+                break;
+            }
+        }
+
+        if ($hasProjectItem) {
+            $user = auth()->user();
+            $isWarehouseOrAdmin = $user && $user->hasAnyRole(['super_admin', 'warehouse_manager', 'warehouse_staff']);
+            
+            if (!$isWarehouseOrAdmin) {
+                $export = $this->route('export');
+                if (!$export) {
+                    $validator->errors()->add(
+                        'items',
+                        'Chỉ thủ kho hoặc người quản lý mới có quyền tạo phiếu xuất kho trực tiếp từ Kho dự án.'
+                    );
+                } else {
+                    if ($export->reference_type !== 'sale' || !$export->reference_id) {
+                        $validator->errors()->add(
+                            'items',
+                            'Phiếu xuất kho dự án này không liên kết với đơn hàng bán (SO) hợp lệ.'
+                        );
+                    } else {
+                        $sale = \App\Models\Sale::find($export->reference_id);
+                        if (!$sale || (int)$sale->user_id !== (int)$user->id) {
+                            $validator->errors()->add(
+                                'items',
+                                'Bạn không có quyền yêu cầu xuất hàng cho dự án này (chỉ chủ sở hữu đơn hàng bán mới có quyền).'
+                            );
+                        }
+                    }
+                }
             }
         }
     }

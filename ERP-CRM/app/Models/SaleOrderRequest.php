@@ -16,6 +16,8 @@ class SaleOrderRequest extends Model
     protected $fillable = [
         'code',
         'sale_id',
+        'source_type',
+        'ticket_id',
         'created_by',
         'note',
         'sent_at',
@@ -117,6 +119,11 @@ class SaleOrderRequest extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(SaleOrderRequestAttachment::class);
+    }
+
+    public function ticket(): BelongsTo
+    {
+        return $this->belongsTo(Ticket::class);
     }
 
     public function deleteLog(): \Illuminate\Database\Eloquent\Relations\HasOne

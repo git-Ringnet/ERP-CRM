@@ -32,12 +32,22 @@
             <p class="text-gray-600">Quản lý đơn đặt hàng gửi cho nhà cung cấp</p>
         </div>
         <div class="flex space-x-2">
+            <button type="button" onclick="document.getElementById('bulk-import-serial-file').click()"
+                class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                <i class="fas fa-file-upload mr-2"></i> Import Serial Excel
+            </button>
+            <form id="bulk-import-serial-form" action="{{ route('purchase-orders.import-serials-bulk') }}" method="POST" enctype="multipart/form-data" class="hidden">
+                @csrf
+                <input type="file" id="bulk-import-serial-file" name="serial_file" accept=".xlsx,.xls,.csv" onchange="this.form.submit()">
+            </form>
             <a href="{{ route('purchase-orders.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>
-            {{-- <a href="{{ route('purchase-orders.create') }}" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
+            @can('create', App\Models\PurchaseOrder::class)
+            <a href="{{ route('purchase-orders.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm shadow">
                 <i class="fas fa-plus mr-2"></i> Tạo PO
-            </a> --}}
+            </a>
+            @endcan
         </div>
     </div>
 

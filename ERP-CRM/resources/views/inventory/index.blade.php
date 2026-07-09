@@ -5,7 +5,7 @@
 
 @section('content')
 @php
-    $activeTab = request('tab', 'stocking');
+    $activeTab = request('tab', 'runrate');
 @endphp
 
     <div class="bg-white rounded-lg shadow-sm">
@@ -55,34 +55,46 @@
         <!-- Navigation Tabs -->
         <div class="border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center pr-4">
             <nav class="-mb-px flex space-x-6 px-4" aria-label="Tabs">
-                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'stocking'])) }}" 
-                   class="{{ ($activeTab === 'stocking') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    Hàng stocking
-                </a>
                 <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'project'])) }}" 
                    class="{{ ($activeTab === 'project') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
                     Hàng dự án
                 </a>
+                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'runrate'])) }}" 
+                   class="{{ ($activeTab === 'runrate') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
+                    Hàng runrate
+                </a>
+                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'license'])) }}" 
+                   class="{{ ($activeTab === 'license') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
+                    Hàng license
+                </a>
                 <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'rmodel'])) }}" 
                    class="{{ ($activeTab === 'rmodel') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
-                    hàng R và NFR
+                    Hàng bảo hành
                 </a>
             </nav>
-            @if(in_array($activeTab, ['stocking', 'project', 'rmodel']))
+            @if(in_array($activeTab, ['project', 'runrate', 'license', 'rmodel']))
                 <div class="px-4 py-2 sm:py-0">
                     <button onclick="addCustomColumn('{{ $activeTab }}')" 
                             class="inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium">
-                        <i class="fas fa-plus mr-1"></i>Thêm cột cho {{ $activeTab === 'stocking' ? 'Hàng stocking' : ($activeTab === 'project' ? 'Hàng dự án' : 'hàng R & NFR') }}
+                        <i class="fas fa-plus mr-1"></i>Thêm cột cho {{ $activeTab === 'project' ? 'Hàng dự án' : ($activeTab === 'runrate' ? 'Hàng runrate' : ($activeTab === 'license' ? 'Hàng license' : 'Hàng bảo hành')) }}
                     </button>
                 </div>
             @endif
         </div>
 
-        <!-- Tab 1 & 2: Stocking and Project detailed lists -->
-        @if($activeTab === 'stocking' || $activeTab === 'project')
+        <!-- Tab 1 & 2 & 3: Project, Runrate and License detailed lists -->
+        @if(in_array($activeTab, ['project', 'runrate', 'license']))
             @php
-                $items = ($activeTab === 'stocking') ? $stockingItems : $projectItems;
-                $cols = ($activeTab === 'stocking') ? $stockingColumns : $projectColumns;
+                $items = match($activeTab) {
+                    'project' => $projectItems,
+                    'runrate' => $runrateItems,
+                    'license' => $licenseItems,
+                };
+                $cols = match($activeTab) {
+                    'project' => $projectColumns,
+                    'runrate' => $runrateColumns,
+                    'license' => $licenseColumns,
+                };
             @endphp
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -91,6 +103,7 @@
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-12">STT</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Tên thiết bị</th>
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Số PO</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">
@@ -101,6 +114,9 @@
                             </th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
+                            @if($activeTab === 'runrate')
+                                <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
+                            @endif
                             
                             <!-- Custom columns headers -->
                             @foreach($cols as $col)
@@ -125,10 +141,49 @@
                                 </td>
                                 <td class="px-3 py-2">
                                     <div class="font-medium text-gray-900">{{ $item->product->name }}</div>
-                                    <div class="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-0.5">
+                                    <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
-                                        @if(!$item->isNoSku())
-                                            <span class="text-primary font-semibold">S/N: {{ $item->sku }}</span>
+                                        @php
+                                            $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
+                                            $isNoSku = false;
+                                            foreach ($serialsList as $s) {
+                                                if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
+                                                    $isNoSku = true;
+                                                    break;
+                                                }
+                                            }
+                                        @endphp
+                                        @if(!$isNoSku && count($serialsList) > 0)
+                                            <div class="flex flex-wrap gap-1 items-center">
+                                                <span class="text-xs text-gray-500 mr-1">S/N:</span>
+                                                @if(count($serialsList) <= 3)
+                                                    @foreach($serialsList as $serial)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                            {{ $serial }}
+                                                        </span>
+                                                    @endforeach
+                                                @else
+                                                    @foreach(array_slice($serialsList, 0, 2) as $serial)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                            {{ $serial }}
+                                                        </span>
+                                                    @endforeach
+                                                    
+                                                    @php $uniqueId = 'serials_p_' . uniqid(); @endphp
+                                                    <span class="inline-flex items-center">
+                                                        <button onclick="toggleSerials('{{ $uniqueId }}')" class="text-xs text-primary font-semibold hover:underline focus:outline-none">
+                                                            + xem thêm {{ count($serialsList) - 2 }} SN
+                                                        </button>
+                                                    </span>
+                                                    <div id="{{ $uniqueId }}" class="hidden w-full mt-1 flex flex-wrap gap-1">
+                                                        @foreach(array_slice($serialsList, 2) as $serial)
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                                {{ $serial }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
                                         @else
                                             <span class="text-gray-400">Không serial</span>
                                         @endif
@@ -136,6 +191,11 @@
                                 </td>
                                 <td class="px-3 py-2 text-center text-gray-900 font-medium">
                                     {{ $item->quantity }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700 font-medium">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                                        {{ $item->warehouse->name ?? '-' }}
+                                    </span>
                                 </td>
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->order_creator_name ?: '-' }}
@@ -160,6 +220,13 @@
                                            data-item-id="{{ $item->item_ids }}" data-field="comments"
                                            onblur="saveItemField(this)">
                                 </td>
+                                @if($activeTab === 'runrate')
+                                    <td class="px-3 py-2 text-center whitespace-nowrap">
+                                        <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn sản phẩm này">
+                                            <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
+                                        </a>
+                                    </td>
+                                @endif
                                 
                                 <!-- Custom columns inputs -->
                                 @foreach($cols as $col)
@@ -177,7 +244,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 8 + count($cols) }}" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="{{ 9 + count($cols) }}" class="px-4 py-8 text-center text-gray-500">
                                     <i class="fas fa-boxes text-4xl mb-2"></i>
                                     <p>Không có dữ liệu thiết bị nào</p>
                                 </td>
@@ -203,6 +270,7 @@
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-12">STT</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Tên thiết bị</th>
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
@@ -230,10 +298,49 @@
                                 </td>
                                 <td class="px-3 py-2">
                                     <div class="font-medium text-gray-900">{{ $item->product->name }}</div>
-                                    <div class="text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-0.5">
+                                    <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
-                                        @if(!$item->isNoSku())
-                                            <span class="text-primary font-semibold">S/N: {{ $item->sku }}</span>
+                                        @php
+                                            $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
+                                            $isNoSku = false;
+                                            foreach ($serialsList as $s) {
+                                                if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
+                                                    $isNoSku = true;
+                                                    break;
+                                                }
+                                            }
+                                        @endphp
+                                        @if(!$isNoSku && count($serialsList) > 0)
+                                            <div class="flex flex-wrap gap-1 items-center">
+                                                <span class="text-xs text-gray-500 mr-1">S/N:</span>
+                                                @if(count($serialsList) <= 3)
+                                                    @foreach($serialsList as $serial)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                            {{ $serial }}
+                                                        </span>
+                                                    @endforeach
+                                                @else
+                                                    @foreach(array_slice($serialsList, 0, 2) as $serial)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                            {{ $serial }}
+                                                        </span>
+                                                    @endforeach
+                                                    
+                                                    @php $uniqueId = 'serials_r_' . uniqid(); @endphp
+                                                    <span class="inline-flex items-center">
+                                                        <button onclick="toggleSerials('{{ $uniqueId }}')" class="text-xs text-primary font-semibold hover:underline focus:outline-none">
+                                                            + xem thêm {{ count($serialsList) - 2 }} SN
+                                                        </button>
+                                                    </span>
+                                                    <div id="{{ $uniqueId }}" class="hidden w-full mt-1 flex flex-wrap gap-1">
+                                                        @foreach(array_slice($serialsList, 2) as $serial)
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                                                {{ $serial }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
                                         @else
                                             <span class="text-gray-400">Không serial</span>
                                         @endif
@@ -241,6 +348,11 @@
                                 </td>
                                 <td class="px-3 py-2 text-center text-gray-900 font-medium">
                                     {{ $item->quantity }}
+                                </td>
+                                <td class="px-3 py-2 text-gray-700 font-medium">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                                        {{ $item->warehouse->name ?? '-' }}
+                                    </span>
                                 </td>
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->r_model_orderer_info ?: '-' }}
@@ -276,7 +388,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 6 + count($rmodelColumns) }}" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="{{ 7 + count($rmodelColumns) }}" class="px-4 py-8 text-center text-gray-500">
                                     <i class="fas fa-boxes text-4xl mb-2"></i>
                                     <p>Không có dữ liệu thiết bị nào</p>
                                 </td>
@@ -466,8 +578,15 @@
                     confirmButtonText: 'Đã hiểu',
                     confirmButtonColor: '#2563eb'
                 });
-            } else {
-                alert("Quy tắc hiển thị Dự án / End User:\n\n1. Ưu tiên 1: Mã dự án - Tên dự án từ SO liên kết (Ví dụ: DA-0001 - DA từ 4324234).\n2. Ưu tiên 2: EU Name - MST của phiếu đặt hàng (nếu có).\n3. Ưu tiên 3: Tên khách hàng (customer_name) của đơn SO làm fallback.");
+            }
+        }
+
+        // Toggle visibility of additional Serial Numbers
+        function toggleSerials(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('hidden');
+                el.classList.toggle('flex');
             }
         }
     </script>

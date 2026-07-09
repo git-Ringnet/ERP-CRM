@@ -86,68 +86,41 @@ class InventoryController extends Controller
             });
         }
 
-        // Identify POs linked to exactly 1 unique Sale (SO/Project)
-        $projectPoIds = DB::table(DB::raw("(
-            SELECT id AS purchase_order_id, sale_id
-            FROM purchase_orders
-            WHERE sale_id IS NOT NULL
-            
-            UNION
-            
-            SELECT poi.purchase_order_id, sor.sale_id
-            FROM purchase_order_items poi
-            JOIN sale_order_request_items sori ON poi.sale_order_request_item_id = sori.id
-            JOIN sale_order_requests sor ON sori.sale_order_request_id = sor.id
-            WHERE sor.sale_id IS NOT NULL
-        ) as po_sos"))
-        ->groupBy('purchase_order_id')
-        ->having(DB::raw('COUNT(DISTINCT sale_id)'), '=', 1)
-        ->pluck('purchase_order_id')
-        ->toArray();
+        // Resolve warehouse IDs
+        $projectWarehouseId = Warehouse::where('code', 'WH_PROJECT')->value('id');
+        $runrateWarehouseId = Warehouse::where('code', 'WH_RUNRATE')->value('id');
+        $licenseWarehouseId = Warehouse::where('code', 'WH_LICENSE')->value('id');
+        $rmodelWarehouseId = Warehouse::where('code', 'WH_WARRANTY')->value('id');
 
         // Clone queries for separate lists
-        $stockingQuery = clone $itemsBaseQuery;
-        $projectQuery = clone $itemsBaseQuery;
-        $rmodelQuery = clone $itemsBaseQuery;
+        $projectQuery = (clone $itemsBaseQuery)->where('warehouse_id', $projectWarehouseId);
+        $runrateQuery = (clone $itemsBaseQuery)->where('warehouse_id', $runrateWarehouseId);
+        $licenseQuery = (clone $itemsBaseQuery)->where('warehouse_id', $licenseWarehouseId);
+        $rmodelQuery = (clone $itemsBaseQuery)->where('warehouse_id', $rmodelWarehouseId);
 
-        // A. Tab 3: R & NFR Model (Products ending in 'R' or 'NFR')
-        $rmodelQuery->whereHas('product', function($q) {
-            $q->where('code', 'like', '%R')
-              ->orWhere('code', 'like', '%NFR');
-        });
+        $activeTab = $request->get('tab', 'runrate');
 
-        // B. Tab 1: Stocking (Exclude R and NFR models, PO has 0 or > 1 unique SOs)
-        $stockingQuery->whereHas('product', function($q) {
-            $q->where('code', 'not like', '%R')
-              ->where('code', 'not like', '%NFR');
-        })->where(function($q) use ($projectPoIds) {
-            $q->whereNull('import_id')
-              ->orWhereHas('import', function($impQ) use ($projectPoIds) {
-                  $impQ->where(function($subQ) use ($projectPoIds) {
-                      $subQ->where('reference_type', '!=', 'purchase_order')
-                           ->orWhereNull('reference_id')
-                           ->orWhereNotIn('reference_id', $projectPoIds);
-                  });
-              });
-        });
+        // Paginate separate lists
+        $projectItems = $activeTab === 'project' 
+            ? $projectQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_project')
+            : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => 'page_project']);
 
-        // C. Tab 2: Project (Exclude R and NFR models, PO has exactly 1 unique SO/project)
-        $projectQuery->whereHas('product', function($q) {
-            $q->where('code', 'not like', '%R')
-              ->where('code', 'not like', '%NFR');
-        })->whereHas('import', function($impQ) use ($projectPoIds) {
-            $impQ->where('reference_type', 'purchase_order')
-                 ->whereIn('reference_id', $projectPoIds);
-        });
+        $runrateItems = $activeTab === 'runrate' 
+            ? $runrateQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_runrate')
+            : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => 'page_runrate']);
 
-        // Paginate separate lists (20 items/page as requested)
-        $stockingItems = $stockingQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_stocking');
-        $projectItems = $projectQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_project');
-        $rmodelItems = $rmodelQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_rmodel');
+        $licenseItems = $activeTab === 'license' 
+            ? $licenseQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_license')
+            : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => 'page_license']);
+
+        $rmodelItems = $activeTab === 'rmodel' 
+            ? $rmodelQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_rmodel')
+            : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => 'page_rmodel']);
 
         // Load custom columns definitions
-        $stockingColumns = InventoryCustomColumn::where('tab', 'stocking')->get();
         $projectColumns = InventoryCustomColumn::where('tab', 'project')->get();
+        $runrateColumns = InventoryCustomColumn::where('tab', 'runrate')->get();
+        $licenseColumns = InventoryCustomColumn::where('tab', 'license')->get();
         $rmodelColumns = InventoryCustomColumn::where('tab', 'rmodel')->get();
 
         // Get filter options
@@ -155,11 +128,13 @@ class InventoryController extends Controller
         $products = Product::orderBy('name')->get();
 
         return view('inventory.index', compact(
-            'stockingItems', 
             'projectItems', 
+            'runrateItems', 
+            'licenseItems', 
             'rmodelItems', 
-            'stockingColumns', 
             'projectColumns', 
+            'runrateColumns', 
+            'licenseColumns', 
             'rmodelColumns', 
             'warehouses', 
             'products'
@@ -208,11 +183,13 @@ class InventoryController extends Controller
 
         $filters = $request->only(['warehouse_id', 'product_id', 'tab', 'search']);
         
-        $tab = $filters['tab'] ?? 'stocking';
+        $tab = $filters['tab'] ?? 'runrate';
         $tabLabel = match($tab) {
             'project' => 'hang-du-an',
-            'rmodel' => 'hang-R-va-NFR',
-            default => 'hang-stocking'
+            'runrate' => 'hang-runrate',
+            'license' => 'hang-license',
+            'rmodel' => 'hang-bao-hanh',
+            default => 'hang-runrate'
         };
 
         return \Excel::download(
@@ -227,7 +204,7 @@ class InventoryController extends Controller
     public function storeCustomColumn(Request $request)
     {
         $validated = $request->validate([
-            'tab' => ['required', 'string', 'in:stocking,project,rmodel'],
+            'tab' => ['required', 'string', 'in:project,runrate,license,rmodel'],
             'name' => ['required', 'string', 'max:255'],
         ]);
 

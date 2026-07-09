@@ -206,6 +206,9 @@ class ProductItem extends Model
         if (!$this->purchase_order) {
             return null;
         }
+        if ($this->purchase_order->relationLoaded('items')) {
+            return $this->purchase_order->items->firstWhere('product_id', $this->product_id);
+        }
         return $this->purchase_order->items()
             ->where('product_id', $this->product_id)
             ->first();

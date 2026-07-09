@@ -160,11 +160,46 @@ class TransactionService
                         }
                     }
 
+                    // Check if this import is linked to a PO and detect if it was created from a preload ticket
+                    $borrowerName = null;
+                    if ($transaction->reference_type === 'purchase_order') {
+                        $po = \App\Models\PurchaseOrder::find($transaction->reference_id);
+                        if ($po) {
+                            $poItem = null;
+
+                            // 1. Try to find by PO Item ID embedded in comments
+                            if ($item->comments && preg_match('/\[POItem:(\d+)\]/', $item->comments, $matches)) {
+                                $poItemId = (int)$matches[1];
+                                $poItem = \App\Models\PurchaseOrderItem::find($poItemId);
+                            }
+
+                            // 2. Fallback to generic product matching if not found
+                            if (!$poItem) {
+                                $poItem = $po->items()
+                                    ->where('product_id', $item->product_id)
+                                    ->first();
+                            }
+                            if (!$poItem && $item->product) {
+                                $poItem = $po->items()
+                                    ->where('product_name', $item->product->name)
+                                    ->first();
+                            }
+
+                            if ($poItem && $poItem->saleOrderRequestItem) {
+                                $pr = $poItem->saleOrderRequestItem->saleOrderRequest;
+                                if ($pr && $pr->ticket && $pr->ticket->type === 'preload') {
+                                    $borrowerName = $pr->ticket->user?->name;
+                                }
+                            }
+                        }
+                    }
+
                     // Create product items with serials
                     $priceData = [
                         'comments' => $item->comments ?? null,
                         'warranty_months' => $item->warranty_months,
                         'expiry_date' => $item->expiry_date,
+                        'borrower' => $borrowerName,
                     ];
 
                     $this->productItemService->createItemsFromImport(
@@ -340,11 +375,40 @@ class TransactionService
                         ? ProductItem::STATUS_LIQUIDATION
                         : ProductItem::STATUS_IN_STOCK;
 
+                    // Prioritize items borrowed/held by the salesperson associated with this Sale Order
+                    $borrowedItems = [];
+                    if ($transaction->reference_type === 'sale' && $remainingQty > 0) {
+                        $sale = \App\Models\Sale::find($transaction->reference_id);
+                        if ($sale) {
+                            $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+                            if ($salespersonName) {
+                                $borrowedItems = ProductItem::where('product_id', $item->product_id)
+                                    ->where('warehouse_id', $transaction->warehouse_id)
+                                    ->where('status', $targetStatus)
+                                    ->where('borrower', $salespersonName)
+                                    ->whereNotIn('id', $productItemIds)
+                                    ->limit($remainingQty)
+                                    ->pluck('id')
+                                    ->toArray();
+
+                                if (!empty($borrowedItems)) {
+                                    ProductItem::whereIn('id', $borrowedItems)->update([
+                                        'status' => ProductItem::STATUS_SOLD,
+                                        'export_id' => $transaction->id,
+                                        'borrower' => null, // Clear borrower name to release reservation
+                                    ]);
+                                    $remainingQty -= count($borrowedItems);
+                                }
+                            }
+                        }
+                    }
+
                     if ($remainingQty > 0) {
                         // 1. Try No Serial items with correct status
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->warehouse_id)
                             ->where('status', $targetStatus)
+                            ->whereNotIn('id', array_merge($productItemIds, $borrowedItems))
                             ->noSerial()
                             ->limit($remainingQty)
                             ->pluck('id')
@@ -354,6 +418,7 @@ class TransactionService
                             ProductItem::whereIn('id', $noSkuItems)->update([
                                 'status' => ProductItem::STATUS_SOLD,
                                 'export_id' => $transaction->id,
+                                'borrower' => null, // Clear borrower name if any
                             ]);
                             $remainingQty -= count($noSkuItems);
                         }
@@ -364,7 +429,7 @@ class TransactionService
                         $otherItems = ProductItem::where('product_id', $item->product_id)
                             ->where('warehouse_id', $transaction->warehouse_id)
                             ->where('status', $targetStatus)
-                            ->whereNotIn('id', array_merge($productItemIds, $noSkuItems ?? []))
+                            ->whereNotIn('id', array_merge($productItemIds, $borrowedItems, $noSkuItems ?? []))
                             ->limit($remainingQty)
                             ->pluck('id')
                             ->toArray();
@@ -373,6 +438,7 @@ class TransactionService
                             ProductItem::whereIn('id', $otherItems)->update([
                                 'status' => ProductItem::STATUS_SOLD,
                                 'export_id' => $transaction->id,
+                                'borrower' => null, // Clear borrower name if any
                             ]);
                             $remainingQty -= count($otherItems);
                         }

@@ -12,7 +12,7 @@ class PurchaseOrderItem extends Model
 
     protected $fillable = [
         'purchase_order_id', 'product_id', 'product_name',
-        'sale_order_request_item_id', 'ordered_quantity',
+        'sale_order_request_item_id', 'ordered_quantity', 'serial_number',
         'quantity', 'received_quantity', 'unit', 'unit_price', 'warehouse_unit_price', 'discount_percent', 'total', 'note',
         'vat_percent', 'vat_amount', 'status', 'license_file'
     ];

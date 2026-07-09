@@ -15,13 +15,15 @@ class SaleInvoiceMail extends Mailable
     use Queueable, SerializesModels;
 
     public Sale $sale;
+    public ?string $attachmentPath;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(Sale $sale)
+    public function __construct(Sale $sale, ?string $attachmentPath = null)
     {
         $this->sale = $sale;
+        $this->attachmentPath = $attachmentPath;
     }
 
     /**
@@ -54,6 +56,12 @@ class SaleInvoiceMail extends Mailable
      */
     public function attachments(): array
     {
+        if ($this->attachmentPath && file_exists(storage_path('app/public/' . $this->attachmentPath))) {
+            return [
+                Attachment::fromPath(storage_path('app/public/' . $this->attachmentPath))
+                    ->as(basename($this->attachmentPath))
+            ];
+        }
         return [];
     }
 }

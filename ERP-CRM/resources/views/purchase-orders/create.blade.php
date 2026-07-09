@@ -34,8 +34,8 @@
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng <span class="text-red-500">*</span></label>
-                <input type="text" name="cpq_number" value="{{ old('cpq_number') }}" placeholder="CPQ/non" required
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPQ đơn hàng</label>
+                <input type="text" name="cpq_number" value="{{ old('cpq_number') }}" placeholder="CPQ/non"
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
             </div>
             <div>
@@ -130,6 +130,7 @@
                 </label>
                 <input type="date" name="manufacturer_release_date" value="{{ old('manufacturer_release_date') }}"
                     class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+            </div>
         </div>
 
         <div class="mb-6">
@@ -195,7 +196,7 @@
                                 value="{{ floor($totalVal) == $totalVal ? number_format($totalVal, 0, '.', ',') : number_format($totalVal, 2, '.', ',') }}">
                         </div>
                         <div class="col-span-1 flex justify-center">
-                            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
+                            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center" {{ $loop->count == 1 ? 'style=display:none' : '' }}>
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -239,7 +240,7 @@
                         <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
                     </div>
                     <div class="col-span-1 flex justify-center">
-                        <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200" style="display:none;">
+                        <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center" style="display:none;">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -746,7 +747,7 @@ document.getElementById('addItem').addEventListener('click', function() {
             <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
         </div>
         <div class="col-span-1 flex justify-center">
-            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200"><i class="fas fa-trash"></i></button>
+            <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center"><i class="fas fa-trash"></i></button>
         </div>
     `;
     container.appendChild(newRow);
@@ -924,7 +925,7 @@ function addItemsToOrder(items) {
                 <input type="text" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 item-total" readonly value="0">
             </div>
             <div class="col-span-1 flex justify-center">
-                <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200"><i class="fas fa-trash"></i></button>
+                <button type="button" class="remove-item w-8 h-8 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center"><i class="fas fa-trash"></i></button>
             </div>
         `;
         container.appendChild(row);
