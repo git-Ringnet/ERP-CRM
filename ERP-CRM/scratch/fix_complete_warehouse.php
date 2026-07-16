@@ -116,6 +116,15 @@ foreach ($imports as $import) {
         $mainWh = \App\Models\Warehouse::find($mainWhId);
         echo "  📦 Import main WH → {$mainWh->name}\n";
     }
+
+    // Fix trạng thái: nếu tất cả items đã processed nhưng status vẫn pending → sửa thành completed
+    $unprocessedCount = $import->items()->whereNull('processed_at')->count();
+    $totalItemCount = $import->items()->count();
+    if ($totalItemCount > 0 && $unprocessedCount === 0 && $import->status === 'pending') {
+        $import->update(['status' => 'completed']);
+        echo "  🔄 Status: pending → completed (tất cả items đã được xử lý)\n";
+    }
+
     echo "\n";
 }
 

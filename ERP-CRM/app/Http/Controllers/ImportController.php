@@ -356,9 +356,14 @@ class ImportController extends Controller
         $unprocessedItems = $import->items()->whereNull('processed_at')->get();
 
         if ($unprocessedItems->isEmpty()) {
+            // Nếu tất cả items đã được xử lý nhưng status vẫn pending → tự sửa thành completed
+            if ($import->status === 'pending') {
+                $import->update(['status' => 'completed']);
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Không có sản phẩm mới nào cần duyệt vào kho.'
+                'message' => 'Phiếu nhập kho này đã được duyệt hoàn tất trước đó. Tất cả sản phẩm đã được nhập vào kho.'
             ], 400);
         }
 
