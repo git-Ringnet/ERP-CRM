@@ -1329,9 +1329,12 @@ class PurchaseOrderController extends Controller
 
             // 2. Nếu chưa có, tạo mới. Nếu có rồi mà đã completed, mở lại thành pending
             if (!$import) {
+                // Resolve kho cho item đầu tiên để đặt kho chính của phiếu nhập
+                $initialWarehouseId = $this->purchaseImportSyncService->resolveWarehouseForPoItem($item);
+                
                 $import = \App\Models\Import::create([
                     'code' => $po->code,
-                    'warehouse_id' => $po->warehouse_id ?? \App\Models\Warehouse::first()->id ?? 1,
+                    'warehouse_id' => $initialWarehouseId ?? \App\Models\Warehouse::where('code', 'WH_RUNRATE')->value('id') ?? \App\Models\Warehouse::first()->id ?? 1,
                     'supplier_id' => $po->supplier_id,
                     'date' => now(),
                     'employee_id' => auth()->id(),

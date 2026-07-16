@@ -290,11 +290,16 @@ class PurchaseImportSyncService
     }
 
     /**
-     * Resolve correct warehouse based on PO item properties or linked SO type.
+     * Resolve correct warehouse based on PO item origin.
+     * 
+     * Rules:
+     * 1. License items → Kho license (WH_LICENSE)
+     * 2. From Sales purchase request (SOR source_type=sale_order) → Kho dự án (WH_PROJECT)
+     * 3. From ticket or standalone PO → Kho runrate (WH_RUNRATE)
      */
     public function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
     {
-        // 1. If it's a License item, it always goes to Kho License
+        // 1. License → WH_LICENSE (ưu tiên cao nhất, bất kể nguồn gốc)
         if ($this->isLicenseItem($poItem)) {
             $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
             if ($licenseWh) {
@@ -302,49 +307,36 @@ class PurchaseImportSyncService
             }
         }
 
-        // 1.5. If it's Fortinet HW with no CQ (does not require CQ), it goes to Kho Runrate
+        // 2. Trace nguồn gốc qua SaleOrderRequest chain
         if ($poItem->saleOrderRequestItem) {
-            $prItem = $poItem->saleOrderRequestItem;
-            $vendorName = $prItem->vendor ?? ($poItem->purchaseOrder->supplier->name ?? '');
-            $isFortinet = stripos($vendorName, 'Fortinet') !== false;
-            $isHw = ($prItem->type === 'HW') || (!$this->isLicenseItem($poItem));
-            
-            if ($isFortinet && $isHw && !$prItem->needs_cq) {
-                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                if ($runrateWh) {
-                    return $runrateWh->id;
+            $sor = $poItem->saleOrderRequestItem->saleOrderRequest;
+
+            if ($sor) {
+                // 2a. Từ ticket → WH_RUNRATE
+                if ($sor->source_type === 'ticket' || $sor->ticket_id) {
+                    $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                    if ($runrateWh) {
+                        return $runrateWh->id;
+                    }
+                }
+
+                // 2b. Từ yêu cầu đặt hàng của Sales (SOR liên kết Sale) → WH_PROJECT
+                if ($sor->source_type === 'sale_order' && $sor->sale_id) {
+                    $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+                    if ($projectWh) {
+                        return $projectWh->id;
+                    }
                 }
             }
         }
 
-        // 2. If PO is linked to a Sale Order, check SO type
-        $po = $poItem->purchaseOrder;
-        if ($po && $po->sale) {
-            if ($po->sale->type === 'project') {
-                $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
-                if ($projectWh) {
-                    return $projectWh->id;
-                }
-            } elseif ($po->sale->type === 'retail') {
-                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                if ($runrateWh) {
-                    return $runrateWh->id;
-                }
-            }
+        // 3. PO standalone (không liên kết SOR) hoặc fallback → WH_RUNRATE
+        $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+        if ($runrateWh) {
+            return $runrateWh->id;
         }
 
-        // 3. If PO item is linked to a Preload Ticket, route to Kho Runrate
-        if ($poItem->saleOrderRequestItem) {
-            $pr = $poItem->saleOrderRequestItem->saleOrderRequest;
-            if ($pr && $pr->ticket && $pr->ticket->type === 'preload') {
-                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                if ($runrateWh) {
-                    return $runrateWh->id;
-                }
-            }
-        }
-
-        // 4. Fallback to default warehouse ID passed in
+        // 4. Fallback cuối cùng
         return $defaultWarehouseId;
     }
 }
