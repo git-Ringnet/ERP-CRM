@@ -29,6 +29,13 @@ class TransactionService
      */
     public function validateStock(int $productId, int $warehouseId, int $quantity): bool
     {
+        if ($this->inventoryService->hasSufficientStock($productId, $warehouseId, $quantity)) {
+            return true;
+        }
+
+        // Auto resync stock count in inventories table from ProductItem actual count (status=in_stock)
+        $this->inventoryService->resyncStockFromItems($productId, $warehouseId);
+
         return $this->inventoryService->hasSufficientStock($productId, $warehouseId, $quantity);
     }
 
@@ -139,6 +146,14 @@ class TransactionService
 
             // Create ProductItems and update inventory when approving
             if ($existingTransaction) {
+                if ($transaction->reference_type === 'purchase_order' && $transaction->reference_id) {
+                    $po = \App\Models\PurchaseOrder::find($transaction->reference_id);
+                    if ($po) {
+                        app(\App\Services\PurchaseImportSyncService::class)->syncImportSerialsFromPO($po);
+                        $transaction->refresh();
+                    }
+                }
+
                 // Chỉ xử lý các items chưa được đồng bộ (processed_at is NULL)
                 foreach ($transaction->items()->whereNull('processed_at')->get() as $item) {
                     // Use item's warehouse_id if available, otherwise use transaction's warehouse_id

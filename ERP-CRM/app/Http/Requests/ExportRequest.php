@@ -35,9 +35,50 @@ class ExportRequest extends FormRequest
             'items.*.comments' => 'nullable|string|max:500',
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.total' => 'nullable|numeric|min:0',
+            'items.*.serial_list' => 'nullable|string',
             'items.*.product_item_ids' => 'nullable|array',
             'items.*.product_item_ids.*' => 'nullable|exists:product_items,id',
         ];
+    }
+
+    /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation()
+    {
+        $items = $this->input('items', []);
+        $modified = false;
+
+        foreach ($items as $index => $item) {
+            if (isset($item['serial_list'])) {
+                $serialList = $item['serial_list'];
+                $serials = preg_split('/[\n,]+/', $serialList);
+                $serials = array_values(array_filter(array_map('trim', $serials)));
+
+                $productId = $item['product_id'] ?? null;
+                $warehouseId = $item['warehouse_id'] ?? null;
+
+                if (!empty($serials) && $productId && $warehouseId) {
+                    // Find product item IDs that match these serials (SKUs) and are in stock
+                    $productItemIds = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('warehouse_id', $warehouseId)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->whereIn('sku', $serials)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $items[$index]['product_item_ids'] = $productItemIds;
+                    $modified = true;
+                } else if (empty($serials)) {
+                    $items[$index]['product_item_ids'] = [];
+                    $modified = true;
+                }
+            }
+        }
+
+        if ($modified) {
+            $this->merge(['items' => $items]);
+        }
     }
 
     /**
@@ -98,6 +139,50 @@ class ExportRequest extends FormRequest
                     "Sản phẩm '{$productName}': Số lượng ({$quantity}) vượt quá tồn kho ({$totalStock})"
                 );
                 continue;
+            }
+
+            // Validate serial_list input details if provided
+            if (!empty($item['serial_list'])) {
+                $serials = preg_split('/[\n,]+/', $item['serial_list']);
+                $serials = array_values(array_filter(array_map('trim', $serials)));
+
+                // 1. Check for duplicates in list
+                if (count($serials) !== count(array_unique($serials))) {
+                    $validator->errors()->add(
+                        "items.{$index}.serial_list",
+                        "Sản phẩm '{$productName}': Có số serial bị trùng lặp trong danh sách quét."
+                    );
+                }
+
+                // 2. Check each serial validity
+                foreach ($serials as $sku) {
+                    $productItem = ProductItem::where('product_id', $productId)
+                        ->where('sku', $sku)
+                        ->first();
+
+                    if (!$productItem) {
+                        $validator->errors()->add(
+                            "items.{$index}.serial_list",
+                            "Sản phẩm '{$productName}': Số serial '{$sku}' không tồn tại trong hệ thống."
+                        );
+                    } else {
+                        if ((int)$productItem->warehouse_id !== (int)$warehouseId) {
+                            $whName = $productItem->warehouse->name ?? "ID: {$productItem->warehouse_id}";
+                            $validator->errors()->add(
+                                "items.{$index}.serial_list",
+                                "Sản phẩm '{$productName}': Số serial '{$sku}' đang nằm ở kho khác ({$whName}) chứ không phải kho xuất đã chọn."
+                            );
+                        }
+
+                        if ($productItem->status !== ProductItem::STATUS_IN_STOCK) {
+                            $statusLabel = $productItem->status;
+                            $validator->errors()->add(
+                                "items.{$index}.serial_list",
+                                "Sản phẩm '{$productName}': Số serial '{$sku}' không khả dụng (Trạng thái hiện tại: {$statusLabel})."
+                            );
+                        }
+                    }
+                }
             }
 
             // Check if need more serials

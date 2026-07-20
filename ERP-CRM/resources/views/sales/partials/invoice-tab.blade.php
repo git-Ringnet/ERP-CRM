@@ -5,11 +5,14 @@
             <p class="text-xs text-gray-500">Theo dõi tiến độ xuất hóa đơn nháp và chính thức</p>
         </div>
         
-        @if($sale->dashboard_status === 'received' || $sale->dashboard_status === 'invoiced' || $sale->dashboard_status === 'completed')
+        @if(
+            ($sale->type === 'retail' && in_array($sale->status, ['approved', 'shipping', 'completed'])) ||
+            ($sale->type !== 'retail' && in_array($sale->dashboard_status, ['received', 'invoiced', 'completed']))
+        )
             <button onclick="openInvoiceRequestModal()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-sm">
                 <i class="fas fa-plus-circle mr-2"></i> GỬI YÊU CẦU MỚI
             </button>
-        @elseif(in_array($sale->dashboard_status, ['ordered', 'in_transit', 'hold']))
+        @elseif($sale->type !== 'retail' && in_array($sale->dashboard_status, ['ordered', 'in_transit', 'hold']))
             <div class="text-[11px] bg-amber-50 text-amber-700 border border-amber-100 px-3 py-1.5 rounded-lg flex items-center">
                 <i class="fas fa-info-circle mr-2"></i> Vui lòng chờ hàng về đủ để yêu cầu hóa đơn
             </div>
@@ -124,7 +127,10 @@
                 </div>
                 <h4 class="text-gray-900 font-bold">Chưa có yêu cầu hóa đơn</h4>
                 <p class="text-sm text-gray-500 mt-1">Khi hàng về đủ, bạn có thể gửi yêu cầu xuất hóa đơn cho bộ phận kế toán.</p>
-                @if($sale->dashboard_status === 'received' || $sale->dashboard_status === 'invoiced' || $sale->dashboard_status === 'completed')
+                @if(
+                    ($sale->type === 'retail' && in_array($sale->status, ['approved', 'shipping', 'completed'])) ||
+                    ($sale->type !== 'retail' && in_array($sale->dashboard_status, ['received', 'invoiced', 'completed']))
+                )
                     <button onclick="openInvoiceRequestModal()" class="mt-4 px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-all">
                         Gửi yêu cầu ngay
                     </button>

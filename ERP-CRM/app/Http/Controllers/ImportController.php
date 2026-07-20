@@ -161,6 +161,14 @@ class ImportController extends Controller
     {
         $this->authorize('view', $import);
 
+        if ($import->reference_type === 'purchase_order' && $import->reference_id) {
+            $po = \App\Models\PurchaseOrder::find($import->reference_id);
+            if ($po) {
+                app(\App\Services\PurchaseImportSyncService::class)->syncImportSerialsFromPO($po);
+                $import->refresh();
+            }
+        }
+
         $import->load(['warehouse', 'employee', 'items.product', 'shippingAllocation.items.product']);
 
         // Get product items created from this import
@@ -180,6 +188,14 @@ class ImportController extends Controller
         if ($import->status !== 'pending') {
             return redirect()->route('imports.show', $import)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
+        }
+
+        if ($import->reference_type === 'purchase_order' && $import->reference_id) {
+            $po = \App\Models\PurchaseOrder::find($import->reference_id);
+            if ($po) {
+                app(\App\Services\PurchaseImportSyncService::class)->syncImportSerialsFromPO($po);
+                $import->refresh();
+            }
         }
 
         $import->load(['items.product', 'items.warehouse']);

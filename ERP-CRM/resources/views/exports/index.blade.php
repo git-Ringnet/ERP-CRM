@@ -191,13 +191,9 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-center">
-                                @if($export->status === 'pending')
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>
-                                @elseif($export->status === 'rejected')
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Đã từ chối</span>
-                                @else
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành</span>
-                                @endif
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-{{ $export->status_color }}-100 text-{{ $export->status_color }}-800">
+                                    {{ $export->status_label }}
+                                </span>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $export->employee->name ?? '-' }}</td>
                             <td class="px-4 py-3 text-center">

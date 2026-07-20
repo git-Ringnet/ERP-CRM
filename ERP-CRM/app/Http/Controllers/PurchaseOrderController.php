@@ -1383,12 +1383,14 @@ class PurchaseOrderController extends Controller
                     'cost' => $item->unit_price, 
                     'warehouse_price' => $item->unit_price,
                     'comments' => $comment,
+                    'serial_number' => $item->serial_number,
                 ]);
             } else {
                 $existing->update([
                     'quantity' => $item->quantity,
                     'warehouse_id' => $itemWarehouseId,
                     'comments' => $comment,
+                    'serial_number' => $item->serial_number,
                 ]);
             }
 
@@ -1631,6 +1633,8 @@ class PurchaseOrderController extends Controller
                 }
             }
 
+            $this->purchaseImportSyncService->syncImportSerialsFromPO($purchaseOrder);
+
             DB::commit();
 
             return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho đơn hàng.");
@@ -1780,6 +1784,10 @@ class PurchaseOrderController extends Controller
                 }
             }
 
+            foreach ($purchaseOrders as $po) {
+                $this->purchaseImportSyncService->syncImportSerialsFromPO($po);
+            }
+
             DB::commit();
 
             $poCount = count($posUpdated);
@@ -1868,6 +1876,8 @@ class PurchaseOrderController extends Controller
             $item->update([
                 'serial_number' => json_encode($mergedSerials)
             ]);
+
+            $this->purchaseImportSyncService->syncImportSerialsFromPO($purchaseOrder);
 
             DB::commit();
             return back()->with('success', 'Cập nhật danh sách Serial thành công.');

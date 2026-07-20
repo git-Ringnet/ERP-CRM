@@ -160,6 +160,14 @@ class ExportController extends Controller
     {
         $this->authorize('view', $export);
 
+        if ($export->reference_type === 'sale' && $export->reference_id && !in_array($export->status, ['completed', 'cancelled'])) {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                app(\App\Services\SaleExportSyncService::class)->syncExportSerialsFromSale($sale);
+                $export->refresh();
+            }
+        }
+
         $export->load(['warehouse', 'employee', 'items.product', 'project', 'customer']);
 
         // Get exported product items (serials) grouped by product_id
@@ -187,6 +195,14 @@ class ExportController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu đang chờ xử lý.');
         }
 
+        if ($export->reference_type === 'sale' && $export->reference_id) {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                app(\App\Services\SaleExportSyncService::class)->syncExportSerialsFromSale($sale);
+                $export->refresh();
+            }
+        }
+
         $export->load(['items.product']);
         $warehouses = Warehouse::active()->get();
         $employees = User::whereNotNull('employee_code')->get();
@@ -202,6 +218,11 @@ class ExportController extends Controller
                 }
             }
 
+            $serials = [];
+            if (!empty($productItemIds)) {
+                $serials = ProductItem::whereIn('id', $productItemIds)->pluck('sku')->toArray();
+            }
+
             return [
                 'product_id' => $item->product_id,
                 'product_code' => $item->product->code ?? '',
@@ -213,6 +234,7 @@ class ExportController extends Controller
                 'total' => $item->total,
                 'comments' => $item->comments ?? '',
                 'product_item_ids' => $productItemIds,
+                'serials' => $serials,
             ];
         })->toArray();
 

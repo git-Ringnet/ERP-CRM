@@ -265,41 +265,51 @@ class PurchaseImportSyncService
 
     protected function isLicenseItem(PurchaseOrderItem $poItem): bool
     {
-        $productCode = $poItem->product?->code;
-        $productName = $poItem->product_name ?: ($poItem->product->name ?? '');
-
-        if ($productCode && (
-            str_starts_with($productCode, 'FC-') || 
-            stripos($productCode, 'license') !== false || 
-            stripos($productName, 'license') !== false || 
-            stripos($productCode, 'e-license') !== false || 
-            stripos($productName, 'e-license') !== false || 
-            stripos($productCode, 'subscription') !== false || 
-            stripos($productName, 'subscription') !== false || 
-            stripos($productCode, 'renewal') !== false || 
-            stripos($productName, 'renewal') !== false
-        )) {
+        // 1. Đã chọn Type là License khi tạo Yêu cầu đặt hàng từ Sales/PR
+        if ($poItem->saleOrderRequestItem && strtolower(trim((string)$poItem->saleOrderRequestItem->type)) === 'license') {
             return true;
         }
 
-        if ($poItem->saleOrderRequestItem && $poItem->saleOrderRequestItem->type === 'License') {
-            return true;
+        // 2. Mã sản phẩm ở Đặt hàng với hãng có upload file license
+        if (!empty($poItem->license_file)) {
+            $decoded = json_decode($poItem->license_file, true);
+            if (!empty($decoded) && is_array($decoded) && count($decoded) > 0) {
+                return true;
+            } elseif (is_string($poItem->license_file) && !empty(trim($poItem->license_file))) {
+                return true;
+            }
         }
 
         return false;
     }
 
+    protected function isFortinetVendor(?\App\Models\SaleOrderRequestItem $sorItem, PurchaseOrderItem $poItem): bool
+    {
+        $vendorName = '';
+        if ($sorItem) {
+            $vendorName = $sorItem->vendor ?: ($sorItem->vendorModel?->name ?? '');
+        }
+        if (empty($vendorName) && $poItem->purchaseOrder && $poItem->purchaseOrder->supplier) {
+            $vendorName = $poItem->purchaseOrder->supplier->name;
+        }
+        return !empty($vendorName) && stripos($vendorName, 'Fortinet') !== false;
+    }
+
     /**
-     * Resolve correct warehouse based on PO item origin.
+     * Resolve correct warehouse based on PO item origin & attributes.
      * 
-     * Rules:
-     * 1. License items → Kho license (WH_LICENSE)
-     * 2. From Sales purchase request (SOR source_type=sale_order) → Kho dự án (WH_PROJECT)
-     * 3. From ticket or standalone PO → Kho runrate (WH_RUNRATE)
+     * Classification Rules:
+     * 1. License: Type = License (ở Yêu cầu đặt hàng) OR có file license được upload ở Đặt hàng với hãng → Kho license (WH_LICENSE)
+     * 2. Runrate:
+     *    - Đặt từ Ticket → Kho runrate (WH_RUNRATE)
+     *    - PO team tự tạo (Standalone PO - không gắn SOR) → Kho runrate (WH_RUNRATE)
+     *    - Yêu cầu đặt hàng đối với hãng Fortinet + HW + KHÔNG tích vào ô CQ (needs_cq = false) → Kho runrate (WH_RUNRATE)
+     *    - Với các hãng khác (không phải Fortinet): KHÔNG có thông tin EU (eu_name_mst rỗng) → Kho runrate (WH_RUNRATE)
+     * 3. Dự án: Hàng được đặt cho dự án (SOR từ Sale Order) không thuộc các TH trên → Kho dự án (WH_PROJECT)
      */
     public function resolveWarehouseForPoItem(PurchaseOrderItem $poItem, ?int $defaultWarehouseId = null): ?int
     {
-        // 1. License → WH_LICENSE (ưu tiên cao nhất, bất kể nguồn gốc)
+        // 1. License → WH_LICENSE (ưu tiên cao nhất: Type=License hoặc có file license uploaded)
         if ($this->isLicenseItem($poItem)) {
             $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
             if ($licenseWh) {
@@ -307,36 +317,166 @@ class PurchaseImportSyncService
             }
         }
 
-        // 2. Trace nguồn gốc qua SaleOrderRequest chain
-        if ($poItem->saleOrderRequestItem) {
-            $sor = $poItem->saleOrderRequestItem->saleOrderRequest;
+        $sorItem = $poItem->saleOrderRequestItem;
+        $sor = $sorItem?->saleOrderRequest;
 
-            if ($sor) {
-                // 2a. Từ ticket → WH_RUNRATE
-                if ($sor->source_type === 'ticket' || $sor->ticket_id) {
-                    $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-                    if ($runrateWh) {
-                        return $runrateWh->id;
-                    }
+        // 2a. PO team tự tạo (Standalone PO - không có Yêu cầu đặt hàng / SOR) → WH_RUNRATE
+        if (!$sorItem || !$sor) {
+            $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+            if ($runrateWh) {
+                return $runrateWh->id;
+            }
+        }
+
+        // 2b. Đặt từ ticket (source_type = ticket hoặc ticket_id có giá trị) → WH_RUNRATE
+        if ($sor->source_type === 'ticket' || $sor->ticket_id) {
+            $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+            if ($runrateWh) {
+                return $runrateWh->id;
+            }
+        }
+
+        // 2c & 2d: Kiểm tra theo Hãng (Vendor), Type, CQ và thông tin EU
+        $isFortinet = $this->isFortinetVendor($sorItem, $poItem);
+        $type = strtoupper(trim((string)($sorItem->type ?? '')));
+        $needsCq = (bool)($sorItem->needs_cq ?? false);
+        $euInfo = trim((string)($sorItem->eu_name_mst ?? ''));
+
+        if ($isFortinet) {
+            // 2c. Đối với hãng Fortinet + HW + KHÔNG tích vào ô CQ → WH_RUNRATE
+            if ($type === 'HW' && !$needsCq) {
+                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                if ($runrateWh) {
+                    return $runrateWh->id;
                 }
-
-                // 2b. Từ yêu cầu đặt hàng của Sales (SOR liên kết Sale) → WH_PROJECT
-                if ($sor->source_type === 'sale_order' && $sor->sale_id) {
-                    $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
-                    if ($projectWh) {
-                        return $projectWh->id;
-                    }
+            }
+        } else {
+            // 2d. Với các hãng khác (không phải Fortinet): KHÔNG có thông tin EU → WH_RUNRATE
+            if (empty($euInfo)) {
+                $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+                if ($runrateWh) {
+                    return $runrateWh->id;
                 }
             }
         }
 
-        // 3. PO standalone (không liên kết SOR) hoặc fallback → WH_RUNRATE
-        $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
-        if ($runrateWh) {
-            return $runrateWh->id;
+        // 3. Hàng được đặt cho dự án (SOR từ sale_order) → WH_PROJECT
+        if ($sor->source_type === 'sale_order' || $sor->sale_id) {
+            $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
+            if ($projectWh) {
+                return $projectWh->id;
+            }
         }
 
-        // 4. Fallback cuối cùng
-        return $defaultWarehouseId;
+        // 4. Fallback: WH_RUNRATE hoặc default
+        $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
+        return $runrateWh ? $runrateWh->id : $defaultWarehouseId;
+    }
+
+    /**
+     * Sync serial numbers from PO items to linked Import items and ProductItems
+     */
+    public function syncImportSerialsFromPO(PurchaseOrder $purchaseOrder): void
+    {
+        $imports = Import::where('reference_type', 'purchase_order')
+            ->where('reference_id', $purchaseOrder->id)
+            ->get();
+
+        if ($imports->isEmpty()) {
+            return;
+        }
+
+        foreach ($imports as $import) {
+            foreach ($purchaseOrder->items as $poItem) {
+                $poItemSerials = $poItem->serial_number;
+                $poSerialsArray = [];
+                if (!empty($poItemSerials)) {
+                    $decoded = is_array($poItemSerials) ? $poItemSerials : json_decode($poItemSerials, true);
+                    if (is_array($decoded)) {
+                        $poSerialsArray = array_values(array_filter($decoded, fn($s) => !empty(trim((string)$s))));
+                    } elseif (is_string($poItemSerials) && !empty(trim($poItemSerials))) {
+                        $poSerialsArray = [trim($poItemSerials)];
+                    }
+                }
+
+                // Find matching ImportItem
+                $poItemTag = "[POItem:{$poItem->id}]";
+                $importItem = $import->items()
+                    ->where('comments', 'like', "%{$poItemTag}%")
+                    ->first();
+
+                if (!$importItem && $poItem->product_id) {
+                    $importItem = $import->items()
+                        ->where('product_id', $poItem->product_id)
+                        ->where('comments', 'not like', '%[POItem:%')
+                        ->first();
+                }
+
+                if ($importItem) {
+                    $serialJson = !empty($poSerialsArray) ? json_encode($poSerialsArray) : null;
+                    $correctWarehouseId = $this->resolveWarehouseForPoItem($poItem, $import->warehouse_id);
+
+                    $updateData = [];
+                    if ($importItem->serial_number !== $serialJson) {
+                        $updateData['serial_number'] = $serialJson;
+                    }
+                    if ($correctWarehouseId && $importItem->warehouse_id !== $correctWarehouseId) {
+                        $updateData['warehouse_id'] = $correctWarehouseId;
+                    }
+
+                    if (!empty($updateData)) {
+                        $importItem->update($updateData);
+                    }
+
+                    // If import is completed, update ProductItem records in warehouse if placeholder SKUs or wrong warehouse exist
+                    if ($import->status === 'completed' && $poItem->product_id) {
+                        $productItems = \App\Models\ProductItem::where('import_id', $import->id)
+                            ->where('product_id', $poItem->product_id)
+                            ->get();
+
+                        if ($correctWarehouseId) {
+                            foreach ($productItems as $pi) {
+                                if ($pi->warehouse_id !== $correctWarehouseId) {
+                                    $pi->update(['warehouse_id' => $correctWarehouseId]);
+                                }
+                            }
+                        }
+
+                        if (!empty($poSerialsArray)) {
+                            $existingRealSkus = $productItems->filter(function ($pi) {
+                                return !str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                    && !str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                    && !empty($pi->sku);
+                            })->pluck('sku')->toArray();
+
+                            $serialsToAssign = array_diff($poSerialsArray, $existingRealSkus);
+
+                            $placeholderItems = $productItems->filter(function ($pi) {
+                                return str_starts_with($pi->sku, \App\Models\ProductItem::NO_SKU_PREFIX)
+                                    || str_starts_with($pi->sku, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)
+                                    || empty($pi->sku);
+                            });
+
+                            foreach ($placeholderItems as $pi) {
+                                if (empty($serialsToAssign)) break;
+                                $nextSerial = array_shift($serialsToAssign);
+                                $pi->update(['sku' => $nextSerial]);
+                            }
+                        }
+
+                        // Resync inventory table stock count
+                        app(\App\Services\InventoryService::class)->resyncStockFromItems($poItem->product_id);
+                    }
+                }
+            }
+
+            // Update main import warehouse_id
+            $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
+            $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            if ($mainImportWarehouseId && $import->warehouse_id !== $mainImportWarehouseId) {
+                $import->update(['warehouse_id' => $mainImportWarehouseId]);
+            }
+        }
     }
 }
+

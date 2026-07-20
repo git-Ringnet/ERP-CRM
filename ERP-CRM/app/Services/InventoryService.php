@@ -231,6 +231,34 @@ class InventoryService
     }
 
     /**
+     * Resync stock in the inventories table from ProductItem actual count (status = in_stock)
+     *
+     * @param int $productId
+     * @param int|null $warehouseId
+     * @return void
+     */
+    public function resyncStockFromItems(int $productId, ?int $warehouseId = null): void
+    {
+        if ($warehouseId) {
+            $warehouses = [$warehouseId];
+        } else {
+            $warehouses = \App\Models\Warehouse::pluck('id')->toArray();
+        }
+
+        foreach ($warehouses as $wId) {
+            $actualStock = ProductItem::where('product_id', $productId)
+                ->where('warehouse_id', $wId)
+                ->where('status', ProductItem::STATUS_IN_STOCK)
+                ->sum('quantity');
+
+            Inventory::updateOrCreate(
+                ['product_id' => $productId, 'warehouse_id' => $wId],
+                ['stock' => (int)$actualStock]
+            );
+        }
+    }
+
+    /**
      * Get stock summary for a product across all warehouses
      * Requirements: 7.4
      *

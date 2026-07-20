@@ -170,6 +170,9 @@ class SaleExportSyncService
 
             $export->update(['total_qty' => $totalQty]);
 
+            // Auto sync serials/ProductItems from inventory for this sale
+            $this->syncExportSerialsFromSale($sale);
+
             // Auto-complete if requested and auto_sync is enabled
             if ($autoComplete) {
                 $this->transactionService->processExport([
@@ -198,32 +201,22 @@ class SaleExportSyncService
     {
         // Get all items and their quantities
         $neededItems = $sale->items->pluck('quantity', 'product_id')->toArray();
-        if (empty($neededItems)) {
-            return null;
-        }
 
-        // Get all active warehouses
-        $warehouses = Warehouse::where('status', 'active')->get();
+        // Check each active warehouse
+        $warehouses = Warehouse::active()->get();
 
         foreach ($warehouses as $warehouse) {
-            $hasSufficientStock = true;
+            $hasStock = true;
 
-            // Check stock for each needed item
-            foreach ($neededItems as $productId => $quantity) {
-                $inventory = \App\Models\Inventory::where('warehouse_id', $warehouse->id)
-                    ->where('product_id', $productId)
-                    ->first();
-
-                $currentStock = $inventory ? $inventory->stock : 0;
-
-                if ($currentStock < $quantity) {
-                    $hasSufficientStock = false;
+            foreach ($neededItems as $productId => $neededQty) {
+                $stock = $this->inventoryService->getStock($productId, $warehouse->id);
+                if ($stock < $neededQty) {
+                    $hasStock = false;
                     break;
                 }
             }
 
-            // If this warehouse satisfies all items, return it immediately
-            if ($hasSufficientStock) {
+            if ($hasStock) {
                 return $warehouse->id;
             }
         }
@@ -233,7 +226,6 @@ class SaleExportSyncService
 
     /**
      * Get default warehouse ID from settings or first active warehouse
-     * Verifies that the warehouse is actually active
      */
     protected function getDefaultWarehouseId(): ?int
     {
@@ -276,5 +268,107 @@ class SaleExportSyncService
         return Export::where('reference_type', 'sale')
             ->where('reference_id', $sale->id)
             ->first();
+    }
+
+    /**
+     * Automatically sync/allocate available serial numbers (ProductItems) for a Sale's export items
+     */
+    public function syncExportSerialsFromSale(Sale $sale): void
+    {
+        $exports = Export::where('reference_type', 'sale')
+            ->where('reference_id', $sale->id)
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->get();
+
+        if ($exports->isEmpty()) {
+            return;
+        }
+
+        foreach ($exports as $export) {
+            $warehouseId = $export->warehouse_id;
+
+            foreach ($export->items as $exportItem) {
+                $neededQty = $exportItem->quantity;
+                if ($neededQty <= 0) continue;
+
+                $productId = $exportItem->product_id;
+                $allocatedIds = [];
+
+                // Priority 1: ProductItems imported specifically for this Sale or Project
+                $saleProjectItems = \App\Models\ProductItem::where('product_id', $productId)
+                    ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                    ->whereHas('import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest', function ($q) use ($sale) {
+                        $q->where('sale_id', $sale->id);
+                        if ($sale->project_id) {
+                            $q->orWhereHas('sale', function ($sq) use ($sale) {
+                                $sq->where('project_id', $sale->project_id);
+                            });
+                        }
+                    })
+                    ->limit($neededQty)
+                    ->pluck('id')
+                    ->toArray();
+
+                $allocatedIds = array_merge($allocatedIds, $saleProjectItems);
+
+                // Priority 2: Reserved/borrowed items by salesperson if still needed
+                if (count($allocatedIds) < $neededQty) {
+                    $remaining = $neededQty - count($allocatedIds);
+                    $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+                    if ($salespersonName) {
+                        $borrowedItems = \App\Models\ProductItem::where('product_id', $productId)
+                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                            ->where('borrower', $salespersonName)
+                            ->whereNotIn('id', $allocatedIds)
+                            ->limit($remaining)
+                            ->pluck('id')
+                            ->toArray();
+
+                        $allocatedIds = array_merge($allocatedIds, $borrowedItems);
+                    }
+                }
+
+                // Priority 3: Real serial items in stock
+                if (count($allocatedIds) < $neededQty) {
+                    $remaining = $neededQty - count($allocatedIds);
+                    $realSerialItems = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->hasSerial()
+                        ->whereNotIn('id', $allocatedIds)
+                        ->when($warehouseId, function ($q) use ($warehouseId) {
+                            $q->orderByRaw("warehouse_id = {$warehouseId} DESC");
+                        })
+                        ->limit($remaining)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allocatedIds = array_merge($allocatedIds, $realSerialItems);
+                }
+
+                // Priority 4: Fallback to any in-stock items (including NOSERIAL)
+                if (count($allocatedIds) < $neededQty) {
+                    $remaining = $neededQty - count($allocatedIds);
+                    $otherItems = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->whereNotIn('id', $allocatedIds)
+                        ->when($warehouseId, function ($q) use ($warehouseId) {
+                            $q->orderByRaw("warehouse_id = {$warehouseId} DESC");
+                        })
+                        ->limit($remaining)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allocatedIds = array_merge($allocatedIds, $otherItems);
+                }
+
+                // Update exportItem serial_number if changed
+                $serialJson = !empty($allocatedIds) ? json_encode(array_values($allocatedIds)) : null;
+                if ($exportItem->serial_number !== $serialJson) {
+                    $exportItem->update([
+                        'serial_number' => $serialJson
+                    ]);
+                }
+            }
+        }
     }
 }

@@ -1597,7 +1597,7 @@
                                                     $user = auth()->user();
                                                     $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
                                                 @endphp
-                                                @if(in_array($export->status, ['pending_admin', 'pending']))
+                                                @if($export->status === 'pending_admin')
                                                     @if($isAdmin)
                                                         <div class="flex items-center justify-center gap-1.5">
                                                             <!-- Approve Button -->
@@ -1614,6 +1614,18 @@
                                                         </div>
                                                     @else
                                                         <span class="text-xs text-gray-400">Chờ duyệt</span>
+                                                    @endif
+                                                @elseif($export->status === 'pending')
+                                                    @if($isAdmin || auth()->user()->hasRole('warehouse_manager') || auth()->user()->hasRole('warehouse_staff'))
+                                                        <div class="flex items-center justify-center gap-1.5">
+                                                            <!-- Approve Button -->
+                                                            <button type="button" onclick="confirmApprove('{{ route('exports.approve', $export->id) }}', 'phiếu xuất kho')"
+                                                                    class="px-2.5 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-bold shadow-sm flex items-center gap-1 transition-all">
+                                                                <i class="fas fa-check text-[10px]"></i> Duyệt xuất
+                                                            </button>
+                                                        </div>
+                                                    @else
+                                                        <span class="text-xs text-gray-400">Chờ kho xuất hàng</span>
                                                     @endif
                                                 @elseif($export->status === 'draft')
                                                     @if(auth()->user()->id === $export->employee_id || $isAdmin)

@@ -255,14 +255,18 @@ function addItem(existingData = null) {
         <div id="serialSection_${itemIndex}" class="hidden">
             <div class="flex justify-between items-center mb-2">
                 <label class="block text-xs font-medium text-gray-600">
-                    <i class="fas fa-barcode mr-1"></i>Chọn Serial xuất
+                    <i class="fas fa-barcode mr-1"></i>Danh sách Serial xuất * <span class="text-gray-400" id="serialAvailableCount_${itemIndex}"></span>
                 </label>
-                <button type="button" onclick="addSerialSelect(${itemIndex})" id="addSerialBtn_${itemIndex}"
-                        class="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200">
-                    <i class="fas fa-plus mr-1"></i>Thêm Serial
-                </button>
             </div>
-            <div id="serialContainer_${itemIndex}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <textarea name="items[${itemIndex}][serial_list]" rows="2"
+                      class="serial-textarea w-full px-2 py-1.5 text-sm border border-gray-300 rounded font-mono" 
+                      placeholder="Đặt con trỏ vào đây để quét mã Serial, hoặc nhập mỗi mã trên một dòng/dấu phẩy"
+                      oninput="validateExportSerials(${itemIndex})"></textarea>
+            
+            <div class="mt-2">
+                <span class="text-xs font-semibold text-gray-600">Serial khả dụng trong kho (Click để chọn nhanh):</span>
+                <div id="availableSerialsContainer_${itemIndex}" class="flex flex-wrap gap-1 mt-1 max-h-24 overflow-y-auto p-1.5 bg-gray-100 rounded border border-gray-200">
+                </div>
             </div>
             <p id="serialWarning_${itemIndex}" class="text-xs mt-2 hidden"></p>
         </div>
@@ -288,7 +292,6 @@ async function loadStockInfo(itemIdx) {
     const stockInfoDiv = document.getElementById(`stockInfo_${itemIdx}`);
     const stockSummary = document.getElementById(`stockSummary_${itemIdx}`);
     const serialSection = document.getElementById(`serialSection_${itemIdx}`);
-    const serialContainer = document.getElementById(`serialContainer_${itemIdx}`);
     
     if (!warehouseId || !productId) {
         stockInfoDiv.classList.add('hidden');
@@ -343,13 +346,13 @@ async function loadStockInfo(itemIdx) {
         
         if (serialItems.length > 0) {
             serialSection.classList.remove('hidden');
-            serialContainer.innerHTML = '';
+            updateSerialSection(itemIdx, data);
         } else {
             serialSection.classList.add('hidden');
         }
     }
     
-    validateQuantity(itemIdx);
+    validateExportSerials(itemIdx);
 }
 
 function formatNumber(num) {
@@ -396,8 +399,8 @@ function updateRowTotal(itemIdx) {
     
     updateGrandTotal();
     
-    // Also trigger serial validation
-    onQuantityChange(itemIdx);
+    // Trigger serial validation
+    validateExportSerials(itemIdx);
 }
 
 function updateGrandTotal() {
@@ -412,189 +415,143 @@ function updateGrandTotal() {
     }
 }
 
-function onQuantityChange(itemIdx) {
-    // Clear excess serial selects if quantity decreased
-    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
+function updateSerialSection(itemIdx, data) {
+    const serialSection = document.getElementById(`serialSection_${itemIdx}`);
+    const availableContainer = document.getElementById(`availableSerialsContainer_${itemIdx}`);
+    const availableCountEl = document.getElementById(`serialAvailableCount_${itemIdx}`);
     
-    if (!qtyInput || !container) return;
+    if (!serialSection) return;
     
-    const qty = parseInt(qtyInput.value) || 1;
-    const selects = container.querySelectorAll('.serial-select');
-    
-    // Remove excess selects
-    while (selects.length > qty) {
-        selects[selects.length - 1].remove();
-    }
-    
-    validateQuantity(itemIdx);
-}
-
-function addSerialSelect(itemIdx) {
-    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
-    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
-    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
-    const warehouseId = warehouseSelect.value;
-    const productId = productSelect.value;
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
-    const qty = parseInt(qtyInput.value) || 1;
-    
-    if (!warehouseId || !productId) return;
-    
-    // Check if already at max
-    const currentSelects = container.querySelectorAll('.serial-select').length;
-    if (currentSelects >= qty) {
-        alert(`Số lượng là ${qty}, chỉ được chọn tối đa ${qty} serial!`);
-        return;
-    }
-    
-    const cacheKey = `${productId}_${warehouseId}`;
-    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
-    const serialItems = data.items || [];
-    
-    if (serialItems.length === 0) return;
-    
-    const selectedSerials = getSelectedSerials(itemIdx);
-    const availableSerials = serialItems.filter(item => !selectedSerials.includes(item.id.toString()));
-    
-    if (availableSerials.length === 0) {
-        alert('Đã chọn hết serial có sẵn!');
-        return;
-    }
-    
-    const selectCount = container.querySelectorAll('.serial-select').length;
-    const selectDiv = document.createElement('div');
-    selectDiv.className = 'serial-select flex gap-1';
-    
-    const options = availableSerials.map(item => `<option value="${item.id}">${item.sku}</option>`).join('');
-    
-    selectDiv.innerHTML = `
-        <select name="items[${itemIdx}][product_item_ids][]" 
-                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
-                onchange="onSerialChange(${itemIdx})">
-            <option value="">-- Chọn serial #${selectCount + 1} --</option>
-            ${options}
-        </select>
-        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
-                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    container.appendChild(selectDiv);
-    validateQuantity(itemIdx);
-}
-
-function onSerialChange(itemIdx) {
-    updateSerialOptions(itemIdx);
-    validateQuantity(itemIdx);
-}
-
-function updateSerialOptions(itemIdx) {
-    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
-    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
-    
-    if (!warehouseSelect || !productSelect) return;
-    
-    const warehouseId = warehouseSelect.value;
-    const productId = productSelect.value;
-    
-    if (!warehouseId || !productId) return;
-    
-    const cacheKey = `${productId}_${warehouseId}`;
-    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
-    const serialItems = data.items || [];
-    
-    const selectedSerials = getSelectedSerials(itemIdx);
-    const selects = container.querySelectorAll('select');
-    
-    selects.forEach(select => {
-        const currentValue = select.value;
-        const otherSelected = selectedSerials.filter(id => id !== currentValue);
-        
-        // Rebuild options
-        let optionsHtml = '<option value="">-- Chọn serial --</option>';
-        serialItems.forEach(item => {
-            const isSelected = item.id.toString() === currentValue;
-            const isUsed = otherSelected.includes(item.id.toString());
-            if (!isUsed || isSelected) {
-                optionsHtml += `<option value="${item.id}" ${isSelected ? 'selected' : ''}>${item.sku}</option>`;
-            }
-        });
-        select.innerHTML = optionsHtml;
-    });
-}
-
-function removeSerialSelect(btn, itemIdx) {
-    btn.parentElement.remove();
-    updateSerialOptions(itemIdx);
-    validateQuantity(itemIdx);
-}
-
-function getSelectedSerials(itemIdx) {
-    const container = document.getElementById(`serialContainer_${itemIdx}`);
-    const selects = container.querySelectorAll('select');
-    const selected = [];
-    selects.forEach(select => { if (select.value) selected.push(select.value); });
-    return selected;
-}
-
-function validateQuantity(itemIdx) {
-    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
-    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
-    const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
-    const warningEl = document.getElementById(`serialWarning_${itemIdx}`);
-    const addBtn = document.getElementById(`addSerialBtn_${itemIdx}`);
-    
-    if (!warehouseSelect || !productSelect || !qtyInput || !warningEl) return;
-    
-    const warehouseId = warehouseSelect.value;
-    const productId = productSelect.value;
-    
-    if (!warehouseId || !productId) return;
-    
-    const qty = parseInt(qtyInput.value) || 1;
-    const cacheKey = `${productId}_${warehouseId}`;
-    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
     const serialItems = data.items || [];
     const noSkuCount = data.noSkuCount || 0;
-    const totalStock = serialItems.length + noSkuCount;
     
-    const selectedSerials = getSelectedSerials(itemIdx);
-    const selectedCount = selectedSerials.length;
-    const remainingQty = qty - selectedCount;
-    
-    // Update add button state
-    if (addBtn) {
-        if (selectedCount >= qty) {
-            addBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        } else {
-            addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    if (serialItems.length > 0) {
+        serialSection.classList.remove('hidden');
+        if (availableCountEl) {
+            availableCountEl.innerText = `(Tồn kho có serial: ${serialItems.length}, không serial: ${noSkuCount})`;
         }
+        
+        // Render badges for available serials
+        if (availableContainer) {
+            availableContainer.innerHTML = '';
+            serialItems.forEach(item => {
+                const badge = document.createElement('button');
+                badge.type = 'button';
+                badge.className = 'serial-badge px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 font-mono transition-colors';
+                badge.innerText = item.sku;
+                badge.dataset.sku = item.sku;
+                badge.onclick = () => toggleSerialInTextarea(itemIdx, item.sku);
+                availableContainer.appendChild(badge);
+            });
+        }
+        
+        validateExportSerials(itemIdx);
+    } else {
+        serialSection.classList.add('hidden');
     }
+}
+
+function toggleSerialInTextarea(itemIdx, sku) {
+    const textarea = document.querySelector(`[name="items[${itemIdx}][serial_list]"]`);
+    if (!textarea) return;
+    
+    let text = textarea.value.trim();
+    let serials = text ? text.split(/[\n,]+/).map(s => s.trim()).filter(s => s) : [];
+    
+    const index = serials.indexOf(sku);
+    if (index > -1) {
+        serials.splice(index, 1);
+    } else {
+        serials.push(sku);
+    }
+    
+    textarea.value = serials.join('\n');
+    validateExportSerials(itemIdx);
+}
+
+function validateExportSerials(itemIdx) {
+    const itemCard = document.querySelector(`[data-index="${itemIdx}"]`);
+    if (!itemCard) return;
+    
+    const qtyInput = itemCard.querySelector('.quantity-input');
+    const textarea = itemCard.querySelector('.serial-textarea');
+    const warningEl = document.getElementById(`serialWarning_${itemIdx}`);
+    const availableContainer = document.getElementById(`availableSerialsContainer_${itemIdx}`);
+    
+    if (!qtyInput || !textarea || !warningEl) return;
+    
+    const qty = parseInt(qtyInput.value) || 1;
+    const text = textarea.value.trim();
+    let enteredSerials = [];
+    if (text) {
+        enteredSerials = text.split(/[\n,]+/).map(s => s.trim()).filter(s => s);
+    }
+    
+    // Check duplicates in input
+    const uniqueEntered = [...new Set(enteredSerials)];
+    const hasDupes = uniqueEntered.length < enteredSerials.length;
+    
+    // Get available serials from cache
+    const warehouseSelect = itemCard.querySelector('[name*="[warehouse_id]"]');
+    const productSelect = itemCard.querySelector('[name*="[product_id]"]');
+    const warehouseId = warehouseSelect ? warehouseSelect.value : '';
+    const productId = productSelect ? productSelect.value : '';
+    const cacheKey = `${productId}_${warehouseId}`;
+    const data = stockCache[cacheKey] || { items: [], noSkuCount: 0 };
+    const availableSerials = (data.items || []).map(item => item.sku);
+    const noSkuCount = data.noSkuCount || 0;
+    
+    // Update badge active styling
+    if (availableContainer) {
+        availableContainer.querySelectorAll('.serial-badge').forEach(badge => {
+            const sku = badge.dataset.sku;
+            if (enteredSerials.includes(sku)) {
+                badge.className = 'serial-badge px-2 py-0.5 text-xs bg-blue-600 text-white border border-blue-600 rounded hover:bg-blue-700 font-mono transition-colors';
+            } else {
+                badge.className = 'serial-badge px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 font-mono transition-colors';
+            }
+        });
+    }
+    
+    // Validate individual serials
+    let invalidSerials = [];
+    enteredSerials.forEach(sku => {
+        if (!availableSerials.includes(sku)) {
+            invalidSerials.push(sku);
+        }
+    });
     
     warningEl.classList.remove('hidden');
     
-    if (qty > totalStock) {
+    if (hasDupes) {
         warningEl.className = 'text-xs mt-2 text-red-600';
-        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Số lượng (${qty}) vượt quá tồn kho (${totalStock})!`;
-        qtyInput.classList.add('border-red-500');
-    } else if (remainingQty > noSkuCount && serialItems.length > 0) {
-        const needSerials = remainingQty - noSkuCount;
-        warningEl.className = 'text-xs mt-2 text-yellow-600';
-        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`;
-        qtyInput.classList.remove('border-red-500');
-    } else if (selectedCount > 0) {
-        warningEl.className = 'text-xs mt-2 text-green-600';
-        warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Đã chọn ${selectedCount} serial${remainingQty > 0 ? ', ' + remainingQty + ' không serial' : ''}, đủ số lượng`;
-        qtyInput.classList.remove('border-red-500');
-    } else if (qty <= noSkuCount) {
-        warningEl.className = 'text-xs mt-2 text-green-600';
-        warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Sẽ xuất ${qty} sản phẩm không serial`;
-        qtyInput.classList.remove('border-red-500');
+        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Lỗi: Có số serial bị nhập trùng lặp!`;
+        textarea.classList.add('border-red-500');
+    } else if (invalidSerials.length > 0) {
+        warningEl.className = 'text-xs mt-2 text-red-600';
+        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Lỗi: Các serial sau không tồn tại trong kho này: <span class="font-bold">${invalidSerials.join(', ')}</span>`;
+        textarea.classList.add('border-red-500');
+    } else if (enteredSerials.length > qty) {
+        warningEl.className = 'text-xs mt-2 text-red-600';
+        warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Lỗi: Số serial quét được (${enteredSerials.length}) vượt quá số lượng xuất (${qty})!`;
+        textarea.classList.add('border-red-500');
     } else {
-        warningEl.classList.add('hidden');
-        qtyInput.classList.remove('border-red-500');
+        textarea.classList.remove('border-red-500');
+        const remainingQty = qty - enteredSerials.length;
+        
+        if (remainingQty > noSkuCount) {
+            const needSerials = remainingQty - noSkuCount;
+            warningEl.className = 'text-xs mt-2 text-yellow-600';
+            warningEl.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Cần nhập thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`;
+        } else if (enteredSerials.length > 0) {
+            warningEl.className = 'text-xs mt-2 text-green-600';
+            warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Đã khớp ${enteredSerials.length} serial${remainingQty > 0 ? ', ' + remainingQty + ' không serial' : ''}, đủ số lượng.`;
+        } else if (qty <= noSkuCount) {
+            warningEl.className = 'text-xs mt-2 text-green-600';
+            warningEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Sẽ xuất ${qty} sản phẩm không serial`;
+        } else {
+            warningEl.classList.add('hidden');
+        }
     }
 }
 
@@ -608,6 +565,7 @@ function validateForm() {
         const warehouseSelect = document.querySelector(`[name="items[${itemIndex}][warehouse_id]"]`);
         const productSelect = document.querySelector(`[name="items[${itemIndex}][product_id]"]`);
         const qtyInput = document.querySelector(`[name="items[${itemIndex}][quantity]"]`);
+        const serialTextarea = document.querySelector(`[name="items[${itemIndex}][serial_list]"]`);
         
         const warehouseId = warehouseSelect ? warehouseSelect.value : '';
         const productId = productSelect ? productSelect.value : '';
@@ -637,24 +595,51 @@ function validateForm() {
         const noSkuCount = data.noSkuCount || 0;
         const totalStock = serialItems.length + noSkuCount;
         
-        const selectedSerials = getSelectedSerials(itemIndex);
-        const selectedCount = selectedSerials.length;
+        let enteredSerials = [];
+        if (serialTextarea && serialTextarea.value.trim()) {
+            enteredSerials = serialTextarea.value.trim().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
+        }
+        
+        const selectedCount = enteredSerials.length;
         const remainingQty = qty - selectedCount;
+        
+        const productSearchInput = item.querySelector('.searchable-input');
+        const productName = productSearchInput ? productSearchInput.value : `Sản phẩm #${idx + 1}`;
         
         // Check if quantity exceeds stock
         if (qty > totalStock) {
             hasError = true;
-            const productSearchInput = item.querySelector('.searchable-input');
-            const productName = productSearchInput ? productSearchInput.value : `Sản phẩm #${idx + 1}`;
             errorMessages.push(`Sản phẩm "${productName}": Số lượng (${qty}) vượt quá tồn kho (${totalStock})`);
         }
         // Check if need more serials
         else if (remainingQty > noSkuCount && serialItems.length > 0) {
             hasError = true;
-            const productSearchInput = item.querySelector('.searchable-input');
-            const productName = productSearchInput ? productSearchInput.value : `Sản phẩm #${idx + 1}`;
             const needSerials = remainingQty - noSkuCount;
-            errorMessages.push(`Sản phẩm "${productName}": Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`);
+            errorMessages.push(`Sản phẩm "${productName}": Cần nhập thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`);
+        }
+        else if (selectedCount > qty) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm "${productName}": Số serial nhập vào (${selectedCount}) nhiều hơn số lượng xuất (${qty})`);
+        }
+        
+        // Check duplicates
+        const uniqueEntered = [...new Set(enteredSerials)];
+        if (uniqueEntered.length < enteredSerials.length) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm "${productName}": Có số serial bị nhập trùng lặp!`);
+        }
+        
+        // Check if entered serials exist in warehouse stock
+        const availableSerials = serialItems.map(item => item.sku);
+        let invalidSerials = [];
+        enteredSerials.forEach(sku => {
+            if (!availableSerials.includes(sku)) {
+                invalidSerials.push(sku);
+            }
+        });
+        if (invalidSerials.length > 0) {
+            hasError = true;
+            errorMessages.push(`Sản phẩm "${productName}": Các serial sau không tồn tại trong kho này: ${invalidSerials.join(', ')}`);
         }
     });
     
