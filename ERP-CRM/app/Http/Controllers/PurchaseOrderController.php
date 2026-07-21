@@ -1526,34 +1526,27 @@ class PurchaseOrderController extends Controller
                 return back()->with('error', 'File Excel chỉ có tiêu đề hoặc trống.');
             }
 
-            $headers = array_map(function($h) {
-                return strtoupper(trim($h));
-            }, $rows[0]);
-
-            $partNumberIdx = array_search('PART NUMBER', $headers);
-            $serialNumberIdx = array_search('SERIAL NUMBER', $headers);
-            $poNumberIdx = array_search('PO NUMBER', $headers);
-
-            if ($partNumberIdx === false || $serialNumberIdx === false || $poNumberIdx === false) {
-                $partNumberIdx = 0;
-                $serialNumberIdx = 1;
-                $poNumberIdx = 2;
-            }
+            [$partNumberIdx, $serialNumberIdx, $poNumberIdx] = $this->findExcelHeaderIndexes($rows[0]);
 
             $serialsByPart = [];
+            $poCodeUpper = strtoupper(trim($purchaseOrder->code));
+            $poCodeNorm = preg_replace('/[^A-Z0-9]/i', '', $poCodeUpper);
             
             for ($i = 1; $i < count($rows); $i++) {
                 $row = $rows[$i];
                 if (empty($row) || !isset($row[$partNumberIdx])) continue;
 
-                $partNumber = strtoupper(trim($row[$partNumberIdx]));
-                $serialNumber = isset($row[$serialNumberIdx]) ? trim($row[$serialNumberIdx]) : '';
-                $poNumber = isset($row[$poNumberIdx]) ? strtoupper(trim($row[$poNumberIdx])) : '';
+                $partNumber = strtoupper(trim((string)$row[$partNumberIdx]));
+                $serialNumber = isset($row[$serialNumberIdx]) ? trim((string)$row[$serialNumberIdx]) : '';
+                $poNumber = isset($row[$poNumberIdx]) ? strtoupper(trim((string)$row[$poNumberIdx])) : '';
 
                 if (!$partNumber || !$serialNumber) continue;
 
-                if ($poNumber && $poNumber !== strtoupper($purchaseOrder->code)) {
-                    continue;
+                if ($poNumber) {
+                    $rowPoNorm = preg_replace('/[^A-Z0-9]/i', '', $poNumber);
+                    if ($rowPoNorm !== '' && $poCodeNorm !== '' && $rowPoNorm !== $poCodeNorm && !str_contains($rowPoNorm, $poCodeNorm) && !str_contains($poCodeNorm, $rowPoNorm)) {
+                        continue;
+                    }
                 }
 
                 if (!isset($serialsByPart[$partNumber])) {
@@ -1563,21 +1556,18 @@ class PurchaseOrderController extends Controller
             }
 
             if (empty($serialsByPart)) {
-                return back()->with('error', 'Không tìm thấy dòng dữ liệu nào khớp với PO hiện tại.');
+                return back()->with('error', 'Không tìm thấy dòng dữ liệu nào khớp với mã PO hiện tại (' . $purchaseOrder->code . ').');
             }
+
+            $purchaseOrder->load(['items.product', 'items.saleOrderRequestItem']);
 
             DB::beginTransaction();
             $updatedCount = 0;
 
             foreach ($purchaseOrder->items as $item) {
-                $productCode = $item->product ? strtoupper($item->product->code) : null;
-                if (!$productCode) {
-                    $productCode = strtoupper(trim($item->product_name));
-                }
+                $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $serialsByPart);
 
-                if (isset($serialsByPart[$productCode])) {
-                    $newExcelSerials = $serialsByPart[$productCode];
-                    
+                if (!empty($newExcelSerials)) {
                     // Keep any existing serial numbers that are already received/transferred/sold in product_items table
                     $existingSerials = json_decode($item->serial_number, true) ?: [];
                     $alreadyImportedSerials = [];
@@ -1633,6 +1623,11 @@ class PurchaseOrderController extends Controller
                 }
             }
 
+            if ($updatedCount === 0) {
+                DB::rollBack();
+                return back()->with('error', 'File Excel có dữ liệu khớp mã PO nhưng không tìm thấy mặt hàng trùng PART NUMBER trong đơn này.');
+            }
+
             $this->purchaseImportSyncService->syncImportSerialsFromPO($purchaseOrder);
 
             DB::commit();
@@ -1664,19 +1659,7 @@ class PurchaseOrderController extends Controller
                 return back()->with('error', 'File Excel chỉ có tiêu đề hoặc trống.');
             }
 
-            $headers = array_map(function($h) {
-                return strtoupper(trim($h));
-            }, $rows[0]);
-
-            $partNumberIdx = array_search('PART NUMBER', $headers);
-            $serialNumberIdx = array_search('SERIAL NUMBER', $headers);
-            $poNumberIdx = array_search('PO NUMBER', $headers);
-
-            if ($partNumberIdx === false || $serialNumberIdx === false || $poNumberIdx === false) {
-                $partNumberIdx = 0;
-                $serialNumberIdx = 1;
-                $poNumberIdx = 2;
-            }
+            [$partNumberIdx, $serialNumberIdx, $poNumberIdx] = $this->findExcelHeaderIndexes($rows[0]);
 
             // Group by [PO NUMBER][PART NUMBER]
             $serialsByPoAndPart = [];
@@ -1685,9 +1668,9 @@ class PurchaseOrderController extends Controller
                 $row = $rows[$i];
                 if (empty($row) || !isset($row[$partNumberIdx]) || !isset($row[$poNumberIdx])) continue;
 
-                $partNumber = strtoupper(trim($row[$partNumberIdx]));
-                $serialNumber = isset($row[$serialNumberIdx]) ? trim($row[$serialNumberIdx]) : '';
-                $poNumber = strtoupper(trim($row[$poNumberIdx]));
+                $partNumber = strtoupper(trim((string)$row[$partNumberIdx]));
+                $serialNumber = isset($row[$serialNumberIdx]) ? trim((string)$row[$serialNumberIdx]) : '';
+                $poNumber = strtoupper(trim((string)$row[$poNumberIdx]));
 
                 if (!$partNumber || !$serialNumber || !$poNumber) continue;
 
@@ -1701,7 +1684,7 @@ class PurchaseOrderController extends Controller
             }
 
             if (empty($serialsByPoAndPart)) {
-                return back()->with('error', 'Không tìm thấy dòng dữ liệu hợp lệ nào.');
+                return back()->with('error', 'Không tìm thấy dòng dữ liệu hợp lệ nào trong file Excel.');
             }
 
             DB::beginTransaction();
@@ -1709,24 +1692,44 @@ class PurchaseOrderController extends Controller
             $posUpdated = [];
 
             $poCodes = array_keys($serialsByPoAndPart);
-            $purchaseOrders = PurchaseOrder::whereIn('code', $poCodes)
-                ->whereNotIn('status', ['received', 'cancelled'])
-                ->with('items.product')
-                ->get();
+            $purchaseOrders = PurchaseOrder::whereNotIn('status', ['cancelled'])
+                ->with(['items.product', 'items.saleOrderRequestItem'])
+                ->get()
+                ->filter(function($po) use ($serialsByPoAndPart, $poCodes) {
+                    $poNorm = preg_replace('/[^A-Z0-9]/i', '', strtoupper($po->code));
+                    foreach ($poCodes as $excelPo) {
+                        $excelNorm = preg_replace('/[^A-Z0-9]/i', '', strtoupper($excelPo));
+                        if ($poNorm === $excelNorm || str_contains($poNorm, $excelNorm) || str_contains($excelNorm, $poNorm)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
 
             foreach ($purchaseOrders as $po) {
                 $poCodeUpper = strtoupper($po->code);
-                $partsForPo = $serialsByPoAndPart[$poCodeUpper] ?? [];
+                $poCodeNorm = preg_replace('/[^A-Z0-9]/i', '', $poCodeUpper);
+                
+                // Find matching serials by part for this PO
+                $partsForPo = [];
+                foreach ($serialsByPoAndPart as $excelPo => $parts) {
+                    $excelPoNorm = preg_replace('/[^A-Z0-9]/i', '', strtoupper($excelPo));
+                    if ($poCodeNorm === $excelPoNorm || str_contains($poCodeNorm, $excelPoNorm) || str_contains($excelPoNorm, $poCodeNorm)) {
+                        foreach ($parts as $pNum => $sList) {
+                            if (!isset($partsForPo[$pNum])) {
+                                $partsForPo[$pNum] = [];
+                            }
+                            $partsForPo[$pNum] = array_merge($partsForPo[$pNum], $sList);
+                        }
+                    }
+                }
+
+                if (empty($partsForPo)) continue;
 
                 foreach ($po->items as $item) {
-                    $productCode = $item->product ? strtoupper($item->product->code) : null;
-                    if (!$productCode) {
-                        $productCode = strtoupper(trim($item->product_name));
-                    }
+                    $newExcelSerials = $this->getMatchingSerialsForPoItem($item, $partsForPo);
 
-                    if (isset($partsForPo[$productCode])) {
-                        $newExcelSerials = $partsForPo[$productCode];
-
+                    if (!empty($newExcelSerials)) {
                         // Keep any existing serial numbers that are already received/transferred/sold in product_items table
                         $existingSerials = json_decode($item->serial_number, true) ?: [];
                         $alreadyImportedSerials = [];
@@ -1791,11 +1794,95 @@ class PurchaseOrderController extends Controller
             DB::commit();
 
             $poCount = count($posUpdated);
+            if ($updatedCount === 0) {
+                return back()->with('error', 'Không tìm thấy đơn hàng PO hoặc mặt hàng phù hợp với file Excel.');
+            }
+
             return back()->with('success', "Đã import thành công {$updatedCount} số Serial cho {$poCount} đơn hàng PO.");
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Import thất bại: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Helper to find column indexes from Excel header row flexibly
+     */
+    protected function findExcelHeaderIndexes(array $headers): array
+    {
+        $partIdx = false;
+        $serialIdx = false;
+        $poIdx = false;
+
+        foreach ($headers as $idx => $h) {
+            $hClean = strtoupper(trim(preg_replace('/[\x00-\x1F\x7F\xEF\xBB\xBF\xC2\xA0]/u', '', (string)$h)));
+
+            if ($partIdx === false && (str_contains($hClean, 'PART') || str_contains($hClean, 'MODEL') || str_contains($hClean, 'MÃ SP') || str_contains($hClean, 'PRODUCT'))) {
+                $partIdx = $idx;
+            }
+            if ($serialIdx === false && (str_contains($hClean, 'SERIAL') || str_contains($hClean, 'S/N') || str_contains($hClean, 'SN'))) {
+                $serialIdx = $idx;
+            }
+            if ($poIdx === false && (str_contains($hClean, 'PO') || str_contains($hClean, 'PURCHASE') || str_contains($hClean, 'ĐƠN HÀNG'))) {
+                $poIdx = $idx;
+            }
+        }
+
+        return [
+            $partIdx !== false ? $partIdx : 0,
+            $serialIdx !== false ? $serialIdx : 1,
+            $poIdx !== false ? $poIdx : 2,
+        ];
+    }
+
+    /**
+     * Helper to match serials for a PO Item using multiple candidate product identifiers
+     */
+    protected function getMatchingSerialsForPoItem($item, array $serialsByPart): array
+    {
+        $candidates = [];
+        if ($item->product && !empty($item->product->code)) {
+            $candidates[] = (string)$item->product->code;
+        }
+        if (!empty($item->product_name)) {
+            $candidates[] = (string)$item->product_name;
+        }
+        if ($item->saleOrderRequestItem && !empty($item->saleOrderRequestItem->part_number)) {
+            $candidates[] = (string)$item->saleOrderRequestItem->part_number;
+        }
+
+        $allMatchingSerials = [];
+
+        foreach ($serialsByPart as $excelPart => $serials) {
+            $excelUpper = strtoupper(trim((string)$excelPart));
+            $excelNorm = preg_replace('/[^A-Z0-9]/i', '', $excelUpper);
+            if (empty($excelNorm)) continue;
+
+            $matched = false;
+            foreach ($candidates as $cand) {
+                $candUpper = strtoupper(trim($cand));
+                $candNorm = preg_replace('/[^A-Z0-9]/i', '', $candUpper);
+                if (empty($candNorm)) continue;
+
+                if ($candUpper === $excelUpper || $candNorm === $excelNorm) {
+                    $matched = true;
+                    break;
+                }
+
+                if (strlen($candNorm) >= 4 && strlen($excelNorm) >= 4) {
+                    if (str_contains($candNorm, $excelNorm) || str_contains($excelNorm, $candNorm)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($matched) {
+                $allMatchingSerials = array_merge($allMatchingSerials, $serials);
+            }
+        }
+
+        return array_values(array_unique($allMatchingSerials));
     }
 
     /**
