@@ -6,52 +6,66 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        // Cấu hình quy trình duyệt
         Schema::create('approval_workflows', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('document_type')->unique(); // quotation, contract, order, purchase
+            $table->string('document_type');
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->unique('document_type', 'approval_workflows_document_type_unique');
         });
 
-        // Các cấp duyệt trong quy trình
         Schema::create('approval_levels', function (Blueprint $table) {
+
             $table->id();
-            $table->foreignId('workflow_id')->constrained('approval_workflows')->onDelete('cascade');
-            $table->unsignedInteger('level'); // 1, 2, 3...
-            $table->string('name'); // Trưởng phòng, Giám đốc, Pháp chế...
-            $table->string('approver_type'); // role, user
-            $table->string('approver_value'); // role name hoặc user_id
-            $table->decimal('min_amount', 15, 2)->nullable(); // Điều kiện giá trị tối thiểu
-            $table->decimal('max_amount', 15, 2)->nullable(); // Điều kiện giá trị tối đa
+            $table->foreignId('workflow_id');
+            $table->unsignedInteger('level');
+            $table->string('name');
+            $table->string('approver_type');
+            $table->string('approver_value');
+            $table->decimal('min_amount', 15, 2)->nullable();
+            $table->decimal('max_amount', 15, 2)->nullable();
             $table->boolean('is_required')->default(true);
             $table->timestamps();
+            $table->unique(['workflow_id','level'], 'approval_levels_workflow_id_level_unique');
 
-            $table->unique(['workflow_id', 'level']);
+            // Foreign keys
+            $table->foreign('workflow_id')->references('id')->on('approval_workflows')->onDelete('cascade');
         });
 
-        // Lịch sử duyệt
         Schema::create('approval_histories', function (Blueprint $table) {
+
             $table->id();
-            $table->string('document_type'); // quotation, contract, order
+            $table->string('document_type');
             $table->unsignedBigInteger('document_id');
             $table->unsignedInteger('level');
             $table->string('level_name');
-            $table->foreignId('approver_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('approver_id')->nullable();
             $table->string('approver_name');
-            $table->enum('action', ['pending', 'approved', 'rejected']);
+            $table->foreignId('original_approver_id')->nullable();
+            $table->foreignId('delegated_to_id')->nullable();
+            $table->enum('action', ['pending','approved','rejected']);
             $table->text('comment')->nullable();
             $table->timestamp('action_at')->nullable();
             $table->timestamps();
+            $table->index(['document_type','document_id'], 'approval_histories_document_type_document_id_index');
 
-            $table->index(['document_type', 'document_id']);
+            // Foreign keys
+            $table->foreign('approver_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('delegated_to_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('original_approver_id')->references('id')->on('users')->onDelete('set null');
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::dropIfExists('approval_histories');

@@ -11,35 +11,52 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Bảng danh mục dự án (tương tự Công trình trong MISA)
         Schema::create('projects', function (Blueprint $table) {
+
             $table->id();
-            $table->string('code', 50)->unique(); // Mã dự án: DA001, DA002...
-            $table->string('name'); // Tên dự án
-            $table->foreignId('customer_id')->nullable()->constrained()->nullOnDelete(); // Khách hàng/Chủ đầu tư
-            $table->string('customer_name')->nullable(); // Cache tên khách hàng
-            $table->text('address')->nullable(); // Địa chỉ dự án
-            $table->text('description')->nullable(); // Mô tả/Nội dung
-            $table->decimal('budget', 18, 2)->default(0); // Dự toán/Ngân sách
-            $table->date('start_date')->nullable(); // Ngày bắt đầu
-            $table->date('end_date')->nullable(); // Ngày kết thúc dự kiến
-            $table->enum('status', ['planning', 'in_progress', 'completed', 'cancelled', 'on_hold'])
-                  ->default('planning'); // Tình trạng
-            $table->foreignId('manager_id')->nullable()->constrained('users')->nullOnDelete(); // Người quản lý
+            $table->string('code', 50);
+            $table->string('name');
+            $table->foreignId('customer_id')->nullable();
+            $table->string('customer_name')->nullable();
+            $table->text('address')->nullable();
+            $table->string('eu_province', 100)->nullable();
+            $table->string('eu_industry', 100)->nullable();
+            $table->enum('collaborate_type', ['partner','end_user'])->nullable();
+            $table->foreignId('collaborate_customer_id')->nullable();
+            $table->string('collaborate_company')->nullable();
+            $table->string('collaborate_tax_code', 100)->nullable();
+            $table->string('collaborate_pic_name')->nullable();
+            $table->string('collaborate_pic_title')->nullable()->comment('Ch?c danh PIC');
+            $table->string('collaborate_pic_phone', 50)->nullable()->comment('S?T PIC');
+            $table->string('collaborate_pic_email')->nullable()->comment('Email PIC');
+            $table->text('description')->nullable();
+            $table->decimal('budget', 18, 2)->default(0.00);
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->integer('estimated_close_months')->nullable();
+            $table->text('bom_file')->nullable()->comment('???ng d?n file BOM upload');
+            $table->text('bom_data')->nullable()->comment('N?i dung BOM list d?ng text');
+            $table->decimal('net_to_tech_horizon', 18, 2)->nullable();
+            $table->string('stage', 50)->nullable();
+            $table->string('deal_type', 50)->nullable()->comment('Lo?i deal: new_buy, trade_up');
+            $table->enum('status', ['planning','in_progress','completed','cancelled','on_hold'])->default('planning');
+            $table->foreignId('manager_id')->nullable();
             $table->text('note')->nullable();
+            $table->foreignId('marketing_event_id')->nullable();
+            $table->foreignId('vendor_id')->nullable();
+            $table->string('distributor_am')->nullable()->comment('Distributor AM: Name | Email (auto from login)');
+            $table->string('eu_name_vi')->nullable();
+            $table->string('eu_name_en')->nullable();
+            $table->string('eu_name_abbr', 100)->nullable();
+            $table->string('eu_tax_code', 100)->nullable()->comment('End-user MST ho?c website');
             $table->timestamps();
-        });
+            $table->unique('code', 'projects_code_unique');
 
-        // Thêm project_id vào sale_items (gắn dự án ở cấp dòng sản phẩm như MISA)
-        Schema::table('sale_items', function (Blueprint $table) {
-            $table->foreignId('project_id')->nullable()->after('product_name')
-                  ->constrained()->nullOnDelete();
-        });
-
-        // Thêm project_id vào sales (để filter/báo cáo nhanh theo dự án)
-        Schema::table('sales', function (Blueprint $table) {
-            $table->foreignId('project_id')->nullable()->after('type')
-                  ->constrained()->nullOnDelete();
+            // Foreign keys
+            $table->foreign('collaborate_customer_id')->references('id')->on('customers')->onDelete('set null');
+            $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');
+            $table->foreign('manager_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('vendor_id')->references('id')->on('suppliers')->onDelete('set null');
         });
     }
 
@@ -48,16 +65,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('sales', function (Blueprint $table) {
-            $table->dropForeign(['project_id']);
-            $table->dropColumn('project_id');
-        });
-
-        Schema::table('sale_items', function (Blueprint $table) {
-            $table->dropForeign(['project_id']);
-            $table->dropColumn('project_id');
-        });
-
         Schema::dropIfExists('projects');
     }
 };

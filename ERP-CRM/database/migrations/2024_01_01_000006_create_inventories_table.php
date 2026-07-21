@@ -12,21 +12,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('inventories', function (Blueprint $table) {
+
             $table->id();
-            $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
-            $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
-            $table->integer('stock')->default(0)->comment('Số lượng tồn kho');
-            $table->integer('min_stock')->default(0)->comment('Mức tồn kho tối thiểu');
-            $table->decimal('avg_cost', 15, 2)->default(0)->comment('Giá vốn trung bình');
-            $table->date('expiry_date')->nullable()->comment('Ngày hết hạn');
-            $table->integer('warranty_months')->nullable()->comment('Số tháng bảo hành');
+            $table->foreignId('product_id');
+            $table->foreignId('warehouse_id');
+            $table->integer('stock')->default(0)->comment('S? l??ng t?n kho');
+            $table->integer('min_stock')->default(0)->comment('M?c t?n kho t?i thi?u');
+            $table->decimal('avg_cost', 15, 2)->default(0.00);
+            $table->date('expiry_date')->nullable();
+            $table->integer('warranty_months')->nullable();
             $table->timestamps();
-            
-            // Unique constraint: one product per warehouse
-            $table->unique(['product_id', 'warehouse_id']);
-            
-            $table->index('stock');
-            $table->index('expiry_date');
+            $table->index('expiry_date', 'inventories_expiry_date_index');
+            $table->unique(['product_id','warehouse_id'], 'inventories_product_id_warehouse_id_unique');
+            $table->index('stock', 'inventories_stock_index');
+
+            // Foreign keys
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('cascade');
         });
     }
 

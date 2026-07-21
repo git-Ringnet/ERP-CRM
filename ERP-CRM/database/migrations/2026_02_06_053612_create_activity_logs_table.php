@@ -13,33 +13,20 @@ return new class extends Migration
     {
         Schema::create('activity_logs', function (Blueprint $table) {
             $table->id();
-            
-            // Người thực hiện
-            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('user_name')->nullable(); // Backup nếu user bị xóa
-            
-            // Hành động
-            $table->string('action', 50); // created, updated, deleted, login, logout, approved, etc.
-            $table->text('description')->nullable(); // Mô tả chi tiết
-            
-            // Đối tượng bị tác động (polymorphic)
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('user_name')->nullable();
+            $table->string('action', 50);
+            $table->text('description')->nullable();
             $table->string('subject_type')->nullable();
             $table->unsignedBigInteger('subject_id')->nullable();
-            
-            // Dữ liệu thay đổi
-            $table->json('properties')->nullable(); // { old: {...}, new: {...}, attributes: {...} }
-            
-            // Metadata
+            $table->json('properties')->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
-            
             $table->timestamp('created_at')->nullable();
-            
-            // Indexes
-            $table->index('user_id');
-            $table->index(['subject_type', 'subject_id']);
-            $table->index('action');
-            $table->index('created_at');
+            $table->index('action', 'activity_logs_action_index');
+            $table->index('created_at', 'activity_logs_created_at_index');
+            $table->index(['subject_type','subject_id'], 'activity_logs_subject_type_subject_id_index');
+            $table->index('user_id', 'activity_logs_user_id_index');
         });
     }
 

@@ -8,22 +8,27 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * Tạo bảng export_items - tách từ inventory_transaction_items
      */
     public function up(): void
     {
         Schema::create('export_items', function (Blueprint $table) {
+
             $table->id();
-            $table->foreignId('export_id')->constrained('exports')->cascadeOnDelete();
-            $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
+            $table->foreignId('export_id');
+            $table->foreignId('product_id');
             $table->integer('quantity');
+            $table->decimal('unit_price', 18, 2)->nullable();
+            $table->decimal('total', 18, 2)->nullable();
+            $table->integer('requested_quantity')->nullable();
+            $table->boolean('is_liquidation')->default(false);
             $table->string('unit', 20)->nullable();
             $table->text('serial_number')->nullable()->comment('JSON array of product_item_ids');
             $table->text('comments')->nullable();
             $table->timestamps();
-            
-            $table->index('export_id');
-            $table->index('product_id');
+
+            // Foreign keys
+            $table->foreign('export_id')->references('id')->on('exports')->onDelete('cascade');
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
         });
     }
 

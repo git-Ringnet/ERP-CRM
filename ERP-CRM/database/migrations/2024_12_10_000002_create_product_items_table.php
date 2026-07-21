@@ -8,34 +8,35 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * Requirements: 3.1 - Create product_items table
      */
     public function up(): void
     {
         Schema::create('product_items', function (Blueprint $table) {
+
             $table->id();
-            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+            $table->foreignId('product_id');
             $table->string('sku', 100);
             $table->text('description')->nullable();
-            $table->decimal('cost_usd', 15, 2)->default(0)->comment('Cost in USD');
+            $table->decimal('cost_usd', 15, 2)->default(0.00)->comment('Cost in USD');
             $table->json('price_tiers')->nullable()->comment('Dynamic price tiers: {1yr: 100, 2yr: 200, ...}');
             $table->integer('quantity')->default(1);
             $table->text('comments')->nullable();
-            $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->onDelete('set null');
-            $table->unsignedBigInteger('import_id')->nullable();
-            $table->unsignedBigInteger('export_id')->nullable();
-            $table->enum('status', ['in_stock', 'sold', 'damaged', 'transferred'])->default('in_stock');
+            $table->string('borrower')->nullable()->comment('Ng??i m??n thi?t b?');
+            $table->json('custom_fields')->nullable();
+            $table->foreignId('warehouse_id')->nullable();
+            $table->foreignId('import_id')->nullable();
+            $table->foreignId('export_id')->nullable();
+            $table->enum('status', ['in_stock','sold','damaged','transferred','liquidation'])->default('in_stock');
+            $table->integer('warranty_months')->nullable();
+            $table->date('expiry_date')->nullable();
             $table->timestamps();
+            $table->unique(['product_id','sku'], 'product_items_product_sku_unique');
+            $table->index('sku', 'product_items_sku_index');
+            $table->index('status', 'product_items_status_index');
 
-            // Unique index on product_id and sku
-            $table->unique(['product_id', 'sku'], 'product_items_product_sku_unique');
-            
-            // Additional indexes
-            $table->index('status');
-            $table->index('warehouse_id');
-            $table->index('sku');
-            $table->index('import_id');
-            $table->index('export_id');
+            // Foreign keys
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('set null');
         });
     }
 

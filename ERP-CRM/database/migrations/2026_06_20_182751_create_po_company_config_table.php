@@ -13,8 +13,6 @@ return new class extends Migration
     {
         Schema::create('po_company_config', function (Blueprint $table) {
             $table->id();
-            
-            // BUYER INFO
             $table->string('buyer_name')->nullable();
             $table->string('buyer_address_line1')->nullable();
             $table->string('buyer_address_line2')->nullable();
@@ -26,20 +24,14 @@ return new class extends Migration
             $table->string('buyer_bank_address_line1')->nullable();
             $table->string('buyer_bank_address_line2')->nullable();
             $table->string('buyer_swift_code')->nullable();
-            
-            // SHIP TO
             $table->string('ship_to_name')->nullable();
             $table->string('ship_to_address_line1')->nullable();
             $table->string('ship_to_address_line2')->nullable();
             $table->string('ship_to_attn')->nullable();
-            
-            // INVOICE TO
             $table->string('invoice_to_name')->nullable();
             $table->string('invoice_to_address_line1')->nullable();
             $table->string('invoice_to_address_line2')->nullable();
             $table->string('invoice_to_attn')->nullable();
-            
-            // HEADER (for Sale Contract form)
             $table->string('company_full_name')->nullable();
             $table->string('hcmc_address')->nullable();
             $table->string('hanoi_address')->nullable();
@@ -47,11 +39,9 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->string('header_logo_path')->nullable();
-            
-            // SIGNATURE
+            $table->string('header_banner_path')->nullable();
             $table->string('signer_name')->nullable();
             $table->string('signer_title')->nullable();
-            
             $table->timestamps();
         });
     }
