@@ -80,8 +80,13 @@
                     class="h-10 border border-gray-300 rounded-lg pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm bg-white appearance-none cursor-pointer"
                     style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.7rem center; background-size: 0.65em auto;">
                     <option value="">Tất cả trạng thái</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ duyệt</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt</option>
+                    <option value="pnl_pending" {{ request('status') == 'pnl_pending' ? 'selected' : '' }}>Chờ duyệt PL</option>
+                    <option value="so_pending" {{ request('status') == 'so_pending' ? 'selected' : '' }}>Chờ duyệt đơn hàng</option>
+                    <option value="pnl_need_revision" {{ request('status') == 'pnl_need_revision' ? 'selected' : '' }}>Cần sửa PL</option>
+                    <option value="pnl_rejected" {{ request('status') == 'pnl_rejected' ? 'selected' : '' }}>PL bị từ chối</option>
+                    <option value="pending_payment" {{ request('status') == 'pending_payment' ? 'selected' : '' }}>Chờ xác nhận TT</option>
+                    <option value="pending_export" {{ request('status') == 'pending_export' ? 'selected' : '' }}>Chờ duyệt xuất kho</option>
+                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt (Tất cả)</option>
                     <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang giao</option>
                     <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
                     <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
@@ -296,23 +301,29 @@
 
                                 {{-- Danh sách % thanh toán --}}
                                 @if($payments->count() > 0)
-                                <div class="mt-1 space-y-0.5">
+                                <div class="mt-1 flex flex-col items-center gap-1 max-w-[200px] mx-auto">
                                     @foreach($payments as $pm)
                                         @php
-                                            // Parse label và % từ note, e.g. "Cọc (30%)" hoặc "Thanh toán đợt 1 (40%)"
                                             $pmNote = $pm->note ?? '';
                                             $pmPercent = $sale->total > 0 ? round($pm->amount / $sale->total * 100, 1) : 0;
-                                            // Thử trích label từ note
+                                            
+                                            // Trích xuất label đợt thanh toán từ note
                                             $pmLabel = '';
-                                            if (preg_match('/^(.+?)\s*\([\d.]+%\)/', $pmNote, $m)) {
-                                                $pmLabel = trim($m[1]);
-                                            } elseif (preg_match('/^(Cọc|Thanh toán.+?)(\s*-|$)/u', $pmNote, $m)) {
-                                                $pmLabel = trim($m[1]);
+                                            if (preg_match('/"([^"]+)"/', $pmNote, $m)) {
+                                                $pmLabel = $m[1];
+                                            } else {
+                                                $pmLabel = preg_replace('/^Xác nhận thanh toán đợt\s*/u', '', $pmNote);
                                             }
-                                            $pmLabel = $pmLabel ?: 'TT';
+                                            
+                                            // Loại bỏ các đoạn trùng lặp phần trăm hoặc từ thừa
+                                            $pmLabel = preg_replace('/\s*\([\d.]*%\)/', '', $pmLabel);
+                                            $pmLabel = preg_replace('/\s*[\d.]*%\s*$/', '', $pmLabel);
+                                            $pmLabel = trim($pmLabel, '" ');
+                                            
+                                            $pmLabel = $pmLabel ?: 'Thanh toán';
                                         @endphp
-                                        <div class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 inline-block">
-                                            {{ $pmLabel }} {{ $pmPercent }}%
+                                        <div class="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium border border-blue-100 w-full text-center truncate" title="{{ $pmNote }}">
+                                            {{ $pmLabel }} ({{ $pmPercent }}%)
                                         </div>
                                     @endforeach
                                 </div>
@@ -349,15 +360,19 @@
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 {{-- Delivery Progress --}}
                                 @php
-                                    $steps = [
-                                        'pending' => 0,
-                                        'approved' => 1,
-                                        'shipping' => 2,
+                                    $dashStatus = $sale->dashboard_status;
+                                    $step = match($dashStatus) {
                                         'completed' => 3,
+                                        'invoiced', 'shipping' => 2,
+                                        'approved', 'waiting_order', 'ordered', 'in_transit', 'received', 'ready_in_stock', 'invoicing', 'pending_export_approval' => 1,
+                                        'pending', 'pnl_pending', 'pnl_need_revision', 'pnl_rejected' => 0,
                                         'cancelled' => -1,
-                                    ];
-                                    $step = $steps[$sale->status] ?? 0;
-                                    $isCancelled = $sale->status === 'cancelled';
+                                        default => ($sale->status === 'completed' ? 3 : 1),
+                                    };
+                                    if ($sale->status === 'completed') {
+                                        $step = 3;
+                                    }
+                                    $isCancelled = $sale->status === 'cancelled' || $dashStatus === 'cancelled';
                                 @endphp
                                 @if($isCancelled)
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
@@ -365,14 +380,14 @@
                                     </span>
                                 @else
                                     <div class="flex items-center justify-center gap-0.5">
-                                        {{-- Step 1: Duyệt --}}
-                                        <div class="flex flex-col items-center" title="Duyệt">
-                                            <div class="w-3 h-3 rounded-full {{ $step >= 1 ? 'bg-blue-500' : 'bg-gray-300' }}"></div>
+                                        {{-- Step 1: Duyệt / Sẵn sàng --}}
+                                        <div class="flex flex-col items-center" title="Đã duyệt">
+                                            <div class="w-3 h-3 rounded-full {{ $step >= 1 ? ($step >= 3 ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-300' }}"></div>
                                         </div>
-                                        <div class="w-3 h-0.5 {{ $step >= 2 ? 'bg-orange-400' : 'bg-gray-200' }}"></div>
-                                        {{-- Step 2: Giao --}}
+                                        <div class="w-3 h-0.5 {{ $step >= 2 ? ($step >= 3 ? 'bg-green-500' : 'bg-orange-400') : 'bg-gray-200' }}"></div>
+                                        {{-- Step 2: Giao hàng --}}
                                         <div class="flex flex-col items-center" title="Giao hàng">
-                                            <div class="w-3 h-3 rounded-full {{ $step >= 2 ? 'bg-orange-400' : 'bg-gray-300' }} {{ $step === 2 ? 'animate-pulse ring-2 ring-orange-200' : '' }}"></div>
+                                            <div class="w-3 h-3 rounded-full {{ $step >= 2 ? ($step >= 3 ? 'bg-green-500' : 'bg-orange-400') : 'bg-gray-300' }} {{ $step === 2 ? 'animate-pulse ring-2 ring-orange-200' : '' }}"></div>
                                         </div>
                                         <div class="w-3 h-0.5 {{ $step >= 3 ? 'bg-green-500' : 'bg-gray-200' }}"></div>
                                         {{-- Step 3: Hoàn thành --}}
@@ -383,6 +398,15 @@
                                     <div class="text-[10px] mt-1 font-bold {{ $sale->dashboard_status_color }} px-2 py-0.5 rounded-full inline-block">
                                         {{ $sale->dashboard_status_label }}
                                     </div>
+                                    @if(count($sale->pending_action_badges) > 0)
+                                        <div class="mt-1 flex flex-col gap-1 items-center">
+                                            @foreach($sale->pending_action_badges as $badge)
+                                                <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full {{ $badge['color'] }} inline-flex items-center gap-1 shadow-xs">
+                                                    <i class="{{ $badge['icon'] }}"></i>{{ $badge['label'] }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -445,9 +469,16 @@
                             </div>
                             <div class="text-sm text-gray-500">{{ $sale->customer_name }}</div>
                         </div>
-                        <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->status_color }}">
-                            {{ $sale->status_label }}
-                        </span>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->status_color }}">
+                                {{ $sale->status_label }}
+                            </span>
+                            @foreach($sale->pending_action_badges as $badge)
+                                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full {{ $badge['color'] }} inline-flex items-center gap-1">
+                                    <i class="{{ $badge['icon'] }}"></i>{{ $badge['label'] }}
+                                </span>
+                            @endforeach
+                        </div>
                     </div>
                     <div class="space-y-1 text-sm text-gray-600 mb-3">
                         <div><i class="fas fa-tag w-4"></i> {{ $sale->type_label }}</div>

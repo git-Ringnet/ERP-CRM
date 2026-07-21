@@ -275,10 +275,10 @@ function handleVendorTypeChange(row) {
     const isHW = typeSelect.value === 'HW';
 
     if (isFTN && isHW) {
-        // Show CQ checkbox label
+        // Show CQ checkbox label (Ask: Cần cấp CQ riêng?)
         cqLabel.style.display = '';
         
-        // If CQ not checked → hide EU fields (stock item)
+        // If CQ not checked → hide/dim EU fields (Stock / Runrate item without CQ)
         if (!cqCheckbox.checked) {
             euFields.forEach(td => {
                 td.style.opacity = '0.3';
@@ -293,17 +293,16 @@ function handleVendorTypeChange(row) {
             if (mstInput) mstInput.value = '';
             if (addrInput) addrInput.value = '';
         } else {
-            // CQ checked → show EU fields as required
+            // CQ checked → show EU fields
             euFields.forEach(td => {
                 td.style.opacity = '1';
                 const inputs = td.querySelectorAll('input');
                 inputs.forEach(inp => inp.removeAttribute('tabindex'));
             });
-            if (euNameInput) euNameInput.setAttribute('required', 'required');
-            if (mstInput) mstInput.setAttribute('required', 'required');
+            autoFillEuFromGlobal(row);
         }
     } else {
-        // Non-Fortinet or non-HW: hide CQ checkbox label, EU fields required
+        // Non-Fortinet or non-HW: hide CQ checkbox label, show EU fields
         cqLabel.style.display = 'none';
         cqCheckbox.checked = false;
         
@@ -312,15 +311,14 @@ function handleVendorTypeChange(row) {
             const inputs = td.querySelectorAll('input');
             inputs.forEach(inp => inp.removeAttribute('tabindex'));
         });
-        if (euNameInput) euNameInput.setAttribute('required', 'required');
-        if (mstInput) mstInput.setAttribute('required', 'required');
+        autoFillEuFromGlobal(row);
     }
 }
 
 /**
  * Handle CQ checkbox change:
- * - Checked → show EU fields, make EU Name & MST required
- * - Unchecked → dim EU fields, remove required (stock item)
+ * - Checked → show EU fields, fill EU info from global
+ * - Unchecked → dim EU fields & clear (Stock / Runrate item)
  */
 function handleNeedsCqChange(row) {
     const cqCheckbox = row.querySelector('.needs-cq-checkbox');
@@ -335,21 +333,7 @@ function handleNeedsCqChange(row) {
             const inputs = td.querySelectorAll('input');
             inputs.forEach(inp => inp.removeAttribute('tabindex'));
         });
-        if (euNameInput) euNameInput.setAttribute('required', 'required');
-        if (mstInput) mstInput.setAttribute('required', 'required');
-
-        // Auto fill from global inputs if empty and if they exist
-        const globalEuEl = document.getElementById('global_eu_name');
-        const globalMstEl = document.getElementById('global_mst');
-        const globalAddrEl = document.getElementById('global_address');
-
-        const globalEu = globalEuEl ? globalEuEl.value : '';
-        const globalMst = globalMstEl ? globalMstEl.value : '';
-        const globalAddr = globalAddrEl ? globalAddrEl.value : '';
-        
-        if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
-        if (mstInput && !mstInput.value) mstInput.value = globalMst;
-        if (addrInput && !addrInput.value) addrInput.value = globalAddr;
+        autoFillEuFromGlobal(row);
     } else {
         euFields.forEach(td => {
             td.style.opacity = '0.3';
@@ -359,11 +343,29 @@ function handleNeedsCqChange(row) {
                 inp.setAttribute('tabindex', '-1');
             });
         });
-        // Clear EU fields if unchecked
+        // Clear EU fields for stock item
         if (euNameInput) euNameInput.value = '';
         if (mstInput) mstInput.value = '';
         if (addrInput) addrInput.value = '';
     }
+}
+
+function autoFillEuFromGlobal(row) {
+    const euNameInput = row.querySelector('.eu-name-input');
+    const mstInput = row.querySelector('.mst-input');
+    const addrInput = row.querySelector('input[name$="[address]"]');
+
+    const globalEuEl = document.getElementById('global_eu_name');
+    const globalMstEl = document.getElementById('global_mst');
+    const globalAddrEl = document.getElementById('global_address');
+
+    const globalEu = globalEuEl ? globalEuEl.value : '';
+    const globalMst = globalMstEl ? globalMstEl.value : '';
+    const globalAddr = globalAddrEl ? globalAddrEl.value : '';
+
+    if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
+    if (mstInput && !mstInput.value) mstInput.value = globalMst;
+    if (addrInput && !addrInput.value) addrInput.value = globalAddr;
 }
 
 // Initial initialization for existing edit rows on load

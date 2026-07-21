@@ -493,6 +493,13 @@ class SaleController extends Controller
             abort(404);
         }
 
+        // Auto sync database status if completed
+        if ($sale->dashboard_status === 'completed' && $sale->status !== 'completed') {
+            $sale->update(['status' => 'completed']);
+        } elseif ($sale->dashboard_status === 'invoiced' && $sale->status === 'approved') {
+            $sale->update(['status' => 'shipping']);
+        }
+
         $sale->load(['items.product', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();

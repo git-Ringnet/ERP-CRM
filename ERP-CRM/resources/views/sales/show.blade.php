@@ -199,44 +199,13 @@
                     </form>
                 @endif
 
-                @if($sale->status === 'approved')
-                    @php 
-                        $hasOfficialInvoice = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
-                    @endphp
-                    @if($hasOfficialInvoice && $sale->isFullyReceived())
-                        <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                            @csrf @method('PATCH')
-                            <input type="hidden" name="status" value="shipping">
-                            <button type="submit" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded shadow-sm hover:bg-purple-700 transition-all">
-                                <i class="fas fa-truck mr-1"></i> GIAO HÀNG
-                            </button>
-                        </form>
-                    @elseif($hasOfficialInvoice && !$sale->isFullyReceived())
-                        <button type="button" disabled class="px-3 py-1 bg-gray-200 text-gray-400 text-xs font-bold rounded cursor-not-allowed opacity-60" title="Hàng chưa về đủ để giao">
-                            <i class="fas fa-truck mr-1"></i> GIAO HÀNG
-                        </button>
-                        <span class="text-[10px] text-red-600 ml-1 italic"><i class="fas fa-exclamation-triangle"></i> Hàng chưa về đủ</span>
-                    @else
-                        <button type="button" disabled class="px-3 py-1 bg-gray-200 text-gray-400 text-xs font-bold rounded cursor-not-allowed opacity-60" title="Cần có hóa đơn chính thức để giao hàng">
-                            <i class="fas fa-truck mr-1"></i> GIAO HÀNG
-                        </button>
-                        <span class="text-[10px] text-amber-600 ml-1 italic"><i class="fas fa-info-circle"></i> Chờ HĐ chính thức</span>
-                    @endif
-                @endif
-
-                @if($sale->status === 'shipping')
-                    <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
-                        @csrf @method('PATCH')
-                        <input type="hidden" name="status" value="completed">
-                        <button type="submit" class="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded shadow-sm hover:bg-green-700 transition-all">
-                            <i class="fas fa-check-double mr-1"></i> HOÀN THÀNH
-                        </button>
-                    </form>
-                @endif
-
-                @if($sale->status === 'completed')
-                    <span class="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded">
-                        <i class="fas fa-check-circle mr-1"></i> ĐÃ HOÀN TẤT
+                @if(in_array($sale->dashboard_status, ['completed']) || $sale->status === 'completed')
+                    <span class="text-xs text-green-700 font-bold bg-green-100 px-3 py-1.5 rounded-lg border border-green-200 inline-flex items-center gap-1 shadow-2xs">
+                        <i class="fas fa-check-circle"></i> ĐÃ HOÀN TẤT
+                    </span>
+                @elseif(in_array($sale->dashboard_status, ['invoiced', 'shipping']) || $sale->status === 'shipping')
+                    <span class="text-xs text-amber-700 font-bold bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 inline-flex items-center gap-1 shadow-2xs">
+                        <i class="fas fa-truck"></i> ĐÃ XUẤT KHO / GIAO HÀNG
                     </span>
                 @endif
             </div>
@@ -375,12 +344,17 @@
                         <dt class="w-32 text-gray-500 shrink-0">Điều khoản TT:</dt>
                         <dd class="font-medium text-gray-900 break-words whitespace-pre-line">{{ $sale->payment_term ?: '-' }}</dd>
                     </div>
-                    <div class="flex">
-                        <dt class="w-32 text-gray-500">Trạng thái:</dt>
-                        <dd>
+                    <div class="flex items-start">
+                        <dt class="w-32 text-gray-500 shrink-0">Trạng thái:</dt>
+                        <dd class="flex items-center gap-1.5 flex-wrap">
                             <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->status_color }}">
                                 {{ $sale->status_label }}
                             </span>
+                            @foreach($sale->pending_action_badges as $badge)
+                                <span class="px-2 py-0.5 text-xs font-semibold rounded-full {{ $badge['color'] }} inline-flex items-center gap-1">
+                                    <i class="{{ $badge['icon'] }}"></i>{{ $badge['label'] }}
+                                </span>
+                            @endforeach
                         </dd>
                     </div>
                     @if($sale->currency && !$sale->currency->is_base)

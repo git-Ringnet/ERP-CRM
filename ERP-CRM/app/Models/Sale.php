@@ -465,6 +465,39 @@ class Sale extends Model
             return $query;
         }
 
+        if ($status === 'pnl_pending') {
+            return $query->where('status', 'pending')->where('pl_status', 'pending');
+        }
+
+        if ($status === 'so_pending') {
+            return $query->where('status', 'pending')->where(function($q) {
+                $q->where('pl_status', 'approved')->orWhereNull('pl_status')->orWhere('pl_status', '');
+            });
+        }
+
+        if ($status === 'pnl_need_revision') {
+            return $query->where('status', 'pending')->where('pl_status', 'need_revision');
+        }
+
+        if ($status === 'pnl_rejected') {
+            return $query->where('status', 'pending')->where('pl_status', 'rejected');
+        }
+
+        if ($status === 'pending_payment') {
+            return $query->whereHas('paymentSchedules', function($q) {
+                $q->where('status', 'pending_finance');
+            });
+        }
+
+        if ($status === 'pending_export') {
+            return $query->whereIn('id', function($subQuery) {
+                $subQuery->select('reference_id')
+                    ->from('exports')
+                    ->where('reference_type', 'sale')
+                    ->whereIn('status', ['pending', 'pending_admin']);
+            });
+        }
+
         return $query->where('status', $status);
     }
 
@@ -485,22 +518,93 @@ class Sale extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        // Ưu tiên đồng bộ với pl_status khi trạng thái đơn chưa tiến xa
-        if ($this->status === 'pending' && $this->pl_status === 'rejected') {
-            return 'PNL Từ chối';
-        }
-        if ($this->status === 'pending' && $this->pl_status === 'need_revision') {
-            return 'Yêu cầu chỉnh sửa';
+        if ($this->status === 'pending') {
+            if ($this->pl_status === 'rejected') {
+                return 'PL bị từ chối';
+            }
+            if ($this->pl_status === 'need_revision') {
+                return 'Cần sửa PL';
+            }
+            if ($this->pl_status === 'pending') {
+                return 'Chờ duyệt PL';
+            }
+            return 'Chờ duyệt đơn hàng';
         }
 
         return match($this->status) {
-            'pending' => 'Chờ duyệt',
+            'pending' => 'Chờ duyệt đơn hàng',
             'approved' => 'Đã duyệt',
             'shipping' => 'Đang giao',
             'completed' => 'Hoàn thành',
             'cancelled' => 'Đã hủy',
             default => 'Không xác định',
         };
+    }
+
+    /**
+     * Get list of active pending action badges for this sale order
+     */
+    public function getPendingActionBadgesAttribute(): array
+    {
+        $badges = [];
+        $dashStatus = $this->dashboard_status;
+
+        // 1. Pending payment confirmation (Sales uploaded proof, waiting for Finance confirmation)
+        $hasPendingPayment = $this->paymentSchedules()->where('status', 'pending_finance')->exists();
+        if ($hasPendingPayment) {
+            $badges[] = [
+                'type' => 'pending_payment',
+                'label' => 'Chờ xác nhận TT',
+                'color' => 'bg-purple-100 text-purple-800 border border-purple-200',
+                'icon' => 'fas fa-receipt',
+            ];
+        }
+
+        // 2. Pending payment exception approval
+        $hasPendingException = $this->paymentSchedules()->where('status', 'pending_exception')->exists() 
+            || ($this->is_payment_exception && $this->status === 'pending');
+        if ($hasPendingException) {
+            $badges[] = [
+                'type' => 'pending_exception',
+                'label' => 'Chờ duyệt ngoại lệ TT',
+                'color' => 'bg-pink-100 text-pink-800 border border-pink-200',
+                'icon' => 'fas fa-exclamation-circle',
+            ];
+        }
+
+        // 3. Pending warehouse export request approval (Only if primary dashboard status is not already 'pending_export_approval')
+        if ($dashStatus !== 'pending_export_approval') {
+            $pendingExportCount = Export::where('reference_type', 'sale')
+                ->where('reference_id', $this->id)
+                ->whereIn('status', ['pending', 'pending_admin'])
+                ->count();
+            if ($pendingExportCount > 0) {
+                $badges[] = [
+                    'type' => 'pending_export',
+                    'label' => 'Chờ duyệt xuất kho',
+                    'color' => 'bg-orange-100 text-orange-800 border border-orange-200',
+                    'icon' => 'fas fa-boxes',
+                ];
+            }
+        }
+
+        // 4. Pending warehouse export invoice issuance (Only if primary dashboard status is not already 'invoicing')
+        if ($dashStatus !== 'invoicing') {
+            $pendingInvoiceExportCount = Export::where('reference_type', 'sale')
+                ->where('reference_id', $this->id)
+                ->where('status', 'pending_invoice')
+                ->count();
+            if ($pendingInvoiceExportCount > 0) {
+                $badges[] = [
+                    'type' => 'pending_export_invoice',
+                    'label' => 'Chờ KT xuất HĐ',
+                    'color' => 'bg-cyan-100 text-cyan-800 border border-cyan-200',
+                    'icon' => 'fas fa-file-invoice',
+                ];
+            }
+        }
+
+        return $badges;
     }
 
     /**
@@ -558,23 +662,39 @@ class Sale extends Model
     }
 
     /**
-     * Check if all items in all order requests are fully received
+     * Check if all items in all order requests / linked POs are fully received
      */
     public function isFullyReceived(): bool
     {
-        // If no order requests, we assume it's fully ready (from procurement perspective)
-        if ($this->orderRequests->count() === 0) {
+        $associatedPos = $this->all_purchase_orders;
+
+        // 1. If linked POs exist and ALL active (non-cancelled) POs are received or completed -> fully received
+        if ($associatedPos->isNotEmpty()) {
+            $activePos = $associatedPos->filter(fn($po) => $po->status !== 'cancelled');
+            if ($activePos->isNotEmpty() && $activePos->every(fn($po) => in_array($po->status, ['received', 'completed']))) {
+                return true;
+            }
+        }
+
+        // 2. If no order requests and no POs, we assume it's ready
+        if ($this->orderRequests->count() === 0 && $associatedPos->isEmpty()) {
             return true;
         }
 
-        foreach ($this->orderRequests as $request) {
-            foreach ($request->items as $item) {
-                if ($item->received_quantity_total < $item->quantity) {
-                    return false;
+        // 3. Check each order request item
+        if ($this->orderRequests->count() > 0) {
+            foreach ($this->orderRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->is_cancelled) continue;
+                    if ($item->received_quantity_total < $item->quantity) {
+                        return false;
+                    }
                 }
             }
+            return true;
         }
-        return true;
+
+        return false;
     }
 
     /**
@@ -602,75 +722,106 @@ class Sale extends Model
     }
 
     /**
-     * Get dashboard status based on Sale + linked PO status
-     * Chờ đặt → Đã đặt → Đang về/Hold → Đã về → Xuất hóa đơn → Hoàn thành
+     * Get dashboard status based on Sale + linked PO status + export/invoice status
+     * Phù hợp cho cả Đơn hàng bán sẵn kho và Đơn hàng phải đặt thêm (PO/PR)
      */
     public function getDashboardStatusAttribute(): string
     {
         // 1. Cancelled
         if ($this->status === 'cancelled') return 'cancelled';
 
-        // 2. PNL Rejected → luôn hiển thị "PNL Từ chối" bất kể status
-        if ($this->pl_status === 'rejected') {
-            return 'pnl_rejected';
-        }
+        // 2. PNL Status
+        if ($this->pl_status === 'rejected') return 'pnl_rejected';
+        if ($this->pl_status === 'need_revision') return 'pnl_need_revision';
 
-        // 2b. PNL Need Revision → hiển thị "Yêu cầu chỉnh sửa"
-        if ($this->pl_status === 'need_revision') {
-            return 'pnl_need_revision';
-        }
-
-        // 3. Pending (bao gồm cả khi PNL đang chờ duyệt)
+        // 3. Pending Main Approval
         if ($this->status === 'pending') {
-            // PNL đang chờ duyệt → hiển thị trạng thái riêng
             if ($this->pl_status === 'pending') {
                 return 'pnl_pending';
             }
             return 'pending';
         }
 
-        // 4. Completed
-        if ($this->status === 'completed') return 'completed';
+        // Check completion criteria:
+        // Has completed export voucher (Phiếu xuất kho completed)
+        $hasCompletedExport = Export::where('reference_type', 'sale')
+            ->where('reference_id', $this->id)
+            ->where('status', 'completed')
+            ->exists();
 
-        // 5. Xuất hóa đơn (shipping to customer)
-        if ($this->status === 'shipping') return 'invoiced';
+        // Has official invoice issued or invoice date set
+        $hasOfficialInvoice = !empty($this->invoice_date) || 
+            $this->invoiceRequests()->whereIn('status', ['official_issued', 'approved'])->exists();
 
-        // 6. Check linked PO status
-        $associatedPos = $this->all_purchase_orders;
-        
-        if ($associatedPos->isEmpty()) {
-            return 'waiting_order'; // Chờ đặt
+        // Has 100% payment completed
+        $isFullyPaid = $this->payment_status === 'paid' || ($this->total > 0 && $this->paid_amount >= $this->total);
+
+        // 4. Completed (Status is explicitly 'completed' OR all 3 conditions: Paid + Invoice Issued + Warehouse Export Completed)
+        if ($this->status === 'completed' || ($isFullyPaid && $hasOfficialInvoice && $hasCompletedExport)) {
+            return 'completed';
         }
 
-        // 5. Check if any PO is on hold
+        // 5. Shipping / Invoiced (Status is 'shipping', or export completed, or invoice issued)
+        if ($this->status === 'shipping' || $hasCompletedExport || ($hasOfficialInvoice && $isFullyPaid)) {
+            return 'invoiced';
+        }
+
+        // 6. Check Active Export Requests
+        $pendingAdminExport = Export::where('reference_type', 'sale')
+            ->where('reference_id', $this->id)
+            ->whereIn('status', ['pending', 'pending_admin'])
+            ->exists();
+        if ($pendingAdminExport) {
+            return 'pending_export_approval';
+        }
+
+        $pendingInvoiceExport = Export::where('reference_type', 'sale')
+            ->where('reference_id', $this->id)
+            ->where('status', 'pending_invoice')
+            ->exists();
+        if ($pendingInvoiceExport) {
+            return 'invoicing';
+        }
+
+        // 7. Check Procurement Stage (POs & Order Requests)
+        $associatedPos = $this->all_purchase_orders;
+        $hasOrderRequests = $this->orderRequests()->exists();
+
+        // If no POs and no Order Requests -> In-Stock Order (Hàng có sẵn trong kho, không cần đặt hàng)
+        if ($associatedPos->isEmpty() && !$hasOrderRequests) {
+            return 'ready_in_stock';
+        }
+
+        // If has Order Requests but no POs created yet -> Waiting to place order
+        if ($associatedPos->isEmpty()) {
+            return 'waiting_order';
+        }
+
+        // Check if any PO is on hold
         if ($associatedPos->contains('is_hold', true)) {
             return 'hold';
         }
 
-        // 6. Determine overall procurement status
-        // A sale is 'received' only if ALL items in all requests are fully received
+        // Determine overall procurement status
         if ($this->isFullyReceived()) {
             $status = 'received';
             
-            // 7. Check Invoice Request (Overwrites 'received' if request exists)
             $latestInvoice = $this->invoiceRequests()->latest()->first();
-            if ($latestInvoice) {
+            if ($latestInvoice && in_array($latestInvoice->status, ['pending', 'draft_issued', 'draft']) && empty($this->invoice_date)) {
                 $status = 'invoicing';
             }
             return $status;
         }
 
         // If not fully received, determine if it's 'ordered' or 'in_transit'
-        // 'in_transit' if any PO is shipping or partial_received or received (but SO is not fully received)
         $hasInTransit = $associatedPos->contains(function($po) {
-            return in_array($po->status, ['shipping', 'partial_received', 'received']);
+            return in_array($po->status, ['shipping', 'partial_received']);
         });
 
         if ($hasInTransit) {
             return 'in_transit';
         }
 
-        // If all POs are just approved/draft/pending, it's 'ordered'
         return 'ordered';
     }
 
@@ -680,16 +831,18 @@ class Sale extends Model
     public function getDashboardStatusLabelAttribute(): string
     {
         return match($this->dashboard_status) {
-            'pending' => 'Chờ duyệt',
-            'pnl_pending' => 'Chờ duyệt PNL',
-            'pnl_rejected' => 'PNL Từ chối',
-            'pnl_need_revision' => 'Yêu cầu chỉnh sửa',
-            'waiting_order' => 'Đã duyệt',
+            'pending' => 'Chờ duyệt đơn hàng',
+            'pnl_pending' => 'Chờ duyệt PL',
+            'pnl_rejected' => 'PL bị từ chối',
+            'pnl_need_revision' => 'Cần sửa PL',
+            'ready_in_stock' => 'Hàng sẵn kho',
+            'waiting_order' => 'Chờ đặt hàng',
             'ordered' => 'Đã đặt hàng',
             'in_transit' => 'Chờ hàng về',
             'hold' => 'Hold',
-            'received' => 'Hàng về',
-            'invoicing' => 'Hóa đơn',
+            'received' => 'Hàng đã về',
+            'pending_export_approval' => 'Chờ duyệt xuất kho',
+            'invoicing' => 'Chờ KT xuất HĐ',
             'invoiced' => 'Giao hàng',
             'completed' => 'Hoàn thành',
             'cancelled' => 'Đã hủy',
@@ -707,11 +860,13 @@ class Sale extends Model
             'pnl_pending' => 'bg-orange-100 text-orange-800',
             'pnl_rejected' => 'bg-red-100 text-red-800',
             'pnl_need_revision' => 'bg-amber-100 text-amber-800',
-            'waiting_order' => 'bg-blue-100 text-blue-800',
+            'ready_in_stock' => 'bg-blue-100 text-blue-800',
+            'waiting_order' => 'bg-indigo-100 text-indigo-800',
             'ordered' => 'bg-indigo-100 text-indigo-800',
             'in_transit' => 'bg-purple-100 text-purple-800',
             'hold' => 'bg-orange-100 text-orange-800',
             'received' => 'bg-emerald-100 text-emerald-800',
+            'pending_export_approval' => 'bg-orange-100 text-orange-800',
             'invoicing' => 'bg-cyan-100 text-cyan-800',
             'invoiced' => 'bg-amber-100 text-amber-800',
             'completed' => 'bg-green-100 text-green-800',
@@ -721,7 +876,7 @@ class Sale extends Model
     }
 
     /**
-     * Get dashboard step index (0 to 6)
+     * Get dashboard step index (0 to 7)
      */
     public function getDashboardStepAttribute(): int
     {
@@ -730,14 +885,16 @@ class Sale extends Model
             'pnl_pending' => 0,
             'pnl_rejected' => 0,
             'pnl_need_revision' => 0,
+            'ready_in_stock' => 1,
             'waiting_order' => 1,
             'ordered' => 2,
             'in_transit' => 3,
             'received' => 4,
+            'pending_export_approval' => 4,
             'invoicing' => 5,
             'invoiced' => 6,
             'completed' => 7,
-            'hold' => 3, // Treat hold as transit step
+            'hold' => 3,
             'cancelled' => -1,
             default => 0,
         };

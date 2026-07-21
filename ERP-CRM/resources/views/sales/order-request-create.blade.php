@@ -495,17 +495,15 @@
             const isHW = typeSelect && typeSelect.value === 'HW';
             const cqCheckbox = row.querySelector('.needs-cq-checkbox');
             
-            // Determine if this is a Fortinet HW row with unchecked CQ
+            // Fortinet HW with unchecked CQ = Stock / Runrate item without CQ
             const isFtnHwNoCq = isFTN && isHW && cqCheckbox && !cqCheckbox.checked;
             
-            // SI and POS are always synced
             const siInput = row.querySelector('input[name$="[si_name]"]');
             if (siInput) siInput.value = si;
             
             const posInput = row.querySelector('input[name$="[pos_id]"]');
             if (posInput) posInput.value = pos;
             
-            // EU name, MST, and Address are only synced if NOT Fortinet HW with unchecked CQ
             const euInput = row.querySelector('.eu-name-input');
             const mstInput = row.querySelector('.mst-input');
             const addrInput = row.querySelector('input[name$="[address]"]');
@@ -723,91 +721,47 @@
         const isHW = typeSelect.value === 'HW';
 
         if (isFTN && isHW) {
-            // Show CQ checkbox label
+            // Show CQ checkbox label (so user can check CQ if needed for HW)
             cqLabel.style.display = '';
-            
-            // If CQ not checked → hide EU fields (stock item)
-            if (!cqCheckbox.checked) {
-                euFields.forEach(td => {
-                    td.style.opacity = '0.3';
-                    const inputs = td.querySelectorAll('input');
-                    inputs.forEach(inp => {
-                        inp.removeAttribute('required');
-                        inp.setAttribute('tabindex', '-1');
-                    });
-                });
-                // Clear EU fields for stock item
-                if (euNameInput) euNameInput.value = '';
-                if (mstInput) mstInput.value = '';
-                if (addrInput) addrInput.value = '';
-            } else {
-                // CQ checked → show EU fields as required
-                euFields.forEach(td => {
-                    td.style.opacity = '1';
-                    const inputs = td.querySelectorAll('input');
-                    inputs.forEach(inp => inp.removeAttribute('tabindex'));
-                });
-                if (euNameInput) euNameInput.setAttribute('required', 'required');
-                if (mstInput) mstInput.setAttribute('required', 'required');
-            }
         } else {
-            // Non-Fortinet or non-HW: hide CQ checkbox label, EU fields required
+            // Non-Fortinet or non-HW: hide CQ checkbox label
             cqLabel.style.display = 'none';
             cqCheckbox.checked = false;
-            
-            euFields.forEach(td => {
-                td.style.opacity = '1';
-                const inputs = td.querySelectorAll('input');
-                inputs.forEach(inp => inp.removeAttribute('tabindex'));
-            });
-            if (euNameInput) euNameInput.setAttribute('required', 'required');
-            if (mstInput) mstInput.setAttribute('required', 'required');
         }
+
+        // EU fields ALWAYS stay visible & active for all items
+        euFields.forEach(td => {
+            td.style.opacity = '1';
+            const inputs = td.querySelectorAll('input');
+            inputs.forEach(inp => inp.removeAttribute('tabindex'));
+        });
     }
 
     /**
      * Handle CQ checkbox change:
-     * - Checked → show EU fields, make EU Name & MST required
-     * - Unchecked → dim EU fields, remove required (stock item)
+     * - EU fields always stay visible & active, auto-filled from global EU info
      */
     function handleNeedsCqChange(row) {
-        const cqCheckbox = row.querySelector('.needs-cq-checkbox');
         const euFields = row.querySelectorAll('.eu-field');
         const euNameInput = row.querySelector('.eu-name-input');
         const mstInput = row.querySelector('.mst-input');
         const addrInput = row.querySelector('input[name$="[address]"]');
 
-        if (cqCheckbox.checked) {
-            euFields.forEach(td => {
-                td.style.opacity = '1';
-                const inputs = td.querySelectorAll('input');
-                inputs.forEach(inp => inp.removeAttribute('tabindex'));
-            });
-            if (euNameInput) euNameInput.setAttribute('required', 'required');
-            if (mstInput) mstInput.setAttribute('required', 'required');
+        // EU fields ALWAYS stay visible & active
+        euFields.forEach(td => {
+            td.style.opacity = '1';
+            const inputs = td.querySelectorAll('input');
+            inputs.forEach(inp => inp.removeAttribute('tabindex'));
+        });
 
-            // Auto fill from global inputs if empty
-            const globalEu = document.getElementById('global_eu_name') ? document.getElementById('global_eu_name').value : '';
-            const globalMst = document.getElementById('global_mst') ? document.getElementById('global_mst').value : '';
-            const globalAddr = document.getElementById('global_address') ? document.getElementById('global_address').value : '';
-            
-            if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
-            if (mstInput && !mstInput.value) mstInput.value = globalMst;
-            if (addrInput && !addrInput.value) addrInput.value = globalAddr;
-        } else {
-            euFields.forEach(td => {
-                td.style.opacity = '0.3';
-                const inputs = td.querySelectorAll('input');
-                inputs.forEach(inp => {
-                    inp.removeAttribute('required');
-                    inp.setAttribute('tabindex', '-1');
-                });
-            });
-            // Clear EU fields if unchecked
-            if (euNameInput) euNameInput.value = '';
-            if (mstInput) mstInput.value = '';
-            if (addrInput) addrInput.value = '';
-        }
+        // Auto fill from global inputs if empty
+        const globalEu = document.getElementById('global_eu_name') ? document.getElementById('global_eu_name').value : '';
+        const globalMst = document.getElementById('global_mst') ? document.getElementById('global_mst').value : '';
+        const globalAddr = document.getElementById('global_address') ? document.getElementById('global_address').value : '';
+        
+        if (euNameInput && !euNameInput.value) euNameInput.value = globalEu;
+        if (mstInput && !mstInput.value) mstInput.value = globalMst;
+        if (addrInput && !addrInput.value) addrInput.value = globalAddr;
     }
 
     // === Double-Enter to submit with confirmation modal ===
