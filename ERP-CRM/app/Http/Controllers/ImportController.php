@@ -378,9 +378,9 @@ class ImportController extends Controller
             }
 
             return response()->json([
-                'success' => false,
+                'success' => true,
                 'message' => 'Phiếu nhập kho này đã được duyệt hoàn tất trước đó. Tất cả sản phẩm đã được nhập vào kho.'
-            ], 400);
+            ]);
         }
 
         DB::beginTransaction();

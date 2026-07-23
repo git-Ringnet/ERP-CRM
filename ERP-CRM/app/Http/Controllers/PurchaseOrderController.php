@@ -531,6 +531,9 @@ class PurchaseOrderController extends Controller
                 }
 
                 $item->received_quantity += $receivingQty;
+                if ($item->received_quantity >= $item->quantity) {
+                    $item->status = 'received';
+                }
                 $item->save();
                 
                 // Không cập nhật trực tiếp received_quantity trên PR Item nữa
@@ -612,6 +615,7 @@ class PurchaseOrderController extends Controller
                 if ($item->remaining_quantity > 0) {
                     $receivedItemData[$item->id] = $item->remaining_quantity;
                     $item->received_quantity += $item->remaining_quantity;
+                    $item->status = 'received';
                     $item->save();
                 }
             }
@@ -1344,8 +1348,6 @@ class PurchaseOrderController extends Controller
                     'note' => "Tự động tạo từ đơn mua hàng " . $po->code,
                     'total_qty' => 0,
                 ]);
-            } elseif ($import->status === 'completed') {
-                $import->update(['status' => 'pending']);
             }
 
             // 3. Thêm/Cập nhật item vào phiếu nhập kho
@@ -1394,12 +1396,15 @@ class PurchaseOrderController extends Controller
                 ]);
             }
 
-            // 4. Cập nhật lại tổng số lượng và kho nhập chính của phiếu nhập
+            // 4. Cập nhật lại tổng số lượng, kho nhập chính và trạng thái của phiếu nhập
             $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
             $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            $hasUnprocessed = $import->items()->whereNull('processed_at')->exists();
+
             $import->update([
                 'warehouse_id' => $mainImportWarehouseId ?? $import->warehouse_id,
-                'total_qty' => $import->items()->sum('quantity')
+                'total_qty' => $import->items()->sum('quantity'),
+                'status' => $hasUnprocessed ? 'pending' : 'completed',
             ]);
 
         } catch (\Exception $e) {

@@ -105,7 +105,7 @@
                     </form>
                 @endif
 
-                @if($hasShippingItems)
+                @if($hasShippingItems && in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
                     <form action="{{ route('purchase-orders.confirm-received', $purchaseOrder) }}" method="POST" class="inline" id="confirm-received-form">
                         @csrf
                         <button type="submit" onclick="return confirm('Xác nhận nhận hàng cho tất cả sản phẩm đang ở trạng thái Đang về?')"
@@ -1300,7 +1300,7 @@
                 @endif
             @endif
 
-            @if($hasShippingItems)
+            @if($hasShippingItems && in_array($purchaseOrder->status, ['approved', 'shipping', 'partial_received']))
                 <button type="button" onclick="document.getElementById('confirm-received-form')?.querySelector('button[type=submit]')?.click()"
                     class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-xs transition-all">
                     <i class="fas fa-box-open mr-1"></i>Nhận hàng

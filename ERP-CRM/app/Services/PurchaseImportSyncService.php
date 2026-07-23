@@ -203,9 +203,6 @@ class PurchaseImportSyncService
                     'note' => "Nhập hàng từ đơn mua hàng {$purchaseOrder->code}",
                     'status' => 'pending',
                 ]);
-            } else {
-                // Nếu đã có phiếu nhập, chuyển về pending để có thể duyệt đợt mới
-                $import->update(['status' => 'pending']);
             }
 
             $batchQty = 0;
@@ -243,9 +240,12 @@ class PurchaseImportSyncService
 
             $importItemsWarehouseIds = $import->items()->pluck('warehouse_id')->filter()->unique();
             $mainImportWarehouseId = $importItemsWarehouseIds->count() === 1 ? $importItemsWarehouseIds->first() : null;
+            $hasUnprocessed = $import->items()->whereNull('processed_at')->exists();
+
             $import->update([
                 'warehouse_id' => $mainImportWarehouseId ?? $warehouseId,
-                'total_qty' => $import->items()->sum('quantity')
+                'total_qty' => $import->items()->sum('quantity'),
+                'status' => $hasUnprocessed ? ($autoComplete ? 'completed' : 'pending') : 'completed',
             ]);
 
             if ($autoComplete) {
