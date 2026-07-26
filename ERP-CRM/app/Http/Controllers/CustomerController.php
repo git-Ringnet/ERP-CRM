@@ -83,7 +83,7 @@ class CustomerController extends Controller
         }
 
         $query = Customer::query()
-            ->select(['id', 'name'])
+            ->select(['id', 'name', 'tax_code', 'phone', 'email'])
             ->when(!empty($excludeIds), fn ($qb) => $qb->whereNotIn('id', $excludeIds));
 
         if ($q !== '') {

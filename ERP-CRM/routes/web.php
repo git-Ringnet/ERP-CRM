@@ -291,6 +291,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/export/excel', [ProjectController::class, 'export'])->name('projects.export');
     Route::get('/ajax/projects', [ProjectController::class, 'getList'])->name('projects.list');
     Route::get('/ajax/projects/check-tax-code', [ProjectController::class, 'checkTaxCode'])->name('projects.check-tax-code');
+    Route::get('/ajax/projects/check-duplicate', [ProjectController::class, 'checkDuplicate'])->name('projects.check-duplicate');
+    Route::post('/projects/{project}/process-intake', [ProjectController::class, 'processIntake'])->name('projects.process-intake');
+    Route::post('/projects/{project}/add-note', [ProjectController::class, 'addNote'])->name('projects.add-note');
+    Route::post('/projects/{project}/remind-vendor', [ProjectController::class, 'remindVendor'])->name('projects.remind-vendor');
+    Route::post('/projects/{project}/submit-vendor-quote', [ProjectController::class, 'submitVendorQuote'])->name('projects.submit-vendor-quote');
+    Route::post('/projects/{project}/complete-registration', [ProjectController::class, 'completeRegistration'])->name('projects.complete-registration');
+    Route::post('/projects/{project}/update-status-monthly', [ProjectController::class, 'updateProjectStatus'])->name('projects.update-status-monthly');
+    Route::post('/projects/{project}/close', [ProjectController::class, 'closeProject'])->name('projects.close');
+    Route::post('/projects/{project}/restore', [ProjectController::class, 'restoreProject'])->name('projects.restore');
+    Route::get('/projects/{project}/export-vendor-excel', [ProjectController::class, 'exportVendorExcel'])->name('projects.export-vendor-excel');
     Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
     Route::resource('projects', ProjectController::class);
 

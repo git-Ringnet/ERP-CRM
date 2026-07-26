@@ -22,8 +22,10 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Vendor -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
-                                <select name="vendor_id"
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Vendor <span class="text-red-500">*</span>
+                                </label>
+                                <select name="vendor_id" required
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn Vendor --</option>
                                     @foreach($suppliers as $supplier)
@@ -33,15 +35,17 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <!-- Distributor (Read-only) -->
+                            <!-- Distributor -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Distributor</label>
-                                <input type="text" value="Tech Horizon Corporation" disabled
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed">
+                                <input type="text" name="distributor" value="{{ old('distributor', 'Tech Horizon Corporation') }}"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
                             <!-- Distributor AM (Auto from login) -->
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Distributor AM</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Distributor AM <span class="text-red-500">*</span>
+                                </label>
                                 <input type="text" name="distributor_am" value="{{ old('distributor_am', $distributorAm) }}" readonly
                                     class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed">
                             </div>
@@ -57,7 +61,7 @@
                             <!-- EU Vietnamese name -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tên tiếng Việt <span class="text-red-500">*</span>
+                                    End-user (Vietnamese name) <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="eu_name_vi" value="{{ old('eu_name_vi', $preFill['eu_name_vi'] ?? '') }}" required
                                     placeholder="Tên tiếng Việt của khách hàng"
@@ -67,24 +71,17 @@
                             <!-- EU English name -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tên tiếng Anh <span class="text-red-500">*</span>
+                                    End-user (English name) <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="eu_name_en" value="{{ old('eu_name_en', $preFill['eu_name_en'] ?? '') }}" required
                                     placeholder="English name"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_name_en') border-red-500 @enderror">
                                 @error('eu_name_en') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
-                            <!-- EU Abbreviated name -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tên viết tắt</label>
-                                <input type="text" name="eu_name_abbr" value="{{ old('eu_name_abbr', $preFill['eu_name_abbr'] ?? '') }}"
-                                    placeholder="VD: FPT, VNG..."
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
                             <!-- Website/Tax Code -->
-                            <div>
+                            <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    MST / Website <span class="text-red-500">*</span>
+                                    Website/Tax Code <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="eu_tax_code" id="eu_tax_code" value="{{ old('eu_tax_code', $preFill['eu_tax_code'] ?? '') }}" required
                                     placeholder="Mã số thuế hoặc website"
@@ -105,30 +102,19 @@
                             <!-- Address -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Địa chỉ <span class="text-red-500">*</span>
+                                    Address
                                 </label>
-                                <input type="text" name="address" value="{{ old('address', $preFill['address'] ?? '') }}" required
+                                <input type="text" name="address" value="{{ old('address', $preFill['address'] ?? '') }}"
                                     placeholder="Địa chỉ End-User"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('address') border-red-500 @enderror">
                                 @error('address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
-                            <!-- Province -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tỉnh / Thành phố <span class="text-red-500">*</span>
-                                </label>
-                                <select name="eu_province" id="eu_province" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_province') border-red-500 @enderror">
-                                    <option value="">-- Đang tải danh sách... --</option>
-                                </select>
-                                @error('eu_province') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                            </div>
                             <!-- Industry -->
-                            <div>
+                            <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Ngành nghề <span class="text-red-500">*</span>
+                                    Industry
                                 </label>
-                                <select name="eu_industry" id="eu_industry" required
+                                <select name="eu_industry" id="eu_industry"
                                     onchange="toggleIndustryOther()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('eu_industry') border-red-500 @enderror">
                                     <option value="">-- Chọn ngành nghề --</option>
@@ -140,7 +126,7 @@
 
                                 <div id="eu_industry_other_container" class="mt-2 {{ old('eu_industry') == 'other' ? '' : 'hidden' }}">
                                     <label class="block text-xs font-medium text-gray-500 mb-1">
-                                        Nhập ngành nghề khác <span class="text-red-500">*</span>
+                                        Nhập ngành nghề khác
                                     </label>
                                     <input type="text" name="eu_industry_other" id="eu_industry_other"
                                         value="{{ old('eu_industry_other') }}"
@@ -161,14 +147,14 @@
                             <!-- Collaborate Type -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Loại hợp tác <span class="text-red-500">*</span>
+                                    Collaborate <span class="text-red-500">*</span>
                                 </label>
                                 <select name="collaborate_type" id="collaborate_type" required
                                     onchange="toggleCollaborateType()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn loại hợp tác --</option>
                                     <option value="partner" {{ old('collaborate_type') == 'partner' ? 'selected' : '' }}>Partner</option>
-                                    <option value="end_user" {{ old('collaborate_type') == 'end_user' ? 'selected' : '' }}>End-user</option>
+                                    <option value="end_user" {{ old('collaborate_type') == 'end_user' ? 'selected' : '' }}>EU</option>
                                 </select>
                             </div>
 
@@ -291,10 +277,9 @@
                                     <div class="flex items-start gap-3">
                                         <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
                                         <div>
-                                            <p class="text-sm font-medium text-blue-800">Chế độ End-user (trực tiếp)</p>
+                                            <p class="text-sm font-medium text-blue-800">Chế độ EU (Sao chép thông tin End-user)</p>
                                             <p class="text-xs text-blue-600 mt-1">
-                                                Thông tin End-User ở Section B sẽ được sử dụng làm đối tác hợp tác.
-                                                Thông tin EU chỉ lưu trên dự án, không tạo vào database khách hàng.
+                                                Thông tin End-User ở Section B sẽ được tự động sao chép làm đối tác hợp tác. Vui lòng điền thêm người liên lạc chính (PIC) bên dưới.
                                             </p>
                                         </div>
                                     </div>
@@ -304,7 +289,7 @@
                             <!-- Partner fields (hidden when type=end_user) -->
                             <div id="collab_company_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tên công ty <span class="text-red-500">*</span>
+                                    Company name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_company" id="collaborate_company"
                                     value="{{ old('collaborate_company') }}"
@@ -334,7 +319,7 @@
                             </div>
                             <div id="collab_pic_name_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tên người liên hệ (PIC) <span class="text-red-500">*</span>
+                                    PIC Name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_name" id="collaborate_pic_name"
                                     value="{{ old('collaborate_pic_name') }}"
@@ -344,7 +329,7 @@
                             </div>
                             <div id="collab_pic_title_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Chức danh(PIC) <span class="text-red-500">*</span>
+                                    PIC Job Title <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_title" id="collaborate_pic_title"
                                     value="{{ old('collaborate_pic_title') }}"
@@ -354,7 +339,7 @@
                             </div>
                             <div id="collab_pic_phone_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Số điện thoại PIC <span class="text-red-500">*</span>
+                                    PIC Phone
                                 </label>
                                 <input type="text" name="collaborate_pic_phone" id="collaborate_pic_phone"
                                     value="{{ old('collaborate_pic_phone') }}"
@@ -363,8 +348,10 @@
                                 @error('collaborate_pic_phone') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_email_wrap" class="hidden">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email PIC</label>
-                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email"
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    PIC Email <span class="text-red-500">*</span>
+                                </label>
+                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email" required
                                     value="{{ old('collaborate_pic_email') }}"
                                     placeholder="pic@company.com"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
@@ -378,146 +365,148 @@
                             <i class="fas fa-project-diagram mr-2 text-orange-600"></i>Project Information
                         </h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Mã dự án -->
-                            <div>
+                            <!-- Hidden Mã dự án -->
+                            <input type="hidden" name="code" value="{{ old('code', $code) }}">
+
+                            <!-- Project Name -->
+                            <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Mã dự án <span class="text-red-500">*</span>
+                                    Project Name <span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" name="code" value="{{ old('code', $code) }}" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('code') border-red-500 @enderror">
-                                @error('code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                            </div>
-                            <!-- Project name -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Tên dự án <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" name="name" value="{{ old('name', $preFill['name'] ?? '') }}" required
-                                    placeholder="Tên dự án"
+                                <input type="text" name="name" id="name" value="{{ old('name', $preFill['name'] ?? '') }}" required
+                                    placeholder="Nhập tên dự án..."
+                                    onblur="checkDuplicateProject()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('name') border-red-500 @enderror">
                                 @error('name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
-                            <!-- BOM -->
+
+                            <!-- Real-time Duplicate Alert Box -->
+                            <div id="duplicate_project_warning" class="hidden md:col-span-2 bg-red-50 border border-red-300 rounded-lg p-4">
+                                <div class="flex items-start gap-3">
+                                    <i class="fas fa-exclamation-triangle text-red-500 text-lg mt-0.5"></i>
+                                    <div>
+                                        <h4 class="font-bold text-red-800 text-sm">CẢNH BÁO TRÙNG DỰ ÁN!</h4>
+                                        <p class="text-xs text-red-700 mt-1" id="duplicate_project_msg"></p>
+                                        <div id="duplicate_same_sales_actions" class="hidden mt-2">
+                                            <p class="text-xs font-semibold text-red-800">Bạn đã đăng ký dự án này trước đó. Vui lòng cập nhật dự án cũ thay vì tạo dự án mới!</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- BOM / YCKT Upload -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    BOM (Bill of Materials) <span class="text-red-500">*</span>
+                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT) <span class="text-red-500">*</span>
                                 </label>
                                 <div class="space-y-2">
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                    <p class="text-xs text-gray-500">Upload các file BOM (xlsx, pdf, doc) hoặc nhập danh sách bên dưới</p>
-                                    <textarea name="bom_data" rows="3" placeholder="Nhập danh sách BOM nếu không upload file..."
+                                    <p class="text-xs text-gray-500">Đính kèm file BOM hoặc YCKT từ khách hàng nếu chưa có BOM (lúc này Hãng sẽ là người cung cấp BOM)</p>
+                                    <textarea name="bom_data" rows="2" placeholder="Hoặc nhập danh sách sản phẩm / Part Numbers..."
                                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('bom_data') }}</textarea>
                                 </div>
                             </div>
-                            <!-- Deal Type -->
+
+                            <!-- Deal Type (Fortinet Dealreg Only) -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Deal Type</label>
-                                <select name="deal_type"
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Deal Type (Fortinet Dealreg Only)
+                                </label>
+                                <select name="deal_type" id="deal_type_select" onchange="toggleFortinetSN()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                                    <option value="">-- Chọn --</option>
-                                    <option value="new_buy" {{ old('deal_type') == 'new_buy' ? 'selected' : '' }}>New Buy</option>
-                                    <option value="trade_up" {{ old('deal_type') == 'trade_up' ? 'selected' : '' }}>Trade Up</option>
+                                    <option value="">-- Chọn loại Deal --</option>
+                                    <option value="new_buy" {{ old('deal_type') == 'new_buy' ? 'selected' : '' }}>Newbuy (Mua mới)</option>
+                                    <option value="trade_up" {{ old('deal_type') == 'trade_up' ? 'selected' : '' }}>Trade up (Nâng cấp / Đổi thiết bị cũ)</option>
                                 </select>
                             </div>
-                            <!-- Net to Tech Horizon -->
+
+                            <!-- Note (Fortinet Dealreg Only) when Trade up selected -->
+                            <div id="sn_numbers_container" class="hidden md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Note (Fortinet Dealreg Only) <span class="text-red-500">*</span>
+                                </label>
+                                <textarea name="sn_numbers" rows="2" placeholder="Nếu chọn Trade up thì cần nhập số S/N vào đây..."
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('sn_numbers') }}</textarea>
+                                <p class="text-xs text-gray-500 mt-1">Bắt buộc nhập số S/N khi chọn Trade up Fortinet</p>
+                            </div>
+
+                            <!-- Yêu cầu thêm (Special Request) -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Net to Tech Horizon</label>
-                                <div class="relative">
-                                    <input type="text" id="net_display" oninput="formatCurrency(this, 'net_to_tech_horizon')"
-                                        value="{{ old('net_to_tech_horizon') ? number_format(old('net_to_tech_horizon')) : '' }}"
-                                        placeholder="0"
-                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary pr-12">
-                                    <span class="absolute right-3 top-2 text-gray-400 text-xs">VNĐ</span>
-                                </div>
-                                <input type="hidden" name="net_to_tech_horizon" id="net_to_tech_horizon" value="{{ old('net_to_tech_horizon', 0) }}">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Yêu cầu thêm</label>
+                                <select name="special_request_type" id="special_request_type" onchange="toggleSpecialRequestNote()"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">-- Không có yêu cầu thêm --</option>
+                                    <option value="bom_project" {{ old('special_request_type') == 'bom_project' ? 'selected' : '' }}>Bom dự án (Nhờ Hãng tạo BOM)</option>
+                                    <option value="urgent_price" {{ old('special_request_type') == 'urgent_price' ? 'selected' : '' }}>Cần giá gấp</option>
+                                </select>
                             </div>
-                            <!-- Description -->
+
+                            <!-- Note bắt buộc cho Yêu cầu thêm -->
+                            <div id="special_request_note_container" class="hidden md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Ghi chú yêu cầu thêm <span class="text-red-500">*</span>
+                                </label>
+                                <textarea name="special_request_note" rows="2" placeholder="Nhập lý do / nội dung diễn giải cho yêu cầu thêm..."
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('special_request_note') }}</textarea>
+                            </div>
+
+                            <!-- Ghi chú dự án (General Note) -->
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả / Diễn giải</label>
-                                <textarea name="description" rows="3" placeholder="Mô tả chi tiết về dự án..."
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('description', $preFill['description'] ?? '') }}</textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Note <span class="text-red-500">*</span>
+                                </label>
+                                <textarea name="note" rows="3" required placeholder="Nhập ghi chú chi tiết cho dự án..."
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note') }}</textarea>
+                                @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
-                            <!-- Note -->
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                                <textarea name="note" rows="2" placeholder="S/N: ..."
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('note') }}</textarea>
-                            </div>
+
+                            <!-- Removed Net to Tech Horizon and Description -->
                         </div>
                     </div>
                 </div>
 
                 <!-- Cột phải: Sidebar -->
                 <div class="space-y-6">
-                    <!-- Trạng thái -->
-                    <div class="bg-white rounded-lg border border-gray-200 p-5">
-                        <label class="block text-sm font-semibold text-gray-700 mb-3">
-                            <i class="fas fa-tasks mr-2 text-primary"></i>Trạng thái <span class="text-red-500">*</span>
-                        </label>
-                        <select name="status" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                            <option value="planning" {{ old('status') == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
-                            <option value="in_progress" {{ old('status') == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
-                            <option value="completed" {{ old('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                            <option value="on_hold" {{ old('status') == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
-                            <option value="cancelled" {{ old('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
-                        </select>
-                    </div>
+                    <!-- Hidden Status (Auto set to in_progress / submitted) -->
+                    <input type="hidden" name="status" value="in_progress">
+                    <input type="hidden" name="registration_status" value="submitted">
 
                     <!-- Estimated Close Date -->
                     <div class="bg-white rounded-lg border border-gray-200 p-5">
                         <h3 class="text-sm font-semibold text-gray-700 mb-3">
                             <i class="fas fa-calendar-alt mr-2 text-primary"></i>Estimated Close Date <span class="text-red-500">*</span>
                         </h3>
-                        <p class="text-xs text-gray-500 mb-3">Cộng thời gian dựa trên ngày tạo project để tính expired date.</p>
-                        <div class="space-y-2">
-                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors {{ old('estimated_close_months') == '3' ? 'border-blue-500 bg-blue-50' : 'border-gray-200' }}">
-                                <input type="radio" name="estimated_close_months" value="3" {{ old('estimated_close_months') == '3' ? 'checked' : '' }}
-                                    class="text-primary focus:ring-primary" onchange="updateExpiredPreview(this)">
-                                <span class="ml-3 text-sm font-medium">+3 tháng</span>
-                                <span class="ml-auto text-xs text-gray-500" id="preview_3m">{{ now()->addMonths(3)->format('d/m/Y') }}</span>
-                            </label>
-                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors {{ old('estimated_close_months') == '6' ? 'border-blue-500 bg-blue-50' : 'border-gray-200' }}">
-                                <input type="radio" name="estimated_close_months" value="6" {{ old('estimated_close_months') == '6' ? 'checked' : '' }}
-                                    class="text-primary focus:ring-primary" onchange="updateExpiredPreview(this)">
-                                <span class="ml-3 text-sm font-medium">+6 tháng</span>
-                                <span class="ml-auto text-xs text-gray-500" id="preview_6m">{{ now()->addMonths(6)->format('d/m/Y') }}</span>
-                            </label>
-                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-blue-50 transition-colors {{ old('estimated_close_months') == '9' ? 'border-blue-500 bg-blue-50' : 'border-gray-200' }}">
-                                <input type="radio" name="estimated_close_months" value="9" {{ old('estimated_close_months') == '9' ? 'checked' : '' }}
-                                    class="text-primary focus:ring-primary" onchange="updateExpiredPreview(this)">
-                                <span class="ml-3 text-sm font-medium">+9 tháng</span>
-                                <span class="ml-auto text-xs text-gray-500" id="preview_9m">{{ now()->addMonths(9)->format('d/m/Y') }}</span>
-                            </label>
-                        </div>
-                        @error('estimated_close_months') <p class="text-red-500 text-xs mt-2">{{ $message }}</p> @enderror
-                    </div>
-
-                    <!-- Stage -->
-                    <div class="bg-white rounded-lg border border-gray-200 p-5">
-                        <label class="block text-sm font-semibold text-gray-700 mb-3">
-                            <i class="fas fa-layer-group mr-2 text-primary"></i>Stage
-                        </label>
-                        <input type="text" name="stage" value="{{ old('stage') }}" placeholder="Giai đoạn dự án"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-
-                    <!-- Ngân sách (Budget) -->
-                    <div class="bg-white rounded-lg border border-gray-200 p-5">
-                        <h3 class="text-sm font-semibold text-gray-700 mb-3">
-                            <i class="fas fa-money-bill-wave mr-2 text-primary"></i>Dự toán
-                        </h3>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Ngân sách dự toán (VNĐ)</label>
-                            <div class="relative">
-                                <input type="text" id="budget_display" oninput="formatCurrency(this, 'budget')"
-                                    value="{{ number_format(old('budget', $preFill['budget'] ?? 0)) }}"
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary pr-12">
-                                <span class="absolute right-3 top-2 text-gray-400 text-xs">VNĐ</span>
+                        <p class="text-xs text-gray-500 mb-3">Chọn ngày cụ thể hoặc sử dụng các nút chọn nhanh dưới đây.</p>
+                        
+                        <!-- Date Input -->
+                        <div class="relative mb-4">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-calendar text-gray-400"></i>
                             </div>
-                            <input type="hidden" name="budget" id="budget" value="{{ old('budget', $preFill['budget'] ?? 0) }}">
+                            <input type="text" name="end_date" id="end_date" required
+                                value="{{ old('end_date', now()->addMonths(3)->format('Y-m-d')) }}"
+                                class="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('end_date') border-red-500 @enderror"
+                                placeholder="Chọn ngày hết hạn dự kiến...">
                         </div>
+                        
+                        <!-- Preset Buttons -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" id="btn_preset_3" onclick="setPresetEndDate(3)"
+                                class="px-3 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                                +3M (3 Tháng)
+                            </button>
+                            <button type="button" id="btn_preset_6" onclick="setPresetEndDate(6)"
+                                class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-700 transition-colors">
+                                +6M (6 Tháng)
+                            </button>
+                            <button type="button" id="btn_preset_12" onclick="setPresetEndDate(12)"
+                                class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-700 transition-colors">
+                                +12M (12 Tháng)
+                            </button>
+                        </div>
+                        
+                        @error('end_date') <p class="text-red-500 text-xs mt-2">{{ $message }}</p> @enderror
                     </div>
 
                     <!-- Hidden fields -->
@@ -554,6 +543,42 @@
                     if (otherInput) {
                         otherInput.required = false;
                         otherInput.value = '';
+                    }
+                }
+            }
+        }
+
+        function toggleFortinetSN() {
+            const select = document.getElementById('deal_type_select');
+            const container = document.getElementById('sn_numbers_container');
+            const textarea = container ? container.querySelector('textarea') : null;
+            if (select && container) {
+                if (select.value === 'trade_up') {
+                    container.classList.remove('hidden');
+                    if (textarea) textarea.required = true;
+                } else {
+                    container.classList.add('hidden');
+                    if (textarea) {
+                        textarea.required = false;
+                        textarea.value = '';
+                    }
+                }
+            }
+        }
+
+        function toggleSpecialRequestNote() {
+            const select = document.getElementById('special_request_type');
+            const container = document.getElementById('special_request_note_container');
+            const textarea = container ? container.querySelector('textarea') : null;
+            if (select && container) {
+                if (select.value === 'bom_project' || select.value === 'urgent_price') {
+                    container.classList.remove('hidden');
+                    if (textarea) textarea.required = true;
+                } else {
+                    container.classList.add('hidden');
+                    if (textarea) {
+                        textarea.required = false;
+                        textarea.value = '';
                     }
                 }
             }
@@ -638,6 +663,7 @@
             const phoneInput = document.getElementById('collaborate_pic_phone');
             const nameInput = document.getElementById('collaborate_pic_name');
             const titleInput = document.getElementById('collaborate_pic_title');
+            const emailInput = document.getElementById('collaborate_pic_email');
 
             if (type === 'partner') {
                 partnerToggle.classList.remove('hidden');
@@ -646,21 +672,33 @@
 
                 if (companyInput) companyInput.required = true;
                 if (taxInput) taxInput.required = true;
-                if (phoneInput) phoneInput.required = true;
+                if (phoneInput) phoneInput.required = false;
+                if (nameInput) nameInput.required = true;
+                if (titleInput) titleInput.required = true;
+                if (emailInput) emailInput.required = true;
 
                 const activeMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value || 'existing';
                 togglePartnerInputMode(activeMode, isInit);
             } else if (type === 'end_user') {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.remove('hidden');
-                hideCollabFields();
+                
+                // Show PIC fields only, hide company name and tax code
+                document.getElementById('collab_company_wrap').classList.add('hidden');
+                document.getElementById('collab_tax_wrap').classList.add('hidden');
+                document.getElementById('collab_pic_name_wrap').classList.remove('hidden');
+                document.getElementById('collab_pic_title_wrap').classList.remove('hidden');
+                document.getElementById('collab_pic_phone_wrap').classList.remove('hidden');
+                document.getElementById('collab_pic_email_wrap').classList.remove('hidden');
+                
                 hideContactPointSection();
 
                 if (companyInput) companyInput.required = false;
                 if (taxInput) taxInput.required = false;
                 if (phoneInput) phoneInput.required = false;
-                if (nameInput) nameInput.required = false;
-                if (titleInput) titleInput.required = false;
+                if (nameInput) nameInput.required = true;
+                if (titleInput) titleInput.required = true;
+                if (emailInput) emailInput.required = true;
             } else {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.add('hidden');
@@ -672,6 +710,7 @@
                 if (phoneInput) phoneInput.required = false;
                 if (nameInput) nameInput.required = false;
                 if (titleInput) titleInput.required = false;
+                if (emailInput) emailInput.required = false;
             }
         }
 
@@ -699,7 +738,13 @@
                 fillPartnerData(isInit);
             } else {
                 existingSelect.classList.add('hidden');
-                document.getElementById('collaborate_customer_id').value = '';
+                const select = document.getElementById('collaborate_customer_id');
+                if (select) {
+                    select.value = '';
+                    if (typeof $ !== 'undefined' && $(select).hasClass('select2-hidden-accessible')) {
+                        $(select).val('').trigger('change.select2');
+                    }
+                }
                 if (collabWarningDiv) collabWarningDiv.classList.add('hidden');
                 collabTaxExists = false;
 
@@ -716,11 +761,33 @@
 
         function fillPartnerData(isInit = false) {
             const select = document.getElementById('collaborate_customer_id');
-            const option = select.options[select.selectedIndex];
+            if (!select) return;
 
-            if (option && option.value) {
-                setField('collaborate_company', option.dataset.name || '');
-                setField('collaborate_tax_code', option.dataset.tax || '');
+            let name = '';
+            let tax = '';
+            let customerId = select.value;
+
+            // Try to get from select2 if initialized
+            if (typeof $ !== 'undefined' && $(select).hasClass('select2-hidden-accessible')) {
+                const selectedData = $(select).select2('data')[0];
+                if (selectedData && selectedData.id) {
+                    name = selectedData.name || '';
+                    tax = selectedData.tax_code || '';
+                }
+            }
+
+            // Fallback to option dataset attributes
+            if (!name && select.selectedIndex >= 0) {
+                const option = select.options[select.selectedIndex];
+                if (option && option.value) {
+                    name = option.dataset.name || '';
+                    tax = option.dataset.tax || '';
+                }
+            }
+
+            if (customerId && (name || tax)) {
+                setField('collaborate_company', name);
+                setField('collaborate_tax_code', tax);
                 if (!isInit) {
                     setField('collaborate_pic_phone', '');
                     setField('collaborate_pic_email', '');
@@ -733,7 +800,7 @@
                 document.getElementById('collaborate_tax_code').classList.add('bg-gray-50');
 
                 // Load contacts for this customer
-                loadContactPoints(option.value);
+                loadContactPoints(customerId);
             } else {
                 clearCollabFields();
                 enableCollabFields();
@@ -908,14 +975,7 @@
             });
         }
 
-        function updateExpiredPreview(radio) {
-            document.querySelectorAll('input[name="estimated_close_months"]').forEach(r => {
-                r.closest('label').classList.remove('border-blue-500', 'bg-blue-50');
-                r.closest('label').classList.add('border-gray-200');
-            });
-            radio.closest('label').classList.add('border-blue-500', 'bg-blue-50');
-            radio.closest('label').classList.remove('border-gray-200');
-        }
+
 
         function formatCurrency(input, hiddenId) {
             let value = input.value.replace(/\D/g, '');
@@ -952,6 +1012,84 @@
                 }
             })
             .catch(() => warningDiv.classList.add('hidden'));
+        }
+
+        // === AJAX: Check duplicate Project (Hãng + EU/MST + Tên dự án + Sản phẩm/BOM) ===
+        let projectCheckTimer = null;
+        function checkDuplicateProject() {
+            const vendorId = document.getElementById('vendor_id')?.value || '';
+            const taxCode = document.getElementById('eu_tax_code')?.value || '';
+            const name = document.getElementById('name')?.value || '';
+            const bomData = document.querySelector('[name="bom_data"]')?.value || '';
+
+            const warningDiv = document.getElementById('duplicate_project_warning');
+            const warningMsg = document.getElementById('duplicate_project_msg');
+            const sameSalesActions = document.getElementById('duplicate_same_sales_actions');
+            const submitBtn = document.querySelector('button[type="submit"]');
+
+            if (!taxCode || !name) {
+                if (warningDiv) warningDiv.classList.add('hidden');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                return;
+            }
+
+            const url = `{{ route('projects.check-duplicate') }}?vendor_id=${encodeURIComponent(vendorId)}&tax_code=${encodeURIComponent(taxCode)}&name=${encodeURIComponent(name)}&bom_data=${encodeURIComponent(bomData)}`;
+
+            fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.duplicate) {
+                    if (warningDiv) warningDiv.classList.remove('hidden');
+                    
+                    if (data.is_same_user) {
+                        if (warningMsg) {
+                            warningMsg.innerHTML = `Dự án <strong>${data.project_name}</strong> (${data.project_code}) đã được bạn đăng ký vào ngày ${data.created_at}.`;
+                        }
+                        if (sameSalesActions) {
+                            sameSalesActions.classList.remove('hidden');
+                            let editLink = sameSalesActions.querySelector('a');
+                            if (!editLink) {
+                                editLink = document.createElement('a');
+                                editLink.className = 'mt-2 inline-block px-3 py-1.5 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition-colors';
+                                editLink.textContent = 'Chỉnh sửa dự án cũ';
+                                sameSalesActions.appendChild(editLink);
+                            }
+                            editLink.href = `/projects/${data.project_id}/edit`;
+                        }
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                        }
+                    } else {
+                        if (warningMsg) {
+                            warningMsg.innerHTML = `<strong>Cảnh báo:</strong> Dự án này đã trùng thông tin đăng ký với hãng và khách hàng của Sales khác. Hệ thống đã tự động cảnh báo cho PM.`;
+                        }
+                        if (sameSalesActions) sameSalesActions.classList.add('hidden');
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                    }
+                } else {
+                    if (warningDiv) warningDiv.classList.add('hidden');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+                }
+            })
+            .catch(() => {
+                if (warningDiv) warningDiv.classList.add('hidden');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            });
         }
 
         // === AJAX: Check duplicate Partner/Company MST/Tax Code ===
@@ -997,6 +1135,20 @@
             // Toggle industry other input if selected
             toggleIndustryOther();
 
+            // Bind listener to deal type select
+            const dealTypeSelect = document.getElementById('deal_type_select');
+            if (dealTypeSelect) {
+                dealTypeSelect.addEventListener('change', toggleFortinetSN);
+                toggleFortinetSN();
+            }
+
+            // Bind listener to special request type select
+            const specialRequestSelect = document.getElementById('special_request_type');
+            if (specialRequestSelect) {
+                specialRequestSelect.addEventListener('change', toggleSpecialRequestNote);
+                toggleSpecialRequestNote();
+            }
+
             // Support pre-filling from Opportunity (SI/EU)
             const preFillCustomerType = @json($preFill['customer_type'] ?? '');
             const preFillCustomerId = @json($preFill['customer_id'] ?? '');
@@ -1012,6 +1164,9 @@
                         const colCustSelect = document.getElementById('collaborate_customer_id');
                         if (colCustSelect) {
                             colCustSelect.value = preFillCustomerId;
+                            if (typeof $ !== 'undefined' && $(colCustSelect).hasClass('select2-hidden-accessible')) {
+                                $(colCustSelect).trigger('change.select2');
+                            }
                             fillPartnerData();
 
                             // Wait for contacts to load via AJAX and select contact point
@@ -1088,6 +1243,27 @@
                 });
             }
 
+            // Real-time project duplicate check listeners
+            const nameInput = document.getElementById('name');
+            const vendorInput = document.getElementById('vendor_id');
+            const bomDataInput = document.querySelector('[name="bom_data"]');
+            const taxInput = document.getElementById('eu_tax_code');
+
+            const triggerProjectCheck = () => {
+                clearTimeout(projectCheckTimer);
+                projectCheckTimer = setTimeout(checkDuplicateProject, 500);
+            };
+
+            [nameInput, vendorInput, bomDataInput, taxInput].forEach(input => {
+                if (input) {
+                    input.addEventListener('input', triggerProjectCheck);
+                    input.addEventListener('change', triggerProjectCheck);
+                }
+            });
+
+            // Initial check on load
+            triggerProjectCheck();
+
             // Show SweetAlert2 toast when there are validation errors
             @if($errors->any())
                 const errorMessages = @json($errors->all());
@@ -1111,4 +1287,124 @@
             @endif
         });
     </script>
+
+    @push('styles')
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+        <style>
+            .select2-container .select2-selection--single {
+                height: 42px !important;
+                border-color: #D1D5DB !important;
+                border-radius: 0.5rem !important;
+                padding-top: 6px !important;
+                padding-bottom: 6px !important;
+            }
+            .select2-container--default .select2-selection--single .select2-selection__arrow {
+                height: 40px !important;
+            }
+            .select2-container--default .select2-selection--single .select2-selection__rendered {
+                line-height: 28px !important;
+                color: #1F2937 !important;
+                font-size: 0.875rem !important;
+            }
+            .select2-container {
+                width: 100% !important;
+            }
+        </style>
+    @endpush
+
+    @push('scripts')
+        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                const selectEl = $('#collaborate_customer_id');
+                selectEl.select2({
+                    placeholder: "-- Tìm khách hàng (theo tên, MST) --",
+                    allowClear: true,
+                    width: '100%',
+                    ajax: {
+                        url: "{{ route('customers.ajax-search') }}",
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term };
+                        },
+                        processResults: function (data) {
+                            return {
+                                results: data.map(item => ({
+                                    id: item.id,
+                                    text: item.name + (item.tax_code ? ' (MST: ' + item.tax_code + ')' : ''),
+                                    name: item.name,
+                                    tax_code: item.tax_code,
+                                    phone: item.phone,
+                                    email: item.email
+                                }))
+                            };
+                        },
+                        cache: true
+                    }
+                });
+
+                // Auto-trigger fillPartnerData when Select2 changes
+                selectEl.on('select2:select select2:clear select2:unselect change', function() {
+                    fillPartnerData();
+                });
+
+                // --- Flatpickr & Preset Counting logic ---
+                const registrationDate = new Date();
+                
+                const endPicker = flatpickr("#end_date", {
+                    dateFormat: 'Y-m-d',
+                    altInput: true,
+                    altFormat: 'd/m/Y',
+                    locale: 'vn',
+                    minDate: 'today',
+                    onChange: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length > 0) {
+                            const selected = selectedDates[0];
+                            let foundPreset = false;
+                            [3, 6, 12].forEach(m => {
+                                const checkDate = new Date(registrationDate);
+                                checkDate.setMonth(checkDate.getMonth() + m);
+                                if (checkDate.getFullYear() === selected.getFullYear() &&
+                                    checkDate.getMonth() === selected.getMonth() &&
+                                    checkDate.getDate() === selected.getDate()) {
+                                    updateActivePresetButton(m);
+                                    foundPreset = true;
+                                }
+                            });
+                            if (!foundPreset) {
+                                updateActivePresetButton(null);
+                            }
+                        }
+                    }
+                });
+
+                window.setPresetEndDate = function(months) {
+                    const d = new Date(registrationDate);
+                    d.setMonth(d.getMonth() + months);
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    endPicker.setDate(dateStr);
+                    updateActivePresetButton(months);
+                };
+
+                function updateActivePresetButton(months) {
+                    const presets = [3, 6, 12];
+                    presets.forEach(m => {
+                        const btn = document.getElementById(`btn_preset_${m}`);
+                        if (btn) {
+                            if (m === months) {
+                                btn.className = "px-3 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors";
+                            } else {
+                                btn.className = "px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-700 transition-colors";
+                            }
+                        }
+                    });
+                }
+            });
+        </script>
+    @endpush
 @endsection

@@ -147,4 +147,26 @@ class Supplier extends Model
             'max_total' => $this->total_max_discount
         ];
     }
+
+    /**
+     * Get assigned team for Project Registration routing
+     */
+    public function getAssignedTeamAttribute(): string
+    {
+        $mapping = config('projects.vendor_team_mapping', []);
+        $code = strtoupper($this->code ?? '');
+        $name = strtoupper($this->name ?? '');
+
+        if (isset($mapping[$code])) {
+            return $mapping[$code];
+        }
+
+        foreach ($mapping as $key => $team) {
+            if ($key !== 'DEFAULT' && (str_contains($code, (string)$key) || str_contains($name, (string)$key))) {
+                return $team;
+            }
+        }
+
+        return $mapping['DEFAULT'] ?? 'pm_team';
+    }
 }

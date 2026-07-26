@@ -13,7 +13,7 @@
                     <i class="fas fa-file-excel mr-2"></i> Xuất Excel
                 </a>
                 <a href="{{ route('projects.report') }}"
-                    class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                    class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
                     <i class="fas fa-chart-bar mr-2"></i> Báo cáo
                 </a>
                 <a href="{{ route('projects.create') }}"
@@ -23,42 +23,52 @@
             </div>
         </div>
 
+        <!-- Team Filter Tabs -->
+        <div class="flex border-b border-gray-200 bg-white rounded-t-lg overflow-hidden px-4 pt-3 gap-2">
+            <a href="{{ route('projects.index', array_merge(request()->query(), ['team' => ''])) }}"
+               class="px-4 py-2 text-sm font-semibold border-b-2 transition-all {{ !request('team') ? 'border-primary text-primary bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                <i class="fas fa-layer-group mr-1.5"></i> Tất cả dự án
+            </a>
+            <a href="{{ route('projects.index', array_merge(request()->query(), ['team' => 'po_team'])) }}"
+               class="px-4 py-2 text-sm font-semibold border-b-2 transition-all {{ request('team') === 'po_team' ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                <i class="fas fa-shield-alt mr-1.5 text-purple-600"></i> PO Team (FTN - Fortinet)
+            </a>
+            <a href="{{ route('projects.index', array_merge(request()->query(), ['team' => 'pm_team'])) }}"
+               class="px-4 py-2 text-sm font-semibold border-b-2 transition-all {{ request('team') === 'pm_team' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                <i class="fas fa-briefcase mr-1.5 text-blue-600"></i> PM Team (Non-FTN)
+            </a>
+        </div>
+
         <!-- Search & Filter -->
-        <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="bg-white rounded-b-lg shadow-sm p-4">
             <form method="GET" class="flex flex-wrap gap-3">
+                <input type="hidden" name="team" value="{{ request('team') }}">
                 <div class="flex-1 min-w-[200px]">
                     <input type="text" name="search" value="{{ request('search') }}"
-                        placeholder="Tìm mã, tên dự án, khách hàng..."
+                        placeholder="Tìm mã, tên dự án, tên tiếng Anh, MST..."
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-600">Từ</span>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}"
-                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-600">Đến</span>
-                    <input type="date" name="date_to" value="{{ request('date_to') }}"
-                        class="w-36 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                </div>
-                <div class="w-40">
-                    <select name="status"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="planning" {{ request('status') == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
-                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="on_hold" {{ request('status') == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
-                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                <div class="w-44">
+                    <select name="registration_status"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                        <option value="">-- Trạng thái ĐKDA --</option>
+                        <option value="submitted" {{ request('registration_status') == 'submitted' ? 'selected' : '' }}>Mới gửi ĐKDA</option>
+                        <option value="vendor_processing" {{ request('registration_status') == 'vendor_processing' ? 'selected' : '' }}>Chờ Hãng phản hồi</option>
+                        <option value="vendor_reminded" {{ request('registration_status') == 'vendor_reminded' ? 'selected' : '' }}>Đã nhắc Hãng</option>
+                        <option value="vendor_quoted" {{ request('registration_status') == 'vendor_quoted' ? 'selected' : '' }}>Hãng đã báo giá</option>
+                        <option value="update_status" {{ request('registration_status') == 'update_status' ? 'selected' : '' }}>Đang theo đuổi (Update status)</option>
+                        <option value="closed_won" {{ request('registration_status') == 'closed_won' ? 'selected' : '' }}>Closed Won</option>
+                        <option value="closed_lost" {{ request('registration_status') == 'closed_lost' ? 'selected' : '' }}>Closed Lost</option>
+                        <option value="expired" {{ request('registration_status') == 'expired' ? 'selected' : '' }}>Expired (Hết hạn)</option>
                     </select>
                 </div>
-                <div class="w-48">
-                    <select name="customer_id"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="">Tất cả khách hàng</option>
-                        @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" {{ request('customer_id') == $customer->id ? 'selected' : '' }}>
-                                {{ $customer->name }}
+                <div class="w-44">
+                    <select name="vendor_id"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                        <option value="">-- Tất cả Hãng --</option>
+                        @foreach($suppliers as $supplier)
+                            <option value="{{ $supplier->id }}" {{ request('vendor_id') == $supplier->id ? 'selected' : '' }}>
+                                {{ $supplier->name }}
                             </option>
                         @endforeach
                     </select>
@@ -68,80 +78,91 @@
                     <i class="fas fa-search mr-1"></i> Tìm
                 </button>
                 <a href="{{ route('projects.index') }}"
-                    class="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
                     <i class="fas fa-redo mr-1"></i> Reset
                 </a>
             </form>
         </div>
 
         <!-- Projects Table -->
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <div class="overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã dự án</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên dự án</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên EU - MST</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên SI</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Expired Date</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                            <th class="px-4 py-3 text-left whitespace-nowrap">Mã dự án</th>
+                            <th class="px-4 py-3 text-left">Tên dự án (Vi/En)</th>
+                            <th class="px-4 py-3 text-left">Người đăng ký</th>
+                            <th class="px-4 py-3 text-left">End-User / MST</th>
+                            <th class="px-4 py-3 text-left">Hãng / Team</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap">Trạng thái ĐKDA</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap">Cảnh báo SLA</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap">Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="divide-y divide-gray-200 text-sm">
                         @forelse($projects as $project)
-                            <tr class="hover:bg-gray-50">
+                            <tr class="hover:bg-blue-50/30 transition-colors">
+                                <!-- 1. Mã dự án -->
                                 <td class="px-4 py-3">
                                     <a href="{{ route('projects.show', $project->id) }}"
-                                        class="font-medium text-primary hover:underline">
+                                        class="font-mono font-bold text-primary hover:underline">
                                         {{ $project->code }}
                                     </a>
+                                    <span class="block text-[11px] text-gray-400">{{ $project->created_at ? $project->created_at->format('d/m/Y H:i') : '' }}</span>
                                 </td>
+                                <!-- 2. Tên dự án (Vi/En) -->
                                 <td class="px-4 py-3">
-                                    <div class="font-medium text-gray-900">{{ $project->name }}</div>
-                                </td>
-                                <td class="px-4 py-3">
-                                    @if($project->eu_name_vi)
-                                        <div class="text-sm font-medium text-gray-900">{{ $project->eu_name_vi }}</div>
-                                        @if($project->eu_tax_code)
-                                            <div class="text-xs text-gray-500">MST: {{ $project->eu_tax_code }}</div>
-                                        @endif
-                                    @else
-                                        <span class="text-gray-400">-</span>
+                                    <a href="{{ route('projects.show', $project->id) }}" class="font-medium text-gray-900 hover:text-primary">
+                                        {{ $project->name }}
+                                    </a>
+                                    @if($project->name_en)
+                                        <span class="block text-xs text-gray-500 italic">{{ $project->name_en }}</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    {{ $project->collaborate_company ?? '-' }}
+                                <!-- 2.5. Người đăng ký -->
+                                <td class="px-4 py-3">
+                                    <span class="font-medium text-gray-800">{{ $project->manager->name ?? 'N/A' }}</span>
+                                    <span class="block text-xs text-gray-500">{{ $project->manager->email ?? '' }}</span>
                                 </td>
-                                <td class="px-4 py-3 text-center text-sm">
-                                    @if($project->end_date)
-                                        <span class="{{ $project->end_date->isPast() ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
-                                            {{ $project->end_date->format('d/m/Y') }}
+                                <!-- 3. End-User / MST -->
+                                <td class="px-4 py-3">
+                                    <span class="font-medium text-gray-800">{{ $project->eu_name_vi ?: $project->customer_name }}</span>
+                                    <span class="block text-xs font-mono text-gray-500">MST: {{ $project->eu_tax_code ?: '-' }}</span>
+                                </td>
+                                <!-- 4. Hãng / Team -->
+                                <td class="px-4 py-3">
+                                    <span class="font-semibold text-gray-900">{{ $project->vendor->name ?? '-' }}</span>
+                                    <span class="block text-[11px] px-2 py-0.5 rounded w-max font-semibold {{ $project->assigned_team === 'po_team' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
+                                        {{ $project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team' }}
+                                    </span>
+                                </td>
+                                <!-- 5. Trạng thái ĐKDA -->
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-full whitespace-nowrap {{ $project->registration_status_badge['color'] }}">
+                                        {{ $project->registration_status_badge['label'] }}
+                                    </span>
+                                </td>
+                                <!-- 6. Cảnh báo SLA -->
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    @if($project->intake_status === 'pending')
+                                        <span class="px-2 py-1 text-xs font-bold rounded-full border whitespace-nowrap {{ $project->initial_sla_status['color'] }}">
+                                            {{ $project->initial_sla_status['label'] }}
+                                        </span>
+                                    @elseif($project->is_vendor_overdue)
+                                        <span class="px-2 py-1 text-xs font-bold bg-red-100 text-red-800 rounded-full border border-red-300 whitespace-nowrap">
+                                            🔴 Quá hạn Hãng
+                                        </span>
+                                    @elseif($project->is_sales_update_overdue)
+                                        <span class="px-2 py-1 text-xs font-bold bg-amber-100 text-amber-800 rounded-full border border-amber-300 whitespace-nowrap">
+                                            ⚠️ Cần Sales update
                                         </span>
                                     @else
-                                        <span class="text-gray-400">-</span>
+                                        <span class="text-xs text-gray-400 whitespace-nowrap">Đúng SLA</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-center">
-                                    <select onchange="updateProjectStatus({{ $project->id }}, this.value, this)"
-                                        class="text-xs font-semibold rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-primary
-                                            {{ match($project->status) {
-                                                'planning' => 'bg-yellow-100 text-yellow-800',
-                                                'in_progress' => 'bg-blue-100 text-blue-800',
-                                                'completed' => 'bg-green-100 text-green-800',
-                                                'cancelled' => 'bg-red-100 text-red-800',
-                                                'on_hold' => 'bg-gray-100 text-gray-800',
-                                                default => 'bg-gray-100 text-gray-800',
-                                            } }}">
-                                        <option value="planning" {{ $project->status == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
-                                        <option value="in_progress" {{ $project->status == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
-                                        <option value="completed" {{ $project->status == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                                        <option value="on_hold" {{ $project->status == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
-                                        <option value="cancelled" {{ $project->status == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
-                                    </select>
-                                </td>
-                                <td class="px-4 py-3 text-center">
+                                <!-- 7. Thao tác -->
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
                                     <div class="flex justify-center gap-1">
                                         <a href="{{ route('projects.show', $project->id) }}"
                                             class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
@@ -168,8 +189,8 @@
                         @empty
                             <tr>
                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="fas fa-folder-open text-4xl mb-2"></i>
-                                    <p>Chưa có dự án nào</p>
+                                    <i class="fas fa-folder-open text-4xl mb-2 text-gray-300"></i>
+                                    <p>Không có dự án nào</p>
                                 </td>
                             </tr>
                         @endforelse

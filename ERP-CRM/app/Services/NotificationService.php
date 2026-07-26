@@ -441,4 +441,148 @@ class NotificationService
             ]
         );
     }
+
+    /**
+     * Tạo thông báo khi Đăng ký dự án mới được gửi đến PO/PM Team
+     */
+    public function notifyProjectSubmittedToTeam(\App\Models\Project $project): void
+    {
+        $teamLabel = $project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team (Non-FTN)';
+        $title = "Đăng ký dự án mới (#{$project->code})";
+        $salesName = $project->manager ? $project->manager->name : 'Sales';
+        $message = "Dự án '{$project->name}' đã được đăng ký bởi {$salesName}. Đã phân luồng cho {$teamLabel} (Hạn tiếp nhận: 4h).";
+        $link = route('projects.show', $project->id);
+
+        // Find users in target department or admin users
+        $dept = $project->assigned_team === 'po_team' ? 'PO' : 'PM';
+        $targetUserIds = \App\Models\User::where('department', $dept)
+            ->orWhere('department', 'PM Team')
+            ->orWhere('department', 'PO Team')
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($targetUserIds)) {
+            // Fallback to all admins or system managers
+            $targetUserIds = \App\Models\User::pluck('id')->toArray();
+        }
+
+        foreach (array_unique($targetUserIds) as $userId) {
+            $this->createNotification(
+                $userId,
+                'project_submitted',
+                $title,
+                $message,
+                $link,
+                'folder-plus',
+                'purple',
+                [
+                    'project_id' => $project->id,
+                    'project_code' => $project->code,
+                    'assigned_team' => $project->assigned_team,
+                ]
+            );
+        }
+    }
+
+    /**
+     * Thông báo kết quả tiếp nhận ĐKDA đến Sales
+     */
+    public function notifyProjectIntakeOutcome(\App\Models\Project $project, string $status, ?string $note = null): void
+    {
+        if (!$project->manager_id) {
+            return;
+        }
+
+        $labels = [
+            'registered' => 'Đã đăng ký dự án',
+            'duplicate' => 'Dự án trùng với Sales khác',
+            'incomplete' => 'Thông tin đăng ký chưa đầy đủ',
+        ];
+
+        $title = "Kết quả tiếp nhận ĐKDA #{$project->code}";
+        $statusText = $labels[$status] ?? $status;
+        $message = "Dự án '{$project->name}': {$statusText}";
+        if ($note) {
+            $message .= ". Ghi chú: {$note}";
+        }
+        $link = route('projects.show', $project->id);
+
+        $color = match ($status) {
+            'registered' => 'green',
+            'duplicate' => 'orange',
+            'incomplete' => 'yellow',
+            default => 'blue',
+        };
+
+        $this->createNotification(
+            $project->manager_id,
+            'project_intake_result',
+            $title,
+            $message,
+            $link,
+            'clipboard-check',
+            $color,
+            [
+                'project_id' => $project->id,
+                'intake_status' => $status,
+                'note' => $note,
+            ]
+        );
+    }
+
+    /**
+     * Thông báo cho Sales khi Hãng đã báo giá/PM đính kèm file giá
+     */
+    public function notifyProjectVendorQuoted(\App\Models\Project $project): void
+    {
+        if (!$project->manager_id) {
+            return;
+        }
+
+        $title = "Hãng đã báo giá/duyệt ĐKDA #{$project->code}";
+        $message = "Dự án '{$project->name}' đã có báo giá từ Hãng. Vui lòng kiểm tra file đính kèm trong dự án.";
+        $link = route('projects.show', $project->id);
+
+        $this->createNotification(
+            $project->manager_id,
+            'project_vendor_quoted',
+            $title,
+            $message,
+            $link,
+            'file-text',
+            'emerald',
+            [
+                'project_id' => $project->id,
+                'vendor_deal_id' => $project->vendor_deal_id,
+            ]
+        );
+    }
+
+    /**
+     * Thông báo nhắc Sales cập nhật tiến độ hàng tháng
+     */
+    public function notifyProjectSalesUpdateRequested(\App\Models\Project $project): void
+    {
+        if (!$project->manager_id) {
+            return;
+        }
+
+        $title = "Yêu cầu cập nhật tiến độ dự án #{$project->code}";
+        $message = "Dự án '{$project->name}' đã đến hạn cập nhật tiến độ định kỳ hàng tháng (Commit/Best Case/Close Deal).";
+        $link = route('projects.show', $project->id);
+
+        $this->createNotification(
+            $project->manager_id,
+            'project_update_requested',
+            $title,
+            $message,
+            $link,
+            'refresh-cw',
+            'amber',
+            [
+                'project_id' => $project->id,
+            ]
+        );
+    }
 }
+
