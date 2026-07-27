@@ -824,7 +824,7 @@ class ProjectController extends Controller
     /**
      * Update the specified project.
      */
-    public function update(Request $request, Project $project)
+    public function update(Request $request, Project $project, NotificationService $notificationService)
     {
         $this->authorize('update', $project);
 
@@ -913,11 +913,25 @@ class ProjectController extends Controller
         }
         $validated['bom_file'] = array_merge($keepFiles, $newFiles);
 
+        $resubmit = false;
+        if ($project->registration_status === 'incomplete' || $project->intake_status === 'incomplete') {
+            $validated['intake_status'] = 'pending';
+            $validated['registration_status'] = 'pending';
+            $validated['initial_sla_due_at'] = now()->addHours(4);
+            $validated['initial_processed_at'] = null;
+            $validated['initial_processed_by'] = null;
+            $resubmit = true;
+        }
+
         $project->update($validated);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
+        if ($resubmit) {
+            $notificationService->notifyProjectSubmittedToTeam($project);
+        }
+
         return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Dự án đã được cập nhật thành công.');
+            ->with('success', $resubmit ? 'Dự án đã được cập nhật và gửi lại cho PO/PM Team xử lý.' : 'Dự án đã được cập nhật thành công.');
     }
 
     /**

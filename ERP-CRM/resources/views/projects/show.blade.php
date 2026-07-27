@@ -131,6 +131,31 @@
         </div>
     @endif
 
+    @if($project->registration_status === 'incomplete')
+        <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center text-xl shadow-md flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-amber-900">DỰ ÁN CHƯA ĐẦY ĐỦ THÔNG TIN ĐĂNG KÝ</h3>
+                        <p class="text-xs text-amber-800 mt-1 font-medium">Ghi chú yêu cầu bổ sung từ PM/PO Team:</p>
+                        <p class="text-xs text-amber-700 bg-white p-3 rounded-lg border border-amber-200 mt-1.5 italic font-mono">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin để đăng ký dự án.' }}"</p>
+                    </div>
+                </div>
+                @if(auth()->user()->id === $project->manager_id || auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                <div>
+                    <a href="{{ route('projects.edit', $project->id) }}" 
+                       class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+                        <i class="fas fa-edit"></i> Bổ sung thông tin ngay
+                    </a>
+                </div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     @if($project->is_vendor_overdue)
         <div class="bg-red-50 border-2 border-red-400 rounded-xl p-4 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">

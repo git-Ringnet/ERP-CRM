@@ -198,79 +198,130 @@
                 <h3 class="text-lg font-semibold text-gray-900">Chi tiết theo dự án</h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
+                <table class="w-full border-collapse">
+                    <thead class="bg-gray-150 border-b border-gray-300">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã dự án</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên dự án</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Dự toán</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Doanh thu</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Giá vốn</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Lợi nhuận</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Công nợ</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            <th class="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider w-12">No.</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Salesman</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">SI</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">EU</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Project's Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider border-l border-gray-200">P/N</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Model / Description</th>
+                            <th class="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Q'ty</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Unit Price</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Total Price</th>
+                            <th class="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider border-l border-gray-200">Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Note</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        @forelse($projects as $project)
+                        @php
+                            $sumQty = 0;
+                            $sumTotalPrice = 0;
+                        @endphp
+                        @forelse($projects as $index => $project)
                             @php
-                                $revenue = $project->total_revenue;
-                                $cost = $project->total_cost;
-                                $profit = $project->profit;
-                                $profitPercent = $project->profit_percent;
-                                $debt = $project->total_debt;
+                                $bomItems = [];
+                                if ($project->saleItems && $project->saleItems->count() > 0) {
+                                    foreach ($project->saleItems as $item) {
+                                        $bomItems[] = [
+                                            'pn' => $item->product->sku ?? $item->product->code ?? '',
+                                            'model' => $item->product_name ?? $item->product->name ?? '',
+                                            'qty' => $item->quantity,
+                                            'unit_price' => $item->price,
+                                            'total_price' => $item->total,
+                                        ];
+                                    }
+                                } elseif (!empty($project->bom_data)) {
+                                    $bomItems = \App\Exports\ProjectsExport::parseBomData($project->bom_data);
+                                }
+
+                                if (empty($bomItems)) {
+                                    $bomItems[] = [
+                                        'pn' => '',
+                                        'model' => '',
+                                        'qty' => '',
+                                        'unit_price' => '',
+                                        'total_price' => '',
+                                    ];
+                                }
+
+                                foreach ($bomItems as $bomItem) {
+                                    $sumQty += (int)($bomItem['qty'] ?? 0);
+                                    $sumTotalPrice += (float)($bomItem['total_price'] ?? 0);
+                                }
+
+                                $rowspan = count($bomItems);
                             @endphp
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3">
-                                    <a href="{{ route('projects.show', $project->id) }}"
-                                        class="font-medium text-primary hover:underline">
-                                        {{ $project->code }}
-                                    </a>
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $project->name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">{{ $project->customer_name ?? '-' }}</td>
-                                <td class="px-4 py-3 text-sm text-right">{{ number_format($project->budget) }} đ</td>
-                                <td class="px-4 py-3 text-sm text-right font-medium text-blue-600">{{ number_format($revenue) }}
-                                    đ</td>
-                                <td class="px-4 py-3 text-sm text-right text-orange-600">{{ number_format($cost) }} đ</td>
-                                <td class="px-4 py-3 text-sm text-right">
-                                    <span class="font-medium {{ $profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                        {{ number_format($profit) }} đ
-                                    </span>
-                                    <span class="text-xs text-gray-500">({{ number_format($profitPercent, 1) }}%)</span>
-                                </td>
-                                <td
-                                    class="px-4 py-3 text-sm text-right {{ $debt > 0 ? 'text-red-600 font-medium' : 'text-gray-500' }}">
-                                    {{ number_format($debt) }} đ
-                                </td>
-                                <td class="px-4 py-3 text-center">
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $project->status_color }}">
-                                        {{ $project->status_label }}
-                                    </span>
-                                </td>
-                            </tr>
+
+                            @foreach($bomItems as $itemIndex => $bomItem)
+                                <tr class="hover:bg-gray-50/50">
+                                    @if($itemIndex === 0)
+                                        <td class="px-4 py-3 text-sm text-gray-500 text-center font-medium" rowspan="{{ $rowspan }}">
+                                            {{ $index + 1 }}
+                                        </td>
+                                        <td class="px-4 py-3 text-sm font-semibold text-gray-900" rowspan="{{ $rowspan }}">
+                                            <a href="{{ route('projects.show', $project->id) }}" class="text-primary hover:underline">
+                                                {{ $project->manager->name ?? '-' }}
+                                            </a>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-700" rowspan="{{ $rowspan }}">
+                                            {{ $project->collaborate_company ?? 'Làm việc trực tiếp End-User' }}
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-700" rowspan="{{ $rowspan }}">
+                                            @if($project->eu_tax_code)
+                                                <span class="text-xs font-mono text-gray-500 bg-gray-100 px-1 py-0.5 rounded">{{ $project->eu_tax_code }}</span><br>
+                                            @endif
+                                            {{ $project->eu_name_vi }}
+                                        </td>
+                                        <td class="px-4 py-3 text-sm font-medium text-gray-900" rowspan="{{ $rowspan }}">
+                                            {{ $project->name }}
+                                        </td>
+                                    @endif
+
+                                    <td class="px-4 py-3 text-sm font-mono text-gray-600 border-l border-gray-200">
+                                        {{ $bomItem['pn'] ?: '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        {{ $bomItem['model'] ?: '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center font-medium text-gray-900">
+                                        {{ $bomItem['qty'] !== '' ? number_format((int)$bomItem['qty']) : '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-right text-gray-600">
+                                        {{ $bomItem['unit_price'] ? number_format($bomItem['unit_price'], 0, ',', '.') . ' đ' : '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-right font-semibold text-gray-900">
+                                        {{ $bomItem['total_price'] ? number_format($bomItem['total_price'], 0, ',', '.') . ' đ' : '-' }}
+                                    </td>
+
+                                    @if($itemIndex === 0)
+                                        <td class="px-4 py-3 text-sm text-center text-gray-500 border-l border-gray-200" rowspan="{{ $rowspan }}">
+                                            {{ $project->created_at ? $project->created_at->format('Y-m-d') : '-' }}
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600 max-w-[200px] truncate" title="{{ $project->notes->last()?->content ?? $project->note }}" rowspan="{{ $rowspan }}">
+                                            {{ $project->notes->last()?->content ?? $project->note ?? '-' }}
+                                        </td>
+                                    @endif
+                                </tr>
+                            @endforeach
                         @empty
                             <tr>
-                                <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="12" class="px-4 py-8 text-center text-gray-500">
                                     Không có dữ liệu
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if($projects->count() > 0)
-                        <tfoot class="bg-gray-100 font-semibold">
+                        <tfoot class="bg-gray-100 font-bold border-t border-gray-300">
                             <tr>
-                                <td colspan="3" class="px-4 py-3 text-right">Tổng cộng:</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($totals['budget']) }} đ</td>
-                                <td class="px-4 py-3 text-right text-blue-600">{{ number_format($totals['revenue']) }} đ</td>
-                                <td class="px-4 py-3 text-right text-orange-600">{{ number_format($totals['cost']) }} đ</td>
-                                <td
-                                    class="px-4 py-3 text-right {{ $totals['profit'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                    {{ number_format($totals['profit']) }} đ
-                                </td>
-                                <td class="px-4 py-3 text-right text-red-600">{{ number_format($totals['debt']) }} đ</td>
-                                <td></td>
+                                <td colspan="7" class="px-4 py-3 text-right">Tổng cộng:</td>
+                                <td class="px-4 py-3 text-center text-gray-900">{{ number_format($sumQty, 0, ',', '.') }}</td>
+                                <td class="px-4 py-3 text-right"></td>
+                                <td class="px-4 py-3 text-right text-indigo-700 font-black">{{ number_format($sumTotalPrice, 0, ',', '.') }} đ</td>
+                                <td colspan="2"></td>
                             </tr>
                         </tfoot>
                     @endif

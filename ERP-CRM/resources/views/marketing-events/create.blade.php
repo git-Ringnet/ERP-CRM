@@ -9,7 +9,7 @@
             <i class="fas fa-calendar-plus text-purple-500"></i>Thông tin sự kiện
         </h2>
 
-        <form action="{{ route('marketing-events.store') }}" method="POST" class="space-y-5">
+        <form action="{{ route('marketing-events.store') }}" method="POST" enctype="multipart/form-data" class="space-y-5">
             @csrf
             @include('marketing-events._form')
 

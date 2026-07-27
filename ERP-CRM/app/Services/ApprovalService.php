@@ -360,6 +360,14 @@ class ApprovalService
             }
         }
 
+        // Nếu cấp tiếp theo là Cấp 1 của marketing_budget (OM), nhưng sự kiện là External,
+        // thì bỏ qua Cấp 1 (OM) và chuyển thẳng sang Cấp 2 (BOD).
+        if ($nextLevel && $workflow->document_type === 'marketing_budget' && $nextLevel->level == 1) {
+            if ($document && isset($document->scope) && $document->scope === 'external') {
+                return $this->findNextApplicableLevel($workflow, 1, $amount, $document);
+            }
+        }
+
         return $nextLevel;
     }
 

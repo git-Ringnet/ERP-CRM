@@ -3,13 +3,12 @@
 namespace App\Exports;
 
 use App\Models\Project;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ProjectsExport implements FromCollection, WithHeadings, WithMapping, WithStyles
+class ProjectsExport implements FromArray, WithHeadings, WithStyles
 {
     protected $filters;
 
@@ -18,9 +17,9 @@ class ProjectsExport implements FromCollection, WithHeadings, WithMapping, WithS
         $this->filters = $filters;
     }
 
-    public function collection()
+    public function array(): array
     {
-        $query = Project::with(['customer', 'manager', 'vendor', 'initialProcessedBy'])->orderBy('created_at', 'desc');
+        $query = Project::with(['customer', 'manager', 'vendor', 'initialProcessedBy', 'notes', 'saleItems.product'])->orderBy('created_at', 'desc');
 
         if (!empty($this->filters['project_id'])) {
             $query->where('id', $this->filters['project_id']);
@@ -87,114 +86,139 @@ class ProjectsExport implements FromCollection, WithHeadings, WithMapping, WithS
             });
         }
 
-        return $query->get();
+        $projects = $query->get();
+        $rows = [];
+        $no = 1;
+
+        foreach ($projects as $project) {
+            // Get BOM items
+            $bomItems = [];
+            
+            // 1. If project has saleItems (orders)
+            if ($project->saleItems && $project->saleItems->count() > 0) {
+                foreach ($project->saleItems as $item) {
+                    $bomItems[] = [
+                        'pn' => $item->product->sku ?? $item->product->code ?? '',
+                        'model' => $item->product_name ?? $item->product->name ?? '',
+                        'qty' => $item->quantity,
+                        'unit_price' => $item->price,
+                        'total_price' => $item->total,
+                    ];
+                }
+            }
+            // 2. Otherwise parse from bom_data textarea
+            elseif (!empty($project->bom_data)) {
+                $bomItems = self::parseBomData($project->bom_data);
+            }
+
+            // If no BOM items found, create one empty item so the project itself is still exported
+            if (empty($bomItems)) {
+                $bomItems[] = [
+                    'pn' => '',
+                    'model' => '',
+                    'qty' => '',
+                    'unit_price' => '',
+                    'total_price' => '',
+                ];
+            }
+
+            // Add rows for this project
+            foreach ($bomItems as $index => $bomItem) {
+                $isFirst = ($index === 0);
+                
+                $rows[] = [
+                    'no' => $isFirst ? $no : '',
+                    'salesman' => $isFirst ? ($project->manager->name ?? '') : '',
+                    'si' => $isFirst ? ($project->collaborate_company ?? 'Làm việc trực tiếp End-User') : '',
+                    'eu' => $isFirst ? (($project->eu_tax_code ? $project->eu_tax_code . ' - ' : '') . $project->eu_name_vi) : '',
+                    'project_name' => $isFirst ? $project->name : '',
+                    'pn' => $bomItem['pn'],
+                    'model' => $bomItem['model'],
+                    'od' => '', // Empty column as shown in Excel template
+                    'qty' => $bomItem['qty'],
+                    'unit_price' => $bomItem['unit_price'] ? (is_numeric($bomItem['unit_price']) ? number_format($bomItem['unit_price'], 0, ',', '.') : $bomItem['unit_price']) : '',
+                    'total_price' => $bomItem['total_price'] ? (is_numeric($bomItem['total_price']) ? number_format($bomItem['total_price'], 0, ',', '.') : $bomItem['total_price']) : '',
+                    'date_deal_reg' => $isFirst ? ($project->created_at ? $project->created_at->format('Y-m-d') : '') : '',
+                    'date_expect' => $isFirst ? ($project->end_date ? $project->end_date->format('Y-m-d') : '') : '',
+                    'last_update' => $isFirst ? ($project->notes->last()?->content ?? $project->note ?? '') : '',
+                    'note_by_pm' => $isFirst ? ($project->intake_note ?? $project->vendor_quote_note ?? '') : '',
+                ];
+            }
+            
+            $no++;
+        }
+
+        return $rows;
+    }
+
+    public static function parseBomData($bomData)
+    {
+        $lines = explode("\n", $bomData);
+        $items = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
+            $qty = 1;
+            $pn = '';
+            $model = $line;
+            $unitPrice = null;
+            $totalPrice = null;
+
+            // Attempt to parse Qty
+            if (preg_match('/^(\d+)\s*(?:x|pcs|pc|cái|chiếc)?\s+(.+)$/i', $line, $matches)) {
+                $qty = (int)$matches[1];
+                $model = trim($matches[2]);
+            }
+            elseif (preg_match('/^(.+?)\s+(\d+)\s*(?:pcs|pc|cái|chiếc|x)$/i', $line, $matches)) {
+                $model = trim($matches[1]);
+                $qty = (int)$matches[2];
+            }
+            elseif (preg_match('/(?:qty|quantity|số lượng|sl)[:\-\s]+(\d+)/i', $line, $matches)) {
+                $qty = (int)$matches[1];
+                $model = preg_replace('/\(?\s*(?:qty|quantity|số lượng|sl)[:\-\s]+\d+\s*\)?/i', '', $line);
+            }
+
+            // Attempt to parse Price
+            if (preg_match('/(?:price|đơn giá|giá|@|usd|vnd)[:\-\s]*([0-9.,]+)/i', $line, $matches)) {
+                $priceStr = str_replace([',', ' '], '', $matches[1]);
+                $unitPrice = floatval($priceStr);
+                $totalPrice = $unitPrice * $qty;
+                $model = preg_replace('/\(?\s*(?:price|đơn giá|giá|@|usd|vnd)[:\-\s]*[0-9.,]+\s*\)?/i', '', $model);
+            }
+
+            $model = trim($model, " -:|()");
+
+            $items[] = [
+                'pn' => $pn,
+                'model' => $model,
+                'qty' => $qty,
+                'unit_price' => $unitPrice,
+                'total_price' => $totalPrice,
+            ];
+        }
+
+        return $items;
     }
 
     public function headings(): array
     {
-        if (!empty($this->filters['project_id']) || ($this->filters['export_type'] ?? '') === 'detailed') {
-            return [
-                'Mã dự án',
-                'Tên dự án',
-                'Hãng (Vendor)',
-                'Đại lý phụ trách (Distributor AM)',
-                'End-User Tiếng Việt',
-                'End-User Tiếng Anh',
-                'MST End-User',
-                'Địa phương End-User',
-                'Ngành nghề End-User',
-                'Hình thức hợp tác',
-                'Tên Đại lý / SI',
-                'MST Đại lý',
-                'PIC Đại lý',
-                'Chức vụ PIC',
-                'Số điện thoại PIC',
-                'Email PIC',
-                'Hạn dự án (End Date)',
-                'Sản phẩm / BOM',
-                'Deal Type (Fortinet)',
-                'S/N cũ (Fortinet)',
-                'Yêu cầu thêm',
-                'Ghi chú yêu cầu thêm',
-                'Note',
-                'Trạng thái đăng ký',
-                'Người đăng ký',
-                'Ngày đăng ký',
-            ];
-        }
-
         return [
-            'Mã dự án',
-            'Tên dự án',
-            'Khách hàng',
-            'Địa chỉ',
-            'Ngày bắt đầu',
-            'Ngày kết thúc',
-            'Dự toán',
-            'Doanh thu',
-            'Chi phí',
-            'Lợi nhuận',
-            'Trạng thái',
-            'Quản lý',
-            'Ghi chú',
-        ];
-    }
-
-    public function map($project): array
-    {
-        if (!empty($this->filters['project_id']) || ($this->filters['export_type'] ?? '') === 'detailed') {
-            return [
-                $project->code,
-                $project->name,
-                $project->vendor->name ?? '-',
-                $project->distributor_am,
-                $project->eu_name_vi,
-                $project->eu_name_en,
-                $project->eu_tax_code,
-                $project->eu_province,
-                $project->eu_industry,
-                $project->collaborate_type === 'partner' ? 'Hợp tác qua Đại lý/SI' : 'Làm việc trực tiếp End-User',
-                $project->collaborate_company,
-                $project->collaborate_tax_code,
-                $project->collaborate_pic_name,
-                $project->collaborate_pic_title,
-                $project->collaborate_pic_phone,
-                $project->collaborate_pic_email,
-                $project->end_date ? $project->end_date->format('d/m/Y') : '',
-                $project->bom_data,
-                $project->deal_type === 'trade_up' ? 'Trade up' : ($project->deal_type === 'new_buy' ? 'Newbuy' : '-'),
-                $project->sn_numbers,
-                $project->special_request_type === 'bom_project' ? 'Bom dự án' : ($project->special_request_type === 'urgent_price' ? 'Cần giá gấp' : 'Không'),
-                $project->special_request_note,
-                $project->note,
-                $project->registration_status_badge['label'] ?? $project->registration_status,
-                $project->manager->name ?? '',
-                $project->created_at ? $project->created_at->format('d/m/Y H:i') : '',
-            ];
-        }
-
-        $statusLabels = [
-            'planning' => 'Lên kế hoạch',
-            'in_progress' => 'Đang thực hiện',
-            'completed' => 'Hoàn thành',
-            'on_hold' => 'Tạm dừng',
-            'cancelled' => 'Đã hủy',
-        ];
-
-        return [
-            $project->code,
-            $project->name,
-            $project->customer_name ?? '',
-            $project->address ?? '',
-            $project->start_date ? $project->start_date->format('d/m/Y') : '',
-            $project->end_date ? $project->end_date->format('d/m/Y') : '',
-            $project->budget,
-            $project->total_revenue,
-            $project->total_cost,
-            $project->profit,
-            $statusLabels[$project->status] ?? $project->status,
-            $project->manager->name ?? '',
-            $project->note ?? '',
+            'No.',
+            'Salesman',
+            'SI',
+            'EU',
+            "Project's Name",
+            'P/N',
+            'Model / Description',
+            'OD',
+            "Q'ty",
+            'Unit Price',
+            'Total Price',
+            'Date Deal Reg',
+            'Date Expect (Close Deal)',
+            'Last update',
+            'Note by PM',
         ];
     }
 

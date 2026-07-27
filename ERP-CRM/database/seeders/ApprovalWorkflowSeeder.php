@@ -75,7 +75,7 @@ class ApprovalWorkflowSeeder extends Seeder
             ['document_type' => 'marketing_budget'],
             [
                 'name'        => 'Quy trình duyệt Ngân sách Marketing',
-                'description' => 'Marketing Team gửi kế hoạch → BOD hoặc Legal Team xét duyệt',
+                'description' => 'Marketing Team gửi kế hoạch → OM kiểm tra → BOD phê duyệt final',
                 'is_active'   => true,
             ]
         );
@@ -84,9 +84,20 @@ class ApprovalWorkflowSeeder extends Seeder
         ApprovalLevel::create([
             'workflow_id'    => $mktWf->id,
             'level'          => 1,
-            'name'           => 'BOD hoặc Legal Team xét duyệt ngân sách',
+            'name'           => 'OM (chị Bích) kiểm tra chủ trương & ngân sách',
             'approver_type'  => 'role',
-            'approver_value' => 'director,legal_team',
+            'approver_value' => 'order_management',
+            'min_amount'     => null,
+            'max_amount'     => null,
+            'is_required'    => true,
+        ]);
+
+        ApprovalLevel::create([
+            'workflow_id'    => $mktWf->id,
+            'level'          => 2,
+            'name'           => 'BOD (anh Trung) phê duyệt final',
+            'approver_type'  => 'role',
+            'approver_value' => 'director',
             'min_amount'     => null,
             'max_amount'     => null,
             'is_required'    => true,

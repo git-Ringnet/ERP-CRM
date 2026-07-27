@@ -7,7 +7,7 @@
         <h2 class="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
             <i class="fas fa-edit text-purple-500"></i>Chỉnh sửa sự kiện
         </h2>
-        <form action="{{ route('marketing-events.update', $marketingEvent) }}" method="POST" class="space-y-5">
+        <form action="{{ route('marketing-events.update', $marketingEvent) }}" method="POST" enctype="multipart/form-data" class="space-y-5">
             @csrf @method('PUT')
             @include('marketing-events._form')
             <div class="flex gap-3 pt-4 border-t border-gray-100">

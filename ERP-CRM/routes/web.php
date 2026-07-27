@@ -612,6 +612,17 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/marketing-events/{marketingEvent}/customers/{customer}/status', [\App\Http\Controllers\MarketingEventController::class, 'updateCustomerStatus'])->name('marketing-events.customers.status');
     Route::patch('/marketing-events/{marketingEvent}/customers/status/bulk', [\App\Http\Controllers\MarketingEventController::class, 'bulkUpdateCustomerStatus'])->name('marketing-events.customers.status.bulk');
 
+    // --- Marketing Ticket/Request Routes ---
+    Route::post('/marketing-events/{marketingEvent}/tickets', [\App\Http\Controllers\MarketingRequestController::class, 'storeTicket'])->name('marketing-events.tickets.store');
+    Route::post('/marketing-requests/{marketingRequest}/assign', [\App\Http\Controllers\MarketingRequestController::class, 'assignPic'])->name('marketing-requests.assign');
+    Route::post('/marketing-requests/{marketingRequest}/accept', [\App\Http\Controllers\MarketingRequestController::class, 'acceptRequest'])->name('marketing-requests.accept');
+    Route::post('/marketing-requests/{marketingRequest}/status', [\App\Http\Controllers\MarketingRequestController::class, 'updateStatus'])->name('marketing-requests.status.update');
+    Route::post('/marketing-requests/' . '{marketingRequest}/comments', [\App\Http\Controllers\MarketingRequestController::class, 'addComment'])->name('marketing-requests.comments.store');
+
+    // --- Marketing Supplier Funds & Receivables ---
+    Route::post('/marketing-events/funds', [\App\Http\Controllers\MarketingEventController::class, 'storeFund'])->name('marketing-events.funds.store');
+    Route::post('/marketing-events/transactions/{transaction}/collect', [\App\Http\Controllers\MarketingEventController::class, 'collectDebt'])->name('marketing-events.transactions.collect');
+
     // =========================================================================
     // Sales Revenue Tracking — Tổng Doanh Số (Theo dõi & Thanh toán)
     // =========================================================================
