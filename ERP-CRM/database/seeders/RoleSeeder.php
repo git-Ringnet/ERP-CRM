@@ -352,7 +352,7 @@ class RoleSeeder extends Seeder
                 $allPermissions,
                 ['suppliers', 'purchase_orders', 'purchase_requests', 'supplier_quotations', 
                  'supplier_price_lists', 'shipping_allocations', 'purchase_reports', 'cost_formulas', 'work_schedules',
-                 'pr_approvals', 'needs_ordering']
+                 'pr_approvals', 'needs_ordering', 'projects']
             );
             // Nhập kho theo mapping
             $importPerms = $this->getPermissionsByModulesAndActions($allPermissions,
@@ -377,7 +377,7 @@ class RoleSeeder extends Seeder
             $purchaseStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
                 ['suppliers', 'purchase_orders', 'purchase_requests', 'supplier_quotations', 
-                 'supplier_price_lists', 'shipping_allocations', 'pr_approvals', 'needs_ordering'],
+                 'supplier_price_lists', 'shipping_allocations', 'pr_approvals', 'needs_ordering', 'projects'],
                 ['view', 'create', 'edit']
             );
             // Nhập kho theo mapping
