@@ -10,8 +10,7 @@ class ProjectPolicy extends BasePolicy
     public function viewAny(User $user): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
             return true;
         }
         return $this->checkPermission($user, 'view_projects');
@@ -21,8 +20,7 @@ class ProjectPolicy extends BasePolicy
     {
         // Admin, PM, PO, BOD (director) see all
         if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
             return true;
         }
 
@@ -39,8 +37,7 @@ class ProjectPolicy extends BasePolicy
     {
         // Admin, PM, PO, BOD (director) see dashboard and report
         return $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-               $user->department === 'PM' || 
-               $user->department === 'PO';
+               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']);
     }
 
     public function create(User $user): bool
@@ -51,8 +48,7 @@ class ProjectPolicy extends BasePolicy
         }
         // PM/PO can create
         if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
             return true;
         }
         return $this->checkPermission($user, 'create_projects');
@@ -67,8 +63,7 @@ class ProjectPolicy extends BasePolicy
 
         // Admin, PM, PO can update
         if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
             return true;
         }
 
@@ -80,15 +75,13 @@ class ProjectPolicy extends BasePolicy
     {
         // Only super_admin, admin, PM, PO can delete
         return $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager']) || 
-               $user->department === 'PM' || 
-               $user->department === 'PO';
+               in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team']);
     }
 
     public function export(User $user): bool
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
             return true;
         }
         return $this->checkPermission($user, 'export_projects');

@@ -92,6 +92,14 @@ class TestUserSeeder extends Seeder
                 'position' => 'Order Management',
                 'department' => 'PO'
             ],
+            [
+                'email' => 'pm@erp.com',
+                'name' => 'PM Team User',
+                'employee_code' => 'PM001',
+                'role_slug' => 'purchase_staff',
+                'position' => 'PM Specialist',
+                'department' => 'PM'
+            ],
         ];
 
         // Get admin user for 'assigned_by' reference
