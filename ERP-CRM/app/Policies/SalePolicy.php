@@ -29,13 +29,13 @@ class SalePolicy extends BasePolicy
      */
     public function view(User $user, Sale $sale): bool
     {
-        // If user has view_all_sales or general view_sales, allow
-        if ($this->checkPermission($user, 'view_all_sales') || $this->checkPermission($user, 'view_sales')) {
+        // If user has view_all_sales, allow
+        if ($this->checkPermission($user, 'view_all_sales')) {
             return true;
         }
 
-        // If user has view_own_sales, only allow if they own the sale
-        if ($this->checkPermission($user, 'view_own_sales')) {
+        // If user has view_own_sales or view_sales, only allow if they own the sale
+        if ($this->checkPermission($user, 'view_own_sales') || $this->checkPermission($user, 'view_sales')) {
             return $sale->user_id === $user->id;
         }
 

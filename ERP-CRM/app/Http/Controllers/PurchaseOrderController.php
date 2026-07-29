@@ -44,14 +44,12 @@ class PurchaseOrderController extends Controller
 
         // Apply data filtering based on permissions
         $user = auth()->user();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_purchase_orders')) {
-            // User only has view_own_purchase_orders permission
-            if ($user->can('view_own_purchase_orders')) {
-                $query->where('created_by', $user->id);
-            } else {
-                // User has no permission to view purchase orders
-                abort(403, 'Unauthorized action.');
-            }
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales')) {
+            $query->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                  ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
+                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->where('user_id', $user->id));
+            });
         }
 
         if ($request->filled('search')) {
@@ -78,10 +76,12 @@ class PurchaseOrderController extends Controller
 
         // Thống kê - apply same filtering
         $statsQuery = PurchaseOrder::query();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_purchase_orders')) {
-            if ($user->can('view_own_purchase_orders')) {
-                $statsQuery->where('created_by', $user->id);
-            }
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales')) {
+            $statsQuery->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                  ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
+                  ->orWhereHas('items.saleOrderRequestItem.saleOrderRequest.sale', fn($sQ) => $sQ->where('user_id', $user->id));
+            });
         }
 
         $totalValue = (clone $statsQuery)

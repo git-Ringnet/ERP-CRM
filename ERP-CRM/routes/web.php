@@ -56,6 +56,8 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/bod-filter', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'filter'])->name('dashboard.bod-filter');
+    Route::get('/dashboard/bod-drill-down', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'drillDown'])->name('dashboard.bod-drill-down');
 
     // Business Activity Dashboard
     Route::get('/dashboard/business-activity', [BusinessDashboardController::class, 'index'])->name('dashboard.business-activity');
@@ -75,6 +77,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('products', ProductController::class);
     Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
     Route::get('/ajax/products/search', [ProductController::class, 'ajaxSearch'])->name('products.ajax-search');
+    Route::get('/api/products/search', [ProductController::class, 'apiSearch'])->name('api.products.search');
 
     // Export routes
     Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');

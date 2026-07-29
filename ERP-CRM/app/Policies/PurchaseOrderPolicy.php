@@ -29,14 +29,21 @@ class PurchaseOrderPolicy extends BasePolicy
      */
     public function view(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        // If user has view_all_purchase_orders or general view_purchase_orders, allow
-        if ($this->checkPermission($user, 'view_all_purchase_orders') || $this->checkPermission($user, 'view_purchase_orders')) {
+        // If user has view_all_purchase_orders, allow
+        if ($this->checkPermission($user, 'view_all_purchase_orders')) {
             return true;
         }
 
-        // If user has view_own_purchase_orders, only allow if they created the purchase order
-        if ($this->checkPermission($user, 'view_own_purchase_orders')) {
-            return $purchaseOrder->created_by === $user->id;
+        if ($this->checkPermission($user, 'view_own_purchase_orders') || $this->checkPermission($user, 'view_purchase_orders')) {
+            if ($purchaseOrder->created_by === $user->id) {
+                return true;
+            }
+            if ($purchaseOrder->sale && $purchaseOrder->sale->user_id === $user->id) {
+                return true;
+            }
+            return $purchaseOrder->items()->whereHas('saleOrderRequestItem.saleOrderRequest.sale', function ($sQ) use ($user) {
+                $sQ->where('user_id', $user->id);
+            })->exists();
         }
 
         return false;

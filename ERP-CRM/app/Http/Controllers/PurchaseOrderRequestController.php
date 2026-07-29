@@ -40,6 +40,13 @@ class PurchaseOrderRequestController extends Controller
             $query->where('status', '!=', SaleOrderRequest::STATUS_PENDING_ADMIN);
         }
 
+        if (!$user->can('view_all_sales') && !$user->can('view_all_purchase_orders')) {
+            $query->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                  ->orWhereHas('sale', fn($sq) => $sq->where('user_id', $user->id));
+            });
+        }
+
         if ($status) {
             $query->where('status', $status);
         }

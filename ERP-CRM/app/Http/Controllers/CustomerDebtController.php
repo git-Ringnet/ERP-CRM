@@ -29,8 +29,11 @@ class CustomerDebtController extends Controller
         $sortBy = $request->input('sort_by', 'debt_amount');
         $sortOrder = $request->input('sort_order', 'desc');
 
+        $user = auth()->user();
+        $userSqlCondition = (!$user->can('view_all_sales')) ? " AND s.user_id = " . (int)$user->id : "";
+
         // Get customers with debt summary using subquery approach
-        $customers = Customer::select([
+        $customersQuery = Customer::select([
             'customers.id',
             'customers.tax_code',
             'customers.name',
@@ -38,10 +41,19 @@ class CustomerDebtController extends Controller
             'customers.debt_limit',
             'customers.debt_days',
         ])
-            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_sales')
-            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_paid')
-            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) as total_debt')
-            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed") AND s.debt_amount > 0), 0) as unpaid_orders')
+            ->selectRaw('COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_sales')
+            ->selectRaw('COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_paid')
+            ->selectRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) as total_debt')
+            ->selectRaw('COALESCE((SELECT COUNT(*) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed") AND s.debt_amount > 0' . $userSqlCondition . '), 0) as unpaid_orders');
+
+        if (!$user->can('view_all_sales')) {
+            $userId = $user->id;
+            $customersQuery->whereHas('sales', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            });
+        }
+
+        $customers = $customersQuery
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('customers.name', 'like', "%{$search}%")
@@ -49,18 +61,18 @@ class CustomerDebtController extends Controller
                         ->orWhere('customers.phone', 'like', "%{$search}%");
                 });
             })
-            ->when($debtStatus === 'has_debt', function ($query) {
-                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")) > 0');
+            ->when($debtStatus === 'has_debt', function ($query) use ($userSqlCondition) {
+                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . ') > 0');
             })
-            ->when($debtStatus === 'no_debt', function ($query) {
-                $query->whereRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")), 0) = 0');
+            ->when($debtStatus === 'no_debt', function ($query) use ($userSqlCondition) {
+                $query->whereRaw('COALESCE((SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . '), 0) = 0');
             })
-            ->when($debtStatus === 'over_limit', function ($query) {
-                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")) > customers.debt_limit AND customers.debt_limit > 0');
+            ->when($debtStatus === 'over_limit', function ($query) use ($userSqlCondition) {
+                $query->whereRaw('(SELECT SUM(s.debt_amount) FROM sales s WHERE s.customer_id = customers.id AND s.status IN ("approved", "shipping", "completed")' . $userSqlCondition . ') > customers.debt_limit AND customers.debt_limit > 0');
             })
-            ->when($debtStatus === 'overdue', function ($query) {
+            ->when($debtStatus === 'overdue', function ($query) use ($user) {
                 // Customers with overdue debt (sales older than debt_days)
-                $query->whereExists(function ($subquery) {
+                $query->whereExists(function ($subquery) use ($user) {
                     $subquery->selectRaw('1')
                         ->from('sales')
                         ->whereColumn('sales.customer_id', 'customers.id')
@@ -68,11 +80,14 @@ class CustomerDebtController extends Controller
                         ->where('sales.debt_amount', '>', 0)
                         ->whereNotNull('sales.invoice_date')
                         ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) > COALESCE(customers.debt_days, 30)');
+                    if (!$user->can('view_all_sales')) {
+                        $subquery->where('sales.user_id', $user->id);
+                    }
                 });
             })
-            ->when($debtStatus === 'due_soon', function ($query) {
+            ->when($debtStatus === 'due_soon', function ($query) use ($user) {
                 // Customers with debt due within 7 days
-                $query->whereExists(function ($subquery) {
+                $query->whereExists(function ($subquery) use ($user) {
                     $subquery->selectRaw('1')
                         ->from('sales')
                         ->whereColumn('sales.customer_id', 'customers.id')
@@ -80,6 +95,9 @@ class CustomerDebtController extends Controller
                         ->where('sales.debt_amount', '>', 0)
                         ->whereNotNull('sales.invoice_date')
                         ->whereRaw('DATEDIFF(CURDATE(), sales.invoice_date) BETWEEN (COALESCE(customers.debt_days, 30) - 7) AND COALESCE(customers.debt_days, 30)');
+                    if (!$user->can('view_all_sales')) {
+                        $subquery->where('sales.user_id', $user->id);
+                    }
                 });
             })
             ->when($sortBy === 'debt_amount', function ($query) use ($sortOrder) {
@@ -93,9 +111,12 @@ class CustomerDebtController extends Controller
         // Summary statistics (using Aging Report Service to get detailed dashboard stats)
         $summary = $this->agingReportService->getSummaryStats();
         // Add total customers with debt count separately if not included in stats
-        $summary['total_customers_with_debt'] = Customer::whereHas('sales', function ($q) {
+        $summary['total_customers_with_debt'] = Customer::whereHas('sales', function ($q) use ($user) {
             $q->where('debt_amount', '>', 0)
                 ->whereIn('status', ['approved', 'shipping', 'completed']);
+            if (!$user->can('view_all_sales')) {
+                $q->where('user_id', $user->id);
+            }
         })->count();
         $summary['total_overdue'] = $summary['overdue_amount'] ?? 0;
 
@@ -109,10 +130,15 @@ class CustomerDebtController extends Controller
     {
         $this->authorize('viewAny', CustomerDebt::class);
 
-        $sales = Sale::where('customer_id', $customer->id)
-            ->whereIn('status', ['approved', 'shipping', 'completed'])
-            ->orderBy('date', 'desc')
-            ->get();
+        $user = auth()->user();
+        $salesQuery = Sale::where('customer_id', $customer->id)
+            ->whereIn('status', ['approved', 'shipping', 'completed']);
+
+        if (!$user->can('view_all_sales')) {
+            $salesQuery->where('user_id', $user->id);
+        }
+
+        $sales = $salesQuery->orderBy('date', 'desc')->get();
 
         $paymentHistories = PaymentHistory::where('customer_id', $customer->id)
             ->orderBy('payment_date', 'desc')

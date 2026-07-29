@@ -57,9 +57,8 @@ class SaleController extends Controller
 
         // Apply data filtering based on permissions
         $user = auth()->user();
-        if (!$user->can('view_all_sales') && !$user->can('view_sales')) {
-            // User only has view_own_sales permission
-            if ($user->can('view_own_sales')) {
+        if (!$user->can('view_all_sales')) {
+            if ($user->can('view_own_sales') || $user->can('view_sales')) {
                 $query->where('user_id', $user->id);
             } else {
                 // User has no permission to view sales
@@ -2891,6 +2890,13 @@ class SaleController extends Controller
                 ]);
             })
             ->with(['saleOrderRequest.sale', 'vendor', 'purchaseOrderItems.purchaseOrder']);
+
+        $user = auth()->user();
+        if (!$user->can('view_all_sales')) {
+            $query->whereHas('saleOrderRequest.sale', function($q) use ($user) {
+                $q->where('user_id', $user->id);
+            });
+        }
 
         // Filter by Sales Order Code
         if ($request->filled('sale_code')) {

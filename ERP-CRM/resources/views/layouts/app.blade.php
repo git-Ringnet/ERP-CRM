@@ -105,19 +105,11 @@
 
             <!-- Navigation -->
             <nav class="mt-4 px-2">
-                <!-- <a href="{{ route('dashboard') }}"
-                    class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-primary text-white' : '' }}">
+                <a href="{{ route('dashboard') }}"
+                    class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard*') ? 'bg-primary text-white' : '' }}">
                     <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
                     <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
-                </a> -->
-
-                @can('view_business_dashboard')
-                    <a href="{{ route('dashboard.business-activity') }}"
-                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard.business-activity*') ? 'bg-primary text-white' : '' }}">
-                        <i class="fas fa-chart-line w-6 text-blue-400 flex-shrink-0"></i>
-                        <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
-                    </a>
-                @endcan
+                </a>
 
                 {{-- <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
@@ -490,11 +482,11 @@
                             @endcan
 
                             @can('view_cost_formulas')
-                                <a href="{{ route('cost-formulas.index') }}"
+                                {{-- <a href="{{ route('cost-formulas.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('cost-formulas.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-calculator w-6 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Công thức chi phí</span>
-                                </a>
+                                </a> --}}
                             @endcan
 
                             @can('view_sale_reports')
@@ -585,12 +577,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                                                                    <a href="{{ route('shipping-allocations.index') }}"
-                                                                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                    </a>
-                                                                                @endcan -->
+                                                                                        <a href="{{ route('shipping-allocations.index') }}"
+                                                                                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                        </a>
+                                                                                    @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -761,7 +753,8 @@
                 class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
                 <div class="flex items-center min-w-0 flex-1">
                     <h1 class="text-base sm:text-lg font-semibold text-gray-800 truncate">
-                        @yield('page-title', 'Dashboard')</h1>
+                        @yield('page-title', 'Dashboard')
+                    </h1>
                 </div>
 
                 <div class="flex items-center space-x-2 sm:space-x-4">

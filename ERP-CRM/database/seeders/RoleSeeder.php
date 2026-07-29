@@ -237,9 +237,15 @@ class RoleSeeder extends Seeder
                 ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit']
             );
             $ownPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'view_own_sales', 'view_own_quotations', 'view_dashboard'
+                'view_own_sales', 'view_own_quotations', 'view_own_purchase_orders', 'view_dashboard'
             ]);
             $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $viewPerms, $purchasePerms, $ownPerms));
+
+            // Exclude view_all_* permissions for sales_staff so they only view their own records
+            $excludeSlugs = ['view_all_sales', 'view_all_quotations', 'view_all_purchase_orders', 'view_all_purchase_requests'];
+            $excludeIds = $this->getPermissionsBySlugs($allPermissions, $excludeSlugs);
+            $salesStaffPerms = array_diff($salesStaffPerms, $excludeIds);
+
             $this->attachPermissionsToRole($roles['sales_staff'], $salesStaffPerms, $now);
         }
 
