@@ -90,9 +90,14 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Người phụ trách (P.I.C) <span class="text-red-500">*</span>
-                        </label>
+                        <div class="flex justify-between items-center mb-1 gap-1 whitespace-nowrap overflow-hidden">
+                            <label class="text-sm font-medium text-gray-700 truncate">
+                                Người phụ trách (P.I.C) <span class="text-red-500">*</span>
+                            </label>
+                            <button type="button" id="btn-quick-add-contact" class="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap flex-shrink-0 hidden">
+                                <i class="fas fa-plus mr-1"></i>Thêm mới
+                            </button>
+                        </div>
                         <select name="contact_id" id="contact_id" required
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('contact_id') border-red-500 @enderror">
                             <option value="">Chọn người phụ trách</option>
@@ -184,18 +189,26 @@
                 <!-- Products Section -->
                 <div class="border-t pt-4">
                     @php
-                        $allColumns = old('custom_columns', ['product_id', 'quantity', 'price', 'vat', 'row_total']);
+                        $allColumns = old('custom_columns', ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total']);
                         if (!is_array($allColumns)) {
                             $allColumns = [];
                         }
                         if (!in_array('product_id', $allColumns)) {
                             $legacyCustomColumns = $allColumns;
-                            $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $legacyCustomColumns);
+                            $allColumns = array_merge(['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'], $legacyCustomColumns);
                         } else {
+                            if (!in_array('pricelist', $allColumns)) {
+                                $priceIdx = array_search('price', $allColumns);
+                                if ($priceIdx !== false) {
+                                    array_splice($allColumns, $priceIdx + 1, 0, ['pricelist']);
+                                } else {
+                                    $allColumns[] = 'pricelist';
+                                }
+                            }
                             if (!in_array('row_total', $allColumns)) {
                                 $allColumns[] = 'row_total';
                             }
-                            $legacyCustomColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
+                            $legacyCustomColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'])));
                         }
                     @endphp
 
@@ -211,7 +224,7 @@
                                 <tr>
                                     @foreach($allColumns as $colName)
                                         @if($colName === 'product_id')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[280px] draggable-col" draggable="true" data-column-id="product_id">
+                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[320px] draggable-col" draggable="true" data-column-id="product_id">
                                                 <span class="flex items-center gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Sản phẩm / Dịch vụ / Mô tả
@@ -229,6 +242,13 @@
                                                 <span class="flex items-center gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Đơn giá (<span class="currency-symbol">₫</span>)
+                                                </span>
+                                            </th>
+                                        @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
+                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px] draggable-col" draggable="true" data-column-id="pricelist">
+                                                <span class="flex items-center gap-1 cursor-move select-none">
+                                                    <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
+                                                    Pricelist ($)
                                                 </span>
                                             </th>
                                         @elseif($colName === 'vat')
@@ -260,7 +280,7 @@
                                             </th>
                                         @endif
                                     @endforeach
-                                    <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[60px]">
+                                    <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px]">
                                         <button type="button" onclick="addCustomColumnPrompt()" class="text-primary hover:text-primary-dark" title="Thêm cột tùy chỉnh">
                                             <i class="fas fa-plus-circle text-lg"></i>
                                         </button>
@@ -327,6 +347,48 @@
                                                        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
                                                 <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
                                             </td>
+                                        @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
+                                            @php
+                                                $oldProductId = $item['product_id'] ?? null;
+                                                $oldPricelistPrice = null;
+                                                if ($oldProductId) {
+                                                    $oldSku = null;
+                                                    if (str_starts_with($oldProductId, 'p-')) {
+                                                        $oldP = \App\Models\Product::find(substr($oldProductId, 2));
+                                                        if ($oldP) $oldSku = $oldP->code;
+                                                    } elseif (str_starts_with($oldProductId, 'c-')) {
+                                                        $oldC = \App\Models\SupplierPriceListItem::find(substr($oldProductId, 2));
+                                                        if ($oldC) $oldSku = $oldC->sku;
+                                                    }
+                                                    if ($oldSku) {
+                                                        $priceItem = \App\Models\SupplierPriceListItem::where('sku', trim($oldSku))
+                                                            ->whereHas('priceList', function($q) { $q->where('is_active', true); })
+                                                            ->join('supplier_price_lists', 'supplier_price_list_items.supplier_price_list_id', '=', 'supplier_price_lists.id')
+                                                            ->select('supplier_price_list_items.*')
+                                                            ->orderBy('supplier_price_lists.effective_date', 'desc')
+                                                            ->orderBy('supplier_price_list_items.id', 'desc')
+                                                            ->first();
+                                                        if ($priceItem) {
+                                                            $pl = $priceItem->priceList;
+                                                            $rawPrice = $pl->getPrimaryPriceForItem($priceItem);
+                                                            if ($rawPrice !== null) {
+                                                                $plCurrency = strtoupper(trim($pl->currency ?? 'USD'));
+                                                                if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
+                                                                    $exchangeRate = floatval($pl->exchange_rate ?: 24000);
+                                                                    $oldPricelistPrice = $exchangeRate > 0 ? ($rawPrice / $exchangeRate) : $rawPrice;
+                                                                } else {
+                                                                    $oldPricelistPrice = $rawPrice;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            @endphp
+                                            <td class="px-3 py-2 align-top pricelist-cell text-sm">
+                                                <input type="text" readonly 
+                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
+                                                       value="{{ $oldPricelistPrice ? '$' . number_format($oldPricelistPrice, 2) : 'N/A' }}">
+                                            </td>
                                         @elseif($colName === 'vat')
                                             <td class="px-3 py-2 align-top">
                                                 @php
@@ -360,12 +422,22 @@
                                             </td>
                                         @endif
                                     @endforeach
-                                    <td class="px-3 py-2 text-center align-top">
-                                        <button type="button" onclick="removeProductRow(this)"
-                                                class="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm"
-                                                title="Xóa">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                    <td class="px-3 py-2 text-center align-top whitespace-nowrap">
+                                        <div class="flex items-center justify-center gap-1.5 mt-1">
+                                            <span class="row-drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1" title="Kéo để sắp xếp thứ tự">
+                                                <i class="fas fa-grip-vertical"></i>
+                                            </span>
+                                            <button type="button" onclick="duplicateProductRow(this)"
+                                                    class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium"
+                                                    title="Nhân bản dòng này">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                            <button type="button" onclick="removeProductRow(this)"
+                                                    class="px-2 py-1 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+                                                    title="Xóa dòng này">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 @endforeach
@@ -408,6 +480,12 @@
                                                        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
                                                 <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
                                             </td>
+                                        @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
+                                            <td class="px-3 py-2 align-top pricelist-cell text-sm">
+                                                <input type="text" readonly 
+                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
+                                                       value="N/A">
+                                            </td>
                                         @elseif($colName === 'vat')
                                             <td class="px-3 py-2 align-top">
                                                 <select name="products[0][vat]"
@@ -434,12 +512,22 @@
                                             </td>
                                         @endif
                                     @endforeach
-                                    <td class="px-3 py-2 text-center align-top">
-                                        <button type="button" onclick="removeProductRow(this)"
-                                                class="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm"
-                                                title="Xóa">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                    <td class="px-3 py-2 text-center align-top whitespace-nowrap">
+                                        <div class="flex items-center justify-center gap-1.5 mt-1">
+                                            <span class="row-drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1" title="Kéo để sắp xếp thứ tự">
+                                                <i class="fas fa-grip-vertical"></i>
+                                            </span>
+                                            <button type="button" onclick="duplicateProductRow(this)"
+                                                    class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium"
+                                                    title="Nhân bản dòng này">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                            <button type="button" onclick="removeProductRow(this)"
+                                                    class="px-2 py-1 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+                                                    title="Xóa dòng này">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             @endif
@@ -462,7 +550,34 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Thời gian giao hàng</label>
                                 <input type="text" name="delivery_time" value="{{ old('delivery_time') }}"
                                     placeholder="VD: 7-10 ngày làm việc"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+
+                            {{-- Bảo hành - Sortable numbered list --}}
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">
+                                        <i class="fas fa-shield-alt text-green-600 mr-1"></i> Bảo hành
+                                    </label>
+                                    <button type="button" onclick="addNoteItem('warrantyList')"
+                                        class="inline-flex items-center px-2 py-1 text-xs font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                                        <i class="fas fa-plus mr-1"></i> Thêm
+                                    </button>
+                                </div>
+                                <div id="warrantyList" class="space-y-2">
+                                    @php $oldWarranty = old('warranty_terms', \App\Models\Quotation::defaultWarrantyTerms()); @endphp
+                                    @foreach($oldWarranty as $i => $wItem)
+                                        <div class="sortable-item flex items-start gap-2 group">
+                                            <span class="drag-handle cursor-grab text-gray-300 hover:text-gray-500 mt-2.5 flex-shrink-0" title="Kéo để sắp xếp"><i class="fas fa-grip-vertical"></i></span>
+                                            <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">({{ $i + 1 }})</span>
+                                            <input type="text" name="warranty_terms[]" value="{{ $wItem }}"
+                                                class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                placeholder="Nhập điều khoản bảo hành...">
+                                            <button type="button" onclick="removeNoteItem(this)"
+                                                class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
 
                             {{-- Ghi chú - Sortable numbered list --}}
@@ -722,9 +837,69 @@
                         Hủy
                     </button>
                 </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Single Contact Modal -->
+<div id="addSingleContactModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="singleContactModalOverlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                        <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm người phụ trách mới
+                    </h3>
+                    <button type="button" id="closeSingleContactModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+                
+                <div id="singleContactModalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                <form id="singleContactModalForm" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Họ & Tên <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nhập họ tên...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Chức vụ <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="position" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="VD: Giám đốc, Kế toán...">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="phone" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="email@company.com">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" id="saveSingleContactBtn" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                </button>
+                <button type="button" id="cancelSingleContactBtn" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
             </div>
         </div>
     </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -760,6 +935,24 @@
             return null;
         }
 
+        function matchProduct(params, data) {
+            if ($.trim(params.term) === '') {
+                return data;
+            }
+            if (typeof data.text === 'undefined') {
+                return null;
+            }
+            var term = params.term.toLowerCase();
+            var text = data.text.toLowerCase();
+            var name = (data.name || '').toString().toLowerCase();
+            var desc = (data.description || '').toString().toLowerCase();
+
+            if (text.indexOf(term) > -1 || name.indexOf(term) > -1 || desc.indexOf(term) > -1) {
+                return data;
+            }
+            return null;
+        }
+
         $(document).ready(function () {
             // Initialize Select2 for Customer
             $('select[name="customer_id"]').select2({
@@ -782,6 +975,10 @@
                 }
             });
 
+            $('select[name="customer_id"]').on('select2:select', function () {
+                $(this).select2('close');
+            });
+
             // Initialize product selects for existing rows
             $('.product-select').each(function() {
                 initProductSelect($(this));
@@ -798,6 +995,14 @@
                     const unformatted = $(this).val().replace(/,/g, '');
                     $(this).val(unformatted);
                 });
+            });
+
+            // Prevent Enter key in inputs from accidentally submitting form and causing page reload / jump
+            $('#quotationForm').on('keydown', 'input:not([type="submit"]):not([type="button"])', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    return false;
+                }
             });
 
             calculateTotal();
@@ -822,6 +1027,14 @@
             $('#quotationTable').on('dragend', '.draggable-col', handleDragEnd);
 
             saveColumnOrder();
+
+            if (document.getElementById('tableBody')) {
+                new Sortable(document.getElementById('tableBody'), {
+                    handle: '.row-drag-handle',
+                    animation: 150,
+                    ghostClass: 'bg-blue-50'
+                });
+            }
         });
 
         function initProductSelect(element) {
@@ -830,8 +1043,8 @@
             element.select2({
                 placeholder: "Tìm mã hoặc tên sản phẩm...",
                 allowClear: true,
-                tags: true,
                 width: '100%',
+                matcher: matchProduct,
                 ajax: {
                     url: "{{ route('quotations.search-catalog') }}",
                     dataType: 'json',
@@ -847,7 +1060,8 @@
                                 price: item.price,
                                 unit: item.unit,
                                 name: item.name,
-                                description: item.description
+                                description: item.description,
+                                pricelist_price: item.pricelist_price
                             }))
                         };
                     },
@@ -855,15 +1069,6 @@
                     error: function(xhr, status, error) {
                         console.error('Select2 AJAX error:', error);
                     }
-                },
-                createTag: function (params) {
-                    const term = $.trim(params.term);
-                    if (term === '') return null;
-                    return {
-                        id: term,
-                        text: term,
-                        isNew: true
-                    };
                 }
             }).on('select2:select', function (e) {
                 const data = e.params.data;
@@ -878,6 +1083,7 @@
 
                 if (isManual) {
                     row.find('.base-price-reference').text('');
+                    row.find('.pricelist-display').val('N/A');
                 } else {
                     if (data.price) {
                         const basePriceVnd = parseFloat(data.price);
@@ -886,6 +1092,12 @@
                         const rate = parseFloat($('#exchangeRateInput').val()) || 1;
                         row.find('.price-input').val(formatMoney(basePriceVnd / rate));
                     }
+                    if (data.pricelist_price) {
+                        const plPrice = parseFloat(data.pricelist_price);
+                        row.find('.pricelist-display').val('$' + plPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                    } else {
+                        row.find('.pricelist-display').val('N/A');
+                    }
                 }
                 const qtyInput = row.find('.quantity-input');
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
@@ -893,6 +1105,7 @@
             }).on('select2:clear', function(e) {
                 row.find('.description-input').val('');
                 row.find('.base-price-reference').text('');
+                row.find('.pricelist-display').val('N/A');
                 const qtyInput = row.find('.quantity-input');
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
                 calculateRowTotal(idxRef);
@@ -1008,6 +1221,7 @@
                 productSelect.val(null).trigger('change');
                 descInput.val('');
                 row.find('.base-price-reference').text('');
+                row.find('.pricelist-display').val('N/A');
             }
         }
 
@@ -1246,6 +1460,13 @@
                         <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
                     </td>
                 `,
+                pricelist: `
+                    <td class="px-3 py-2 align-top pricelist-cell text-sm">
+                        <input type="text" readonly 
+                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
+                               value="N/A">
+                    </td>
+                `,
                 vat: `
                     <td class="px-3 py-2 align-top">
                         <select name="products[${productIndex}][vat]"
@@ -1289,12 +1510,22 @@
 
             // Append the fixed columns at the end
             innerHTML += `
-                <td class="px-3 py-2 text-center align-top">
-                    <button type="button" onclick="removeProductRow(this)"
-                            class="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm"
-                            title="Xóa">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                <td class="px-3 py-2 text-center align-top whitespace-nowrap">
+                    <div class="flex items-center justify-center gap-1.5 mt-1">
+                        <span class="row-drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1" title="Kéo để sắp xếp thứ tự">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
+                        <button type="button" onclick="duplicateProductRow(this)"
+                                class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium"
+                                title="Nhân bản dòng này">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button type="button" onclick="removeProductRow(this)"
+                                class="px-2 py-1 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+                                title="Xóa dòng này">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </td>
             `;
 
@@ -1311,8 +1542,172 @@
             }
         }
 
-        function calculateRowTotal(index) {
-            const row = $(`.quantity-input[name="products[${index}][quantity]"]`).closest('.product-item');
+        function duplicateProductRow(btn) {
+            productIndex++;
+            const sourceRow = $(btn).closest('.product-item');
+            
+            // Get current column order
+            const colOrder = [];
+            $('#quotationTable thead tr th.draggable-col').each(function() {
+                colOrder.push($(this).attr('data-column-id'));
+            });
+            if (colOrder.length === 0) {
+                colOrder.push('product_id', 'quantity', 'price', 'vat', 'row_total');
+            }
+
+            const cells = {
+                product_id: `
+                    <td class="px-3 py-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-[11px] font-medium text-gray-400 product-label">Sản phẩm</label>
+                            <button type="button" class="toggle-mode-btn inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 transition-colors duration-150 focus:outline-none" onclick="toggleRowMode(this)">
+                                <i class="fas fa-edit mr-1 text-[9px]"></i> Nhập ngoài
+                            </button>
+                        </div>
+                        <div class="select2-wrapper">
+                            <select name="products[${productIndex}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
+                                <option value=""></option>
+                            </select>
+                        </div>
+                        <div class="manual-wrapper hidden">
+                            <input type="text" name="products[${productIndex}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                   placeholder="Nhập tên dịch vụ/sản phẩm ngoài...">
+                        </div>
+                        <div class="mt-2">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả</label>
+                            <textarea name="products[${productIndex}][description]" class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                                   placeholder="Mô tả chi tiết sản phẩm/dịch vụ..." rows="2"></textarea>
+                        </div>
+                    </td>
+                `,
+                quantity: `
+                    <td class="px-3 py-2 align-top">
+                        <input type="number" name="products[${productIndex}][quantity]" value="1" min="1" required
+                               onchange="calculateRowTotal(this)"
+                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                    </td>
+                `,
+                price: `
+                    <td class="px-3 py-2 align-top">
+                        <input type="text" name="products[${productIndex}][price]" value="0" required
+                               onchange="calculateRowTotal(this)"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                    </td>
+                `,
+                pricelist: `
+                    <td class="px-3 py-2 align-top pricelist-cell text-sm">
+                        <input type="text" readonly 
+                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
+                               value="N/A">
+                    </td>
+                `,
+                vat: `
+                    <td class="px-3 py-2 align-top">
+                        <select name="products[${productIndex}][vat]"
+                                onchange="handleVatChange(this)"
+                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                            <option value="-1">KCT</option>
+                            <option value="0">0%</option>
+                            <option value="5">5%</option>
+                            <option value="8" selected>8%</option>
+                            <option value="10">10%</option>
+                            <option value="custom">Khác...</option>
+                        </select>
+                    </td>
+                `,
+                row_total: `
+                    <td class="px-3 py-2 align-top row-total-cell">
+                        <input type="text" readonly
+                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                    </td>
+                `
+            };
+
+            colOrder.forEach(col => {
+                if (!cells[col]) {
+                    cells[col] = `
+                        <td class="px-3 py-2 align-top custom-col-cell" data-column-name="${col}">
+                            <input type="text" name="products[${productIndex}][custom_fields][${col}]" 
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập ${col}...">
+                        </td>
+                    `;
+                }
+            });
+
+            let innerHTML = '';
+            colOrder.forEach(col => { innerHTML += cells[col]; });
+
+            innerHTML += `
+                <td class="px-3 py-2 text-center align-top whitespace-nowrap">
+                    <div class="flex items-center justify-center gap-1.5 mt-1">
+                        <span class="row-drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1" title="Kéo để sắp xếp thứ tự">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
+                        <button type="button" onclick="duplicateProductRow(this)"
+                                class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium"
+                                title="Nhân bản dòng này">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button type="button" onclick="removeProductRow(this)"
+                                class="px-2 py-1 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+                                title="Xóa dòng này">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+
+            const newRow = document.createElement('tr');
+            newRow.className = 'product-item bg-white hover:bg-gray-50/50 transition-colors';
+            newRow.setAttribute('data-index', productIndex);
+            newRow.innerHTML = innerHTML;
+
+            $(newRow).insertAfter(sourceRow);
+            const $newRow = $(newRow);
+
+            const $newSelect = $newRow.find('.product-select');
+            initProductSelect($newSelect);
+
+            const isManual = sourceRow.find('.select2-wrapper').hasClass('hidden');
+            if (isManual) {
+                toggleRowMode($newRow.find('.toggle-mode-btn')[0]);
+                $newRow.find('.manual-name-input').val(sourceRow.find('.manual-name-input').val());
+            } else {
+                const sourceSelect = sourceRow.find('.product-select');
+                const selectedVal = sourceSelect.val();
+                if (selectedVal) {
+                    const selectedText = sourceSelect.find('option:selected').text();
+                    const newOption = new Option(selectedText, selectedVal, true, true);
+                    $newSelect.append(newOption).trigger('change');
+                }
+            }
+
+            $newRow.find('.description-input').val(sourceRow.find('.description-input').val());
+            $newRow.find('.quantity-input').val(sourceRow.find('.quantity-input').val());
+            $newRow.find('.price-input').val(sourceRow.find('.price-input').val());
+            $newRow.find('.base-price-reference').text(sourceRow.find('.base-price-reference').text());
+            $newRow.find('.pricelist-display').val(sourceRow.find('.pricelist-display').val());
+            $newRow.find('.vat-input').val(sourceRow.find('.vat-input').val());
+
+            sourceRow.find('.custom-col-cell input').each(function() {
+                const colName = $(this).closest('.custom-col-cell').attr('data-column-name');
+                const val = $(this).val();
+                $newRow.find(`.custom-col-cell[data-column-name="${colName}"] input`).val(val);
+            });
+
+            calculateRowTotal($newRow.find('.quantity-input')[0]);
+        }
+
+        function calculateRowTotal(el) {
+            let row;
+            if (typeof el === 'object' && el) {
+                row = $(el).closest('.product-item');
+            } else {
+                row = $(`.quantity-input[name="products[${el}][quantity]"]`).closest('.product-item');
+            }
+            if (!row.length) return;
             const qty = parseFloat(row.find('.quantity-input').val()) || 0;
             const price = unformatMoney(row.find('.price-input').val());
             let vatPercent = parseFloat(row.find('.vat-input').val()) || 0;
@@ -1484,9 +1879,11 @@
                 contactSelect.html('<option value="">Chọn người phụ trách</option>');
                 picDetails.addClass('hidden');
                 contactsData = [];
+                $('#btn-quick-add-contact').addClass('hidden');
                 return;
             }
             
+            $('#btn-quick-add-contact').removeClass('hidden');
             try {
                 const response = await fetch(`/ajax/customers/${customerId}/contacts`);
                 contactsData = await response.json();
@@ -1767,25 +2164,14 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    // Success!
                     const customer = result.customer;
                     const displayName = customer.name + (customer.code ? ' (' + customer.code + ')' : '');
-                    
-                    // Create new option
                     const newOption = new Option(displayName, customer.id, true, true);
-                    // Add extra data attributes so relative search matches it in the future
-                    $(newOption).attr('data-tax-code', customer.tax_code || '');
-                    $(newOption).attr('data-abv-name', customer.abv_name || '');
-                    $(newOption).attr('data-debt-days', customer.debt_days || '');
-                    $(newOption).attr('data-payment-terms', JSON.stringify(customer.payment_terms || null));
+                    newOption.dataset.taxCode = customer.tax_code || '';
+                    newOption.dataset.abvName = customer.abv_name || '';
                     
-                    // Append and trigger select2 update
-                    customerSelect.append(newOption).trigger('change');
-
-                    // Close modal and reset form
+                    $('select[name="customer_id"]').append(newOption).trigger('change');
                     resetCustomerModal();
-                    
-                    // Success alert
                     Swal.fire({
                         icon: 'success',
                         title: 'Thành công',
@@ -1794,7 +2180,6 @@
                         showConfirmButton: false
                     });
                 } else {
-                    // Validation errors or server error
                     let errorMsg = result.message || 'Có lỗi xảy ra khi tạo khách hàng.';
                     if (result.errors) {
                         errorMsg = Object.values(result.errors).flat().join('<br>');
@@ -1809,15 +2194,105 @@
                 $('#cancelCustomerBtn').prop('disabled', false);
             }
         });
+
+        // Single contact modal handlers
+        $(document).on('click', '#btn-quick-add-contact', function(e) {
+            e.preventDefault();
+            const customerId = $('select[name="customer_id"]').val();
+            if (!customerId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Thông báo',
+                    text: 'Vui lòng chọn Khách hàng trước khi thêm người phụ trách mới',
+                });
+                return;
+            }
+            $('#addSingleContactModal').removeClass('hidden');
+        });
+
+        function resetSingleContactModal() {
+            $('#addSingleContactModal').addClass('hidden');
+            $('#singleContactModalForm')[0].reset();
+            $('#singleContactModalErrors').addClass('hidden').html('');
+        }
+
+        $('#closeSingleContactModal, #cancelSingleContactBtn, #singleContactModalOverlay').on('click', function() {
+            resetSingleContactModal();
+        });
+
+        $('#saveSingleContactBtn').on('click', async function() {
+            const customerId = $('select[name="customer_id"]').val();
+            if (!customerId) return;
+
+            const form = $('#singleContactModalForm');
+            const saveBtn = $(this);
+            const errorsDiv = $('#singleContactModalErrors');
+
+            const name = form.find('input[name="name"]').val().trim();
+            const position = form.find('input[name="position"]').val().trim();
+            const phone = form.find('input[name="phone"]').val().trim();
+            const email = form.find('input[name="email"]').val().trim();
+
+            if (!name || !position || !phone || !email) {
+                errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc (*).');
+                return;
+            }
+
+            saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+            $('#cancelSingleContactBtn').prop('disabled', true);
+            errorsDiv.addClass('hidden').html('');
+
+            try {
+                const response = await fetch(`/ajax/customers/${customerId}/contacts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        first_name: name,
+                        position: position,
+                        phone: phone,
+                        email: email
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    resetSingleContactModal();
+                    loadContacts(customerId, result.contact.id);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: 'Đã thêm người phụ trách mới thành công!',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    let errorMsg = result.message || 'Có lỗi xảy ra khi tạo người phụ trách.';
+                    if (result.errors) {
+                        errorMsg = Object.values(result.errors).flat().join('<br>');
+                    }
+                    errorsDiv.removeClass('hidden').html(errorMsg);
+                }
+            } catch (error) {
+                console.error('Error adding contact:', error);
+                errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+            } finally {
+                saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+                $('#cancelSingleContactBtn').prop('disabled', false);
+            }
+        });
     </script>
 
     {{-- SortableJS for drag-and-drop --}}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         // Initialize Sortable on note and disclaimer lists
-        document.addEventListener('DOMContentLoaded', function() {
-            ['noteList', 'disclaimerList'].forEach(function(listId) {
-                const el = document.getElementById(listId);
+        $(document).ready(function() {
+            ['noteList', 'disclaimerList', 'warrantyList'].forEach(function(listId) {
+                var el = document.getElementById(listId);
                 if (el) {
                     new Sortable(el, {
                         handle: '.drag-handle',
@@ -1832,8 +2307,19 @@
         function addNoteItem(listId) {
             const list = document.getElementById(listId);
             const count = list.querySelectorAll('.sortable-item').length;
-            const fieldName = listId === 'noteList' ? 'note[]' : 'disclaimer[]';
-            const ringColor = listId === 'noteList' ? 'focus:ring-blue-500' : 'focus:ring-amber-500';
+            let fieldName = 'note[]';
+            let ringColor = 'focus:ring-blue-500';
+            let placeholderText = 'Nhập ghi chú...';
+
+            if (listId === 'disclaimerList') {
+                fieldName = 'disclaimer[]';
+                ringColor = 'focus:ring-amber-500';
+                placeholderText = 'Nhập cảnh báo...';
+            } else if (listId === 'warrantyList') {
+                fieldName = 'warranty_terms[]';
+                ringColor = 'focus:ring-green-500';
+                placeholderText = 'Nhập điều khoản bảo hành...';
+            }
 
             const div = document.createElement('div');
             div.className = 'sortable-item flex items-start gap-2 group';
@@ -1842,7 +2328,7 @@
                 <span class="note-number text-sm font-semibold text-gray-500 mt-2 flex-shrink-0 w-6">(${count + 1})</span>
                 <input type="text" name="${fieldName}" value=""
                     class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${ringColor}"
-                    placeholder="${listId === 'noteList' ? 'Nhập ghi chú...' : 'Nhập cảnh báo...'}">
+                    placeholder="${placeholderText}">
                 <button type="button" onclick="removeNoteItem(this)"
                     class="text-red-400 hover:text-red-600 mt-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>
             `;

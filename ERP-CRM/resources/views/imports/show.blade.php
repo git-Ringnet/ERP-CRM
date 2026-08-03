@@ -154,7 +154,7 @@
                     </div>
                     <div>
                         <span class="text-gray-600">Tổng chi phí:</span>
-                        <p class="font-medium text-orange-600">{{ number_format($import->shippingAllocation->total_shipping_cost, 0, ',', '.') }} ₫</p>
+                        <p class="font-medium text-orange-600">{{ number_format($import->shippingAllocation->total_shipping_cost) }} ₫</p>
                     </div>
                     <div>
                         <span class="text-gray-600">Đơn mua hàng:</span>
@@ -169,36 +169,36 @@
                 @if($import->shipping_cost > 0)
                 <div>
                     <label class="text-xs text-gray-600">Chi phí vận chuyển</label>
-                    <p class="font-medium text-gray-900">{{ number_format($import->shipping_cost, 0, ',', '.') }} ₫</p>
+                    <p class="font-medium text-gray-900">{{ number_format($import->shipping_cost) }} ₫</p>
                 </div>
                 @endif
                 @if($import->loading_cost > 0)
                 <div>
                     <label class="text-xs text-gray-600">Chi phí bốc xếp</label>
-                    <p class="font-medium text-gray-900">{{ number_format($import->loading_cost, 0, ',', '.') }} ₫</p>
+                    <p class="font-medium text-gray-900">{{ number_format($import->loading_cost) }} ₫</p>
                 </div>
                 @endif
                 @if($import->inspection_cost > 0)
                 <div>
                     <label class="text-xs text-gray-600">Chi phí kiểm định</label>
-                    <p class="font-medium text-gray-900">{{ number_format($import->inspection_cost, 0, ',', '.') }} ₫</p>
+                    <p class="font-medium text-gray-900">{{ number_format($import->inspection_cost) }} ₫</p>
                 </div>
                 @endif
                 @if($import->other_cost > 0)
                 <div>
                     <label class="text-xs text-gray-600">Chi phí khác</label>
-                    <p class="font-medium text-gray-900">{{ number_format($import->other_cost, 0, ',', '.') }} ₫</p>
+                    <p class="font-medium text-gray-900">{{ number_format($import->other_cost) }} ₫</p>
                 </div>
                 @endif
             </div>
             <div class="pt-3 border-t border-orange-300">
                 <div class="flex justify-between items-center">
                     <span class="text-sm font-medium text-gray-700">Tổng chi phí phục vụ:</span>
-                    <span class="text-lg font-bold text-orange-600">{{ number_format($import->total_service_cost, 0, ',', '.') }} ₫</span>
+                    <span class="text-lg font-bold text-orange-600">{{ number_format($import->total_service_cost) }} ₫</span>
                 </div>
                 <div class="flex justify-between items-center mt-2">
                     <span class="text-sm text-gray-600">Chi phí phục vụ / đơn vị:</span>
-                    <span class="text-sm font-semibold text-gray-700">{{ number_format($import->getServiceCostPerUnit(), 0, ',', '.') }} ₫</span>
+                    <span class="text-sm font-semibold text-gray-700">{{ number_format($import->getServiceCostPerUnit()) }} ₫</span>
                 </div>
             </div>
             @endif
@@ -269,10 +269,10 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <span class="text-sm font-medium text-gray-900">{{ number_format($item->cost, 0, ',', '.') }} $</span>
+                                    <span class="text-sm font-medium text-gray-900">{{ number_format($item->cost, $item->cost == floor($item->cost) ? 0 : 2, '.', ',') }} $</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <span class="text-sm font-bold text-gray-900">{{ number_format($item->quantity * $item->cost, 0, ',', '.') }} $</span>
+                                    <span class="text-sm font-bold text-gray-900">{{ number_format($item->quantity * $item->cost, ($item->quantity * $item->cost) == floor($item->quantity * $item->cost) ? 0 : 2, '.', ',') }} $</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     @php

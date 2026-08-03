@@ -467,14 +467,21 @@
             </div>
         </div>
 
-        @if($quotation->payment_terms || $quotation->delivery_time || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
+        @if($quotation->delivery_time || $quotation->warranty_terms || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
             <div class="terms">
                 <h4 style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 8px;">ĐIỀU KHOẢN & GHI CHÚ</h4>
-                @if($quotation->payment_terms)
-                    <p style="margin-bottom: 5px;"><strong>Điều khoản thanh toán:</strong> {{ $quotation->payment_terms }}</p>
-                @endif
                 @if($quotation->delivery_time)
                     <p style="margin-bottom: 5px;"><strong>Thời gian giao hàng:</strong> {{ $quotation->delivery_time }}</p>
+                @endif
+                @if(!empty($quotation->warranty_terms_array))
+                    <div style="margin-bottom: 8px;">
+                        <strong>Bảo hành:</strong>
+                        <div style="margin-top: 3px; padding-left: 10px;">
+                            @foreach($quotation->warranty_terms_array as $i => $item)
+                                <div style="margin-bottom: 3px;">({{ $i + 1 }}) {{ $item }}</div>
+                            @endforeach
+                        </div>
+                    </div>
                 @endif
                 @if(!empty($quotation->note_array))
                     <div style="margin-bottom: 8px;">

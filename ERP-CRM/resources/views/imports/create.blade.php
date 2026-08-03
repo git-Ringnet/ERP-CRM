@@ -732,10 +732,9 @@
                                     opt.dataset.unit = p.unit || 'Cái';
                                     opt.dataset.cost = p.cost || '0';
                                     opt.dataset.warranty = p.warranty_months || '';
-                                    const displayName = p.name.length > 50 ? p.name.substring(0, 47) + '...' : p.name;
-                                    opt.textContent = `${p.code} - ${displayName}`;
+                                    opt.textContent = p.code;
                                     opt.addEventListener('click', () => {
-                                        input.value = `${p.code} - ${p.name}`;
+                                        input.value = p.code;
                                         hiddenInput.value = p.id;
                                         hiddenInput.dataset.unit = p.unit || 'Cái'; // Store unit
                                         dropdown.style.display = 'none';

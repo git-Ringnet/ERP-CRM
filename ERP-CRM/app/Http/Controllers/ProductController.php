@@ -291,7 +291,7 @@ class ProductController extends Controller
 
         $products = Product::search($q)
             ->with(['supplierPriceListItems.priceList'])
-            ->select('id', 'code', 'name', 'unit', 'warranty_months')
+            ->select('id', 'code', 'name', 'unit', 'warranty_months', 'description')
             ->orderBy('code')
             ->limit(30)
             ->get();
@@ -305,6 +305,7 @@ class ProductController extends Controller
                 'warranty_months' => $product->warranty_months,
                 'cost' => $product->calculated_cost,
                 'price' => $product->calculated_selling_price,
+                'description' => $product->description,
             ];
         }));
     }

@@ -307,6 +307,7 @@ class TransactionService
                     'employee_id' => $data['employee_id'] ?? auth()->id(),
                     'project_id' => $data['project_id'] ?? null,
                     'customer_id' => $data['customer_id'] ?? null,
+                    'contact_id' => $data['contact_id'] ?? null,
                     'total_qty' => 0,
                     'reference_type' => $data['reference_type'] ?? null,
                     'reference_id' => $data['reference_id'] ?? null,

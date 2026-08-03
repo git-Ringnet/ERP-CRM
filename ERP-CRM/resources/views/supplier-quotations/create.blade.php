@@ -397,7 +397,7 @@
                 const row = input.closest('.item-row');
                 const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
                 const price = parseFloat(row.querySelector('.item-price').value) || 0;
-                row.querySelector('.item-total').value = (qty * price).toLocaleString('vi-VN');
+                row.querySelector('.item-total').value = (qty * price).toLocaleString('en-US');
                 calculateTotal();
             }
 

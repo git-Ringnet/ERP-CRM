@@ -232,19 +232,24 @@
     <tr><td colspan="{{ $totalCols }}"></td></tr>
 
     {{-- Điều khoản --}}
-    @if($quotation->payment_terms || $quotation->delivery_time || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
+    @if($quotation->delivery_time || $quotation->warranty_terms || !empty($quotation->note_array) || !empty($quotation->disclaimer_array))
         <tr>
             <td colspan="{{ $totalCols }}" class="bold" style="font-size: 11pt; text-decoration: underline;">ĐIỀU KHOẢN & GHI CHÚ:</td>
         </tr>
-        @if($quotation->payment_terms)
-            <tr>
-                <td colspan="{{ $totalCols }}"><strong>- Điều khoản thanh toán:</strong> {{ $quotation->payment_terms }}</td>
-            </tr>
-        @endif
         @if($quotation->delivery_time)
             <tr>
                 <td colspan="{{ $totalCols }}"><strong>- Thời gian giao hàng:</strong> {{ $quotation->delivery_time }}</td>
             </tr>
+        @endif
+        @if(!empty($quotation->warranty_terms_array))
+            <tr>
+                <td colspan="{{ $totalCols }}" class="bold">- Bảo hành:</td>
+            </tr>
+            @foreach($quotation->warranty_terms_array as $i => $item)
+                <tr>
+                    <td colspan="{{ $totalCols }}">    ({{ $i + 1 }}) {{ $item }}</td>
+                </tr>
+            @endforeach
         @endif
         @if(!empty($quotation->note_array))
             <tr>

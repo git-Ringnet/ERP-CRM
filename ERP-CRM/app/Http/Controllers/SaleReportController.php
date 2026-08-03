@@ -20,7 +20,7 @@ class SaleReportController extends Controller
     {
         $this->authorize('viewAny', \App\Models\SaleReport::class);
         
-        $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $customerId = $request->input('customer_id');
         $productId = $request->input('product_id');
@@ -38,9 +38,6 @@ class SaleReportController extends Controller
         // Margin report (new)
         $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId);
 
-        // Conversion Efficiency report (new)
-        $conversionReport = $this->getConversionReport($dateFrom, $dateTo, $customerId, $productId, $userId, $request->input('search_user'));
-
         $customers = Customer::orderBy('name')->get();
         // Don't load all products to prevent slow page load
         $selectedProduct = $productId ? Product::find($productId) : null;
@@ -48,7 +45,7 @@ class SaleReportController extends Controller
 
         return view('sale-reports.index', compact(
             'stats', 'customerReport', 'productReport',
-            'marginReport', 'conversionReport', 'customers', 'selectedProduct', 'users',
+            'marginReport', 'customers', 'selectedProduct', 'users',
             'dateFrom', 'dateTo', 'customerId', 'productId', 'userId'
         ));
     }

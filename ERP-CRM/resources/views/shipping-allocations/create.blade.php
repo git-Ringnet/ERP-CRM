@@ -288,7 +288,7 @@ function calculateAllocation() {
     document.getElementById('summary_difference').className = 'w-full px-3 py-1.5 text-sm border rounded-md ' + (Math.abs(diff) < 1 ? 'text-green-600 border-green-200 bg-green-50' : 'text-red-600 border-red-200 bg-red-50');
 }
 
-function formatNumber(num) { return Math.round(num).toLocaleString('vi-VN'); }
+function formatNumber(num) { return Math.round(num).toLocaleString('en-US'); }
 
 document.addEventListener('DOMContentLoaded', function() { updateRemoveButtons(); calculateAllocation(); });
 </script>

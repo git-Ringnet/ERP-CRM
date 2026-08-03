@@ -92,7 +92,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-sm opacity-80">Doanh thu</p>
-                        <p class="text-2xl font-bold">{{ number_format($stats['total_revenue'] / 1000000, 1) }}tr</p>
+                        <p class="text-2xl font-bold">{{ number_format($stats['total_revenue']) }}đ</p>
                         <p class="text-xs opacity-70">{{ number_format($stats['total_orders']) }} đơn hàng</p>
                     </div>
                     <i class="fas fa-coins text-3xl opacity-50"></i>
@@ -102,7 +102,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-sm opacity-80">Lợi nhuận gộp</p>
-                        <p class="text-2xl font-bold">{{ number_format($stats['total_profit'] / 1000000, 1) }}tr</p>
+                        <p class="text-2xl font-bold">{{ number_format($stats['total_profit']) }}đ</p>
                     </div>
                     <i class="fas fa-chart-line text-3xl opacity-50"></i>
                 </div>
@@ -120,7 +120,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-sm opacity-80">Tổng chi phí</p>
-                        <p class="text-2xl font-bold">{{ number_format($stats['total_cost'] / 1000000, 1) }}tr</p>
+                        <p class="text-2xl font-bold">{{ number_format($stats['total_cost']) }}đ</p>
                         <p class="text-xs opacity-70">Giá vốn + CP bán hàng</p>
                     </div>
                     <i class="fas fa-wallet text-3xl opacity-50"></i>
@@ -147,12 +147,6 @@
                         data-tab="margin">
                         <i class="fas fa-file-invoice-dollar mr-1"></i>Báo cáo Margin
                     </button>
-
-                    <button type="button"
-                        class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
-                        data-tab="conversion">
-                        <i class="fas fa-funnel-dollar mr-1"></i>Hiệu quả chuyển đổi
-                    </button>
                 </nav>
             </div>
 
@@ -175,9 +169,9 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium">{{ $row['customer'] }}</td>
                                     <td class="px-3 py-2 text-center">{{ $row['order_count'] }}</td>
-                                    <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue'], 0, ',', '.') }}đ</td>
+                                    <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue']) }}đ</td>
                                     <td class="px-3 py-2 text-right text-green-600 font-medium">
-                                        {{ number_format($row['total_profit'], 0, ',', '.') }}đ
+                                        {{ number_format($row['total_profit']) }}đ
                                     </td>
                                     <td class="px-3 py-2 text-center">
                                         <span class="inline-block px-2 py-0.5 text-xs font-medium {{ $row['margin_percent'] >= 15 ? 'bg-green-100 text-green-800' : ($row['margin_percent'] >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }} rounded-full">
@@ -214,9 +208,9 @@
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-medium" title="{{ $row['product_name'] }}">{{ $row['product_code'] ?: 'N/A' }}</td>
                                     <td class="px-3 py-2 text-center">{{ number_format($row['total_quantity']) }}</td>
-                                    <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue'], 0, ',', '.') }}đ</td>
+                                    <td class="px-3 py-2 text-right font-bold text-primary">{{ number_format($row['total_revenue']) }}đ</td>
                                     <td class="px-3 py-2 text-right text-green-600 font-medium">
-                                        {{ number_format($row['total_profit'], 0, ',', '.') }}đ
+                                        {{ number_format($row['total_profit']) }}đ
                                     </td>
                                     <td class="px-3 py-2 text-center">
                                         <span class="inline-block px-2 py-0.5 text-xs font-medium {{ $row['margin_percent'] >= 15 ? 'bg-green-100 text-green-800' : ($row['margin_percent'] >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }} rounded-full">
@@ -286,7 +280,7 @@
                                     <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
                                     <td class="px-2 py-2 text-center border border-gray-200 font-mono text-xs">{{ $row['main_product_code'] }}</td>
                                     <td class="px-2 py-2 text-right border border-gray-200 font-semibold {{ $row['margin'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                                        {{ number_format($row['margin'], 0, ',', '.') }}
+                                        {{ number_format($row['margin']) }}
                                     </td>
                                     <td class="px-2 py-2 text-center border border-gray-200">
                                         <span class="inline-block px-1.5 py-0.5 text-xs font-medium rounded-full
@@ -297,7 +291,7 @@
                                     <td class="px-2 py-2 border border-gray-200">{{ $row['salesperson'] }}</td>
                                     <td class="px-2 py-2 text-right border border-gray-200">
                                         @if($row['paid_amount'] > 0)
-                                            {{ number_format($row['paid_amount'], 0, ',', '.') }}
+                                            {{ number_format($row['paid_amount']) }}
                                         @else
                                             <span class="text-gray-400">Chưa thanh toán</span>
                                         @endif
@@ -323,12 +317,12 @@
                             <tr class="bg-gray-100 font-bold text-xs">
                                 <td colspan="8" class="px-2 py-2 text-right border border-gray-300">TỔNG CỘNG</td>
                                 <td class="px-2 py-2 text-right border border-gray-300 {{ collect($marginReport)->sum('margin') >= 0 ? 'text-green-700' : 'text-red-700' }}">
-                                    {{ number_format(collect($marginReport)->sum('margin'), 0, ',', '.') }}
+                                    {{ number_format(collect($marginReport)->sum('margin')) }}
                                 </td>
                                 <td class="px-2 py-2 text-center border border-gray-300"></td>
                                 <td class="px-2 py-2 border border-gray-300"></td>
                                 <td class="px-2 py-2 text-right border border-gray-300">
-                                    {{ number_format(collect($marginReport)->sum('paid_amount'), 0, ',', '.') }}
+                                    {{ number_format(collect($marginReport)->sum('paid_amount')) }}
                                 </td>
                                 <td class="px-2 py-2 border border-gray-300"></td>
                             </tr>
@@ -342,104 +336,6 @@
                 </div>
             </div>
 
-            <!-- Conversion Efficiency Report -->
-            <div class="tab-content p-4 hidden" id="tab-conversion">
-                <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-                    <h3 class="text-base font-semibold text-gray-800">
-                        <i class="fas fa-funnel-dollar mr-2 text-primary"></i>Phân tích tỷ lệ chuyển đổi theo nhân viên
-                    </h3>
-                    
-                    <div class="flex items-center gap-2">
-                        <form method="GET" class="flex items-center gap-2">
-                            <input type="hidden" name="date_from" value="{{ $dateFrom }}">
-                            <input type="hidden" name="date_to" value="{{ $dateTo }}">
-                            <input type="hidden" name="customer_id" value="{{ $customerId }}">
-                            <input type="hidden" name="product_id" value="{{ $productId }}">
-                            <input type="hidden" name="user_id" value="{{ $userId }}">
-                            <input type="hidden" name="tab" value="conversion">
-
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400">
-                                    <i class="fas fa-search text-xs"></i>
-                                </span>
-                                <input type="text" name="search_user" value="{{ request('search_user') }}" placeholder="Tìm tên nhân viên..."
-                                    class="pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary w-48">
-                            </div>
-
-                            <button type="submit" class="px-3 py-1.5 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors text-xs font-medium">
-                                Tìm kiếm
-                            </button>
-                            
-                            @if(request('search_user'))
-                                <a href="{{ route('sale-reports.index', ['tab' => 'conversion', 'date_from' => $dateFrom, 'date_to' => $dateTo, 'customer_id' => $customerId, 'product_id' => $productId, 'user_id' => $userId]) }}" 
-                                   class="p-1.5 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300 transition-colors" title="Xóa tìm kiếm">
-                                    <i class="fas fa-times text-xs"></i>
-                                </a>
-                            @endif
-                        </form>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-3 py-2 text-left font-medium text-gray-700">Nhân viên</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Khách hàng / Đầu mối (1)</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Cơ hội (2)</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Đơn hàng đã chốt (3)</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ (2)/(1)</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Tỷ lệ (3)/(2)</th>
-                                <th class="px-3 py-2 text-center font-medium text-gray-700">Hiệu suất chung (3)/(1)</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            @forelse($conversionReport as $row)
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-3 py-2 font-medium">{{ $row['name'] }}</td>
-                                    <td class="px-3 py-2 text-center">{{ number_format($row['customers_count']) }}</td>
-                                    <td class="px-3 py-2 text-center text-blue-600 font-medium">{{ number_format($row['opportunities_count']) }}</td>
-                                    <td class="px-3 py-2 text-center text-green-600 font-bold">{{ number_format($row['sales_count']) }}</td>
-                                    <td class="px-3 py-2 text-center">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <div class="w-16 bg-gray-200 rounded-full h-1.5 hidden md:block">
-                                                <div class="bg-blue-400 h-1.5 rounded-full" style="width: {{ min(100, $row['lead_to_opp_rate']) }}%"></div>
-                                            </div>
-                                            <span class="text-xs font-semibold">{{ $row['lead_to_opp_rate'] }}%</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-2 text-center">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <div class="w-16 bg-gray-200 rounded-full h-1.5 hidden md:block">
-                                                <div class="bg-green-400 h-1.5 rounded-full" style="width: {{ min(100, $row['opp_to_sale_rate']) }}%"></div>
-                                            </div>
-                                            <span class="text-xs font-semibold">{{ $row['opp_to_sale_rate'] }}%</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-2 text-center">
-                                        @php
-                                            $totalRate = $row['customers_count'] > 0 ? round(($row['sales_count'] / $row['customers_count']) * 100, 1) : 0;
-                                        @endphp
-                                        <span class="inline-block px-2 py-0.5 text-xs font-bold {{ $totalRate >= 50 ? 'bg-green-100 text-green-800' : ($totalRate >= 20 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') }} rounded-full">
-                                            {{ $totalRate }}%
-                                        </span>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="px-3 py-8 text-center text-gray-500">Không có dữ liệu nhân viên</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-4 p-3 bg-blue-50 rounded text-xs text-blue-700">
-                    <p><strong><i class="fas fa-info-circle mr-1"></i>Ghi chú:</strong></p>
-                    <ul class="list-disc ml-4 mt-1 space-y-1">
-                        <li><strong>Khách hàng / Đầu mối:</strong> Số lượng khách hàng được tạo và giao cho nhân viên quản lý trong kỳ.</li>
-                        <li><strong>Cơ hội:</strong> Số lượng cơ hội kinh doanh mới được nhân viên tạo ra hoặc được giao trong kỳ.</li>
-                        <li><strong>Đơn hàng đã chốt:</strong> Số lượng đơn hàng đã được duyệt hoặc hoàn thành trong kỳ.</li>
-                    </ul>
-                </div>
             </div>
         </div>
     </div>

@@ -256,7 +256,7 @@ async function loadStockInfo(itemIdx) {
         // Show avg_cost
         const avgCost = data.avg_cost || 0;
         if (avgCost > 0) {
-            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('vi-VN')} đ</span>`;
+            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('en-US')} đ</span>`;
         }
         
         stockSummary.innerHTML = summaryHtml;

@@ -45,7 +45,7 @@
             </div>
         @endif
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Mã phiếu xuất</label>
                 <input type="text" value="{{ $export->code }}" readonly
@@ -74,7 +74,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Dự án</label>
-                <select name="project_id" id="project_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" onchange="toggleExportType()">
+                <select name="project_id" id="project_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Không chọn dự án --</option>
                     @foreach($projects as $project)
                         <option value="{{ $project->id }}" {{ $export->project_id == $project->id ? 'selected' : '' }}>
@@ -86,26 +86,48 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
-                <select name="customer_id" id="customer_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" onchange="toggleExportType()">
+                <select name="customer_id" id="customer_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Không chọn khách hàng --</option>
                     @foreach($customers as $customer)
-                        <option value="{{ $customer->id }}" {{ $export->customer_id == $customer->id ? 'selected' : '' }}>
-                            {{ $customer->code }} - {{ $customer->name }}
+                        <option value="{{ $customer->id }}" 
+                                data-tax-code="{{ $customer->tax_code }}" 
+                                data-abv-name="{{ $customer->abv_name }}"
+                                {{ $export->customer_id == $customer->id ? 'selected' : '' }}>
+                            {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                         </option>
                     @endforeach
                 </select>
             </div>
 
-            <div class="md:col-span-3">
+            <div>
+                <div class="flex justify-between items-center mb-1 gap-1 whitespace-nowrap overflow-hidden">
+                    <label class="text-sm font-medium text-gray-700 truncate">Người phụ trách</label>
+                    <button type="button" id="btn-quick-add-contact" class="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap flex-shrink-0 hidden">
+                        <i class="fas fa-plus mr-1"></i>Thêm mới
+                    </button>
+                </div>
+                <select name="contact_id" id="contact_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg" disabled>
+                    <option value="">-- Chọn người phụ trách --</option>
+                </select>
+                <div id="pic_details" class="hidden mt-2 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs text-gray-600 space-y-1">
+                    <p class="font-medium text-gray-700 mb-1"><span id="pic_name"></span></p>
+                    <p><i class="fas fa-envelope text-gray-400 mr-1.5 w-4"></i><span id="pic_email"></span></p>
+                    <p><i class="fas fa-phone text-gray-400 mr-1.5 w-4"></i><span id="pic_phone"></span></p>
+                    <p><i class="fas fa-briefcase text-gray-400 mr-1.5 w-4"></i><span id="pic_position"></span></p>
+                </div>
+            </div>
+
+            <div class="md:col-span-4">
                 <p class="text-xs text-gray-500">
                     <i class="fas fa-info-circle mr-1"></i>
                     Chọn <strong>Dự án</strong> nếu xuất cho dự án, hoặc <strong>Khách hàng</strong> nếu xuất bán/giao hàng cho khách hàng. Có thể để trống cả hai.
                 </p>
             </div>
 
-            <div class="md:col-span-3">
+            <div class="md:col-span-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea name="note" rows="1" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $export->note) }}</textarea>
+                <textarea name="note" rows="1" 
+                          class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $export->note) }}</textarea>
             </div>
         </div>
 
@@ -138,34 +160,317 @@
     @endif
 </div>
 
+<!-- Quick Add Customer Modal -->
+<div id="addCustomerModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="modalOverlay"></div>
+
+        <!-- Trick to center the modal contents -->
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-lg leading-6 font-semibold text-gray-900" id="modal-title">
+                        <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm khách hàng nhanh
+                    </h3>
+                    <button type="button" id="closeCustomerModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Validation Error Message Block -->
+                <div id="modalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                <form id="customerModalForm" class="space-y-4">
+                    @csrf
+                    <!-- MST with lookup -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Mã số thuế (MST) <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" name="tax_code" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập MST để tra cứu...">
+                            <button type="button" id="btn-modal-search-tax"
+                                    class="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-primary transition-colors focus:outline-none"
+                                    title="Tra cứu thông tin doanh nghiệp từ MST">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Tên khách hàng/Công ty <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                               placeholder="Nhập tên khách hàng...">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Tên viết tắt <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="abv_name" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="VD: ADG, IIJ...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email công ty
+                            </label>
+                            <input type="email" name="email"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="email@company.com">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại công ty
+                            </label>
+                            <input type="text" name="phone"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Địa chỉ
+                            </label>
+                            <input type="text" name="address"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập địa chỉ...">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Contacts Section -->
+                    <div class="border-t pt-3 mt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-sm font-semibold text-gray-900">
+                                <i class="fas fa-users text-blue-500 mr-1.5"></i> Danh sách người liên hệ <span class="text-red-500">*</span>
+                            </h4>
+                            <button type="button" id="modalAddContactBtn"
+                                    class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                <i class="fas fa-plus mr-1"></i> Thêm người liên hệ
+                            </button>
+                        </div>
+                        <div id="modalContactsContainer" class="space-y-3">
+                            <!-- First contact card (always present) -->
+                            <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50" data-contact-index="0">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #1</span>
+                                    <div class="flex items-center gap-3">
+                                        <label class="flex items-center cursor-pointer">
+                                            <input type="radio" name="modal_primary_contact" value="0" checked class="form-radio text-primary h-3.5 w-3.5">
+                                            <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                                        </label>
+                                        <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors hidden">
+                                            <i class="fas fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                                        <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" id="saveCustomerBtn"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                </button>
+                <button type="button" id="cancelCustomerBtn"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Single Contact Modal -->
+<div id="addSingleContactModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="singleContactModalOverlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                        <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm người phụ trách mới
+                    </h3>
+                    <button type="button" id="closeSingleContactModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+                
+                <div id="singleContactModalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                <form id="singleContactModalForm" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Họ & Tên <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nhập họ tên...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Chức vụ <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="position" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="VD: Giám đốc, Kế toán...">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="phone" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="email@company.com">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" id="saveSingleContactBtn" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                </button>
+                <button type="button" id="cancelSingleContactBtn" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
+let isTogglingExport = false;
+
 // Toggle between project and customer selection
 function toggleExportType() {
-    const projectSelect = document.getElementById('project_id');
-    const customerSelect = document.getElementById('customer_id');
-    
-    if (projectSelect && customerSelect) {
-        // If project is selected, disable customer
-        if (projectSelect.value) {
-            customerSelect.value = '';
-            customerSelect.disabled = true;
-            customerSelect.classList.add('bg-gray-100');
-        } else {
-            customerSelect.disabled = false;
-            customerSelect.classList.remove('bg-gray-100');
-        }
+    if (isTogglingExport) return;
+    isTogglingExport = true;
+    try {
+        const projectSelect = document.getElementById('project_id');
+        const customerSelect = $('#customer_id');
+        const contactSelect = $('#contact_id');
+        const btnAddContact = $('#btn-quick-add-contact');
         
-        // If customer is selected, disable project
-        if (customerSelect.value) {
-            projectSelect.value = '';
-            projectSelect.disabled = true;
-            projectSelect.classList.add('bg-gray-100');
-        } else {
-            projectSelect.disabled = false;
-            projectSelect.classList.remove('bg-gray-100');
+        if (projectSelect && customerSelect.length) {
+            // If project is selected, disable customer & contact
+            if (projectSelect.value) {
+                if (customerSelect.val()) {
+                    customerSelect.val('').trigger('change.select2');
+                }
+                customerSelect.prop('disabled', true);
+                contactSelect.val('').prop('disabled', true);
+                btnAddContact.addClass('hidden');
+            } else {
+                customerSelect.prop('disabled', false);
+            }
+            
+            // If customer is selected, disable project
+            const selectedCustId = customerSelect.val();
+            if (selectedCustId) {
+                projectSelect.value = '';
+                projectSelect.disabled = true;
+                projectSelect.classList.add('bg-gray-100');
+            } else {
+                projectSelect.disabled = false;
+                projectSelect.classList.remove('bg-gray-100');
+            }
         }
+    } finally {
+        isTogglingExport = false;
     }
+}
+
+let exportsContactsData = [];
+
+function updatePicDetails() {
+    const val = $('#contact_id').val();
+    const contact = exportsContactsData.find(c => c.id == val);
+    if (contact) {
+        $('#pic_name').text(contact.name);
+        $('#pic_email').text(contact.email || 'N/A');
+        $('#pic_phone').text(contact.phone || 'N/A');
+        $('#pic_position').text(contact.position || 'N/A');
+        $('#pic_details').removeClass('hidden');
+    } else {
+        $('#pic_details').addClass('hidden');
+    }
+}
+
+$('#contact_id').on('change', updatePicDetails);
+
+// Function to load contacts for customer
+function loadCustomerContacts(customerId, selectedContactId = null) {
+    const contactSelect = $('#contact_id');
+    const btnAddContact = $('#btn-quick-add-contact');
+    
+    if (!customerId) {
+        contactSelect.html('<option value="">-- Chọn người phụ trách --</option>').prop('disabled', true);
+        btnAddContact.addClass('hidden');
+        $('#pic_details').addClass('hidden');
+        exportsContactsData = [];
+        return;
+    }
+
+    btnAddContact.removeClass('hidden');
+    contactSelect.html('<option value="">Đang tải...</option>').prop('disabled', true);
+
+    fetch(`/ajax/customers/${customerId}/contacts`)
+        .then(response => response.json())
+        .then(contacts => {
+            exportsContactsData = contacts;
+            let options = '<option value="">-- Chọn người phụ trách --</option>';
+            contacts.forEach(c => {
+                const isSel = (selectedContactId && selectedContactId == c.id) || (!selectedContactId && c.is_primary) ? 'selected' : '';
+                options += `<option value="${c.id}" ${isSel}>${c.name} ${c.is_primary ? '(Mặc định)' : ''}</option>`;
+            });
+            contactSelect.html(options).prop('disabled', false);
+            updatePicDetails();
+        })
+        .catch(err => {
+            console.error('Error fetching contacts:', err);
+            contactSelect.html('<option value="">Không tải được người liên hệ</option>').prop('disabled', false);
+            $('#pic_details').addClass('hidden');
+        });
 }
 
 // Initialize on page load
@@ -193,7 +498,7 @@ function addItem(existingData = null) {
     
     // Pre-fill product text if existing
     const productText = existingData && existingData.product_code 
-        ? `${existingData.product_code} - ${existingData.product_name}` 
+        ? existingData.product_code 
         : '';
     
     itemDiv.innerHTML = `
@@ -362,7 +667,7 @@ async function loadStockInfo(itemIdx) {
         if (noSkuCount > 0) summaryHtml += `<span class="text-gray-600">${noSkuCount} không serial</span>`;
         if (serialItems.length > 0 || noSkuCount > 0) summaryHtml += `)`;
         if (avgCost > 0) {
-            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('vi-VN')} đ</span>`;
+            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('en-US')} đ</span>`;
             
             // Auto-fill unit price if current value is 0 or empty
             const priceDisplay = document.querySelector(`[data-index="${itemIdx}"] .unit-price-display`);
@@ -396,6 +701,7 @@ function formatNumber(num) {
         maximumFractionDigits: 2
     }).format(num);
 }
+window.formatNumberValue = formatNumber;
 
 function onPriceInput(input, itemIdx) {
     // Remove all non-numeric characters except decimal point
@@ -737,10 +1043,9 @@ function initSearchableSelect(container) {
                         opt.dataset.value = p.id;
                         opt.dataset.text = `${p.code} - ${p.name}`;
                         opt.dataset.price = p.price || '0';
-                        const displayName = p.name.length > 60 ? p.name.substring(0, 57) + '...' : p.name;
-                        opt.textContent = `${p.code} - ${displayName}`;
+                        opt.textContent = p.code;
                         opt.addEventListener('click', () => {
-                            input.value = `${p.code} - ${p.name}`;
+                            input.value = p.code;
                             hiddenInput.value = p.id;
                             
                             // Auto-fill price
@@ -748,7 +1053,7 @@ function initSearchableSelect(container) {
                             const priceDisplay = row.querySelector('.unit-price-display');
                             const priceRaw = row.querySelector('.unit-price-raw');
                             if (priceDisplay && priceRaw) {
-                                priceDisplay.value = formatNumberValue(p.price || 0);
+                                priceDisplay.value = formatNumber(p.price || 0);
                                 priceRaw.value = p.price || 0;
                                 updateRowTotal(itemIdx);
                             }
@@ -810,11 +1115,438 @@ function initSearchableSelect(container) {
         }
     });
 }
+
+// Select2 Initialization and Modal handlers
+$(document).ready(function() {
+    function matchCustomer(params, data) {
+        if ($.trim(params.term) === '') {
+            return data;
+        }
+        if (typeof data.text === 'undefined') {
+            return null;
+        }
+        var term = params.term.toLowerCase();
+        var text = data.text.toLowerCase();
+        
+        var taxCode = '';
+        var abvName = '';
+        if (data.element) {
+            taxCode = $(data.element).data('tax-code') ? $(data.element).data('tax-code').toString().toLowerCase() : '';
+            abvName = $(data.element).data('abv-name') ? $(data.element).data('abv-name').toString().toLowerCase() : '';
+        }
+
+        if (text.indexOf(term) > -1 || taxCode.indexOf(term) > -1 || abvName.indexOf(term) > -1) {
+            return data;
+        }
+        return null;
+    }
+
+    $('select[name="customer_id"]').select2({
+        placeholder: "Chọn khách hàng",
+        allowClear: true,
+        width: '100%',
+        matcher: matchCustomer,
+        language: {
+            noResults: function () {
+                return `<div class="p-2 text-center text-gray-500">
+                            <div class="mb-1 text-xs">Không tìm thấy khách hàng nào</div>
+                            <button type="button" id="btn-quick-add-customer" class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                <i class="fas fa-plus mr-1"></i> Thêm khách hàng nhanh
+                            </button>
+                        </div>`;
+            }
+        },
+        escapeMarkup: function (markup) {
+            return markup;
+        }
+    });
+
+    $('select[name="customer_id"]').on('select2:select', function () {
+        $(this).select2('close');
+    });
+
+    $('select[name="customer_id"]').on('change', function () {
+        toggleExportType();
+        const custId = $(this).val();
+        loadCustomerContacts(custId);
+    });
+
+    $('#project_id').on('change', function() {
+        toggleExportType();
+    });
+
+    // Handle initial state
+    toggleExportType();
+    const initialCustId = $('select[name="customer_id"]').val();
+    if (initialCustId) {
+        const currentContactId = '{{ old('contact_id', $export->contact_id) }}';
+        loadCustomerContacts(initialCustId, currentContactId);
+    }
+});
+
+// --- Quick Add Customer Modal Script ---
+let modalContactCount = 1;
+
+function updateModalContactHeaders() {
+    const cards = $('#modalContactsContainer .modal-contact-card');
+    cards.each(function(idx, el) {
+        $(el).find('.contact-label').text(`Người liên hệ #${idx + 1}`);
+        if (cards.length > 1) {
+            $(el).find('.btn-remove-modal-contact').removeClass('hidden');
+        } else {
+            $(el).find('.btn-remove-modal-contact').addClass('hidden');
+        }
+    });
+}
+
+$(document).on('click', '#modalAddContactBtn', function(e) {
+    e.preventDefault();
+    const newIndex = modalContactCount++;
+    const contactCardHtml = `
+        <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50 mt-3" data-contact-index="${newIndex}">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #${newIndex + 1}</span>
+                <div class="flex items-center gap-3">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="radio" name="modal_primary_contact" value="${newIndex}" class="form-radio text-primary h-3.5 w-3.5">
+                        <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                    </label>
+                    <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                    <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                </div>
+            </div>
+        </div>
+    `;
+    $('#modalContactsContainer').append(contactCardHtml);
+    updateModalContactHeaders();
+});
+
+$(document).on('click', '.btn-remove-modal-contact', function(e) {
+    e.preventDefault();
+    const card = $(this).closest('.modal-contact-card');
+    const wasChecked = card.find('input[name="modal_primary_contact"]').is(':checked');
+    card.remove();
+    if (wasChecked) {
+        $('#modalContactsContainer .modal-contact-card').first().find('input[name="modal_primary_contact"]').prop('checked', true);
+    }
+    updateModalContactHeaders();
+});
+
+$(document).on('click', '#btn-modal-search-tax', async function(e) {
+    e.preventDefault();
+    const taxCode = $('#customerModalForm input[name="tax_code"]').val().trim();
+    if (!taxCode) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Thông báo',
+            text: 'Vui lòng nhập mã số thuế trước khi tra cứu',
+            confirmButtonColor: '#3085d6',
+        });
+        return;
+    }
+
+    const btn = $(this);
+    const originalIcon = btn.html();
+    btn.html('<i class="fas fa-spinner fa-spin text-primary"></i>').prop('disabled', true);
+
+    try {
+        const response = await fetch(`https://api.vietqr.io/v2/business/${taxCode}`);
+        const data = await response.json();
+        
+        if (data.code === '00' && data.data) {
+            const biz = data.data;
+            if (biz.name) {
+                $('#customerModalForm input[name="name"]').val(biz.name);
+            }
+            if (biz.address) {
+                $('#customerModalForm input[name="address"]').val(biz.address);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã lấy được thông tin doanh nghiệp',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } else {
+            throw new Error(data.desc || 'Không tìm thấy thông tin cho mã số thuế này');
+        }
+    } catch (error) {
+        console.error('Tax lookup error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi tra cứu',
+            text: error.message || 'Có lỗi xảy ra khi tra cứu mã số thuế',
+            confirmButtonColor: '#d33',
+        });
+    } finally {
+        btn.html(originalIcon).prop('disabled', false);
+    }
+});
+
+$(document).on('click', '#btn-quick-add-customer', function(e) {
+    e.preventDefault();
+    $('select[name="customer_id"]').select2('close');
+    $('#addCustomerModal').removeClass('hidden');
+    const select2Search = $('.select2-search__field').val() || '';
+    if (select2Search) {
+        $('#customerModalForm input[name="name"]').val(select2Search);
+    }
+});
+
+function resetCustomerModal() {
+    $('#addCustomerModal').addClass('hidden');
+    $('#customerModalForm')[0].reset();
+    $('#modalErrors').addClass('hidden').html('');
+    const container = $('#modalContactsContainer');
+    container.find('.modal-contact-card').slice(1).remove();
+    const firstCard = container.find('.modal-contact-card').first();
+    firstCard.attr('data-contact-index', '0');
+    firstCard.find('input[name="modal_primary_contact"]').val('0').prop('checked', true);
+    firstCard.find('.contact-name').val('');
+    firstCard.find('.contact-position').val('');
+    firstCard.find('.contact-phone').val('');
+    firstCard.find('.contact-email').val('');
+    modalContactCount = 1;
+    updateModalContactHeaders();
+}
+
+$('#closeCustomerModal, #cancelCustomerBtn, #modalOverlay').on('click', function() {
+    resetCustomerModal();
+});
+
+$('#saveCustomerBtn').on('click', async function() {
+    const form = $('#customerModalForm');
+    const saveBtn = $(this);
+    const errorsDiv = $('#modalErrors');
+
+    const name = form.find('input[name="name"]').val().trim();
+    const taxCode = form.find('input[name="tax_code"]').val().trim();
+    const abvName = form.find('input[name="abv_name"]').val().trim();
+
+    if (!name || !taxCode || !abvName) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc của doanh nghiệp (*).');
+        return;
+    }
+
+    const contacts = [];
+    let contactsValid = true;
+
+    $('#modalContactsContainer .modal-contact-card').each(function() {
+        const card = $(this);
+        const cName = card.find('.contact-name').val().trim();
+        const cPosition = card.find('.contact-position').val().trim();
+        const cPhone = card.find('.contact-phone').val().trim();
+        const cEmail = card.find('.contact-email').val().trim();
+        const isPrimary = card.find('input[name="modal_primary_contact"]').is(':checked') ? 1 : 0;
+
+        if (!cName || !cPosition || !cPhone || !cEmail) {
+            contactsValid = false;
+            return false;
+        }
+
+        contacts.push({
+            name: cName,
+            position: cPosition,
+            phone: cPhone,
+            email: cEmail,
+            is_primary: isPrimary
+        });
+    });
+
+    if (!contactsValid || contacts.length === 0) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các trường thông tin bắt buộc (*) của tất cả người liên hệ.');
+        return;
+    }
+
+    saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+    $('#cancelCustomerBtn').prop('disabled', true);
+    errorsDiv.addClass('hidden').html('');
+
+    try {
+        const response = await fetch("{{ route('customers.store-ajax') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                tax_code: taxCode,
+                abv_name: abvName,
+                phone: form.find('input[name="phone"]').val().trim(),
+                email: form.find('input[name="email"]').val().trim(),
+                address: form.find('input[name="address"]').val().trim(),
+                contacts: contacts
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            const customer = result.customer;
+            const displayName = customer.name + (customer.code ? ' (' + customer.code + ')' : '');
+            const newOption = new Option(displayName, customer.id, true, true);
+            newOption.dataset.taxCode = customer.tax_code || '';
+            newOption.dataset.abvName = customer.abv_name || '';
+            
+            $('select[name="customer_id"]').append(newOption).trigger('change');
+            resetCustomerModal();
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã thêm khách hàng mới thành công!',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            let errorMsg = result.message || 'Có lỗi xảy ra khi tạo khách hàng.';
+            if (result.errors) {
+                errorMsg = Object.values(result.errors).flat().join('<br>');
+            }
+            errorsDiv.removeClass('hidden').html(errorMsg);
+        }
+    } catch (error) {
+        console.error('Error adding customer:', error);
+        errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+    } finally {
+        saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+        $('#cancelCustomerBtn').prop('disabled', false);
+    }
+});
+
+// Single contact modal handlers
+$(document).on('click', '#btn-quick-add-contact', function(e) {
+    e.preventDefault();
+    const customerId = $('select[name="customer_id"]').val();
+    if (!customerId) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Thông báo',
+            text: 'Vui lòng chọn Khách hàng trước khi thêm người phụ trách mới',
+        });
+        return;
+    }
+    $('#addSingleContactModal').removeClass('hidden');
+});
+
+function resetSingleContactModal() {
+    $('#addSingleContactModal').addClass('hidden');
+    $('#singleContactModalForm')[0].reset();
+    $('#singleContactModalErrors').addClass('hidden').html('');
+}
+
+$('#closeSingleContactModal, #cancelSingleContactBtn, #singleContactModalOverlay').on('click', function() {
+    resetSingleContactModal();
+});
+
+$('#saveSingleContactBtn').on('click', async function() {
+    const customerId = $('select[name="customer_id"]').val();
+    if (!customerId) return;
+
+    const form = $('#singleContactModalForm');
+    const saveBtn = $(this);
+    const errorsDiv = $('#singleContactModalErrors');
+
+    const name = form.find('input[name="name"]').val().trim();
+    const position = form.find('input[name="position"]').val().trim();
+    const phone = form.find('input[name="phone"]').val().trim();
+    const email = form.find('input[name="email"]').val().trim();
+
+    if (!name || !position || !phone || !email) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc (*).');
+        return;
+    }
+
+    saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+    $('#cancelSingleContactBtn').prop('disabled', true);
+    errorsDiv.addClass('hidden').html('');
+
+    try {
+        const response = await fetch(`/ajax/customers/${customerId}/contacts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                first_name: name,
+                position: position,
+                phone: phone,
+                email: email
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            resetSingleContactModal();
+            loadCustomerContacts(customerId, result.contact.id);
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã thêm người phụ trách mới thành công!',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            let errorMsg = result.message || 'Có lỗi xảy ra khi tạo người phụ trách.';
+            if (result.errors) {
+                errorMsg = Object.values(result.errors).flat().join('<br>');
+            }
+            errorsDiv.removeClass('hidden').html(errorMsg);
+        }
+    } catch (error) {
+        console.error('Error adding contact:', error);
+        errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+    } finally {
+        saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+        $('#cancelSingleContactBtn').prop('disabled', false);
+    }
+});
 </script>
 @endpush
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
+/* Select2 Height & Styling Customization to match Stock Out Tailwind Inputs */
+.select2-container .select2-selection--single {
+    height: 38px !important;
+    border-color: #d1d5db !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px !important;
+    top: 1px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 36px !important;
+    color: #374151 !important;
+    font-size: 0.875rem !important;
+    padding-left: 0.75rem !important;
+}
 .searchable-select {
     position: relative;
 }

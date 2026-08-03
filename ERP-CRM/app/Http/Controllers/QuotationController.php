@@ -119,6 +119,8 @@ class QuotationController extends Controller
             'vat' => ['nullable', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string'],
             'delivery_time' => ['nullable', 'string'],
+            'warranty_terms' => ['nullable', 'array'],
+            'warranty_terms.*' => ['nullable', 'string', 'max:2000'],
             'note' => ['nullable', 'array'],
             'note.*' => ['nullable', 'string', 'max:2000'],
             'disclaimer' => ['nullable', 'array'],
@@ -193,6 +195,7 @@ class QuotationController extends Controller
                 'currency_id' => $validated['currency_id'] ?? Currency::getBaseCurrencyId(),
                 'payment_terms' => $validated['payment_terms'] ?? null,
                 'delivery_time' => $validated['delivery_time'] ?? null,
+                'warranty_terms' => !empty($validated['warranty_terms']) ? json_encode(array_values(array_filter($validated['warranty_terms'], fn($v) => trim($v) !== ''))) : null,
                 'note' => !empty($validated['note']) ? json_encode(array_values(array_filter($validated['note'], fn($v) => trim($v) !== ''))) : null,
                 'disclaimer' => !empty($validated['disclaimer']) ? json_encode(array_values(array_filter($validated['disclaimer'], fn($v) => trim($v) !== ''))) : null,
                 'status' => 'draft',
@@ -310,6 +313,8 @@ class QuotationController extends Controller
             'vat' => ['nullable', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string'],
             'delivery_time' => ['nullable', 'string'],
+            'warranty_terms' => ['nullable', 'array'],
+            'warranty_terms.*' => ['nullable', 'string', 'max:2000'],
             'note' => ['nullable', 'array'],
             'note.*' => ['nullable', 'string', 'max:2000'],
             'disclaimer' => ['nullable', 'array'],
@@ -384,6 +389,7 @@ class QuotationController extends Controller
                 'exchange_rate' => $validated['exchange_rate'] ?? 1,
                 'payment_terms' => $validated['payment_terms'] ?? null,
                 'delivery_time' => $validated['delivery_time'] ?? null,
+                'warranty_terms' => !empty($validated['warranty_terms']) ? json_encode(array_values(array_filter($validated['warranty_terms'], fn($v) => trim($v) !== ''))) : null,
                 'note' => !empty($validated['note']) ? json_encode(array_values(array_filter($validated['note'], fn($v) => trim($v) !== ''))) : null,
                 'disclaimer' => !empty($validated['disclaimer']) ? json_encode(array_values(array_filter($validated['disclaimer'], fn($v) => trim($v) !== ''))) : null,
                 'status' => 'draft',
@@ -475,12 +481,41 @@ class QuotationController extends Controller
         if (!empty($search)) {
             $productQuery->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%");
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
         $products = $productQuery->limit(15)
             ->get()
             ->map(function ($p) {
+                $productCode = $p->code;
+                $pricelistPrice = null;
+                if ($productCode) {
+                    $priceItem = \App\Models\SupplierPriceListItem::where('sku', trim($productCode))
+                        ->whereHas('priceList', function($q) { 
+                            $q->where('is_active', true); 
+                        })
+                        ->join('supplier_price_lists', 'supplier_price_list_items.supplier_price_list_id', '=', 'supplier_price_lists.id')
+                        ->select('supplier_price_list_items.*')
+                        ->orderBy('supplier_price_lists.effective_date', 'desc')
+                        ->orderBy('supplier_price_list_items.id', 'desc')
+                        ->first();
+                    
+                    if ($priceItem) {
+                        $pl = $priceItem->priceList;
+                        $rawPrice = $pl->getPrimaryPriceForItem($priceItem);
+                        if ($rawPrice !== null) {
+                            $plCurrency = strtoupper(trim($pl->currency ?? 'USD'));
+                            if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
+                                $exchangeRate = floatval($pl->exchange_rate ?: 24000);
+                                $pricelistPrice = $exchangeRate > 0 ? ($rawPrice / $exchangeRate) : $rawPrice;
+                            } else {
+                                $pricelistPrice = $rawPrice;
+                            }
+                        }
+                    }
+                }
+
                 return [
                     'id' => 'p-' . $p->id,
                     'text' => $p->code,
@@ -490,7 +525,8 @@ class QuotationController extends Controller
                     'price' => $p->calculated_selling_price ?: 0,
                     'unit' => $p->unit,
                     'type' => 'product',
-                    'original_id' => $p->id
+                    'original_id' => $p->id,
+                    'pricelist_price' => $pricelistPrice
                 ];
             });
 
@@ -504,7 +540,8 @@ class QuotationController extends Controller
         if (!empty($search)) {
             $catalogQuery->where(function ($q) use ($search) {
                 $q->where('sku', 'like', "%{$search}%")
-                  ->orWhere('product_name', 'like', "%{$search}%");
+                  ->orWhere('product_name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
         $catalogItems = $catalogQuery->whereNotIn('sku', $productCodes) 
@@ -515,6 +552,18 @@ class QuotationController extends Controller
                 // Use primary price column instead of best_price
                 $primaryPrice = $pl->getPrimaryPriceForItem($item);
                 $calculated = $primaryPrice > 0 ? $pl->calculateFinalPrice($primaryPrice) : null;
+
+                $pricelistPrice = null;
+                if ($primaryPrice !== null) {
+                    $plCurrency = strtoupper(trim($pl->currency ?? 'USD'));
+                    if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
+                        $exchangeRate = floatval($pl->exchange_rate ?: 24000);
+                        $pricelistPrice = $exchangeRate > 0 ? ($primaryPrice / $exchangeRate) : $primaryPrice;
+                    } else {
+                        $pricelistPrice = $primaryPrice;
+                    }
+                }
+
                 return [
                     'id' => 'c-' . $item->id,
                     'text' => $item->sku,
@@ -525,7 +574,8 @@ class QuotationController extends Controller
                     'unit' => $item->unit ?: 'Bộ',
                     'type' => 'catalog',
                     'original_id' => $item->id,
-                    'is_catalog' => true
+                    'is_catalog' => true,
+                    'pricelist_price' => $pricelistPrice
                 ];
             });
 
@@ -603,14 +653,30 @@ class QuotationController extends Controller
                 ]);
             }
 
+            // Create default sale expenses
+            $defaultExpenses = \App\Models\SaleExpense::defaultExpenses();
+            foreach ($defaultExpenses as $expense) {
+                \App\Models\SaleExpense::create([
+                    'sale_id' => $sale->id,
+                    'type' => $expense['type'],
+                    'input_mode' => $expense['input_mode'],
+                    'percent_value' => $expense['percent_value'] !== '' ? floatval($expense['percent_value']) : null,
+                    'description' => $expense['description'] ?? '',
+                    'amount' => $expense['amount'] !== '' ? floatval($expense['amount']) : 0,
+                ]);
+            }
+
             // Update quotation
             $quotation->update([
                 'status' => 'converted',
                 'converted_to_sale_id' => $sale->id,
             ]);
 
-            // P&L status khởi tạo là 'draft' (nháp) để Sales Team kiểm tra và chỉnh sửa trước khi gửi duyệt
-            $sale->update(['pl_status' => 'draft']);
+            // Calculate margin, debt, and save
+            $sale->calculateMargin();
+            $sale->updateDebt();
+            $sale->pl_status = 'draft';
+            $sale->save();
 
             DB::commit();
 

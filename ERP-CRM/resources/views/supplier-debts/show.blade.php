@@ -270,7 +270,7 @@
 function openPaymentModal(poId, poCode, debtAmount, poCurrencyId, poExchangeRate) {
     document.getElementById('paymentModal').classList.remove('hidden');
     document.getElementById('modalPoCode').textContent = poCode;
-    document.getElementById('modalDebt').textContent = new Intl.NumberFormat('vi-VN').format(debtAmount) + 'đ';
+    document.getElementById('modalDebt').textContent = new Intl.NumberFormat('en-US').format(debtAmount) + 'đ';
     document.getElementById('paymentForm').action = '/supplier-debts/' + poId + '/payment';
     
     // Set default currency to PO currency

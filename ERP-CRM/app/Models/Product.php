@@ -108,6 +108,7 @@ class Product extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%")
                 ->orWhere('category', 'like', "%{$search}%")
                 ->orWhereHas('supplierPriceListItems', function ($sq) use ($search) {
                     $sq->where('sku', 'like', "%{$search}%")

@@ -26,6 +26,7 @@ class Quotation extends Model
         'total',
         'payment_terms',
         'delivery_time',
+        'warranty_terms',
         'note',
         'disclaimer',
         'status',
@@ -75,6 +76,28 @@ class Quotation extends Model
         $decoded = json_decode($raw, true);
         if (is_array($decoded)) return array_values(array_filter($decoded, fn($v) => trim($v) !== ''));
         return [trim($raw)];
+    }
+
+    /**
+     * Get warranty terms as array
+     */
+    public function getWarrantyTermsArrayAttribute(): array
+    {
+        $raw = $this->attributes['warranty_terms'] ?? null;
+        if (empty($raw)) return [];
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) return array_values(array_filter($decoded, fn($v) => trim($v) !== ''));
+        return [trim($raw)];
+    }
+
+    /**
+     * Default warranty terms for new quotations
+     */
+    public static function defaultWarrantyTerms(): array
+    {
+        return [
+            'Bảo hành: Theo thời hạn của license',
+        ];
     }
 
     /**

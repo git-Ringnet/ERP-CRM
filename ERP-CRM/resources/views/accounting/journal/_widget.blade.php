@@ -4,6 +4,7 @@
         ->where('reference_id', $journalReferenceId)
         ->orderBy('created_at', 'desc')
         ->get();
+    $symbol = $currencySymbol ?? ($journalType === 'import' ? '$' : 'đ');
 @endphp
 
 @if($journalEntries->isNotEmpty())
@@ -21,7 +22,7 @@
                 @foreach($journalEntries as $je)
                 <tr class="hover:bg-amber-50/50">
                     <td class="px-4 py-2 text-sm text-gray-700">{{ $je->entry_date->format('d/m/Y') }}</td>
-                    <td class="px-4 py-2 text-sm text-right font-semibold text-gray-800">{{ number_format($je->amount, 0, ',', '.') }} đ</td>
+                    <td class="px-4 py-2 text-sm text-right font-semibold text-gray-800">{{ number_format($je->amount) }} {{ $symbol }}</td>
                     <td class="px-4 py-2 text-sm text-gray-600">{{ $je->description }}</td>
                 </tr>
                 @endforeach

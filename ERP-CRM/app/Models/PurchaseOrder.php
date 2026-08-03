@@ -269,7 +269,7 @@ class PurchaseOrder extends Model
             return $item->saleOrderRequestItem->saleOrderRequest->sale->user->name ?? null;
         })->filter()->unique();
 
-        return $names->isEmpty() ? ($this->sale->user->name ?? 'N/A') : $names->implode(', ');
+        return $names->isEmpty() ? ($this->sale->user->name ?? $this->creator->name ?? 'N/A') : $names->implode(', ');
     }
 
     /**

@@ -27,7 +27,7 @@
                     </div>
                     <div class="ml-4">
                         <p class="text-sm text-gray-500">Tổng công nợ NCC</p>
-                        <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt'], 0, ',', '.') }}đ</p>
+                        <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt']) }}đ</p>
                     </div>
                 </div>
             </div>
@@ -39,7 +39,7 @@
                     <div class="ml-4">
                         <p class="text-sm text-gray-500">Nợ quá hạn</p>
                         <p class="text-2xl font-bold text-orange-600">
-                            {{ number_format($summary['total_overdue'], 0, ',', '.') }}đ
+                            {{ number_format($summary['total_overdue']) }}đ
                         </p>
                     </div>
                 </div>
@@ -103,13 +103,13 @@
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $supplier->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $supplier->phone }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
-                                    {{ number_format($supplier->total_purchases, 0, ',', '.') }}
+                                    {{ number_format($supplier->total_purchases) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600">
-                                    {{ number_format($supplier->total_paid, 0, ',', '.') }}
+                                    {{ number_format($supplier->total_paid) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right font-medium {{ $supplier->total_debt > 0 ? 'text-red-600' : 'text-gray-600' }}">
-                                    {{ number_format($supplier->total_debt, 0, ',', '.') }}
+                                    {{ number_format($supplier->total_debt) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-center">
                                     @if($supplier->unpaid_orders > 0)

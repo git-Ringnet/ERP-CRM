@@ -32,15 +32,15 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="bg-white rounded-lg shadow p-4">
                 <p class="text-sm text-gray-500">Tổng mua hàng</p>
-                <p class="text-xl font-bold text-gray-800">{{ number_format($summary['total_sales'], 0, ',', '.') }}đ</p>
+                <p class="text-xl font-bold text-gray-800">{{ number_format($summary['total_sales']) }}đ</p>
             </div>
             <div class="bg-white rounded-lg shadow p-4">
                 <p class="text-sm text-gray-500">Đã thanh toán</p>
-                <p class="text-xl font-bold text-green-600">{{ number_format($summary['total_paid'], 0, ',', '.') }}đ</p>
+                <p class="text-xl font-bold text-green-600">{{ number_format($summary['total_paid']) }}đ</p>
             </div>
             <div class="bg-white rounded-lg shadow p-4">
                 <p class="text-sm text-gray-500">Công nợ còn lại</p>
-                <p class="text-xl font-bold text-red-600">{{ number_format($summary['total_debt'], 0, ',', '.') }}đ</p>
+                <p class="text-xl font-bold text-red-600">{{ number_format($summary['total_debt']) }}đ</p>
             </div>
             <div class="bg-white rounded-lg shadow p-4">
                 <p class="text-sm text-gray-500">Đơn chưa thanh toán</p>
@@ -54,7 +54,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Hạn mức công nợ</p>
-                        <p class="text-lg font-semibold">{{ number_format($customer->debt_limit, 0, ',', '.') }}đ</p>
+                        <p class="text-lg font-semibold">{{ number_format($customer->debt_limit) }}đ</p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-500">Số ngày nợ cho phép</p>
@@ -64,7 +64,7 @@
                         <p class="text-sm text-gray-500">Còn lại hạn mức</p>
                         @php $remaining = $customer->debt_limit - $summary['total_debt']; @endphp
                         <p class="text-lg font-semibold {{ $remaining < 0 ? 'text-red-600' : 'text-green-600' }}">
-                            {{ number_format($remaining, 0, ',', '.') }}đ
+                            {{ number_format($remaining) }}đ
                         </p>
                     </div>
                 </div>
@@ -72,7 +72,7 @@
                     <div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p class="text-sm text-red-700">
                             <i class="fas fa-exclamation-triangle mr-1"></i>
-                            Khách hàng đã vượt hạn mức công nợ {{ number_format(abs($remaining), 0, ',', '.') }}đ
+                            Khách hàng đã vượt hạn mức công nợ {{ number_format(abs($remaining)) }}đ
                         </p>
                     </div>
                 @endif
@@ -165,12 +165,12 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
-                                    {{ number_format($sale->total, 0, ',', '.') }}</td>
+                                    {{ number_format($sale->total) }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600">
-                                    {{ number_format($sale->paid_amount, 0, ',', '.') }}</td>
+                                    {{ number_format($sale->paid_amount) }}</td>
                                 <td
                                     class="px-4 py-3 text-sm text-right font-medium {{ $sale->debt_amount > 0 ? 'text-red-600' : 'text-gray-600' }}">
-                                    {{ number_format($sale->debt_amount, 0, ',', '.') }}
+                                    {{ number_format($sale->debt_amount) }}
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($isPaid)
@@ -246,7 +246,7 @@
                                     <a href="{{ route('sales.show', $payment->sale_id) }}">{{ $payment->sale->code }}</a>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600 font-medium">
-                                    +{{ number_format($payment->amount, 0, ',', '.') }}
+                                    +{{ number_format($payment->amount) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $payment->payment_method_label }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $payment->reference_number ?? '-' }}</td>
@@ -350,7 +350,7 @@
             function openPaymentModal(saleId, saleCode, debtAmount) {
                 document.getElementById('paymentForm').action = `/customer-debts/payment/${saleId}`;
                 document.getElementById('modalSaleCode').textContent = saleCode;
-                document.getElementById('modalDebtAmount').textContent = new Intl.NumberFormat('vi-VN').format(debtAmount) + 'đ';
+                document.getElementById('modalDebtAmount').textContent = new Intl.NumberFormat('en-US').format(debtAmount) + 'đ';
                 document.getElementById('paymentAmount').max = debtAmount;
                 document.getElementById('paymentAmount').value = debtAmount;
                 document.getElementById('paymentModal').classList.remove('hidden');

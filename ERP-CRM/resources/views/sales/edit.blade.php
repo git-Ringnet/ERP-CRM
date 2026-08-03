@@ -83,44 +83,40 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Khách hàng <span class="text-red-500">*</span>
                     </label>
-                    <div class="searchable-select {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}" id="customerSelect">
-                        @php
-                            $oldCustomerId = old('customer_id', $sale->customer_id);
-                            $oldCustomerName = '';
-                            if ($oldCustomerId) {
-                                $c = $customers->firstWhere('id', $oldCustomerId);
-                                if ($c) {
-                                    $oldCustomerName = $c->name . ($c->code ? ' (' . $c->code . ')' : '');
-                                }
-                            }
-                        @endphp
-                        <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}" 
-                               placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                               value="{{ $oldCustomerName }}" {{ $isLocked ? 'readonly' : '' }}>
-                        <input type="hidden" name="customer_id" required value="{{ $oldCustomerId }}">
-                        @if(!$isLocked)
-                        <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
-                            @foreach($customers as $customer)
-                                <div class="searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer" 
-                                     data-value="{{ $customer->id }}" 
-                                     data-text="{{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}"
-                                     data-milestones="{{ json_encode($customer->payment_terms) }}"
-                                     data-debt-days="{{ $customer->debt_days ?? '' }}">
-                                    {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
-                                </div>
-                            @endforeach
-                        </div>
-                        @endif
-                    </div>
+                    @php
+                        $oldCustomerId = old('customer_id', $sale->customer_id);
+                    @endphp
+                    <select name="customer_id" id="customer_id" required {{ $isLocked ? 'disabled' : '' }}
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}">
+                        <option value="">Chọn khách hàng</option>
+                        @foreach($customers as $customer)
+                            <option value="{{ $customer->id }}" 
+                                    data-tax-code="{{ $customer->tax_code }}" 
+                                    data-abv-name="{{ $customer->abv_name }}"
+                                    data-debt-days="{{ $customer->debt_days }}"
+                                    data-payment-terms="{{ json_encode($customer->payment_terms) }}"
+                                    {{ $oldCustomerId == $customer->id ? 'selected' : '' }}>
+                                {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($isLocked) <input type="hidden" name="customer_id" value="{{ $sale->customer_id }}"> @endif
                     @error('customer_id')
                         <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                     @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Người phụ trách (P.I.C) <span class="text-red-500">*</span>
-                    </label>
+                    <div class="flex justify-between items-center mb-1 gap-1 whitespace-nowrap overflow-hidden">
+                        <label class="text-sm font-medium text-gray-700 truncate">
+                            Người phụ trách (P.I.C) <span class="text-red-500">*</span>
+                        </label>
+                        @if(!$isLocked)
+                        <button type="button" id="btn-quick-add-contact" class="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap flex-shrink-0 hidden">
+                            <i class="fas fa-plus mr-1"></i>Thêm mới
+                        </button>
+                        @endif
+                    </div>
                     <select name="contact_id" id="contact_id" required {{ $isLocked ? 'disabled' : '' }}
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('contact_id') border-red-500 @enderror {{ $isLocked ? 'bg-gray-100' : '' }}">
                         <option value="">Chọn người phụ trách</option>
@@ -226,7 +222,7 @@
                                 <div class="searchable-select product-searchable {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}" data-index="{{ $index }}" data-ajax-url="{{ route('api.products.search') }}">
                                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary {{ $isLocked ? 'bg-gray-100' : '' }}" 
                                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off"
-                                           value="[{{ $item->product?->code }}] {{ $item->product?->name }}" {{ $isLocked ? 'readonly' : '' }}>
+                                           value="{{ $item->product?->code }}" {{ $isLocked ? 'readonly' : '' }}>
                                     <input type="hidden" name="products[{{ $index }}][product_id]" required class="product-id-input" value="{{ $item->product_id }}">
                                     @if(!$isLocked)
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
@@ -477,14 +473,245 @@
             <button type="button" onclick="validateAndSubmit()"
                     class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                 <i class="fas fa-save mr-2"></i> Cập nhật
-            </button>
         </div>
     </form>
+</div>
+
+<!-- Quick Add Customer Modal -->
+<div id="addCustomerModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="modalOverlay"></div>
+
+        <!-- Trick to center the modal contents -->
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-lg leading-6 font-semibold text-gray-900" id="modal-title">
+                        <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm khách hàng nhanh
+                    </h3>
+                    <button type="button" id="closeCustomerModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Validation Error Message Block -->
+                <div id="modalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                <form id="customerModalForm" class="space-y-4">
+                    @csrf
+                    <!-- MST with lookup -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Mã số thuế (MST) <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" name="tax_code" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập MST để tra cứu...">
+                            <button type="button" id="btn-modal-search-tax"
+                                    class="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-primary transition-colors focus:outline-none"
+                                    title="Tra cứu thông tin doanh nghiệp từ MST">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Tên khách hàng/Công ty <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                               placeholder="Nhập tên khách hàng...">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Tên viết tắt <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="abv_name" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="VD: ADG, IIJ...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email công ty
+                            </label>
+                            <input type="email" name="email"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="email@company.com">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại công ty
+                            </label>
+                            <input type="text" name="phone"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="0123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Địa chỉ
+                            </label>
+                            <input type="text" name="address"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                   placeholder="Nhập địa chỉ...">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Contacts Section -->
+                    <div class="border-t pt-3 mt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-sm font-semibold text-gray-900">
+                                <i class="fas fa-users text-blue-500 mr-1.5"></i> Danh sách người liên hệ <span class="text-red-500">*</span>
+                            </h4>
+                            <button type="button" id="modalAddContactBtn"
+                                    class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                <i class="fas fa-plus mr-1"></i> Thêm người liên hệ
+                            </button>
+                        </div>
+                        <div id="modalContactsContainer" class="space-y-3">
+                            <!-- First contact card (always present) -->
+                            <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50" data-contact-index="0">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #1</span>
+                                    <div class="flex items-center gap-3">
+                                        <label class="flex items-center cursor-pointer">
+                                            <input type="radio" name="modal_primary_contact" value="0" checked class="form-radio text-primary h-3.5 w-3.5">
+                                            <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                                        </label>
+                                        <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors hidden">
+                                            <i class="fas fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                                        <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                                        <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" id="saveCustomerBtn"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                </button>
+                <button type="button" id="cancelCustomerBtn"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Single Contact Modal -->
+<div id="addSingleContactModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="singleContactModalOverlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                        <i class="fas fa-user-plus text-blue-500 mr-2"></i> Thêm người phụ trách mới
+                    </h3>
+                    <button type="button" id="closeSingleContactModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+                
+                <div id="singleContactModalErrors" class="hidden p-3 mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"></div>
+
+                <form id="singleContactModalForm" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Họ & Tên <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nhập họ tên...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Chức vụ <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="position" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="VD: Giám đốc, Kế toán...">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="phone" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="email@company.com">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button type="button" id="saveSingleContactBtn" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
+                    <i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu
+                </button>
+                <button type="button" id="cancelSingleContactBtn" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                    Hủy
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
+/* Select2 Height & Styling Customization to match Tailwind Inputs */
+.select2-container .select2-selection--single {
+    height: 42px !important;
+    border-color: #d1d5db !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 40px !important;
+    top: 1px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 40px !important;
+    color: #374151 !important;
+    font-size: 0.875rem !important;
+    padding-left: 0.75rem !important;
+}
 .searchable-select {
     position: relative;
 }
@@ -510,6 +737,10 @@ input[list]::-webkit-calendar-picker-indicator {
 @endpush
 
 @push('scripts')
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 @php
     $initialExpenses = old('expenses', $sale->expenses);
     $hasContractorTax = false;
@@ -610,19 +841,20 @@ function initSearchableSelect(container, onSelect) {
             opt.className = 'searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer';
             opt.dataset.value = item.id;
             opt.dataset.text = `[${item.code || ''}] ${item.name}`;
+            opt.dataset.code = item.code || '';
             opt.dataset.price = item.price;
             opt.dataset.isLiquidation = item.is_liquidation;
             opt.dataset.warranty = item.warranty_months;
             opt.dataset.liquidationCount = item.liquidation_count;
             
+            const displayCode = item.code || '';
+            const suffix = item.is_liquidation === 1 ? ' - Hàng thanh lý' : '';
             opt.innerHTML = `
-                <span class="font-medium">[${item.code || ''}]</span> ${item.name}
-                ${item.liquidation_count > 0 && item.is_liquidation === 0 ? 
-                    `<span class="text-orange-600 italic text-xs ml-1">(Có ${item.liquidation_count} sẵn)</span>` : ''}
+                <span class="font-medium">${displayCode}${suffix}</span>
             `;
             
             opt.addEventListener('click', () => {
-                input.value = opt.dataset.text;
+                input.value = opt.dataset.code;
                 hiddenInput.value = opt.dataset.value;
                 dropdown.classList.add('hidden');
                 if (onSelect) onSelect(opt);
@@ -747,18 +979,9 @@ function handleProjectSelection() {
     if (!option || !option.value) return;
     
     const customerId = option.dataset.customerId;
-    const customerName = option.dataset.customerName;
     
-    if (customerId && customerName) {
-        const customerSelect = document.getElementById('customerSelect');
-        const input = customerSelect.querySelector('.searchable-input');
-        const hiddenInput = customerSelect.querySelector('input[type="hidden"]');
-        
-        input.value = customerName;
-        hiddenInput.value = customerId;
-        
-        // Load contacts for the project customer
-        loadContacts(customerId);
+    if (customerId) {
+        $('select[name="customer_id"]').val(customerId).trigger('change');
     }
 }
 
@@ -827,22 +1050,6 @@ function setupMoneyInput(input) {
 }
 
 function initAllSearchableSelects() {
-    const customerSelect = document.getElementById('customerSelect');
-    if (customerSelect && !customerSelect.dataset.initialized) {
-        initSearchableSelect(customerSelect, (opt) => {
-            // Store customer debt days
-            window.selectedCustomerDebtDays = parseInt(opt.dataset.debtDays) || 0;
-            
-
-            
-
-            
-            // Load contacts for chosen customer
-            loadContacts(opt.dataset.value);
-        });
-        customerSelect.dataset.initialized = 'true';
-    }
-    
     // Product selects
     document.querySelectorAll('.product-searchable').forEach(container => {
         if (!container.dataset.initialized) {
@@ -898,17 +1105,88 @@ document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('saleType')) {
         toggleProjectSelect();
     }
+});
+
+function matchCustomer(params, data) {
+            if ($.trim(params.term) === '') {
+                return data;
+            }
+            if (typeof data.text === 'undefined') {
+                return null;
+            }
+            var term = params.term.toLowerCase();
+            var text = data.text.toLowerCase();
+            
+            var taxCode = '';
+            var abvName = '';
+            if (data.element) {
+                taxCode = $(data.element).data('tax-code') ? $(data.element).data('tax-code').toString().toLowerCase() : '';
+                abvName = $(data.element).data('abv-name') ? $(data.element).data('abv-name').toString().toLowerCase() : '';
+            }
+
+            if (text.indexOf(term) > -1 || taxCode.indexOf(term) > -1 || abvName.indexOf(term) > -1) {
+                return data;
+            }
+            return null;
+        }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Select2 for Customer
+    $('select[name="customer_id"]').select2({
+        placeholder: "Chọn khách hàng",
+        allowClear: true,
+        width: '100%',
+        matcher: matchCustomer,
+        language: {
+            noResults: function () {
+                return `<div class="p-2 text-center text-gray-500">
+                            <div class="mb-1 text-xs">Không tìm thấy khách hàng nào</div>
+                            <button type="button" id="btn-quick-add-customer" class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none transition-colors">
+                                <i class="fas fa-plus mr-1"></i> Thêm khách hàng nhanh
+                            </button>
+                        </div>`;
+            }
+        },
+        escapeMarkup: function (markup) {
+            return markup;
+        }
+    });
+
+    $('select[name="customer_id"]').on('select2:select', function () {
+        $(this).select2('close');
+    });
+
+    // Customer change event
+    $('select[name="customer_id"]').on('change', function() {
+        const customerId = $(this).val();
+        const opt = $(this).find(':selected');
+        if (opt.length && customerId) {
+            window.selectedCustomerDebtDays = parseInt(opt.data('debt-days')) || 0;
+            loadContacts(customerId);
+        } else {
+            window.selectedCustomerDebtDays = 0;
+            loadContacts('');
+        }
+    });
+
+    initMoneyInputs();
+    initProductRowLiveCalc();
+    toggleProjectSelect(); // Initialize project select visibility
 
     // Auto-fill customer if project is pre-selected and customer is empty
     const projectSelect = document.getElementById('projectSelect');
-    const customerHiddenInput = document.querySelector('input[name="customer_id"]');
-    if (projectSelect && projectSelect.value && (!customerHiddenInput || !customerHiddenInput.value)) {
+    const customerSelect = document.getElementById('customer_id');
+    if (projectSelect && projectSelect.value && (!customerSelect || !customerSelect.value)) {
         handleProjectSelection();
     } else {
         // Load contacts if customer is already populated on load
-        const initialCustomerId = customerHiddenInput ? customerHiddenInput.value : '';
+        const initialCustomerId = customerSelect ? customerSelect.value : '';
         const oldContactId = '{{ old('contact_id', $sale->contact_id) }}';
         if (initialCustomerId) {
+            const opt = $(customerSelect).find(':selected');
+            if (opt.length) {
+                window.selectedCustomerDebtDays = parseInt(opt.data('debt-days')) || 0;
+            }
             loadContacts(initialCustomerId, oldContactId);
         }
     }
@@ -929,32 +1207,40 @@ const picPosition = document.getElementById('pic_position');
 let contactsData = [];
 
 async function loadContacts(customerId, selectedContactId = null) {
-    if (!customerId) {
-        if (contactSelect) {
-            contactSelect.innerHTML = '<option value="">Chọn người phụ trách</option>';
-        }
-        picDetails.classList.add('hidden');
-        contactsData = [];
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/ajax/customers/${customerId}/contacts`);
-        contactsData = await response.json();
-        
-        if (contactSelect) {
-            let options = '<option value="">Chọn người phụ trách</option>';
-            contactsData.forEach(contact => {
-                const isSelected = selectedContactId == contact.id || (!selectedContactId && contact.is_primary) ? 'selected' : '';
-                options += `<option value="${contact.id}" ${isSelected}>${contact.name} ${contact.is_primary ? '(Mặc định)' : ''}</option>`;
+    if (customerId) {
+        $('#btn-quick-add-contact').removeClass('hidden');
+        contactSelect.disabled = true;
+        contactSelect.innerHTML = '<option value="">Đang tải...</option>';
+
+        fetch(`/ajax/customers/${customerId}/contacts`)
+            .then(response => response.json())
+            .then(contacts => {
+                contactsData = contacts;
+                let options = '<option value="">Chọn người phụ trách</option>';
+                contacts.forEach(c => {
+                    const isSel = (selectedContactId && selectedContactId == c.id) || (!selectedContactId && c.is_primary) ? 'selected' : '';
+                    options += `<option value="${c.id}" ${isSel}>${c.name} ${c.is_primary ? '(Mặc định)' : ''}</option>`;
+                });
+                contactSelect.innerHTML = options;
+                contactSelect.disabled = false;
+                
+                const activeVal = contactSelect.value;
+                if (activeVal) {
+                    updatePicDetails();
+                } else {
+                    picDetails.classList.add('hidden');
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching contacts:', err);
+                contactSelect.innerHTML = '<option value="">Không tải được người liên hệ</option>';
+                contactSelect.disabled = false;
             });
-            contactSelect.innerHTML = options;
-        }
-        
-        // Trigger update of PIC details
-        updatePicDetails();
-    } catch (e) {
-        console.error('Error fetching contacts:', e);
+    } else {
+        $('#btn-quick-add-contact').addClass('hidden');
+        contactSelect.innerHTML = '<option value="">Vui lòng chọn khách hàng trước</option>';
+        contactSelect.disabled = true;
+        picDetails.classList.add('hidden');
     }
 }
 
@@ -1253,6 +1539,9 @@ function validateAndSubmit() {
     document.querySelectorAll('.border-red-500').forEach(el => {
         el.classList.remove('border-red-500');
     });
+    document.querySelectorAll('.select2-selection').forEach(el => {
+        el.classList.remove('border-red-500');
+    });
     
     // Check required fields
     const code = document.querySelector('input[name="code"]');
@@ -1261,11 +1550,13 @@ function validateAndSubmit() {
         code.classList.add('border-red-500');
     }
     
-    const customerId = document.querySelector('input[name="customer_id"]');
-    const customerInput = document.querySelector('#customerSelect .searchable-input');
-    if (!customerId.value) {
+    const customerId = document.querySelector('select[name="customer_id"]');
+    if (!customerId || !customerId.value) {
         errors.push('Khách hàng');
-        customerInput.classList.add('border-red-500');
+        const select2Selection = document.querySelector('.select2-selection');
+        if (select2Selection) {
+            select2Selection.classList.add('border-red-500');
+        }
     }
     
     const date = document.querySelector('input[name="date"]');
@@ -1664,9 +1955,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Initialize customer debt days from current customer
-    const currentCustomerOpt = document.querySelector(`#customerSelect .searchable-option[data-value="{{ $sale->customer_id }}"]`);
-    if (currentCustomerOpt) {
-        window.selectedCustomerDebtDays = parseInt(currentCustomerOpt.dataset.debtDays) || 0;
+    const customerSelectEl = document.querySelector('select[name="customer_id"]');
+    if (customerSelectEl) {
+        const currentCustomerOpt = customerSelectEl.options[customerSelectEl.selectedIndex];
+        if (currentCustomerOpt) {
+            window.selectedCustomerDebtDays = parseInt(currentCustomerOpt.dataset.debtDays) || 0;
+        }
     }
 
     // Load existing milestones if editing
@@ -1732,12 +2026,13 @@ function onMilestonePresetChange(preset) {
     
     if (preset === 'customer_default') {
         if (typeInput) typeInput.value = 'milestones';
-        const customerHidden = document.querySelector('input[name="customer_id"]');
-        if (customerHidden && customerHidden.value) {
-            const customerOpt = document.querySelector(`#customerSelect .searchable-option[data-value="${customerHidden.value}"]`);
-            if (customerOpt && customerOpt.dataset.milestones) {
+        const customerSelect = document.querySelector('select[name="customer_id"]');
+        if (customerSelect && customerSelect.value) {
+            const customerOpt = customerSelect.options[customerSelect.selectedIndex];
+            const paymentTerms = customerOpt ? customerOpt.dataset.paymentTerms : null;
+            if (customerOpt && paymentTerms) {
                 try {
-                    const milestones = JSON.parse(customerOpt.dataset.milestones);
+                    const milestones = JSON.parse(paymentTerms);
                     if (milestones && milestones.length > 0) {
                         milestones.forEach(ms => addPaymentMilestone(ms));
                     }
@@ -2010,6 +2305,348 @@ function switchMilestonePresetToCustom() {
         presetSelect.value = 'custom';
     }
 }
+
+// --- Start of Quick Add Customer Modal Script ---
+let modalContactCount = 1;
+
+function updateModalContactHeaders() {
+    const cards = $('#modalContactsContainer .modal-contact-card');
+    cards.each(function(idx, el) {
+        $(el).find('.contact-label').text(`Người liên hệ #${idx + 1}`);
+        if (cards.length > 1) {
+            $(el).find('.btn-remove-modal-contact').removeClass('hidden');
+        } else {
+            $(el).find('.btn-remove-modal-contact').addClass('hidden');
+        }
+    });
+}
+
+$(document).on('click', '#modalAddContactBtn', function(e) {
+    e.preventDefault();
+    const newIndex = modalContactCount++;
+    const contactCardHtml = `
+        <div class="modal-contact-card p-3 border border-gray-200 rounded-lg bg-gray-50/50 mt-3" data-contact-index="${newIndex}">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-gray-500 uppercase contact-label">Người liên hệ #${newIndex + 1}</span>
+                <div class="flex items-center gap-3">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="radio" name="modal_primary_contact" value="${newIndex}" class="form-radio text-primary h-3.5 w-3.5">
+                        <span class="ml-1.5 text-xs text-gray-600">Liên hệ chính</span>
+                    </label>
+                    <button type="button" class="btn-remove-modal-contact text-red-400 hover:text-red-600 transition-colors">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Họ & Tên <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-name w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập họ tên...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Chức vụ <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-position w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="VD: Giám đốc...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                    <input type="text" class="contact-phone w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Nhập SĐT...">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+                    <input type="email" class="contact-email w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" placeholder="email@example.com">
+                </div>
+            </div>
+        </div>
+    `;
+    $('#modalContactsContainer').append(contactCardHtml);
+    updateModalContactHeaders();
+});
+
+$(document).on('click', '.btn-remove-modal-contact', function(e) {
+    e.preventDefault();
+    const card = $(this).closest('.modal-contact-card');
+    const wasChecked = card.find('input[name="modal_primary_contact"]').is(':checked');
+    card.remove();
+    if (wasChecked) {
+        $('#modalContactsContainer .modal-contact-card').first().find('input[name="modal_primary_contact"]').prop('checked', true);
+    }
+    updateModalContactHeaders();
+});
+
+$(document).on('click', '#btn-modal-search-tax', async function(e) {
+    e.preventDefault();
+    const taxCode = $('#customerModalForm input[name="tax_code"]').val().trim();
+    if (!taxCode) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Thông báo',
+            text: 'Vui lòng nhập mã số thuế trước khi tra cứu',
+            confirmButtonColor: '#3085d6',
+        });
+        return;
+    }
+
+    const btn = $(this);
+    const originalIcon = btn.html();
+    btn.html('<i class="fas fa-spinner fa-spin text-primary"></i>').prop('disabled', true);
+
+    try {
+        const response = await fetch(`https://api.vietqr.io/v2/business/${taxCode}`);
+        const data = await response.json();
+        
+        if (data.code === '00' && data.data) {
+            const biz = data.data;
+            if (biz.name) {
+                $('#customerModalForm input[name="name"]').val(biz.name);
+            }
+            if (biz.address) {
+                $('#customerModalForm input[name="address"]').val(biz.address);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã lấy được thông tin doanh nghiệp',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } else {
+            throw new Error(data.desc || 'Không tìm thấy thông tin cho mã số thuế này');
+        }
+    } catch (error) {
+        console.error('Tax lookup error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi tra cứu',
+            text: error.message || 'Có lỗi xảy ra khi tra cứu mã số thuế',
+            confirmButtonColor: '#d33',
+        });
+    } finally {
+        btn.html(originalIcon).prop('disabled', false);
+    }
+});
+
+$(document).on('click', '#btn-quick-add-customer', function(e) {
+    e.preventDefault();
+    $('select[name="customer_id"]').select2('close');
+    $('#addCustomerModal').removeClass('hidden');
+    const select2Search = $('.select2-search__field').val() || '';
+    if (select2Search) {
+        $('#customerModalForm input[name="name"]').val(select2Search);
+    }
+});
+
+function resetCustomerModal() {
+    $('#addCustomerModal').addClass('hidden');
+    $('#customerModalForm')[0].reset();
+    $('#modalErrors').addClass('hidden').html('');
+    const container = $('#modalContactsContainer');
+    container.find('.modal-contact-card').slice(1).remove();
+    const firstCard = container.find('.modal-contact-card').first();
+    firstCard.attr('data-contact-index', '0');
+    firstCard.find('input[name="modal_primary_contact"]').val('0').prop('checked', true);
+    firstCard.find('.contact-name').val('');
+    firstCard.find('.contact-position').val('');
+    firstCard.find('.contact-phone').val('');
+    firstCard.find('.contact-email').val('');
+    modalContactCount = 1;
+    updateModalContactHeaders();
+}
+
+$('#closeCustomerModal, #cancelCustomerBtn, #modalOverlay').on('click', function() {
+    resetCustomerModal();
+});
+
+$('#saveCustomerBtn').on('click', async function() {
+    const form = $('#customerModalForm');
+    const saveBtn = $(this);
+    const errorsDiv = $('#modalErrors');
+
+    const name = form.find('input[name="name"]').val().trim();
+    const taxCode = form.find('input[name="tax_code"]').val().trim();
+    const abvName = form.find('input[name="abv_name"]').val().trim();
+
+    if (!name || !taxCode || !abvName) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc của doanh nghiệp (*).');
+        return;
+    }
+
+    const contacts = [];
+    let contactsValid = true;
+
+    $('#modalContactsContainer .modal-contact-card').each(function() {
+        const card = $(this);
+        const cName = card.find('.contact-name').val().trim();
+        const cPosition = card.find('.contact-position').val().trim();
+        const cPhone = card.find('.contact-phone').val().trim();
+        const cEmail = card.find('.contact-email').val().trim();
+        const isPrimary = card.find('input[name="modal_primary_contact"]').is(':checked') ? 1 : 0;
+
+        if (!cName || !cPosition || !cPhone || !cEmail) {
+            contactsValid = false;
+            return false;
+        }
+
+        contacts.push({
+            name: cName,
+            position: cPosition,
+            phone: cPhone,
+            email: cEmail,
+            is_primary: isPrimary
+        });
+    });
+
+    if (!contactsValid || contacts.length === 0) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các trường thông tin bắt buộc (*) của tất cả người liên hệ.');
+        return;
+    }
+
+    saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+    $('#cancelCustomerBtn').prop('disabled', true);
+    errorsDiv.addClass('hidden').html('');
+
+    try {
+        const response = await fetch("{{ route('customers.store-ajax') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                name: name,
+                tax_code: taxCode,
+                abv_name: abvName,
+                phone: form.find('input[name="phone"]').val().trim(),
+                email: form.find('input[name="email"]').val().trim(),
+                address: form.find('input[name="address"]').val().trim(),
+                contacts: contacts
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            const customer = result.customer;
+            const displayName = customer.name + (customer.code ? ' (' + customer.code + ')' : '');
+            const newOption = new Option(displayName, customer.id, true, true);
+            newOption.dataset.taxCode = customer.tax_code || '';
+            newOption.dataset.abvName = customer.abv_name || '';
+            newOption.dataset.debtDays = customer.debt_days || '0';
+            newOption.dataset.paymentTerms = JSON.stringify(customer.payment_terms || null);
+            
+            $('select[name="customer_id"]').append(newOption).trigger('change');
+            resetCustomerModal();
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã thêm khách hàng mới thành công!',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            let errorMsg = result.message || 'Có lỗi xảy ra khi tạo khách hàng.';
+            if (result.errors) {
+                errorMsg = Object.values(result.errors).flat().join('<br>');
+            }
+            errorsDiv.removeClass('hidden').html(errorMsg);
+        }
+    } catch (error) {
+        console.error('Error adding customer:', error);
+        errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+    } finally {
+        saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+        $('#cancelCustomerBtn').prop('disabled', false);
+    }
+});
+
+// Single contact modal handlers
+$(document).on('click', '#btn-quick-add-contact', function(e) {
+    e.preventDefault();
+    const customerId = $('select[name="customer_id"]').val();
+    if (!customerId) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Thông báo',
+            text: 'Vui lòng chọn Khách hàng trước khi thêm người phụ trách mới',
+        });
+        return;
+    }
+    $('#addSingleContactModal').removeClass('hidden');
+});
+
+function resetSingleContactModal() {
+    $('#addSingleContactModal').addClass('hidden');
+    $('#singleContactModalForm')[0].reset();
+    $('#singleContactModalErrors').addClass('hidden').html('');
+}
+
+$('#closeSingleContactModal, #cancelSingleContactBtn, #singleContactModalOverlay').on('click', function() {
+    resetSingleContactModal();
+});
+
+$('#saveSingleContactBtn').on('click', async function() {
+    const customerId = $('select[name="customer_id"]').val();
+    if (!customerId) return;
+
+    const form = $('#singleContactModalForm');
+    const saveBtn = $(this);
+    const errorsDiv = $('#singleContactModalErrors');
+
+    const name = form.find('input[name="name"]').val().trim();
+    const position = form.find('input[name="position"]').val().trim();
+    const phone = form.find('input[name="phone"]').val().trim();
+    const email = form.find('input[name="email"]').val().trim();
+
+    if (!name || !position || !phone || !email) {
+        errorsDiv.removeClass('hidden').html('Vui lòng điền đầy đủ các thông tin bắt buộc (*).');
+        return;
+    }
+
+    saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang lưu...');
+    $('#cancelSingleContactBtn').prop('disabled', true);
+    errorsDiv.addClass('hidden').html('');
+
+    try {
+        const response = await fetch(`/ajax/customers/${customerId}/contacts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                first_name: name,
+                position: position,
+                phone: phone,
+                email: email
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            resetSingleContactModal();
+            loadContacts(customerId, result.contact.id);
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: 'Đã thêm người phụ trách mới thành công!',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            let errorMsg = result.message || 'Có lỗi xảy ra khi tạo người phụ trách.';
+            if (result.errors) {
+                errorMsg = Object.values(result.errors).flat().join('<br>');
+            }
+            errorsDiv.removeClass('hidden').html(errorMsg);
+        }
+    } catch (error) {
+        console.error('Error adding contact:', error);
+        errorsDiv.removeClass('hidden').html('Có lỗi kết nối mạng. Vui lòng thử lại.');
+    } finally {
+        saveBtn.prop('disabled', false).html('<i class="fas fa-save mr-1.5 mt-0.5"></i> Lưu');
+        $('#cancelSingleContactBtn').prop('disabled', false);
+    }
+});
 </script>
 
 @endpush

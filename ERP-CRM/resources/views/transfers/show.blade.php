@@ -135,14 +135,14 @@
                             </td>
                             <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
                                 @if($trItemAvgCost > 0)
-                                    <span class="font-medium text-gray-800">{{ number_format($trItemAvgCost, 0, ',', '.') }} đ</span>
+                                    <span class="font-medium text-gray-800">{{ number_format($trItemAvgCost) }} đ</span>
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
                                 @if($trItemTotal > 0)
-                                    <span class="font-semibold text-blue-700">{{ number_format($trItemTotal, 0, ',', '.') }} đ</span>
+                                    <span class="font-semibold text-blue-700">{{ number_format($trItemTotal) }} đ</span>
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif
@@ -172,7 +172,7 @@
                         @if($transferGrandTotal > 0)
                         <tr class="bg-blue-50 border-t-2 border-blue-200">
                             <td colspan="3" class="px-4 py-3 text-right text-sm font-bold text-blue-800">Tổng giá trị chuyển:</td>
-                            <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($transferGrandTotal, 0, ',', '.') }} đ</td>
+                            <td class="px-4 py-3 text-right text-sm font-bold text-blue-800">{{ number_format($transferGrandTotal) }} đ</td>
                             <td colspan="3"></td>
                         </tr>
                         @endif

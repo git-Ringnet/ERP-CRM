@@ -29,7 +29,7 @@
                         </div>
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Tổng công nợ</p>
-                            <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt'] ?? 0, 0, ',', '.') }}đ</p>
+                            <p class="text-2xl font-bold text-red-600">{{ number_format($summary['total_debt'] ?? 0) }}đ</p>
                         </div>
                     </div>
                 </div>
@@ -41,7 +41,7 @@
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Nợ quá hạn</p>
                             <p class="text-2xl font-bold text-orange-600">
-                                {{ number_format($summary['total_overdue'] ?? 0, 0, ',', '.') }}đ
+                                {{ number_format($summary['total_overdue'] ?? 0) }}đ
                             </p>
                         </div>
                     </div>
@@ -54,7 +54,7 @@
                         <div class="ml-4">
                             <p class="text-sm text-gray-500">Trong hạn (0-30 ngày)</p>
                             <p class="text-2xl font-bold text-green-600">
-                                {{ number_format($summary['current'] ?? 0, 0, ',', '.') }}đ
+                                {{ number_format($summary['current'] ?? 0) }}đ
                             </p>
                         </div>
                     </div>
@@ -138,18 +138,18 @@
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->name }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->phone }}</td>
                                 <td class="px-4 py-3 text-sm text-right text-gray-900">
-                                    {{ number_format($customer->total_sales, 0, ',', '.') }}
+                                    {{ number_format($customer->total_sales) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right text-green-600">
-                                    {{ number_format($customer->total_paid, 0, ',', '.') }}
+                                    {{ number_format($customer->total_paid) }}
                                 </td>
                                 <td
                                     class="px-4 py-3 text-sm text-right font-medium {{ $customer->total_debt > 0 ? 'text-red-600' : 'text-gray-600' }}">
-                                    {{ number_format($customer->total_debt, 0, ',', '.') }}
+                                    {{ number_format($customer->total_debt) }}
                                 </td>
                                 <td
                                     class="px-4 py-3 text-sm text-right {{ $customer->debt_limit > 0 && $customer->total_debt > $customer->debt_limit ? 'text-orange-600 font-medium' : 'text-gray-600' }}">
-                                    {{ $customer->debt_limit ? number_format($customer->debt_limit, 0, ',', '.') : '-' }}
+                                    {{ $customer->debt_limit ? number_format($customer->debt_limit) : '-' }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-center">
                                     @if($customer->unpaid_orders > 0)
@@ -234,7 +234,7 @@
                                     label += ': ';
                                 }
                                 if (context.parsed !== null) {
-                                    label += new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(context.parsed);
+                                    label += new Intl.NumberFormat('en-US').format(context.parsed) + ' VNĐ';
                                 }
                                 return label;
                             }

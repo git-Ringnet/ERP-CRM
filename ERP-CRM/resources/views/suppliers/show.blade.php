@@ -181,7 +181,7 @@
                                     {{ $po->order_date->format('d/m/Y') }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ number_format($po->total, 0, ',', '.') }} đ
+                                    {{ number_format($po->total) }} đ
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
@@ -285,7 +285,7 @@
                                     {{ $quotation->valid_until->format('d/m/Y') }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ number_format($quotation->total, 0, ',', '.') }} đ
+                                    {{ number_format($quotation->total) }} đ
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full 

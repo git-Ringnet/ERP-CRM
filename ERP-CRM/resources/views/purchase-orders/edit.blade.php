@@ -290,12 +290,11 @@ function setupProductAutocomplete(row) {
             const li = document.createElement('li');
             li.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0';
             li.innerHTML = `
-                <div class="font-medium text-sm text-gray-900">${p.name}</div>
-                <div class="text-xs text-gray-500">Mã: ${p.code} | ĐVT: ${p.unit || '---'}</div>
+                <div class="font-medium text-sm text-gray-900">${p.code}</div>
             `;
             li.addEventListener('mousedown', (e) => {
                 e.preventDefault(); // Prevent blur event
-                input.value = p.name;
+                input.value = p.code;
                 idInput.value = p.id;
                 suggestions.classList.add('hidden');
             });
@@ -307,7 +306,7 @@ function setupProductAutocomplete(row) {
     input.addEventListener('input', function() {
         const val = this.value.toLowerCase();
         // Reset ID if input changes
-        const exactMatch = products.find(p => p.name.toLowerCase() === val);
+        const exactMatch = products.find(p => p.code.toLowerCase() === val || p.name.toLowerCase() === val);
         idInput.value = exactMatch ? exactMatch.id : '';
 
         if (val.length < 1) {

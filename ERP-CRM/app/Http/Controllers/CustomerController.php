@@ -124,7 +124,25 @@ class CustomerController extends Controller
             'position'   => 'required|string|max:255',
             'phone'      => 'required|string|max:50',
             'email'      => 'required|email|max:255',
+        ], [
+            'email.required' => 'Vui lòng nhập email.',
+            'email.email' => 'Email không đúng định dạng.',
         ]);
+
+        // Check if contact with this email already exists for THIS customer
+        $existingContact = \App\Models\Contact::where('customer_id', $customer->id)
+            ->where('email', $validated['email'])
+            ->first();
+
+        if ($existingContact) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Người liên hệ có email "' . $validated['email'] . '" đã tồn tại thuộc khách hàng này (' . $existingContact->name . ').',
+                'errors' => [
+                    'email' => ['Email này đã tồn tại trong danh sách người liên hệ của khách hàng này.']
+                ]
+            ], 422);
+        }
 
         $validated['name'] = trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? ''));
         $validated['is_primary'] = $customer->contacts()->count() === 0;
@@ -162,6 +180,18 @@ class CustomerController extends Controller
             'contacts.*.title' => 'nullable|string|max:50',
             'contacts.*.is_primary' => 'nullable|boolean',
         ]);
+
+        // Check for duplicate emails within the contacts array for this new customer
+        $emails = array_map('strtolower', array_column($validated['contacts'], 'email'));
+        if (count($emails) !== count(array_unique($emails))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Trong danh sách khai báo có người liên hệ bị trùng email với nhau.',
+                'errors' => [
+                    'contacts' => ['Các người liên hệ của cùng 1 khách hàng không được dùng trùng email.']
+                ]
+            ], 422);
+        }
 
         DB::beginTransaction();
         try {

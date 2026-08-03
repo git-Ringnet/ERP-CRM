@@ -264,7 +264,7 @@ function calculateAllocation() {
     document.getElementById('summary_total_allocated').value = formatNumber(totalAllocated) + 'đ';
 }
 
-function formatNumber(num) { return Math.round(num).toLocaleString('vi-VN'); }
+function formatNumber(num) { return Math.round(num).toLocaleString('en-US'); }
 document.addEventListener('DOMContentLoaded', calculateAllocation);
 </script>
 @endsection

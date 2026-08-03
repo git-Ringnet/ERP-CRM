@@ -1163,8 +1163,7 @@
                         @php
                             $grossProfit = $item->total - $item->cost_total;
                             $grossProfitPercent = $item->total > 0 ? ($grossProfit / $item->total * 100) : 0;
-                        @endphp
-                        @php
+                            
                             $plPrice = 0;
                             if (isset($item->product)) {
                                 $skuCode = trim($item->product->code ?? '');
@@ -1172,10 +1171,7 @@
                                 
                                 // 1. Try SKU exact or with wildcards
                                 if ($skuCode) {
-                                    $priceItem = \App\Models\SupplierPriceListItem::where(function($q) use ($skuCode) {
-                                            $q->where('sku', 'like', $skuCode)
-                                              ->orWhere('sku', 'like', '%' . $skuCode . '%');
-                                        })
+                                    $priceItem = \App\Models\SupplierPriceListItem::where('sku', $skuCode)
                                         ->whereHas('priceList', function($q) { 
                                             $q->where('is_active', true); 
                                         })
@@ -1185,11 +1181,23 @@
                                         ->orderBy('supplier_price_list_items.id', 'desc')
                                         ->first();
                                     
+                                    if (!$priceItem) {
+                                        $priceItem = \App\Models\SupplierPriceListItem::where('sku', 'like', '%' . $skuCode . '%')
+                                            ->whereHas('priceList', function($q) { 
+                                                $q->where('is_active', true); 
+                                            })
+                                            ->join('supplier_price_lists', 'supplier_price_list_items.supplier_price_list_id', '=', 'supplier_price_lists.id')
+                                            ->select('supplier_price_list_items.*')
+                                            ->orderBy('supplier_price_lists.effective_date', 'desc')
+                                            ->orderBy('supplier_price_list_items.id', 'desc')
+                                            ->first();
+                                    }
+                                    
                                     if ($priceItem) {
                                         $rawPlPrice = $priceItem->priceList->getPrimaryPriceForItem($priceItem) ?: 0;
                                         $plCurrency = $priceItem->priceList->currency ?? 'USD';
                                         $currentRate = $sale->exchange_rate ?: 24750;
-
+ 
                                         // Nếu bảng giá là VND, quy đổi về USD để nạp vào cột PriceList USD
                                         if (strtoupper($plCurrency) === 'VND' && $rawPlPrice > 0) {
                                             $plPrice = $rawPlPrice / $currentRate;
@@ -1317,23 +1325,19 @@
                                 cost_total: {{ $item->cost_total ?: 0 }},
                                 revenue_total: {{ $item->total }},
                                 order_discount: {{ $sale->discount ?? 0 }},
-                                finance_na: {{ (!is_null($item->finance_cost_percent) && floatval($item->finance_cost_percent) <= 0) ? 'true' : 'false' }},
+                                finance_na: false,
                                 finance_mode: '{{ $financeMode }}',
                                 finance_allocated: {{ $financeAllocated }},
-                                overdue_na: {{ 
-                                    $overdueMode === 'fixed' 
-                                        ? 'false'
-                                        : ((!is_null($item->overdue_interest_percent) && floatval($item->overdue_interest_percent) <= 0) ? 'true' : 'false')
-                                }},
+                                overdue_na: false,
                                 overdue_mode: '{{ $overdueMode }}',
                                 overdue_allocated: {{ $overdueAllocated }},
-                                mgmt_na: {{ (!is_null($item->management_cost_percent) && floatval($item->management_cost_percent) <= 0) ? 'true' : 'false' }},
+                                mgmt_na: false,
                                 mgmt_mode: '{{ $managementMode }}',
                                 mgmt_allocated: {{ $managementAllocated }},
-                                support_na: {{ (!is_null($item->support_247_cost_percent) && floatval($item->support_247_cost_percent) <= 0) ? 'true' : 'false' }},
+                                support_na: false,
                                 support_mode: '{{ $supportMode }}',
                                 support_allocated: {{ $supportAllocated }},
-                                other_na: {{ (!is_null($item->other_support_cost) && floatval($item->other_support_cost) <= 0) ? 'true' : 'false' }},
+                                other_na: false,
                                 other_mode: '{{ $otherSupportMode }}',
                                 other_allocated: {{ $otherSupportAllocated }},
                                 oic: {{ $item->overdue_interest_cost ?: 0 }},

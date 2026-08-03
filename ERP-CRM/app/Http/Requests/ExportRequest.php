@@ -24,6 +24,7 @@ class ExportRequest extends FormRequest
             'employee_id' => 'nullable|exists:users,id',
             'project_id' => 'nullable|exists:projects,id',
             'customer_id' => 'nullable|exists:customers,id',
+            'contact_id' => 'nullable|exists:contacts,id',
             'note' => 'nullable|string|max:1000',
 
             // Items validation - warehouse_id per item

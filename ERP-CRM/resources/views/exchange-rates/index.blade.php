@@ -113,7 +113,7 @@
                                     {{ $rate->effective_date->format('d/m/Y') }}
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm font-semibold text-gray-900">
-                                    {{ number_format($rate->rate, 2, ',', '.') }}
+                                    {{ number_format($rate->rate, $rate->rate == floor($rate->rate) ? 0 : 2, '.', ',') }}
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($rate->source === 'auto')

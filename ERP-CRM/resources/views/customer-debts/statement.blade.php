@@ -63,8 +63,8 @@
                     @if($customer->phone)<p><strong>ĐT:</strong> {{ $customer->phone }}</p>@endif
                 </div>
                 <div class="text-right">
-                    <p><strong>Dư đầu kỳ:</strong> <span class="text-blue-600 font-medium">{{ number_format($openingBalance, 0, ',', '.') }} VND</span></p>
-                    <p><strong>Dư cuối kỳ:</strong> <span class="text-red-600 font-bold">{{ number_format($closingBalance, 0, ',', '.') }} VND</span></p>
+                    <p><strong>Dư đầu kỳ:</strong> <span class="text-blue-600 font-medium">{{ number_format($openingBalance) }} VND</span></p>
+                    <p><strong>Dư cuối kỳ:</strong> <span class="text-red-600 font-bold">{{ number_format($closingBalance) }} VND</span></p>
                 </div>
             </div>
         </div>
@@ -87,7 +87,7 @@
                         <td class="px-4 py-3 text-sm" colspan="4"><strong>Dư đầu kỳ</strong></td>
                         <td class="px-4 py-3 text-sm text-right"></td>
                         <td class="px-4 py-3 text-sm text-right"></td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-blue-600">{{ number_format($openingBalance, 0, ',', '.') }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-blue-600">{{ number_format($openingBalance) }}</td>
                     </tr>
                     @foreach($transactions as $txn)
                     <tr class="hover:bg-gray-50">
@@ -102,19 +102,19 @@
                         <td class="px-4 py-3 text-sm font-medium text-gray-800">{{ $txn['code'] }}</td>
                         <td class="px-4 py-3 text-sm text-gray-600">{{ $txn['description'] }}</td>
                         <td class="px-4 py-3 text-sm text-right {{ $txn['debit'] > 0 ? 'text-red-600' : '' }}">
-                            {{ $txn['debit'] > 0 ? number_format($txn['debit'], 0, ',', '.') : '' }}
+                            {{ $txn['debit'] > 0 ? number_format($txn['debit']) : '' }}
                         </td>
                         <td class="px-4 py-3 text-sm text-right {{ $txn['credit'] > 0 ? 'text-green-600' : '' }}">
-                            {{ $txn['credit'] > 0 ? number_format($txn['credit'], 0, ',', '.') : '' }}
+                            {{ $txn['credit'] > 0 ? number_format($txn['credit']) : '' }}
                         </td>
-                        <td class="px-4 py-3 text-sm text-right font-medium">{{ number_format($txn['balance'], 0, ',', '.') }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-medium">{{ number_format($txn['balance']) }}</td>
                     </tr>
                     @endforeach
                     <tr class="bg-red-50">
                         <td class="px-4 py-3 text-sm" colspan="4"><strong>Dư cuối kỳ</strong></td>
                         <td class="px-4 py-3 text-sm text-right"></td>
                         <td class="px-4 py-3 text-sm text-right"></td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-red-600">{{ number_format($closingBalance, 0, ',', '.') }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-red-600">{{ number_format($closingBalance) }}</td>
                     </tr>
                 </tbody>
             </table>
