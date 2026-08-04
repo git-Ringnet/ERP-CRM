@@ -192,6 +192,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/request-revision-pnl', [SaleController::class, 'requestRevisionPnL'])->name('sales.requestRevisionPnL');
     Route::post('/sales/{sale}/order-request', [SaleController::class, 'storeOrderRequest'])->name('sales.order-request.store');
     Route::get('/sales/{sale}/order-request/create', [SaleController::class, 'createOrderRequest'])->name('sales.order-request.create');
+    Route::get('/sales/{sale}/order-request/{orderRequest}/edit', [SaleController::class, 'editOrderRequest'])->name('sales.order-request.edit');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/download', [SaleController::class, 'downloadOrderRequestAttachment'])->name('sales.order-request.attachment.download');
     Route::get('/sales/{sale}/order-request-attachments/{attachment}/preview', [SaleController::class, 'previewOrderRequestAttachment'])->name('sales.order-request.attachment.preview');
     Route::put('/sales/{sale}/order-request/{orderRequest}/update', [SaleController::class, 'updateOrderRequest'])->name('sales.order-request.update');

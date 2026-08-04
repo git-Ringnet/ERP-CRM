@@ -153,13 +153,15 @@ function addOrderRequestRow(data = null) {
             <input type="hidden" name="order_request_items[${i}][product_id]" value="${data ? data.product_id : ''}">
         </td>
         <td class="px-1 py-1.5">
-            <input type="number" name="order_request_items[${i}][quantity]" value="${data ? data.quantity : 1}" required step="0.01" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center">
+            <input type="number" name="order_request_items[${i}][quantity]" value="${data ? data.quantity : 1}" required step="0.01" class="qty-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400 text-center" oninput="updateSnInputs(this.closest('.order-request-row'))">
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][unit]" value="${data ? (data.unit || '') : ''}" placeholder="Đơn vị" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
         </td>
-        <td class="px-1 py-1.5">
-            <input type="text" name="order_request_items[${i}][serial_number]" placeholder="SN" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
+        <td class="px-1 py-1.5 min-w-[130px]">
+            <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[${i}][serial_number][]">
+                <input type="text" name="order_request_items[${i}][serial_number][]" placeholder="SN" class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400" autocomplete="off">
+            </div>
         </td>
         <td class="px-1 py-1.5">
             <input type="text" name="order_request_items[${i}][exp_date]" placeholder="YYYY-MM-DD" class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400">
@@ -277,77 +279,33 @@ function handleVendorTypeChange(row) {
     if (isFTN && isHW) {
         // Show CQ checkbox label (Ask: Cần cấp CQ riêng?)
         cqLabel.style.display = '';
-        
-        // If CQ not checked → hide/dim EU fields (Stock / Runrate item without CQ)
-        if (!cqCheckbox.checked) {
-            euFields.forEach(td => {
-                td.style.opacity = '0.3';
-                const inputs = td.querySelectorAll('input');
-                inputs.forEach(inp => {
-                    inp.removeAttribute('required');
-                    inp.setAttribute('tabindex', '-1');
-                });
-            });
-            // Clear EU fields for stock item
-            if (euNameInput) euNameInput.value = '';
-            if (mstInput) mstInput.value = '';
-            if (addrInput) addrInput.value = '';
-        } else {
-            // CQ checked → show EU fields
-            euFields.forEach(td => {
-                td.style.opacity = '1';
-                const inputs = td.querySelectorAll('input');
-                inputs.forEach(inp => inp.removeAttribute('tabindex'));
-            });
-            autoFillEuFromGlobal(row);
-        }
     } else {
-        // Non-Fortinet or non-HW: hide CQ checkbox label, show EU fields
+        // Non-Fortinet or non-HW: hide CQ checkbox label
         cqLabel.style.display = 'none';
         cqCheckbox.checked = false;
-        
-        euFields.forEach(td => {
-            td.style.opacity = '1';
-            const inputs = td.querySelectorAll('input');
-            inputs.forEach(inp => inp.removeAttribute('tabindex'));
-        });
-        autoFillEuFromGlobal(row);
     }
+
+    // EU fields ALWAYS stay visible & active for all items
+    euFields.forEach(td => {
+        td.style.opacity = '1';
+        const inputs = td.querySelectorAll('input');
+        inputs.forEach(inp => inp.removeAttribute('tabindex'));
+    });
+    autoFillEuFromGlobal(row);
 }
 
 /**
  * Handle CQ checkbox change:
- * - Checked → show EU fields, fill EU info from global
- * - Unchecked → dim EU fields & clear (Stock / Runrate item)
+ * - EU fields always stay visible & active, auto-filled from global EU info
  */
 function handleNeedsCqChange(row) {
-    const cqCheckbox = row.querySelector('.needs-cq-checkbox');
     const euFields = row.querySelectorAll('.eu-field');
-    const euNameInput = row.querySelector('.eu-name-input');
-    const mstInput = row.querySelector('.mst-input');
-    const addrInput = row.querySelector('input[name$="[address]"]');
-
-    if (cqCheckbox.checked) {
-        euFields.forEach(td => {
-            td.style.opacity = '1';
-            const inputs = td.querySelectorAll('input');
-            inputs.forEach(inp => inp.removeAttribute('tabindex'));
-        });
-        autoFillEuFromGlobal(row);
-    } else {
-        euFields.forEach(td => {
-            td.style.opacity = '0.3';
-            const inputs = td.querySelectorAll('input');
-            inputs.forEach(inp => {
-                inp.removeAttribute('required');
-                inp.setAttribute('tabindex', '-1');
-            });
-        });
-        // Clear EU fields for stock item
-        if (euNameInput) euNameInput.value = '';
-        if (mstInput) mstInput.value = '';
-        if (addrInput) addrInput.value = '';
-    }
+    euFields.forEach(td => {
+        td.style.opacity = '1';
+        const inputs = td.querySelectorAll('input');
+        inputs.forEach(inp => inp.removeAttribute('tabindex'));
+    });
+    autoFillEuFromGlobal(row);
 }
 
 function autoFillEuFromGlobal(row) {
@@ -368,9 +326,44 @@ function autoFillEuFromGlobal(row) {
     if (addrInput && !addrInput.value) addrInput.value = globalAddr;
 }
 
+function updateSnInputs(row) {
+    const qtyInput = row.querySelector('.qty-input') || row.querySelector('input[name*="[quantity]"]');
+    const container = row.querySelector('.sn-inputs-container');
+    if (!qtyInput || !container) return;
+
+    const rawQty = parseFloat(qtyInput.value);
+    const targetCount = isNaN(rawQty) || rawQty <= 0 ? 1 : Math.max(1, Math.min(50, Math.floor(rawQty)));
+    
+    const existingInputs = container.querySelectorAll('.sn-input');
+    const currentValues = Array.from(existingInputs).map(inp => inp.value);
+
+    let namePattern = container.dataset.namePattern;
+    if (!namePattern) {
+        const sampleInput = container.querySelector('input');
+        namePattern = sampleInput ? sampleInput.getAttribute('name') : '';
+        if (namePattern && !namePattern.endsWith('[]')) {
+            namePattern += '[]';
+        }
+        container.dataset.namePattern = namePattern;
+    }
+
+    container.innerHTML = '';
+    for (let i = 0; i < targetCount; i++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = namePattern;
+        input.placeholder = targetCount > 1 ? `SN ${i + 1}` : 'SN';
+        input.className = 'sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 mt-1 first:mt-0';
+        input.autocomplete = 'off';
+        input.value = currentValues[i] || '';
+        container.appendChild(input);
+    }
+}
+
 // Initial initialization for existing edit rows on load
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.order-request-row').forEach(row => {
         handleVendorTypeChange(row);
+        updateSnInputs(row);
     });
 });

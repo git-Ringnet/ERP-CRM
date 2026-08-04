@@ -549,6 +549,10 @@
             order_discount: data.order_discount || 0,
             net_revenue: 0,
             
+            supplier_id: data.supplier_id || null,
+            is_service: data.is_service || false,
+            vendor_value: data.is_service ? 'service' : (data.supplier_id ? data.supplier_id.toString() : ''),
+            
             finance_na: data.finance_na,
             finance_mode: data.finance_mode || 'percent',
             finance_allocated: data.finance_allocated || 0,
@@ -606,6 +610,20 @@
                 setTimeout(() => {
                     this.calculate();
                 }, 200);
+
+                // Watch vendor_value changes
+                this.$watch('vendor_value', (val) => {
+                    if (val === 'service') {
+                        this.is_service = true;
+                        this.supplier_id = null;
+                    } else if (val) {
+                        this.is_service = false;
+                        this.supplier_id = parseInt(val);
+                    } else {
+                        this.is_service = false;
+                        this.supplier_id = null;
+                    }
+                });
 
                 // Lắng nghe sự kiện thay đổi chi phí để cập nhật has_tax
                 window.addEventListener('expense-updated', (e) => {
@@ -787,6 +805,8 @@
                     items.push({
                         id: rowData.id,
                         product_id: rowData.product_id,
+                        supplier_id: rowData.supplier_id,
+                        is_service: rowData.is_service ? 1 : 0,
                         finance_na: rowData.finance_na ? 1 : 0,
                         overdue_na: rowData.overdue_na ? 1 : 0,
                         management_na: rowData.mgmt_na ? 1 : 0,
@@ -1316,6 +1336,8 @@
                             x-data="pnlRow({
                                 id: {{ $item->id }},
                                 row_index: {{ $index }},
+                                supplier_id: {{ $item->supplier_id ?: 'null' }},
+                                is_service: {{ $item->is_service ? 'true' : 'false' }},
                                 qty: {{ $item->quantity }},
                                 usd_price: {{ (float)$item->usd_price > 0 ? $item->usd_price : $plPrice }},
                                 discount_rate: {{ $item->discount_rate ?? 0 }},
@@ -1385,12 +1407,25 @@
                                 }
                             })"
                             @pnl-recalc.window="calculate()">
-                            <td class="px-2 py-2 text-center border border-gray-400 text-xs">{{ $item->product->code ?? '' }}</td>
+                            <td class="px-2 py-2 text-center border border-gray-400 text-xs">
+                                <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
+                                <select x-model="vendor_value"
+                                        class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$sale->isPlEditable() ? 'bg-gray-100' : 'bg-white' }}"
+                                        {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
+                                    <option value="">-- Chọn Vendor --</option>
+                                    <option value="service">Service (Dịch vụ)</option>
+                                    @foreach($suppliers as $supplier)
+                                        <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
                             <td class="px-2 py-2 border border-gray-400">
                                 {{ $item->product_name }}
                                 <!-- P&L Row Hidden Fields -->
                                 <input type="hidden" name="items[{{ $index }}][id]" value="{{ $item->id }}">
                                 <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id }}">
+                                <input type="hidden" name="items[{{ $index }}][supplier_id]" :value="supplier_id">
+                                <input type="hidden" name="items[{{ $index }}][is_service]" :value="is_service ? 1 : 0">
                                 <input type="hidden" name="items[{{ $index }}][finance_na]" :value="finance_na ? 1 : 0">
                                 <input type="hidden" name="items[{{ $index }}][overdue_na]" :value="overdue_na ? 1 : 0">
                                 <input type="hidden" name="items[{{ $index }}][management_na]" :value="mgmt_na ? 1 : 0">

@@ -15,59 +15,14 @@ use Illuminate\Support\Facades\DB;
 class SalesRevenueController extends Controller
 {
     /**
-     * Main tracking page — auto-syncs PO/SO data and displays the spreadsheet
+     * Helper to sync PO items for a given year and optional supplier.
+     * Only creates records for PO items not yet tracked.
      */
-    public function index(Request $request)
+    private function syncData($year, $supplierId = null)
     {
-        $this->authorize('viewAny', SalesRevenue::class);
-
-        $year = $request->input('year', now()->year);
-        $supplierId = $request->input('supplier_id');
-        $search = $request->input('search');
-
-        $revenues = SalesRevenue::query()
-            ->byYear($year)
-            ->bySupplier($supplierId)
-            ->search($search)
-            ->with(['purchaseOrder', 'sale', 'supplier', 'customer', 'project'])
-            ->orderBy('po_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->paginate(100)
-            ->withQueryString();
-
-        $suppliers = Supplier::orderBy('name')->get();
-
-        // Stats
-        $statsQuery = SalesRevenue::query()->byYear($year)->bySupplier($supplierId)->search($search);
-        $totalRecords = (clone $statsQuery)->count();
-        $stats = [
-            'total_records' => $totalRecords,
-            'total_amount' => (clone $statsQuery)->sum('total_amount'),
-            'total_selling' => (clone $statsQuery)->sum('selling_price'),
-            'total_quantity' => (clone $statsQuery)->sum('quantity'),
-        ];
-
-        $years = SalesRevenue::selectRaw('DISTINCT year')->orderBy('year', 'desc')->pluck('year');
-        if ($years->isEmpty()) {
-            $years = collect([now()->year]);
+        if (!Auth::check()) {
+            return 0;
         }
-
-        return view('sales-revenues.index', compact(
-            'revenues', 'suppliers', 'stats', 'years',
-            'year', 'supplierId', 'search'
-        ));
-    }
-
-    /**
-     * Sync all PO items from a given supplier into the tracking table
-     * Only creates records for PO items not yet tracked
-     */
-    public function syncFromPO(Request $request)
-    {
-        $this->authorize('create', SalesRevenue::class);
-
-        $year = $request->input('year', now()->year);
-        $supplierId = $request->input('supplier_id');
 
         // Get all PO items from approved POs, optionally filtered by supplier
         $query = PurchaseOrderItem::query()
@@ -127,6 +82,69 @@ class SalesRevenueController extends Controller
             $revenue->save();
             $count++;
         }
+
+        return $count;
+    }
+
+    /**
+     * Main tracking page — auto-syncs PO/SO data and displays the spreadsheet
+     */
+    public function index(Request $request)
+    {
+        $this->authorize('viewAny', SalesRevenue::class);
+
+        $year = $request->input('year', now()->year);
+        $supplierId = $request->input('supplier_id');
+        $search = $request->input('search');
+
+        // Automatically sync for this year before displaying
+        $this->syncData($year);
+
+        $revenues = SalesRevenue::query()
+            ->byYear($year)
+            ->bySupplier($supplierId)
+            ->search($search)
+            ->with(['purchaseOrder', 'sale', 'supplier', 'customer', 'project'])
+            ->orderBy('po_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate(100)
+            ->withQueryString();
+
+        $suppliers = Supplier::orderBy('name')->get();
+
+        // Stats
+        $statsQuery = SalesRevenue::query()->byYear($year)->bySupplier($supplierId)->search($search);
+        $totalRecords = (clone $statsQuery)->count();
+        $stats = [
+            'total_records' => $totalRecords,
+            'total_amount' => (clone $statsQuery)->sum('total_amount'),
+            'total_selling' => (clone $statsQuery)->sum('selling_price'),
+            'total_quantity' => (clone $statsQuery)->sum('quantity'),
+        ];
+
+        $years = SalesRevenue::selectRaw('DISTINCT year')->orderBy('year', 'desc')->pluck('year');
+        if ($years->isEmpty()) {
+            $years = collect([now()->year]);
+        }
+
+        return view('sales-revenues.index', compact(
+            'revenues', 'suppliers', 'stats', 'years',
+            'year', 'supplierId', 'search'
+        ));
+    }
+
+    /**
+     * Sync all PO items from a given supplier into the tracking table
+     * Only creates records for PO items not yet tracked
+     */
+    public function syncFromPO(Request $request)
+    {
+        $this->authorize('create', SalesRevenue::class);
+
+        $year = $request->input('year', now()->year);
+        $supplierId = $request->input('supplier_id');
+
+        $count = $this->syncData($year, $supplierId);
 
         if ($count > 0) {
             return redirect()->route('sales-revenues.index', $request->only('year', 'supplier_id'))
@@ -203,6 +221,9 @@ class SalesRevenueController extends Controller
         $year = $request->input('year', now()->year);
         $supplierId = $request->input('supplier_id');
         $search = $request->input('search');
+
+        // Automatically sync for this year before exporting
+        $this->syncData($year);
 
         $revenues = SalesRevenue::query()
             ->byYear($year)

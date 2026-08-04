@@ -44,12 +44,6 @@
         @php
             $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
         @endphp
-        @if($sale->debt_amount > 0)
-        <button onclick="openPaymentModal()" 
-                class="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-            <i class="fas fa-money-bill mr-2"></i> Ghi nhận thanh toán
-        </button>
-        @endif
         @if($sale->pl_status === 'approved')
         <a href="{{ route('sales.order-request.create', $sale->id) }}" 
                 class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
@@ -74,6 +68,54 @@
                     <a href="{{ route('purchase-orders.show', $po->id) }}" class="font-bold underline hover:text-blue-600">{{ $po->code }}</a>{{ $loop->last ? '' : ', ' }}
                 @endforeach
             </p>
+        </div>
+    </div>
+    @endif
+
+    {{-- Order Requests Status Summary --}}
+    @if($sale->orderRequests && $sale->orderRequests->count() > 0)
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-cart-arrow-down text-emerald-600 text-base"></i>
+                <span class="text-xs font-bold text-emerald-900 uppercase">Yêu cầu đặt hàng ({{ $sale->orderRequests->count() }})</span>
+            </div>
+            <a href="{{ route('purchase-requests.index', ['my_requests' => 1]) }}" class="text-xs text-emerald-700 hover:text-emerald-900 font-semibold underline flex items-center gap-1">
+                Xem ở Yêu cầu đặt hàng <i class="fas fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+        <div class="space-y-1.5 text-xs">
+            @foreach($sale->orderRequests as $req)
+                <div class="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded border border-emerald-100 gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-emerald-800">#{{ $req->code }}</span>
+                        <span class="text-gray-500">({{ $req->items->count() }} sản phẩm)</span>
+                        <span class="text-gray-400">| Ngày gửi: {{ $req->created_at ? $req->created_at->format('d/m/Y H:i') : '-' }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        @php
+                            $badgeClass = match($req->status) {
+                                'pending_admin' => 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                'submitted', 'processing' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                'need_info' => 'bg-orange-100 text-orange-800 border-orange-200',
+                                'completed' => 'bg-green-100 text-green-800 border-green-200',
+                                default => 'bg-gray-100 text-gray-800 border-gray-200'
+                            };
+                        @endphp
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border {{ $badgeClass }}">
+                            {{ $req->status_label }}
+                        </span>
+                        @if($req->rejection_note)
+                            <span class="text-red-600 text-[11px] italic" title="{{ $req->rejection_note }}">(Ghi chú: {{ Str::limit($req->rejection_note, 35) }})</span>
+                        @endif
+                        @if(in_array($req->status, ['draft', 'need_info']))
+                            <a href="{{ route('sales.order-request.edit', [$sale->id, $req->id]) }}" class="text-blue-600 font-bold hover:underline text-[11px] ml-1">
+                                <i class="fas fa-edit mr-0.5"></i> {{ $req->status === 'draft' ? 'Sửa nháp' : 'Chỉnh sửa' }}
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
         </div>
     </div>
     @endif
@@ -144,13 +186,17 @@
                             'pnl_rejected' => 'PNL Từ chối',
                             'pnl_need_revision' => 'Yêu cầu chỉnh sửa',
                             'pnl_pending' => 'Chờ duyệt PNL',
-                            default => 'Chờ duyệt',
+                            'draft' => 'Nháp',
+                            'pending' => 'Chờ duyệt đơn hàng',
+                            default => 'Nháp',
                         };
                         $firstStepColor = match($dashStatus) {
                             'pnl_rejected' => 'red',
                             'pnl_need_revision' => 'amber',
                             'pnl_pending' => 'orange',
-                            default => 'yellow',
+                            'draft' => 'gray',
+                            'pending' => 'yellow',
+                            default => 'gray',
                         };
 
                         $steps = [
@@ -1051,7 +1097,7 @@
                 <button @click="activeTab = 'procurement'"
                     :class="activeTab === 'procurement' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-all duration-200">
-                    <i class="fas fa-shopping-cart mr-2"></i> Thông tin mua hàng (PO)
+                    <i class="fas fa-key mr-2"></i> Trạng thái license
                 </button>
                 <button @click="activeTab = 'warehouse'"
                     :class="activeTab === 'warehouse' ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -1117,7 +1163,18 @@
                             @foreach($sale->items as $index => $item)
                             <tr>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->product->code ?? $item->product_name }}</td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                                    <div>{{ $item->product->code ?? $item->product_name }}</div>
+                                    @if($item->is_service)
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 mt-1">
+                                            <i class="fas fa-hand-holding-usd mr-1"></i>Dịch vụ (Không cần đặt hàng)
+                                        </span>
+                                    @elseif($item->supplier)
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 mt-1">
+                                            <i class="fas fa-truck mr-1"></i>Đặt hàng: {{ $item->supplier->name }}
+                                        </span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->quantity) }}</td>
                                 <td class="px-4 py-3 text-right">
                                      @if($isForeign)
@@ -1484,6 +1541,18 @@
                                     )) {
                                         $isLicense = true;
                                     }
+
+                                    $isService = false;
+                                    if (($item->is_service ?? false) || ($productCode && (
+                                        str_starts_with($productCode, 'THSV-') || 
+                                        stripos($productCode, 'COTERM') !== false ||
+                                        stripos($productCode, 'service') !== false ||
+                                        stripos($productName, 'service') !== false ||
+                                        stripos($productCode, 'support') !== false ||
+                                        stripos($productName, 'support') !== false
+                                    ))) {
+                                        $isService = true;
+                                    }
                                 @endphp
                                 <tr class="hover:bg-gray-50/50 transition-colors">
                                     <td class="px-4 py-3 text-gray-500">{{ $index + 1 }}</td>
@@ -1495,6 +1564,8 @@
                                     <td class="px-4 py-3 text-center">
                                         @if($isLicense)
                                             <span class="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full"><i class="fas fa-key mr-1"></i>License (K.Nhập)</span>
+                                        @elseif($isService)
+                                            <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-concierge-bell mr-1"></i>Dịch vụ (K.Nhập)</span>
                                         @else
                                             <span class="font-semibold text-gray-600">{{ number_format($totalReceived) }}</span>
                                         @endif
@@ -1826,8 +1897,7 @@
 
 
 
-    {{-- Order Request Modal + History --}}
-    @include('sales.partials.order-request')
+    {{-- Order Request Modal + History (removed per user request) --}}
 
     <!-- Payment Modal -->
     <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">

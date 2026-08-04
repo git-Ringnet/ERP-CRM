@@ -99,6 +99,11 @@ class SaleController extends Controller
             $query->where('customer_id', $request->customer_id);
         }
 
+        // Filter by salesperson
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
         // Search by note
         if ($request->filled('note_search')) {
             $noteSearch = $request->note_search;
@@ -146,8 +151,13 @@ class SaleController extends Controller
         $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
+        
+        $salespersons = \App\Models\User::where('status', 'active')
+            ->orWhereHas('sales')
+            ->orderBy('name')
+            ->get();
 
-        return view('sales.index', compact('sales', 'projects', 'customers'));
+        return view('sales.index', compact('sales', 'projects', 'customers', 'salespersons'));
     }
 
     /**
@@ -707,6 +717,8 @@ class SaleController extends Controller
                     'contractor_tax' => $oldItem->contractor_tax,
                     'contractor_tax_percent' => $oldItem->contractor_tax_percent,
                     'extra_expenses_data' => $oldItem->extra_expenses_data,
+                    'supplier_id' => $oldItem->supplier_id,
+                    'is_service' => $oldItem->is_service,
                 ];
             }
             
@@ -890,6 +902,8 @@ class SaleController extends Controller
                         : (isset($reqPnl['contractor_tax_enabled']) 
                             ? (bool) $reqPnl['contractor_tax_enabled'] 
                             : (isset($oldPnl['contractor_tax_enabled']) ? (bool) $oldPnl['contractor_tax_enabled'] : false)),
+                    'supplier_id' => $getVal('supplier_id', 'supplier_id', null),
+                    'is_service' => (bool)$getVal('is_service', 'is_service', false),
                 ]);
             }
 
@@ -966,7 +980,7 @@ class SaleController extends Controller
 
             DB::commit();
 
-            return redirect()->route('sales.index')
+            return redirect()->route('sales.show', $sale->id)
                 ->with('success', 'Đơn hàng đã được cập nhật thành công.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1513,6 +1527,8 @@ class SaleController extends Controller
             'items' => ['required', 'array'],
             'items.*.id' => ['required', 'exists:sale_items,id'],
             'items.*.product_id' => ['nullable', 'exists:products,id'],
+            'items.*.supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'items.*.is_service' => ['nullable', 'boolean'],
             'items.*.finance_na' => ['nullable', 'boolean'],
             'items.*.overdue_na' => ['nullable', 'boolean'],
             'items.*.management_na' => ['nullable', 'boolean'],
@@ -1610,6 +1626,7 @@ class SaleController extends Controller
                     'total' => 0,
                     'cost_total' => 0,
                     'contractor_tax_enabled' => 0,
+                    'is_service' => 0,
                 ];
                 foreach ($nonNullFieldsWithDefaults as $field => $defaultVal) {
                     if (!array_key_exists($field, $itemData) || is_null($itemData[$field]) || $itemData[$field] === '') {
@@ -2466,6 +2483,23 @@ class SaleController extends Controller
         return view('sales.order-request-create', compact('sale', 'suppliers', 'customers'));
     }
 
+    public function editOrderRequest(Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
+    {
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager');
+
+        if (!in_array($orderRequest->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]) && !$isAdmin) {
+            return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu ở trạng thái "Bản nháp" hoặc "Thiếu thông tin".');
+        }
+
+        $sale->load(['items.product', 'customer']);
+        $orderRequest->load(['items.vendor', 'attachments']);
+        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $customers = Customer::orderBy('name')->get();
+
+        return view('sales.order-request-create', compact('sale', 'orderRequest', 'suppliers', 'customers'));
+    }
+
     /**
      * Store a new order request (Yêu cầu đặt hàng) from Sales to PO team
      */
@@ -2475,33 +2509,37 @@ class SaleController extends Controller
             return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
         }
 
-        $status = $sale->getPaymentConditionStatus();
-        if (!$status['eligible_for_order']) {
-            $pendingList = implode(', ', $status['pending_order_milestones']);
-            return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
+        $isDraft = $request->input('action_type') === 'draft';
+
+        if (!$isDraft) {
+            $status = $sale->getPaymentConditionStatus();
+            if (!$status['eligible_for_order']) {
+                $pendingList = implode(', ', $status['pending_order_milestones']);
+                return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
+            }
         }
 
         \Log::info('storeOrderRequest raw input: ' . json_encode($request->all()));
         try {
             $validated = $request->validate([
                 'order_request_items' => 'required|array|min:1',
-                'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
-                'order_request_items.*.type' => 'required|string|max:100',
+                'order_request_items.*.vendor_id' => $isDraft ? 'nullable' : 'required|exists:suppliers,id',
+                'order_request_items.*.type' => $isDraft ? 'nullable|string' : 'required|string|max:100',
                 'order_request_items.*.needs_cq' => 'nullable|boolean',
-                'order_request_items.*.part_number' => 'required|string|max:255',
+                'order_request_items.*.part_number' => $isDraft ? 'nullable|string' : 'required|string|max:255',
                 'order_request_items.*.product_id' => 'nullable|exists:products,id',
                 'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
                 'order_request_items.*.quantity' => 'required|numeric|min:0.01',
                 'order_request_items.*.unit' => 'nullable|string|max:50',
-                'order_request_items.*.serial_number' => 'nullable|string|max:255',
+                'order_request_items.*.serial_number' => 'nullable',
                 'order_request_items.*.exp_date' => 'nullable|date',
-                'order_request_items.*.si_name' => 'required|string|max:255',
+                'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
                 'order_request_items.*.pos_id' => 'nullable|string|max:255',
                 'order_request_items.*.eu_name' => 'nullable|string|max:255',
                 'order_request_items.*.mst' => 'nullable|string|max:255',
                 'order_request_items.*.address' => 'nullable|string|max:500',
                 'order_request_note' => 'nullable|string|max:2000',
-                'order_request_files.*' => 'nullable|file|max:20480', // 20MB max per file
+                'order_request_files.*' => 'nullable|file|max:20480',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('storeOrderRequest validation failed: ' . json_encode($e->errors()));
@@ -2515,56 +2553,58 @@ class SaleController extends Controller
                 'sale_id' => $sale->id,
                 'created_by' => auth()->id(),
                 'note' => $request->input('order_request_note'),
-                'sent_at' => now(),
-                'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
+                'sent_at' => $isDraft ? null : now(),
+                'status' => $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
             ]);
 
-            // Create items
             foreach ($validated['order_request_items'] as $item) {
-                // Get supplier name for legacy 'vendor' column
-                $supplier = \App\Models\Supplier::find($item['vendor_id']);
-                
-                // Determine if this is a Fortinet HW item
+                $supplier = !empty($item['vendor_id']) ? \App\Models\Supplier::find($item['vendor_id']) : null;
                 $isFortinet = $supplier && stripos($supplier->name, 'Fortinet') !== false;
                 $isHW = ($item['type'] ?? '') === 'HW';
                 $needsCq = ($isFortinet && $isHW) ? !empty($item['needs_cq']) : true;
                 
-                // Validate EU info is required when needs_cq is true or non-Fortinet-HW
-                if ($needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
+                if (!$isDraft && $needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . $item['part_number']]
+                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . ($item['part_number'] ?? '')]
                     ]);
                 }
                 
-                // Build eu_name_mst string
                 $euNameMst = '';
                 if (!empty($item['eu_name']) && !empty($item['mst'])) {
                     $euNameMst = trim($item['eu_name']) . ' - ' . trim($item['mst']);
                 } elseif (!empty($item['eu_name'])) {
                     $euNameMst = trim($item['eu_name']);
                 }
+
+                $rawSn = $item['serial_number'] ?? null;
+                $snStr = null;
+                if (is_array($rawSn)) {
+                    $cleanSerials = array_filter(array_map('trim', $rawSn), fn($v) => $v !== '');
+                    $snStr = !empty($cleanSerials) ? implode(', ', $cleanSerials) : null;
+                } elseif (is_string($rawSn) && trim($rawSn) !== '') {
+                    $snStr = trim($rawSn);
+                }
                 
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
-                    'vendor_id' => $item['vendor_id'],
-                    'vendor' => $supplier?->name,
-                    'type' => $item['type'],
+                    'vendor_id' => $item['vendor_id'] ?? null,
+                    'vendor' => $supplier?->name ?? '',
+                    'type' => $item['type'] ?? 'HW',
                     'needs_cq' => $needsCq,
-                    'part_number' => $item['part_number'],
+                    'part_number' => $item['part_number'] ?? '',
                     'product_id' => $item['product_id'] ?? null,
                     'sale_item_id' => $item['sale_item_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? null,
-                    'serial_number' => $item['serial_number'] ?? null,
+                    'serial_number' => $snStr,
                     'exp_date' => $item['exp_date'] ?? null,
-                    'si_name' => $item['si_name'],
+                    'si_name' => $item['si_name'] ?? '',
                     'pos_id' => $item['pos_id'] ?? null,
                     'eu_name_mst' => $euNameMst,
                     'address' => $item['address'] ?? null,
                 ]);
             }
 
-            // Handle file uploads
             if ($request->hasFile('order_request_files')) {
                 foreach ($request->file('order_request_files') as $file) {
                     $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
@@ -2579,73 +2619,75 @@ class SaleController extends Controller
                 }
             }
 
-            // Send notification to all users with purchase order management permissions
-            $poUsers = User::whereHas('roles', function ($q) {
-                $q->where('slug', 'admin')
-                  ->orWhere('slug', 'purchase_manager');
-            })->get();
-
-            // Fallback: if no role-based users found, notify admins
-            if ($poUsers->isEmpty()) {
-                $poUsers = User::whereHas('roles', function ($q) {
-                    $q->where('slug', 'admin');
-                })->get();
-            }
-
-            $senderName = auth()->user()->name ?? 'Sales';
-            foreach ($poUsers as $user) {
-                if ($user->id === auth()->id()) continue; // Don't notify self
-
-                Notification::create([
-                    'user_id' => $user->id,
-                    'type' => 'order_request',
-                    'title' => 'Yêu cầu đặt hàng mới',
-                    'message' => "{$senderName} đã gửi yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
-                    'link' => route('sales.show', $sale->id),
-                    'icon' => 'fas fa-cart-plus',
-                    'color' => 'blue',
-                ]);
+            if (!$isDraft) {
+                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+                $senderName = auth()->user()->name ?? 'Sales';
+                foreach ($poUsers as $user) {
+                    if ($user->id === auth()->id()) continue;
+                    Notification::create([
+                        'user_id' => $user->id,
+                        'type' => 'order_request',
+                        'title' => 'Yêu cầu đặt hàng mới',
+                        'message' => "{$senderName} đã gửi yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                        'link' => route('sales.show', $sale->id),
+                        'icon' => 'fas fa-cart-plus',
+                        'color' => 'blue',
+                    ]);
+                }
             }
 
             DB::commit();
 
-            return redirect()->route('sales.show', $sale->id)->with('success', "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
+            $msg = $isDraft 
+                ? "Đã lưu nháp yêu cầu đặt hàng ({$orderRequest->code}) thành công!" 
+                : "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!";
+            return redirect()->route('sales.show', $sale->id)->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Store order request failed: ' . $e->getMessage());
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
     }
+
     /**
-     * Update and resubmit an order request that was marked as "Thiếu thông tin"
+     * Update and resubmit an order request
      */
     public function updateOrderRequest(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
-        // Chỉ cho phép chỉnh sửa khi trạng thái là need_info
-        if ($orderRequest->status !== \App\Models\SaleOrderRequest::STATUS_NEED_INFO) {
-            return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu đặt hàng đang ở trạng thái "Thiếu thông tin".');
-        }
-
-        // Chỉ cho phép người tạo PR, owner Sale, hoặc Admin
         $user = auth()->user();
         $isAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('purchase_manager');
+        
         if (!$isAdmin && auth()->id() !== $orderRequest->created_by && auth()->id() !== $sale->user_id) {
             return back()->with('error', 'Bạn không có quyền chỉnh sửa yêu cầu này.');
         }
 
+        if (!in_array($orderRequest->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]) && !$isAdmin) {
+            return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu ở trạng thái "Bản nháp" hoặc "Thiếu thông tin".');
+        }
+
+        $isDraft = $request->input('action_type') === 'draft';
+
+        if (!$isDraft) {
+            $status = $sale->getPaymentConditionStatus();
+            if (!$status['eligible_for_order']) {
+                $pendingList = implode(', ', $status['pending_order_milestones']);
+                return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
+            }
+        }
+
         $validated = $request->validate([
             'order_request_items' => 'required|array|min:1',
-            'order_request_items.*.vendor_id' => 'required|exists:suppliers,id',
-            'order_request_items.*.type' => 'required|string|max:100',
+            'order_request_items.*.vendor_id' => $isDraft ? 'nullable' : 'required|exists:suppliers,id',
+            'order_request_items.*.type' => $isDraft ? 'nullable|string' : 'required|string|max:100',
             'order_request_items.*.needs_cq' => 'nullable|boolean',
-            'order_request_items.*.part_number' => 'required|string|max:255',
+            'order_request_items.*.part_number' => $isDraft ? 'nullable|string' : 'required|string|max:255',
             'order_request_items.*.product_id' => 'nullable|exists:products,id',
             'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
             'order_request_items.*.quantity' => 'required|numeric|min:0.01',
             'order_request_items.*.unit' => 'nullable|string|max:50',
-            'order_request_items.*.serial_number' => 'nullable|string|max:255',
+            'order_request_items.*.serial_number' => 'nullable',
             'order_request_items.*.exp_date' => 'nullable|date',
-            'order_request_items.*.si_name' => 'required|string|max:255',
+            'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
             'order_request_items.*.pos_id' => 'nullable|string|max:255',
             'order_request_items.*.eu_name' => 'nullable|string|max:255',
             'order_request_items.*.mst' => 'nullable|string|max:255',
@@ -2656,53 +2698,64 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
-            // Xóa items cũ → tạo items mới
+            $newStatus = $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN;
+            $orderRequest->update([
+                'note' => $request->input('order_request_note'),
+                'status' => $newStatus,
+                'sent_at' => $isDraft ? null : now(),
+                'rejection_note' => $isDraft ? $orderRequest->rejection_note : null,
+            ]);
+
             $orderRequest->items()->delete();
 
             foreach ($validated['order_request_items'] as $item) {
-                $supplier = \App\Models\Supplier::find($item['vendor_id']);
-                
-                // Determine if this is a Fortinet HW item
+                $supplier = !empty($item['vendor_id']) ? \App\Models\Supplier::find($item['vendor_id']) : null;
                 $isFortinet = $supplier && stripos($supplier->name, 'Fortinet') !== false;
                 $isHW = ($item['type'] ?? '') === 'HW';
                 $needsCq = ($isFortinet && $isHW) ? !empty($item['needs_cq']) : true;
-                
-                // Validate EU info is required when needs_cq is true or non-Fortinet-HW
-                if ($needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
+
+                if (!$isDraft && $needsCq && (empty($item['eu_name']) || empty($item['mst']))) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . $item['part_number']]
+                        'order_request_items' => ['EU Name và MST bắt buộc khi cần cấp CQ riêng cho sản phẩm ' . ($item['part_number'] ?? '')]
                     ]);
                 }
-                
-                // Build eu_name_mst string
+
                 $euNameMst = '';
                 if (!empty($item['eu_name']) && !empty($item['mst'])) {
                     $euNameMst = trim($item['eu_name']) . ' - ' . trim($item['mst']);
                 } elseif (!empty($item['eu_name'])) {
                     $euNameMst = trim($item['eu_name']);
                 }
-                
+
+                $rawSn = $item['serial_number'] ?? null;
+                $snStr = null;
+                if (is_array($rawSn)) {
+                    $cleanSerials = array_filter(array_map('trim', $rawSn), fn($v) => $v !== '');
+                    $snStr = !empty($cleanSerials) ? implode(', ', $cleanSerials) : null;
+                } elseif (is_string($rawSn) && trim($rawSn) !== '') {
+                    $snStr = trim($rawSn);
+                }
+
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
-                    'vendor_id' => $item['vendor_id'],
-                    'vendor' => $supplier?->name,
-                    'type' => $item['type'],
+                    'vendor_id' => $item['vendor_id'] ?? null,
+                    'vendor' => $supplier?->name ?? '',
+                    'type' => $item['type'] ?? 'HW',
                     'needs_cq' => $needsCq,
-                    'part_number' => $item['part_number'],
+                    'part_number' => $item['part_number'] ?? '',
                     'product_id' => $item['product_id'] ?? null,
                     'sale_item_id' => $item['sale_item_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? null,
-                    'serial_number' => $item['serial_number'] ?? null,
+                    'serial_number' => $snStr,
                     'exp_date' => $item['exp_date'] ?? null,
-                    'si_name' => $item['si_name'],
+                    'si_name' => $item['si_name'] ?? '',
                     'pos_id' => $item['pos_id'] ?? null,
                     'eu_name_mst' => $euNameMst,
                     'address' => $item['address'] ?? null,
                 ]);
             }
 
-            // Upload file đính kèm mới (giữ lại file cũ)
             if ($request->hasFile('order_request_files')) {
                 foreach ($request->file('order_request_files') as $file) {
                     $path = $file->store('sale-order-requests/' . $orderRequest->id, 'public');
@@ -2717,37 +2770,29 @@ class SaleController extends Controller
                 }
             }
 
-            // Cập nhật PR: trạng thái → pending_admin, xóa rejection_note
-            $orderRequest->update([
-                'status' => \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
-                'rejection_note' => null,
-                'note' => $request->input('order_request_note'),
-                'sent_at' => now(),
-            ]);
-
-            // Gửi thông báo cho Admin (gửi lại)
-            $adminUsers = User::whereHas('roles', function ($q) {
-                $q->where('slug', 'admin');
-            })->get();
-
-            $senderName = auth()->user()->name ?? 'Sales';
-            foreach ($adminUsers as $user) {
-                if ($user->id === auth()->id()) continue;
-
-                Notification::create([
-                    'user_id' => $user->id,
-                    'type' => 'order_request',
-                    'title' => 'Yêu cầu đặt hàng đã được gửi lại',
-                    'message' => "{$senderName} đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) cần phê duyệt cho đơn {$sale->code}",
-                    'link' => route('sales.show', $sale->id),
-                    'icon' => 'fas fa-redo',
-                    'color' => 'blue',
-                ]);
+            if (!$isDraft) {
+                $poUsers = User::whereHas('roles', fn($q) => $q->whereIn('slug', ['admin', 'purchase_manager']))->get();
+                $senderName = auth()->user()->name ?? 'Sales';
+                foreach ($poUsers as $user) {
+                    if ($user->id === auth()->id()) continue;
+                    Notification::create([
+                        'user_id' => $user->id,
+                        'type' => 'order_request',
+                        'title' => 'Yêu cầu đặt hàng đã gửi',
+                        'message' => "{$senderName} đã chỉnh sửa và gửi yêu cầu đặt hàng ({$orderRequest->code}) cho đơn {$sale->code}",
+                        'link' => route('sales.show', $sale->id),
+                        'icon' => 'fas fa-paper-plane',
+                        'color' => 'blue',
+                    ]);
+                }
             }
 
             DB::commit();
 
-            return redirect()->route('sales.show', $sale->id)->with('success', "Đã chỉnh sửa và gửi lại yêu cầu đặt hàng ({$orderRequest->code}) thành công!");
+            $msg = $isDraft 
+                ? "Đã lưu nháp yêu cầu đặt hàng ({$orderRequest->code}) thành công!" 
+                : "Đã gửi yêu cầu đặt hàng ({$orderRequest->code}) thành công!";
+            return redirect()->route('sales.show', $sale->id)->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Update order request failed: ' . $e->getMessage());
@@ -2939,6 +2984,9 @@ class SaleController extends Controller
                     'pr_codes' => [],
                     'po_links' => [], // [{id, code, status_label}]
                     'created_at' => $item->created_at,
+                    'po_items_raw' => [],
+                    'sale_raw' => $item->saleOrderRequest->sale ?? null,
+                    'pr_created_at' => $item->created_at,
                 ];
             }
 
@@ -2955,16 +3003,29 @@ class SaleController extends Controller
                 $grouped[$key]['pr_codes'][] = $prCode;
             }
 
-            // Thu thập link PO (không trùng)
+            // Thu thập link PO (không trùng) và raw items
             foreach ($item->purchaseOrderItems as $poItem) {
                 $poId = $poItem->purchase_order_id;
-                if (!isset($grouped[$key]['po_links'][$poId])) {
+                $po = $poItem->purchaseOrder;
+                if ($po && !isset($grouped[$key]['po_links'][$poId])) {
                     $grouped[$key]['po_links'][$poId] = [
                         'id' => $poId,
-                        'code' => $poItem->purchaseOrder->code ?? '',
-                        'status_label' => $poItem->purchaseOrder->status_label ?? '',
+                        'code' => $po->code ?? '',
+                        'status' => $po->status ?? '',
+                        'status_label' => $po->status_label ?? '',
+                        'order_date' => $po->order_date ? $po->order_date->format('d/m/Y') : '--',
+                        'supplier_name' => $po->supplier->name ?? 'N/A',
+                        'cpq_number' => $po->cpq_number ?? '--',
+                        'etd' => $po->manufacturer_release_date ? $po->manufacturer_release_date->format('d/m/Y') : '--',
+                        'eta' => $po->expected_arrival_date ? $po->expected_arrival_date->format('d/m/Y') : '--',
+                        'actual_delivery' => $po->actual_delivery ? $po->actual_delivery->format('d/m/Y') : '--',
+                        'total_usd' => number_format($po->total_foreign ?: ($po->total / max(1, $po->exchange_rate ?: 1)), 2),
+                        'payment_terms' => $po->payment_terms_label ?? $po->payment_terms ?? 'Net 30',
+                        'note' => $po->note ?? '',
+                        'hold_reason' => $po->hold_reason ?? '',
                     ];
                 }
+                $grouped[$key]['po_items_raw'][] = $poItem;
             }
 
             // Giữ ngày sớm nhất
@@ -2973,32 +3034,176 @@ class SaleController extends Controller
             }
         }
 
-        // Tính auto status cho mỗi nhóm
+        // Tính auto status và đếm thống kê cho mỗi nhóm
+        $statsCounts = [
+            'pr' => 0,
+            'po' => 0,
+            'vendor_confirm' => 0,
+            'production' => 0,
+            'mfg_export' => 0,
+            'transit' => 0,
+            'arrived_vn' => 0,
+            'warehouse_received' => 0,
+            'delivered_sales' => 0,
+        ];
+
         foreach ($grouped as &$row) {
             $row['po_links'] = array_values($row['po_links']);
             $row['remaining'] = max(0, $row['requested'] - $row['received']);
 
-            // 🔥 Auto status (không lưu DB)
-            if ($row['ordered'] <= 0) {
-                $row['status'] = 'waiting';
-                $row['status_label'] = 'Chờ đặt hàng';
-                $row['status_color'] = 'bg-gray-100 text-gray-600';
-                $row['status_icon'] = 'fas fa-clock';
-            } elseif ($row['ordered'] < $row['requested']) {
-                $row['status'] = 'ordering';
-                $row['status_label'] = 'Đang đặt hàng';
-                $row['status_color'] = 'bg-blue-100 text-blue-800';
-                $row['status_icon'] = 'fas fa-shopping-cart';
-            } elseif ($row['received'] < $row['requested']) {
-                $row['status'] = 'in_transit';
-                $row['status_label'] = 'Đang về hàng';
-                $row['status_color'] = 'bg-orange-100 text-orange-800';
-                $row['status_icon'] = 'fas fa-truck';
-            } else {
-                $row['status'] = 'completed';
-                $row['status_label'] = 'Đã đủ hàng';
-                $row['status_color'] = 'bg-green-100 text-green-800';
-                $row['status_icon'] = 'fas fa-check-circle';
+            $row['completion_percent'] = $row['requested'] > 0 ? min(100, round(($row['received'] / $row['requested']) * 100)) : 0;
+            $row['ordered_percent'] = $row['requested'] > 0 ? min(100, round(($row['ordered'] / $row['requested']) * 100)) : 0;
+
+            // Compute 9-step timeline details
+            $row['timeline'] = $this->calculateTimeline(
+                $row['requested'],
+                $row['ordered'],
+                $row['received'],
+                $row['po_items_raw'],
+                $row['sale_raw'],
+                $row['pr_created_at']
+            );
+
+            // Find current active step in the timeline
+            $currentStatusStep = 'pr';
+            $stepOrder = ['pr', 'po', 'vendor_confirm', 'production', 'mfg_export', 'transit', 'arrived_vn', 'warehouse_received', 'delivered_sales'];
+            foreach ($stepOrder as $stepKey) {
+                if ($row['timeline'][$stepKey]['status'] !== 'pending') {
+                    $currentStatusStep = $stepKey;
+                }
+            }
+
+            // Determine the status label based on the active step and PO status
+            $statusLabel = 'N/A';
+            $statusColor = 'bg-gray-100 text-gray-600';
+            $statusIcon = 'fas fa-info-circle';
+
+            $representativePo = null;
+            if (!empty($row['po_items_raw'])) {
+                $statusWeights = [
+                    'draft' => 0,
+                    'pending_approval' => 1,
+                    'approved' => 2,
+                    'sent' => 3,
+                    'confirmed' => 4,
+                    'shipping' => 5,
+                    'partial_received' => 6,
+                    'received' => 7,
+                ];
+                $maxStatusWeight = -1;
+                foreach ($row['po_items_raw'] as $poItem) {
+                    $po = $poItem instanceof \App\Models\PurchaseOrder ? $poItem : ($poItem->purchaseOrder ?? null);
+                    if ($po) {
+                        $weight = $statusWeights[$po->status] ?? 0;
+                        if ($weight > $maxStatusWeight) {
+                            $maxStatusWeight = $weight;
+                            $representativePo = $po;
+                        }
+                    }
+                }
+            }
+
+            // Timeline mốc thời gian ETA/ETD/Actual Arrival
+            $row['etd'] = $representativePo && $representativePo->manufacturer_release_date ? $representativePo->manufacturer_release_date->format('d/m/Y') : null;
+            $row['eta'] = $representativePo && $representativePo->expected_arrival_date ? $representativePo->expected_arrival_date->format('d/m/Y') : null;
+            $row['actual_arrival'] = $representativePo && $representativePo->actual_delivery ? $representativePo->actual_delivery->format('d/m/Y') : null;
+
+            // Phân tích nguyên nhân thiếu hàng (nếu còn thiếu)
+            $shortageReason = null;
+            if ($row['remaining'] > 0) {
+                if ($row['ordered'] <= 0) {
+                    $shortageReason = 'Chưa tạo đơn mua hàng (PO) với nhà cung cấp';
+                } elseif ($representativePo) {
+                    if ($representativePo->is_hold) {
+                        $shortageReason = 'PO đang tạm hoãn: ' . ($representativePo->hold_reason ?: 'Cần kiểm tra lại');
+                    } elseif ($representativePo->status === 'draft') {
+                        $shortageReason = 'PO mới ở dạng nháp, chưa gửi duyệt';
+                    } elseif ($representativePo->status === 'pending_approval') {
+                        $shortageReason = 'PO đang chờ cấp quản lý phê duyệt';
+                    } elseif (in_array($representativePo->status, ['approved', 'sent'])) {
+                        $shortageReason = 'Đã gửi PO, chờ nhà cung cấp xác nhận đơn';
+                    } elseif ($representativePo->status === 'confirmed') {
+                        $releaseStr = $representativePo->manufacturer_release_date ? $representativePo->manufacturer_release_date->format('d/m/Y') : 'chưa rõ';
+                        $shortageReason = "Hãng đang sản xuất (Dự kiến xong ETD: {$releaseStr})";
+                    } elseif (in_array($representativePo->status, ['shipping', 'partial_received'])) {
+                        $arrivalStr = $representativePo->expected_arrival_date ? $representativePo->expected_arrival_date->format('d/m/Y') : 'chưa rõ';
+                        $shortageReason = "Hàng đang trên đường vận chuyển về VN (Dự kiến ETA: {$arrivalStr})";
+                    }
+                }
+            }
+            $row['shortage_reason'] = $shortageReason;
+
+            if ($currentStatusStep === 'pr') {
+                $statusLabel = 'Chờ đặt hàng';
+                $statusColor = 'bg-gray-100 text-gray-600';
+                $statusIcon = 'fas fa-clock';
+            } elseif ($currentStatusStep === 'po') {
+                $poStatusVal = $representativePo ? $representativePo->status : '';
+                if ($poStatusVal === 'draft') {
+                    $statusLabel = 'PO Nháp';
+                    $statusColor = 'bg-yellow-100 text-yellow-800';
+                    $statusIcon = 'fas fa-file-signature';
+                } elseif ($poStatusVal === 'pending_approval') {
+                    $statusLabel = 'Chờ duyệt PO';
+                    $statusColor = 'bg-orange-100 text-orange-800';
+                    $statusIcon = 'fas fa-user-clock';
+                } elseif ($poStatusVal === 'approved') {
+                    $statusLabel = 'Đã duyệt PO';
+                    $statusColor = 'bg-indigo-100 text-indigo-800';
+                    $statusIcon = 'fas fa-check-double';
+                } elseif ($poStatusVal === 'sent') {
+                    $statusLabel = 'Đã gửi NCC';
+                    $statusColor = 'bg-blue-100 text-blue-800';
+                    $statusIcon = 'fas fa-paper-plane';
+                } else {
+                    $statusLabel = 'Đang đặt hàng';
+                    $statusColor = 'bg-blue-100 text-blue-800';
+                    $statusIcon = 'fas fa-shopping-cart';
+                }
+            } elseif ($currentStatusStep === 'vendor_confirm') {
+                $statusLabel = 'Hãng xác nhận';
+                $statusColor = 'bg-cyan-100 text-cyan-800';
+                $statusIcon = 'fas fa-user-check';
+            } elseif ($currentStatusStep === 'production') {
+                $statusLabel = 'Đang sản xuất';
+                $statusColor = 'bg-purple-100 text-purple-800';
+                $statusIcon = 'fas fa-industry';
+            } elseif ($currentStatusStep === 'mfg_export') {
+                $statusLabel = 'Xuất kho hãng';
+                $statusColor = 'bg-pink-100 text-pink-800';
+                $statusIcon = 'fas fa-sign-out-alt';
+            } elseif ($currentStatusStep === 'transit') {
+                $statusLabel = 'Đang vận chuyển';
+                $statusColor = 'bg-amber-100 text-amber-800';
+                $statusIcon = 'fas fa-shipping-fast';
+            } elseif ($currentStatusStep === 'arrived_vn') {
+                $statusLabel = 'Đã về VN';
+                $statusColor = 'bg-teal-100 text-teal-800';
+                $statusIcon = 'fas fa-plane-arrival';
+            } elseif ($currentStatusStep === 'warehouse_received') {
+                if ($row['received'] < $row['requested']) {
+                    $statusLabel = 'Nhập kho 1 phần';
+                    $statusColor = 'bg-emerald-100 text-emerald-800';
+                    $statusIcon = 'fas fa-warehouse';
+                } else {
+                    $statusLabel = 'Đã nhập kho';
+                    $statusColor = 'bg-emerald-200 text-emerald-950';
+                    $statusIcon = 'fas fa-warehouse';
+                }
+            } elseif ($currentStatusStep === 'delivered_sales') {
+                $statusLabel = 'Đã giao Sales';
+                $statusColor = 'bg-green-100 text-green-800';
+                $statusIcon = 'fas fa-check-circle';
+            }
+
+            $row['status'] = $currentStatusStep;
+            $row['status_label'] = $statusLabel;
+            $row['status_color'] = $statusColor;
+            $row['status_icon'] = $statusIcon;
+
+            // Đếm thống kê
+            if (isset($statsCounts[$currentStatusStep])) {
+                $statsCounts[$currentStatusStep]++;
             }
         }
         unset($row);
@@ -3009,7 +3214,17 @@ class SaleController extends Controller
         }
 
         // Sort: chưa xong trước, đã xong cuối
-        $statusOrder = ['waiting' => 0, 'ordering' => 1, 'in_transit' => 2, 'completed' => 3];
+        $statusOrder = [
+            'pr' => 0,
+            'po' => 1,
+            'vendor_confirm' => 2,
+            'production' => 3,
+            'mfg_export' => 4,
+            'transit' => 5,
+            'arrived_vn' => 6,
+            'warehouse_received' => 7,
+            'delivered_sales' => 8,
+        ];
         uasort($grouped, function($a, $b) use ($statusOrder) {
             return ($statusOrder[$a['status']] ?? 99) <=> ($statusOrder[$b['status']] ?? 99);
         });
@@ -3029,6 +3244,7 @@ class SaleController extends Controller
         return view('sales.order-tracking', [
             'rows' => $paginator,
             'vendors' => $vendors,
+            'statsCounts' => $statsCounts,
         ]);
     }
 
@@ -3942,6 +4158,237 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Lỗi khi tạo yêu cầu xuất: ' . $e->getMessage());
         }
+    }
+
+    private function calculateTimeline($requested, $ordered, $received, $poItems, $sale = null, $prCreatedAt = null)
+    {
+        $statusWeights = [
+            'draft' => 0,
+            'pending_approval' => 1,
+            'approved' => 2,
+            'sent' => 3,
+            'confirmed' => 4,
+            'shipping' => 5,
+            'partial_received' => 6,
+            'received' => 7,
+        ];
+
+        $representativePo = null;
+        $maxStatusWeight = -1;
+
+        foreach ($poItems as $poItem) {
+            $po = $poItem instanceof \App\Models\PurchaseOrder ? $poItem : ($poItem->purchaseOrder ?? null);
+            if ($po) {
+                $weight = $statusWeights[$po->status] ?? 0;
+                if ($weight > $maxStatusWeight) {
+                    $maxStatusWeight = $weight;
+                    $representativePo = $po;
+                }
+            }
+        }
+
+        $timeline = [];
+
+        // 1. PR
+        $timeline['pr'] = [
+            'label' => 'Yêu cầu (PR)',
+            'status' => 'completed',
+            'date' => $prCreatedAt ? \Carbon\Carbon::parse($prCreatedAt)->format('d/m/Y') : null,
+            'details' => $prCreatedAt ? 'Yêu cầu mua hàng (PR) đã được tạo.' : 'Đơn hàng mua trực tiếp (không qua PR).'
+        ];
+
+        // 2. PO
+        $poStatus = 'pending';
+        $poDate = null;
+        $poDetails = 'Chưa đặt hàng (PO).';
+        if ($ordered > 0) {
+            $poDate = $representativePo ? ($representativePo->order_date ? $representativePo->order_date->format('d/m/Y') : null) : null;
+            if ($ordered >= $requested) {
+                $poStatus = 'completed';
+                $poDetails = "Đã đặt đủ số lượng ({$ordered}/{$requested}).";
+            } else {
+                $poStatus = 'active';
+                $poDetails = "Đang đặt hàng ({$ordered}/{$requested}).";
+            }
+        }
+        $timeline['po'] = [
+            'label' => 'Đặt hàng (PO)',
+            'status' => $poStatus,
+            'date' => $poDate,
+            'details' => $poDetails
+        ];
+
+        // 3. Vendor Confirm
+        $vcStatus = 'pending';
+        $vcDate = null;
+        $vcDetails = 'Nhà cung cấp chưa xác nhận.';
+        if ($representativePo) {
+            $confirmedAt = $representativePo->confirmed_at;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['confirmed', 'shipping', 'partial_received', 'received']) || $confirmedAt) {
+                $vcStatus = 'completed';
+                $vcDate = $confirmedAt ? $confirmedAt->format('d/m/Y') : null;
+                $vcDetails = 'Nhà cung cấp đã xác nhận đơn hàng.';
+            } elseif ($poStatusVal === 'sent') {
+                $vcStatus = 'active';
+                $vcDetails = 'Đang chờ nhà cung cấp xác nhận.';
+            }
+        }
+        $timeline['vendor_confirm'] = [
+            'label' => 'Vendor Confirm',
+            'status' => $vcStatus,
+            'date' => $vcDate,
+            'details' => $vcDetails
+        ];
+
+        // 4. Sản xuất
+        $prodStatus = 'pending';
+        $prodDate = null;
+        $prodDetails = 'Chưa bắt đầu sản xuất.';
+        if ($vcStatus === 'completed' && $representativePo) {
+            $releaseDate = $representativePo->manufacturer_release_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received', 'received'])) {
+                $prodStatus = 'completed';
+                $prodDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $prodDetails = 'Đã sản xuất xong.';
+            } else {
+                $prodStatus = 'active';
+                $prodDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $prodDetails = $releaseDate ? 'Dự kiến sản xuất xong ngày ' . $releaseDate->format('d/m/Y') . '.' : 'Đang sản xuất.';
+            }
+        }
+        $timeline['production'] = [
+            'label' => 'Sản xuất',
+            'status' => $prodStatus,
+            'date' => $prodDate,
+            'details' => $prodDetails
+        ];
+
+        // 5. Xuất kho hãng
+        $mfgExportStatus = 'pending';
+        $mfgExportDate = null;
+        $mfgExportDetails = 'Hãng chưa xuất kho.';
+        if ($prodStatus === 'completed' && $representativePo) {
+            $releaseDate = $representativePo->manufacturer_release_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received', 'received']) || ($releaseDate && $releaseDate->isPast())) {
+                $mfgExportStatus = 'completed';
+                $mfgExportDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $mfgExportDetails = 'Hãng đã xuất kho.';
+            } else {
+                $mfgExportStatus = 'active';
+                $mfgExportDetails = 'Chờ hãng xuất kho.';
+            }
+        }
+        $timeline['mfg_export'] = [
+            'label' => 'Xuất kho hãng',
+            'status' => $mfgExportStatus,
+            'date' => $mfgExportDate,
+            'details' => $mfgExportDetails
+        ];
+
+        // 6. Đang vận chuyển
+        $transStatus = 'pending';
+        $transDate = null;
+        $transDetails = 'Chưa vận chuyển.';
+        if ($mfgExportStatus === 'completed' && $representativePo) {
+            $arrivalDate = $representativePo->expected_arrival_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received'])) {
+                $transStatus = 'active';
+                $transDate = $arrivalDate ? $arrivalDate->format('d/m/Y') : null;
+                $transDetails = $arrivalDate ? 'Dự kiến về VN ngày ' . $arrivalDate->format('d/m/Y') . '.' : 'Đang trên đường vận chuyển.';
+            } elseif ($poStatusVal === 'received') {
+                $transStatus = 'completed';
+                $transDetails = 'Vận chuyển đã hoàn tất.';
+            } else {
+                $transStatus = 'active';
+                $transDetails = 'Đang xử lý vận chuyển.';
+            }
+        }
+        $timeline['transit'] = [
+            'label' => 'Đang vận chuyển',
+            'status' => $transStatus,
+            'date' => $transDate,
+            'details' => $transDetails
+        ];
+
+        // 7. Đã về VN
+        $vnStatus = 'pending';
+        $vnDate = null;
+        $vnDetails = 'Chưa về VN.';
+        if ($representativePo) {
+            $arrivalDate = $representativePo->expected_arrival_date;
+            $actualDelivery = $representativePo->actual_delivery;
+            $poStatusVal = $representativePo->status;
+
+            if ($actualDelivery || in_array($poStatusVal, ['partial_received', 'received'])) {
+                $vnStatus = 'completed';
+                $vnDate = $actualDelivery ? $actualDelivery->format('d/m/Y') : ($arrivalDate ? $arrivalDate->format('d/m/Y') : null);
+                $vnDetails = 'Hàng đã về Việt Nam.';
+            } elseif ($transStatus === 'active') {
+                if ($arrivalDate && $arrivalDate->isPast()) {
+                    $vnStatus = 'active';
+                    $vnDetails = 'Đang làm thủ tục thông quan tại VN.';
+                }
+            }
+        }
+        $timeline['arrived_vn'] = [
+            'label' => 'Đã về VN',
+            'status' => $vnStatus,
+            'date' => $vnDate,
+            'details' => $vnDetails
+        ];
+
+        // 8. Đã nhập kho
+        $whStatus = 'pending';
+        $whDate = null;
+        $whDetails = 'Chưa nhập kho.';
+        if ($received > 0) {
+            $whDate = $representativePo ? ($representativePo->actual_delivery ? $representativePo->actual_delivery->format('d/m/Y') : null) : null;
+            if ($received >= $requested) {
+                $whStatus = 'completed';
+                $whDetails = "Đã nhập kho đủ ({$received}/{$requested}).";
+            } else {
+                $whStatus = 'active';
+                $whDetails = "Đã nhập kho một phần ({$received}/{$requested}).";
+            }
+        } elseif ($vnStatus === 'completed') {
+            $whStatus = 'active';
+            $whDetails = 'Đang chờ thủ tục nhập kho.';
+        }
+        $timeline['warehouse_received'] = [
+            'label' => 'Đã nhập kho',
+            'status' => $whStatus,
+            'date' => $whDate,
+            'details' => $whDetails
+        ];
+
+        // 9. Đã giao Sales
+        $saleStatus = 'pending';
+        $saleDate = null;
+        $saleDetails = 'Chưa bàn giao.';
+        if ($sale) {
+            $saleStatusVal = $sale->status;
+            $deliveryDate = $sale->delivery_date;
+            if ($saleStatusVal === 'completed' || ($deliveryDate && $deliveryDate->isPast())) {
+                $saleStatus = 'completed';
+                $saleDate = $deliveryDate ? $deliveryDate->format('d/m/Y') : null;
+                $saleDetails = 'Đã bàn giao cho Sales/Khách hàng.';
+            } elseif ($whStatus === 'completed' || $saleStatusVal === 'shipping') {
+                $saleStatus = 'active';
+                $saleDetails = 'Đang chuẩn bị bàn giao.';
+            }
+        }
+        $timeline['delivered_sales'] = [
+            'label' => 'Đã giao Sales',
+            'status' => $saleStatus,
+            'date' => $saleDate,
+            'details' => $saleDetails
+        ];
+
+        return $timeline;
     }
 }
 

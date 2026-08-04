@@ -4,20 +4,29 @@
     <div class="">
         <div class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Danh sách Yêu cầu đặt hàng (PR)</h1>
-                <p class="text-sm text-gray-600">Quản lý các yêu cầu từ bộ phận Sales</p>
+                <h1 class="text-2xl font-bold text-gray-800">
+                    {{ request('my_requests') ? 'Yêu cầu đặt hàng của tôi' : 'Danh sách Yêu cầu đặt hàng (PR)' }}
+                </h1>
+                <p class="text-sm text-gray-600">
+                    {{ request('my_requests') ? 'Theo dõi danh sách các đơn đặt hàng do bạn gửi' : 'Quản lý các yêu cầu từ bộ phận Sales' }}
+                </p>
             </div>
+            @if(!request('my_requests'))
             <div class="flex gap-3">
                 <a href="{{ route('purchase-requests.needs-ordering') }}"
                     class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center shadow-md">
                     <i class="fas fa-layer-group mr-2"></i> Gom đơn đặt hàng (CORE)
                 </a>
             </div>
+            @endif
         </div>
 
         <!-- Filter Bar -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
             <form action="{{ route('purchase-requests.index') }}" method="GET" class="flex flex-wrap gap-4 items-end">
+                @if(request('my_requests'))
+                    <input type="hidden" name="my_requests" value="1">
+                @endif
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1 uppercase">Mã SO</label>
                     <input type="text" name="sale_code" value="{{ request('sale_code') }}" placeholder="SO..."
@@ -53,7 +62,7 @@
                     class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm shadow-sm">
                     <i class="fas fa-search mr-1"></i> Lọc dữ liệu
                 </button>
-                <a href="{{ route('purchase-requests.index') }}"
+                <a href="{{ route('purchase-requests.index', request('my_requests') ? ['my_requests' => 1] : []) }}"
                     class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm">
                     Xóa lọc
                 </a>
@@ -169,35 +178,44 @@
                                         $canApproveAdmin = $currentUser && ($currentUser->hasRole('admin') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('purchase_manager'));
                                     @endphp
 
-                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
-                                        <form action="{{ route('sales.order-request.admin-approve', [$request->sale_id, $request->id]) }}" method="POST"
-                                            onsubmit="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')">
-                                            @csrf
-                                            <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt PR">
-                                                <i class="fas fa-check-circle text-lg"></i>
+                                    @if(!request('my_requests'))
+                                        @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
+                                            <form action="{{ route('sales.order-request.admin-approve', [$request->sale_id, $request->id]) }}" method="POST"
+                                                onsubmit="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')">
+                                                @csrf
+                                                <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt PR">
+                                                    <i class="fas fa-check-circle text-lg"></i>
+                                                </button>
+                                            </form>
+                                            <button type="button"
+                                                onclick="showAdminRejectModal('{{ $request->id }}', '{{ $request->code }}', '{{ $request->sale_id }}')"
+                                                class="text-red-600 hover:text-red-800 p-1" title="Trả về Sales">
+                                                <i class="fas fa-times-circle text-lg"></i>
                                             </button>
-                                        </form>
-                                        <button type="button"
-                                            onclick="showAdminRejectModal('{{ $request->id }}', '{{ $request->code }}', '{{ $request->sale_id }}')"
-                                            class="text-red-600 hover:text-red-800 p-1" title="Trả về Sales">
-                                            <i class="fas fa-times-circle text-lg"></i>
-                                        </button>
+                                        @endif
+
+                                        @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
+                                            <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST"
+                                                onsubmit="return confirm('Duyệt yêu cầu này?')">
+                                                @csrf
+                                                <input type="hidden" name="action" value="approve">
+                                                <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt">
+                                                    <i class="fas fa-check-circle text-lg"></i>
+                                                </button>
+                                            </form>
+                                            <button type="button"
+                                                onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
+                                                class="text-red-600 hover:text-red-800 p-1" title="Trả về">
+                                                <i class="fas fa-times-circle text-lg"></i>
+                                            </button>
+                                        @endif
                                     @endif
 
-                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
-                                        <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST"
-                                            onsubmit="return confirm('Duyệt yêu cầu này?')">
-                                            @csrf
-                                            <input type="hidden" name="action" value="approve">
-                                            <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt">
-                                                <i class="fas fa-check-circle text-lg"></i>
-                                            </button>
-                                        </form>
-                                        <button type="button"
-                                            onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
-                                            class="text-red-600 hover:text-red-800 p-1" title="Trả về">
-                                            <i class="fas fa-times-circle text-lg"></i>
-                                        </button>
+                                    @if(in_array($request->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]) && $request->sale_id)
+                                        <a href="{{ route('sales.order-request.edit', [$request->sale_id, $request->id]) }}"
+                                            class="text-blue-600 hover:text-blue-800 p-1" title="{{ $request->status === 'draft' ? 'Chỉnh sửa / Gửi đặt hàng' : 'Chỉnh sửa bổ sung thông tin' }}">
+                                            <i class="fas fa-edit text-lg"></i>
+                                        </a>
                                     @endif
 
                                     @can('delete', $request)

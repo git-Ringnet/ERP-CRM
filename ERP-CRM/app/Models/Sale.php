@@ -405,7 +405,7 @@ class Sale extends Model
      */
     public function orderRequests()
     {
-        return $this->hasMany(SaleOrderRequest::class);
+        return $this->hasMany(SaleOrderRequest::class)->orderBy('created_at', 'desc');
     }
 
     /**
@@ -465,14 +465,18 @@ class Sale extends Model
             return $query;
         }
 
+        if ($status === 'draft') {
+            return $query->where('status', 'pending')->where(function($q) {
+                $q->whereIn('pl_status', ['draft', ''])->orWhereNull('pl_status');
+            });
+        }
+
         if ($status === 'pnl_pending') {
             return $query->where('status', 'pending')->where('pl_status', 'pending');
         }
 
         if ($status === 'so_pending') {
-            return $query->where('status', 'pending')->where(function($q) {
-                $q->where('pl_status', 'approved')->orWhereNull('pl_status')->orWhere('pl_status', '');
-            });
+            return $query->where('status', 'pending')->where('pl_status', 'approved');
         }
 
         if ($status === 'pnl_need_revision') {
@@ -520,13 +524,16 @@ class Sale extends Model
     {
         if ($this->status === 'pending') {
             if ($this->pl_status === 'rejected') {
-                return 'PL bị từ chối';
+                return 'PNL bị từ chối';
             }
             if ($this->pl_status === 'need_revision') {
-                return 'Cần sửa PL';
+                return 'Cần sửa PNL';
             }
             if ($this->pl_status === 'pending') {
-                return 'Chờ duyệt PL';
+                return 'Chờ duyệt PNL';
+            }
+            if (in_array($this->pl_status, ['draft', null, ''])) {
+                return 'Nháp';
             }
             return 'Chờ duyệt đơn hàng';
         }
@@ -702,13 +709,19 @@ class Sale extends Model
      */
     public function getStatusColorAttribute(): string
     {
-        // PNL rejected → hiển thị màu đỏ dù status = pending
-        if ($this->status === 'pending' && $this->pl_status === 'rejected') {
-            return 'bg-red-100 text-red-800';
-        }
-        // PNL need_revision → hiển thị màu cam
-        if ($this->status === 'pending' && $this->pl_status === 'need_revision') {
-            return 'bg-amber-100 text-amber-800';
+        if ($this->status === 'pending') {
+            if ($this->pl_status === 'rejected') {
+                return 'bg-red-100 text-red-800';
+            }
+            if ($this->pl_status === 'need_revision') {
+                return 'bg-amber-100 text-amber-800';
+            }
+            if ($this->pl_status === 'pending') {
+                return 'bg-orange-100 text-orange-800';
+            }
+            if (in_array($this->pl_status, ['draft', null, ''])) {
+                return 'bg-gray-100 text-gray-800 border border-gray-200';
+            }
         }
 
         return match($this->status) {
@@ -738,6 +751,9 @@ class Sale extends Model
         if ($this->status === 'pending') {
             if ($this->pl_status === 'pending') {
                 return 'pnl_pending';
+            }
+            if (in_array($this->pl_status, ['draft', null, ''])) {
+                return 'draft';
             }
             return 'pending';
         }
@@ -831,10 +847,11 @@ class Sale extends Model
     public function getDashboardStatusLabelAttribute(): string
     {
         return match($this->dashboard_status) {
+            'draft' => 'Nháp',
             'pending' => 'Chờ duyệt đơn hàng',
-            'pnl_pending' => 'Chờ duyệt PL',
-            'pnl_rejected' => 'PL bị từ chối',
-            'pnl_need_revision' => 'Cần sửa PL',
+            'pnl_pending' => 'Chờ duyệt PNL',
+            'pnl_rejected' => 'PNL bị từ chối',
+            'pnl_need_revision' => 'Cần sửa PNL',
             'ready_in_stock' => 'Hàng sẵn kho',
             'waiting_order' => 'Chờ đặt hàng',
             'ordered' => 'Đã đặt hàng',
@@ -856,6 +873,7 @@ class Sale extends Model
     public function getDashboardStatusColorAttribute(): string
     {
         return match($this->dashboard_status) {
+            'draft' => 'bg-gray-100 text-gray-800 border border-gray-200',
             'pending' => 'bg-yellow-100 text-yellow-800',
             'pnl_pending' => 'bg-orange-100 text-orange-800',
             'pnl_rejected' => 'bg-red-100 text-red-800',
@@ -881,6 +899,7 @@ class Sale extends Model
     public function getDashboardStepAttribute(): int
     {
         return match($this->dashboard_status) {
+            'draft' => 0,
             'pending' => 0,
             'pnl_pending' => 0,
             'pnl_rejected' => 0,

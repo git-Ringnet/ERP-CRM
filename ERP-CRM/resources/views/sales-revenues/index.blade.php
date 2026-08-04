@@ -312,7 +312,7 @@
                                 <td colspan="24" class="px-4 py-12 text-center text-gray-400">
                                     <i class="fas fa-inbox text-4xl text-gray-200 mb-3 block"></i>
                                     <p class="text-sm">Chưa có dữ liệu doanh số</p>
-                                    <p class="text-xs mt-1">Nhấn <strong>"Đồng bộ từ PO"</strong> để tự động lấy dữ liệu từ Đơn đặt hàng</p>
+                                    <p class="text-xs mt-1">Dữ liệu tự động đồng bộ từ Đơn đặt hàng khi tải trang.</p>
                                 </td>
                             </tr>
                         @endforelse

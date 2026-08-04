@@ -288,6 +288,22 @@ class TransactionService
                     $productId = is_array($item) ? $item['product_id'] : $item->product_id;
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
                     $itemWarehouseId = is_array($item) ? ($item['warehouse_id'] ?? $warehouseId) : $warehouseId;
+
+                    // Check if it's a service item linked to a Sale
+                    $isService = false;
+                    if ($existingTransaction->reference_type === 'sale' && $existingTransaction->reference_id) {
+                        $saleItem = \App\Models\SaleItem::where('sale_id', $existingTransaction->reference_id)
+                            ->where('product_id', $productId)
+                            ->first();
+                        if ($saleItem && $saleItem->is_service) {
+                            $isService = true;
+                        }
+                    }
+
+                    if ($isService) {
+                        continue;
+                    }
+
                     if (!$this->validateStock($productId, $itemWarehouseId, $quantity)) {
                         $productName = \App\Models\Product::find($productId)->name ?? 'Unknown';
                         throw new Exception("Không đủ tồn kho cho sản phẩm: {$productName}");
@@ -355,6 +371,22 @@ class TransactionService
             // Requirements: 7.3
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
+                    // Check if it's a service item linked to a Sale
+                    $isService = false;
+                    if ($transaction->reference_type === 'sale' && $transaction->reference_id) {
+                        $saleItem = \App\Models\SaleItem::where('sale_id', $transaction->reference_id)
+                            ->where('product_id', $item->product_id)
+                            ->first();
+                        if ($saleItem && $saleItem->is_service) {
+                            $isService = true;
+                        }
+                    }
+
+                    if ($isService) {
+                        // Skip updating stock and serials for service items
+                        continue;
+                    }
+
                     // Update inventory - subtract stock
                     $this->inventoryService->updateStock(
                         $item->product_id,

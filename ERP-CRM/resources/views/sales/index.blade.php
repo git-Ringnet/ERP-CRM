@@ -80,10 +80,11 @@
                     class="h-10 border border-gray-300 rounded-lg pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm bg-white appearance-none cursor-pointer"
                     style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.7rem center; background-size: 0.65em auto;">
                     <option value="">Tất cả trạng thái</option>
-                    <option value="pnl_pending" {{ request('status') == 'pnl_pending' ? 'selected' : '' }}>Chờ duyệt PL</option>
+                    <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Nháp</option>
+                    <option value="pnl_pending" {{ request('status') == 'pnl_pending' ? 'selected' : '' }}>Chờ duyệt PNL</option>
                     <option value="so_pending" {{ request('status') == 'so_pending' ? 'selected' : '' }}>Chờ duyệt đơn hàng</option>
-                    <option value="pnl_need_revision" {{ request('status') == 'pnl_need_revision' ? 'selected' : '' }}>Cần sửa PL</option>
-                    <option value="pnl_rejected" {{ request('status') == 'pnl_rejected' ? 'selected' : '' }}>PL bị từ chối</option>
+                    <option value="pnl_need_revision" {{ request('status') == 'pnl_need_revision' ? 'selected' : '' }}>Cần sửa PNL</option>
+                    <option value="pnl_rejected" {{ request('status') == 'pnl_rejected' ? 'selected' : '' }}>PNL bị từ chối</option>
                     <option value="pending_payment" {{ request('status') == 'pending_payment' ? 'selected' : '' }}>Chờ xác nhận TT</option>
                     <option value="pending_export" {{ request('status') == 'pending_export' ? 'selected' : '' }}>Chờ duyệt xuất kho</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt (Tất cả)</option>
@@ -110,6 +111,20 @@
                         @foreach($projects as $project)
                             <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
                                 {{ $project->code }} - {{ Str::limit($project->name, 20) }}
+                            </option>
+                        @endforeach
+                    </select>
+                @endif
+
+                <!-- Filter by Salesperson -->
+                @if(auth()->user()->can('view_all_sales') && isset($salespersons) && $salespersons->count() > 0)
+                    <select name="user_id" id="user_id" onchange="applyFilters()"
+                        class="h-10 border border-gray-300 rounded-lg pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm bg-white appearance-none cursor-pointer max-w-[200px] truncate"
+                        style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.7rem center; background-size: 0.65em auto;">
+                        <option value="">Tất cả nhân viên</option>
+                        @foreach($salespersons as $person)
+                            <option value="{{ $person->id }}" {{ request('user_id') == $person->id ? 'selected' : '' }}>
+                                {{ $person->name }}
                             </option>
                         @endforeach
                     </select>
@@ -179,6 +194,8 @@
                             $rowClass = match(true) {
                                 $sale->status === 'pending' && $sale->pl_status === 'rejected' => 'bg-red-50/50 border-l-4 border-l-red-400',
                                 $sale->status === 'pending' && $sale->pl_status === 'need_revision' => 'bg-amber-50/50 border-l-4 border-l-amber-400',
+                                $sale->status === 'pending' && $sale->pl_status === 'pending' => 'bg-orange-50/50 border-l-4 border-l-orange-400',
+                                $sale->status === 'pending' && in_array($sale->pl_status, ['draft', null, '']) => '',
                                 $sale->status === 'pending' => 'bg-yellow-50/50 border-l-4 border-l-yellow-400',
                                 $sale->status === 'approved' => 'bg-blue-50/50 border-l-4 border-l-blue-400',
                                 $sale->status === 'shipping' => 'bg-purple-50/50 border-l-4 border-l-purple-400',
@@ -365,7 +382,7 @@
                                         'completed' => 3,
                                         'invoiced', 'shipping' => 2,
                                         'approved', 'waiting_order', 'ordered', 'in_transit', 'received', 'ready_in_stock', 'invoicing', 'pending_export_approval' => 1,
-                                        'pending', 'pnl_pending', 'pnl_need_revision', 'pnl_rejected' => 0,
+                                        'draft', 'pending', 'pnl_pending', 'pnl_need_revision', 'pnl_rejected' => 0,
                                         'cancelled' => -1,
                                         default => ($sale->status === 'completed' ? 3 : 1),
                                     };
@@ -398,6 +415,29 @@
                                     <div class="text-[10px] mt-1 font-bold {{ $sale->dashboard_status_color }} px-2 py-0.5 rounded-full inline-block">
                                         {{ $sale->dashboard_status_label }}
                                     </div>
+                                    @if($sale->all_purchase_orders->isNotEmpty())
+                                        <div class="mt-1.5 flex flex-col gap-0.5 items-center border-t border-gray-100 pt-1">
+                                            @foreach($sale->all_purchase_orders as $po)
+                                                <span class="text-[9px] font-medium inline-flex items-center gap-1">
+                                                    <i class="fas fa-shopping-cart text-gray-400"></i>
+                                                    <a href="{{ route('purchase-orders.show', $po) }}" class="text-blue-600 hover:underline font-bold">{{ $po->code }}</a> 
+                                                    @if($po->status === 'received')
+                                                        <span class="text-emerald-600 font-bold bg-emerald-50 px-1 py-0.2 rounded-sm text-[8px]">(Đã về)</span>
+                                                    @elseif($po->status === 'shipping')
+                                                        <span class="text-purple-600 font-bold bg-purple-50 px-1 py-0.2 rounded-sm text-[8px]">(Đang về)</span>
+                                                    @elseif($po->status === 'cancelled')
+                                                        <span class="text-red-500 font-bold bg-red-50 px-1 py-0.2 rounded-sm text-[8px]">(Hủy)</span>
+                                                    @else
+                                                        <span class="text-orange-500 font-bold bg-orange-50 px-1 py-0.2 rounded-sm text-[8px]">(Đã đặt)</span>
+                                                    @endif
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @elseif($sale->type === 'project')
+                                        <div class="text-[9px] text-red-500 mt-1 font-medium bg-red-50 px-1.5 py-0.5 rounded-sm inline-flex items-center gap-0.5">
+                                            <i class="fas fa-exclamation-circle text-[8px]"></i> Chưa đặt PO
+                                        </div>
+                                    @endif
                                     @if(count($sale->pending_action_badges) > 0)
                                         <div class="mt-1 flex flex-col gap-1 items-center">
                                             @foreach($sale->pending_action_badges as $badge)
@@ -555,7 +595,7 @@
             const params = new URLSearchParams(window.location.search);
 
             // Update/Set params from inputs
-            const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to'];
+            const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'user_id'];
 
             fields.forEach(field => {
                 const element = document.getElementById(field);

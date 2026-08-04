@@ -292,6 +292,20 @@ class SaleExportSyncService
                 if ($neededQty <= 0) continue;
 
                 $productId = $exportItem->product_id;
+
+                // Skip service items
+                $isService = false;
+                $saleItem = \App\Models\SaleItem::where('sale_id', $sale->id)
+                    ->where('product_id', $productId)
+                    ->first();
+                if ($saleItem && $saleItem->is_service) {
+                    $isService = true;
+                }
+
+                if ($isService) {
+                    continue;
+                }
+
                 $allocatedIds = [];
 
                 // Priority 1: ProductItems imported specifically for this Sale or Project

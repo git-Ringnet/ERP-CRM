@@ -386,6 +386,237 @@ class PurchaseReportController extends Controller
         })->toArray();
     }
 
+    private function calculateTimeline($requested, $ordered, $received, $poItems, $sale = null, $prCreatedAt = null)
+    {
+        $statusWeights = [
+            'draft' => 0,
+            'pending_approval' => 1,
+            'approved' => 2,
+            'sent' => 3,
+            'confirmed' => 4,
+            'shipping' => 5,
+            'partial_received' => 6,
+            'received' => 7,
+        ];
+
+        $representativePo = null;
+        $maxStatusWeight = -1;
+
+        foreach ($poItems as $poItem) {
+            $po = $poItem instanceof \App\Models\PurchaseOrder ? $poItem : ($poItem->purchaseOrder ?? null);
+            if ($po) {
+                $weight = $statusWeights[$po->status] ?? 0;
+                if ($weight > $maxStatusWeight) {
+                    $maxStatusWeight = $weight;
+                    $representativePo = $po;
+                }
+            }
+        }
+
+        $timeline = [];
+
+        // 1. PR
+        $timeline['pr'] = [
+            'label' => 'Yêu cầu (PR)',
+            'status' => 'completed',
+            'date' => $prCreatedAt ? \Carbon\Carbon::parse($prCreatedAt)->format('d/m/Y') : null,
+            'details' => $prCreatedAt ? 'Yêu cầu mua hàng (PR) đã được tạo.' : 'Đơn hàng mua trực tiếp (không qua PR).'
+        ];
+
+        // 2. PO
+        $poStatus = 'pending';
+        $poDate = null;
+        $poDetails = 'Chưa đặt hàng (PO).';
+        if ($ordered > 0) {
+            $poDate = $representativePo ? ($representativePo->order_date ? $representativePo->order_date->format('d/m/Y') : null) : null;
+            if ($ordered >= $requested) {
+                $poStatus = 'completed';
+                $poDetails = "Đã đặt đủ số lượng ({$ordered}/{$requested}).";
+            } else {
+                $poStatus = 'active';
+                $poDetails = "Đang đặt hàng ({$ordered}/{$requested}).";
+            }
+        }
+        $timeline['po'] = [
+            'label' => 'Đặt hàng (PO)',
+            'status' => $poStatus,
+            'date' => $poDate,
+            'details' => $poDetails
+        ];
+
+        // 3. Vendor Confirm
+        $vcStatus = 'pending';
+        $vcDate = null;
+        $vcDetails = 'Nhà cung cấp chưa xác nhận.';
+        if ($representativePo) {
+            $confirmedAt = $representativePo->confirmed_at;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['confirmed', 'shipping', 'partial_received', 'received']) || $confirmedAt) {
+                $vcStatus = 'completed';
+                $vcDate = $confirmedAt ? $confirmedAt->format('d/m/Y') : null;
+                $vcDetails = 'Nhà cung cấp đã xác nhận đơn hàng.';
+            } elseif (in_array($poStatusVal, ['approved', 'sent'])) {
+                $vcStatus = 'active';
+                $vcDetails = 'Chờ nhà cung cấp xác nhận.';
+            }
+        }
+        $timeline['vendor_confirm'] = [
+            'label' => 'Vendor Confirm',
+            'status' => $vcStatus,
+            'date' => $vcDate,
+            'details' => $vcDetails
+        ];
+
+        // 4. Sản xuất
+        $prodStatus = 'pending';
+        $prodDate = null;
+        $prodDetails = 'Chưa bắt đầu sản xuất.';
+        if ($vcStatus === 'completed' && $representativePo) {
+            $releaseDate = $representativePo->manufacturer_release_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received', 'received'])) {
+                $prodStatus = 'completed';
+                $prodDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $prodDetails = 'Đã sản xuất xong.';
+            } else {
+                $prodStatus = 'active';
+                $prodDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $prodDetails = $releaseDate ? 'Dự kiến sản xuất xong ngày ' . $releaseDate->format('d/m/Y') . '.' : 'Đang sản xuất.';
+            }
+        }
+        $timeline['production'] = [
+            'label' => 'Sản xuất',
+            'status' => $prodStatus,
+            'date' => $prodDate,
+            'details' => $prodDetails
+        ];
+
+        // 5. Xuất kho hãng
+        $mfgExportStatus = 'pending';
+        $mfgExportDate = null;
+        $mfgExportDetails = 'Hãng chưa xuất kho.';
+        if ($prodStatus === 'completed' && $representativePo) {
+            $releaseDate = $representativePo->manufacturer_release_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received', 'received']) || ($releaseDate && $releaseDate->isPast())) {
+                $mfgExportStatus = 'completed';
+                $mfgExportDate = $releaseDate ? $releaseDate->format('d/m/Y') : null;
+                $mfgExportDetails = 'Hãng đã xuất kho.';
+            } else {
+                $mfgExportStatus = 'active';
+                $mfgExportDetails = 'Chờ hãng xuất kho.';
+            }
+        }
+        $timeline['mfg_export'] = [
+            'label' => 'Xuất kho hãng',
+            'status' => $mfgExportStatus,
+            'date' => $mfgExportDate,
+            'details' => $mfgExportDetails
+        ];
+
+        // 6. Đang vận chuyển
+        $transStatus = 'pending';
+        $transDate = null;
+        $transDetails = 'Chưa vận chuyển.';
+        if ($mfgExportStatus === 'completed' && $representativePo) {
+            $arrivalDate = $representativePo->expected_arrival_date;
+            $poStatusVal = $representativePo->status;
+            if (in_array($poStatusVal, ['shipping', 'partial_received'])) {
+                $transStatus = 'active';
+                $transDate = $arrivalDate ? $arrivalDate->format('d/m/Y') : null;
+                $transDetails = $arrivalDate ? 'Dự kiến về VN ngày ' . $arrivalDate->format('d/m/Y') . '.' : 'Đang trên đường vận chuyển.';
+            } elseif ($poStatusVal === 'received') {
+                $transStatus = 'completed';
+                $transDetails = 'Vận chuyển đã hoàn tất.';
+            } else {
+                $transStatus = 'active';
+                $transDetails = 'Đang xử lý vận chuyển.';
+            }
+        }
+        $timeline['transit'] = [
+            'label' => 'Đang vận chuyển',
+            'status' => $transStatus,
+            'date' => $transDate,
+            'details' => $transDetails
+        ];
+
+        // 7. Đã về VN
+        $vnStatus = 'pending';
+        $vnDate = null;
+        $vnDetails = 'Chưa về VN.';
+        if ($representativePo) {
+            $arrivalDate = $representativePo->expected_arrival_date;
+            $actualDelivery = $representativePo->actual_delivery;
+            $poStatusVal = $representativePo->status;
+
+            if ($actualDelivery || in_array($poStatusVal, ['partial_received', 'received'])) {
+                $vnStatus = 'completed';
+                $vnDate = $actualDelivery ? $actualDelivery->format('d/m/Y') : ($arrivalDate ? $arrivalDate->format('d/m/Y') : null);
+                $vnDetails = 'Hàng đã về Việt Nam.';
+            } elseif ($transStatus === 'active') {
+                if ($arrivalDate && $arrivalDate->isPast()) {
+                    $vnStatus = 'active';
+                    $vnDetails = 'Đang làm thủ tục thông quan tại VN.';
+                }
+            }
+        }
+        $timeline['arrived_vn'] = [
+            'label' => 'Đã về VN',
+            'status' => $vnStatus,
+            'date' => $vnDate,
+            'details' => $vnDetails
+        ];
+
+        // 8. Đã nhập kho
+        $whStatus = 'pending';
+        $whDate = null;
+        $whDetails = 'Chưa nhập kho.';
+        if ($received > 0) {
+            $whDate = $representativePo ? ($representativePo->actual_delivery ? $representativePo->actual_delivery->format('d/m/Y') : null) : null;
+            if ($received >= $requested) {
+                $whStatus = 'completed';
+                $whDetails = "Đã nhập kho đủ ({$received}/{$requested}).";
+            } else {
+                $whStatus = 'active';
+                $whDetails = "Đã nhập kho một phần ({$received}/{$requested}).";
+            }
+        } elseif ($vnStatus === 'completed') {
+            $whStatus = 'active';
+            $whDetails = 'Đang chờ thủ tục nhập kho.';
+        }
+        $timeline['warehouse_received'] = [
+            'label' => 'Đã nhập kho',
+            'status' => $whStatus,
+            'date' => $whDate,
+            'details' => $whDetails
+        ];
+
+        // 9. Đã giao Sales
+        $saleStatus = 'pending';
+        $saleDate = null;
+        $saleDetails = 'Chưa bàn giao.';
+        if ($sale) {
+            $saleStatusVal = $sale->status;
+            $deliveryDate = $sale->delivery_date;
+            if ($saleStatusVal === 'completed' || ($deliveryDate && $deliveryDate->isPast())) {
+                $saleStatus = 'completed';
+                $saleDate = $deliveryDate ? $deliveryDate->format('d/m/Y') : null;
+                $saleDetails = 'Đã bàn giao cho Sales/Khách hàng.';
+            } elseif ($whStatus === 'completed' || $saleStatusVal === 'shipping') {
+                $saleStatus = 'active';
+                $saleDetails = 'Đang chuẩn bị bàn giao.';
+            }
+        }
+        $timeline['delivered_sales'] = [
+            'label' => 'Đã giao Sales',
+            'status' => $saleStatus,
+            'date' => $saleDate,
+            'details' => $saleDetails
+        ];
+
+        return $timeline;
+    }
+
     private function getTrackingReport(Request $request, $productIds = []): array
     {
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
@@ -520,6 +751,9 @@ class PurchaseReportController extends Controller
                     'partners' => [],
                     'serial_numbers' => [],
                     'created_at' => $item->created_at,
+                    'po_items_raw' => [],
+                    'sale_raw' => $item->saleOrderRequest->sale ?? null,
+                    'pr_created_at' => $item->created_at,
                 ];
             }
 
@@ -531,6 +765,9 @@ class PurchaseReportController extends Controller
                 $received += (float) ($poItem->received_quantity ?? 0);
                 // Track PO item ID để tránh double-count
                 $processedPoItemIds[] = $poItem->id;
+                
+                // Track raw PO items
+                $grouped[$key]['po_items_raw'][] = $poItem;
             }
 
             $grouped[$key]['requested'] += $item->quantity;
@@ -609,19 +846,35 @@ class PurchaseReportController extends Controller
                     'partners' => [],
                     'serial_numbers' => [],
                     'created_at' => $poItem->purchaseOrder->order_date ?? $poItem->created_at,
+                    'po_items_raw' => [],
+                    'sale_raw' => null,
+                    'pr_created_at' => null,
                 ];
             }
 
             $grouped[$key]['requested'] += $poItem->quantity;
             $grouped[$key]['ordered'] += $poItem->quantity;
             $grouped[$key]['received'] += $poItem->received_quantity;
+            $grouped[$key]['po_items_raw'][] = $poItem;
 
             $poId = $poItem->purchase_order_id;
-            if (!isset($grouped[$key]['po_links'][$poId])) {
+            $po = $poItem->purchaseOrder;
+            if ($po && !isset($grouped[$key]['po_links'][$poId])) {
                 $grouped[$key]['po_links'][$poId] = [
                     'id' => $poId,
-                    'code' => $poItem->purchaseOrder->code ?? '',
-                    'status_label' => $poItem->purchaseOrder->status_label ?? '',
+                    'code' => $po->code ?? '',
+                    'status' => $po->status ?? '',
+                    'status_label' => $po->status_label ?? '',
+                    'order_date' => $po->order_date ? $po->order_date->format('d/m/Y') : '--',
+                    'supplier_name' => $po->supplier->name ?? 'N/A',
+                    'cpq_number' => $po->cpq_number ?? '--',
+                    'etd' => $po->manufacturer_release_date ? $po->manufacturer_release_date->format('d/m/Y') : '--',
+                    'eta' => $po->expected_arrival_date ? $po->expected_arrival_date->format('d/m/Y') : '--',
+                    'actual_delivery' => $po->actual_delivery ? $po->actual_delivery->format('d/m/Y') : '--',
+                    'total_usd' => number_format($po->total_foreign ?: ($po->total / max(1, $po->exchange_rate ?: 1)), 2),
+                    'payment_terms' => $po->payment_terms_label ?? $po->payment_terms ?? 'Net 30',
+                    'note' => $po->note ?? '',
+                    'hold_reason' => $po->hold_reason ?? '',
                 ];
             }
 
@@ -636,32 +889,161 @@ class PurchaseReportController extends Controller
             $row['remaining'] = max(0, $row['requested'] - $row['received']);
             $row['total_usd'] = $row['requested'] * $row['unit_price_usd'];
 
+            $row['completion_percent'] = $row['requested'] > 0 ? min(100, round(($row['received'] / $row['requested']) * 100)) : 0;
+            $row['ordered_percent'] = $row['requested'] > 0 ? min(100, round(($row['ordered'] / $row['requested']) * 100)) : 0;
+
             $row['cpq'] = implode(', ', array_filter($row['cpq_numbers']));
             $row['end_user'] = implode(', ', array_filter($row['end_users']));
             $row['si_partner'] = implode(', ', array_filter($row['partners']));
             $row['serial_number'] = implode(', ', array_filter($row['serial_numbers']));
 
-            if ($row['ordered'] <= 0) {
-                $row['status'] = 'waiting';
-                $row['status_label'] = 'Chờ đặt hàng';
-                $row['status_color'] = 'bg-gray-100 text-gray-600';
-                $row['status_icon'] = 'fas fa-clock';
-            } elseif ($row['ordered'] < $row['requested']) {
-                $row['status'] = 'ordering';
-                $row['status_label'] = 'Đang đặt hàng';
-                $row['status_color'] = 'bg-blue-100 text-blue-800';
-                $row['status_icon'] = 'fas fa-shopping-cart';
-            } elseif ($row['received'] < $row['requested']) {
-                $row['status'] = 'in_transit';
-                $row['status_label'] = 'Đang về hàng';
-                $row['status_color'] = 'bg-orange-100 text-orange-800';
-                $row['status_icon'] = 'fas fa-truck';
-            } else {
-                $row['status'] = 'completed';
-                $row['status_label'] = 'Đã đủ hàng';
-                $row['status_color'] = 'bg-green-100 text-green-800';
-                $row['status_icon'] = 'fas fa-check-circle';
+            // Compute 9-step timeline details
+            $row['timeline'] = $this->calculateTimeline(
+                $row['requested'],
+                $row['ordered'],
+                $row['received'],
+                $row['po_items_raw'],
+                $row['sale_raw'],
+                $row['pr_created_at']
+            );
+
+            // Find current active step in the timeline for fallback/label rendering
+            $currentStatusStep = 'pr';
+            $stepOrder = ['pr', 'po', 'vendor_confirm', 'production', 'mfg_export', 'transit', 'arrived_vn', 'warehouse_received', 'delivered_sales'];
+            foreach ($stepOrder as $stepKey) {
+                if ($row['timeline'][$stepKey]['status'] !== 'pending') {
+                    $currentStatusStep = $stepKey;
+                }
             }
+
+            // Determine the status label based on the active step and PO status
+            $statusLabel = 'N/A';
+            $statusColor = 'bg-gray-100 text-gray-600';
+            $statusIcon = 'fas fa-info-circle';
+
+            $representativePo = null;
+            if (!empty($row['po_items_raw'])) {
+                // Find representative PO (highest weight)
+                $statusWeights = [
+                    'draft' => 0,
+                    'pending_approval' => 1,
+                    'approved' => 2,
+                    'sent' => 3,
+                    'confirmed' => 4,
+                    'shipping' => 5,
+                    'partial_received' => 6,
+                    'received' => 7,
+                ];
+                $maxStatusWeight = -1;
+                foreach ($row['po_items_raw'] as $poItem) {
+                    $po = $poItem instanceof \App\Models\PurchaseOrder ? $poItem : ($poItem->purchaseOrder ?? null);
+                    if ($po) {
+                        $weight = $statusWeights[$po->status] ?? 0;
+                        if ($weight > $maxStatusWeight) {
+                            $maxStatusWeight = $weight;
+                            $representativePo = $po;
+                        }
+                    }
+                }
+            }
+
+            // Timeline mốc thời gian ETA/ETD/Actual Arrival
+            $row['etd'] = $representativePo && $representativePo->manufacturer_release_date ? $representativePo->manufacturer_release_date->format('d/m/Y') : null;
+            $row['eta'] = $representativePo && $representativePo->expected_arrival_date ? $representativePo->expected_arrival_date->format('d/m/Y') : null;
+            $row['actual_arrival'] = $representativePo && $representativePo->actual_delivery ? $representativePo->actual_delivery->format('d/m/Y') : null;
+
+            // Phân tích nguyên nhân thiếu hàng (nếu còn thiếu)
+            $shortageReason = null;
+            if ($row['remaining'] > 0) {
+                if ($row['ordered'] <= 0) {
+                    $shortageReason = 'Chưa tạo đơn mua hàng (PO) với nhà cung cấp';
+                } elseif ($representativePo) {
+                    if ($representativePo->is_hold) {
+                        $shortageReason = 'PO đang tạm hoãn: ' . ($representativePo->hold_reason ?: 'Cần kiểm tra lại');
+                    } elseif ($representativePo->status === 'draft') {
+                        $shortageReason = 'PO mới ở dạng nháp, chưa gửi duyệt';
+                    } elseif ($representativePo->status === 'pending_approval') {
+                        $shortageReason = 'PO đang chờ cấp quản lý phê duyệt';
+                    } elseif (in_array($representativePo->status, ['approved', 'sent'])) {
+                        $shortageReason = 'Đã gửi PO, chờ nhà cung cấp xác nhận đơn';
+                    } elseif ($representativePo->status === 'confirmed') {
+                        $releaseStr = $representativePo->manufacturer_release_date ? $representativePo->manufacturer_release_date->format('d/m/Y') : 'chưa rõ';
+                        $shortageReason = "Hãng đang sản xuất (Dự kiến xong ETD: {$releaseStr})";
+                    } elseif (in_array($representativePo->status, ['shipping', 'partial_received'])) {
+                        $arrivalStr = $representativePo->expected_arrival_date ? $representativePo->expected_arrival_date->format('d/m/Y') : 'chưa rõ';
+                        $shortageReason = "Hàng đang trên đường vận chuyển về VN (Dự kiến ETA: {$arrivalStr})";
+                    }
+                }
+            }
+            $row['shortage_reason'] = $shortageReason;
+
+            if ($currentStatusStep === 'pr') {
+                $statusLabel = 'Chờ đặt hàng';
+                $statusColor = 'bg-gray-100 text-gray-600';
+                $statusIcon = 'fas fa-clock';
+            } elseif ($currentStatusStep === 'po') {
+                $poStatusVal = $representativePo ? $representativePo->status : '';
+                if ($poStatusVal === 'draft') {
+                    $statusLabel = 'PO Nháp';
+                    $statusColor = 'bg-yellow-100 text-yellow-800';
+                    $statusIcon = 'fas fa-file-signature';
+                } elseif ($poStatusVal === 'pending_approval') {
+                    $statusLabel = 'Chờ duyệt PO';
+                    $statusColor = 'bg-orange-100 text-orange-800';
+                    $statusIcon = 'fas fa-user-clock';
+                } elseif ($poStatusVal === 'approved') {
+                    $statusLabel = 'Đã duyệt PO';
+                    $statusColor = 'bg-indigo-100 text-indigo-800';
+                    $statusIcon = 'fas fa-check-double';
+                } elseif ($poStatusVal === 'sent') {
+                    $statusLabel = 'Đã gửi NCC';
+                    $statusColor = 'bg-blue-100 text-blue-800';
+                    $statusIcon = 'fas fa-paper-plane';
+                } else {
+                    $statusLabel = 'Đang đặt hàng';
+                    $statusColor = 'bg-blue-100 text-blue-800';
+                    $statusIcon = 'fas fa-shopping-cart';
+                }
+            } elseif ($currentStatusStep === 'vendor_confirm') {
+                $statusLabel = 'Hãng xác nhận';
+                $statusColor = 'bg-cyan-100 text-cyan-800';
+                $statusIcon = 'fas fa-user-check';
+            } elseif ($currentStatusStep === 'production') {
+                $statusLabel = 'Đang sản xuất';
+                $statusColor = 'bg-purple-100 text-purple-800';
+                $statusIcon = 'fas fa-industry';
+            } elseif ($currentStatusStep === 'mfg_export') {
+                $statusLabel = 'Xuất kho hãng';
+                $statusColor = 'bg-pink-100 text-pink-800';
+                $statusIcon = 'fas fa-sign-out-alt';
+            } elseif ($currentStatusStep === 'transit') {
+                $statusLabel = 'Đang vận chuyển';
+                $statusColor = 'bg-amber-100 text-amber-800';
+                $statusIcon = 'fas fa-shipping-fast';
+            } elseif ($currentStatusStep === 'arrived_vn') {
+                $statusLabel = 'Đã về VN';
+                $statusColor = 'bg-teal-100 text-teal-800';
+                $statusIcon = 'fas fa-plane-arrival';
+            } elseif ($currentStatusStep === 'warehouse_received') {
+                if ($row['received'] < $row['requested']) {
+                    $statusLabel = 'Nhập kho 1 phần';
+                    $statusColor = 'bg-emerald-100 text-emerald-800';
+                    $statusIcon = 'fas fa-warehouse';
+                } else {
+                    $statusLabel = 'Đã nhập kho';
+                    $statusColor = 'bg-emerald-200 text-emerald-950';
+                    $statusIcon = 'fas fa-warehouse';
+                }
+            } elseif ($currentStatusStep === 'delivered_sales') {
+                $statusLabel = 'Đã giao Sales';
+                $statusColor = 'bg-green-100 text-green-800';
+                $statusIcon = 'fas fa-check-circle';
+            }
+
+            $row['status'] = $currentStatusStep;
+            $row['status_label'] = $statusLabel;
+            $row['status_color'] = $statusColor;
+            $row['status_icon'] = $statusIcon;
         }
 
         return array_values($grouped);

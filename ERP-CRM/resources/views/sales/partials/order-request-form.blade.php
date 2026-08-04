@@ -128,17 +128,27 @@
                                     <td class="px-1 py-1.5">
                                         <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
                                             value="{{ $item->quantity }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
+                                            class="qty-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center"
+                                            oninput="updateSnInputs(this.closest('.order-request-row'))">
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][unit]"
                                             value="{{ $item->unit }}" placeholder="Đơn vị"
                                             class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     </td>
-                                    <td class="px-1 py-1.5">
-                                        <input type="text" name="order_request_items[{{ $idx }}][serial_number]"
-                                            value="{{ $item->serial_number }}"
-                                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                    <td class="px-1 py-1.5 min-w-[130px]">
+                                        <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[{{ $idx }}][serial_number][]">
+                                            @php
+                                                $qtyCount = max(1, (int)floor((float)$item->quantity));
+                                                $existingSerials = !empty($item->serial_number) ? array_map('trim', explode(',', $item->serial_number)) : [];
+                                            @endphp
+                                            @for($sIdx = 0; $sIdx < $qtyCount; $sIdx++)
+                                                <input type="text" name="order_request_items[{{ $idx }}][serial_number][]"
+                                                    value="{{ $existingSerials[$sIdx] ?? '' }}"
+                                                    placeholder="{{ $qtyCount > 1 ? 'SN ' . ($sIdx + 1) : 'SN' }}"
+                                                    class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                            @endfor
+                                        </div>
                                     </td>
                                     <td class="px-1 py-1.5">
                                         <input type="text" name="order_request_items[{{ $idx }}][exp_date]"
@@ -232,15 +242,18 @@
                                  </td>
                                  <td class="px-1 py-1.5">
                                      <input type="number" name="order_request_items[0][quantity]" required step="0.01" value="1"
-                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center">
+                                         class="qty-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 text-center"
+                                         oninput="updateSnInputs(this.closest('.order-request-row'))">
                                  </td>
                                  <td class="px-1 py-1.5">
                                      <input type="text" name="order_request_items[0][unit]" placeholder="Đơn vị"
                                          class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                  </td>
-                                 <td class="px-1 py-1.5">
-                                     <input type="text" name="order_request_items[0][serial_number]" placeholder="SN"
-                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                 <td class="px-1 py-1.5 min-w-[130px]">
+                                     <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[0][serial_number][]">
+                                         <input type="text" name="order_request_items[0][serial_number][]" placeholder="SN"
+                                             class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                     </div>
                                  </td>
                                  <td class="px-1 py-1.5">
                                      <input type="text" name="order_request_items[0][exp_date]" placeholder="YYYY-MM-DD"

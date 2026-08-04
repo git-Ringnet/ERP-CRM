@@ -377,12 +377,41 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->updateDebt();
         $purchaseOrder->save();
 
+        // Tự động cập nhật tiến độ đơn hàng bán liên kết sang "Chờ hàng về"
+        $this->syncLinkedSaleOrdersStatus($purchaseOrder);
+
         // Thông báo cho sales khi PO được duyệt (đã đặt)
         if ($purchaseOrder->sale_id) {
-            $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đã được duyệt', "Đơn mua hàng {$purchaseOrder->code} đã được duyệt và chuyển sang trạng thái 'Đã đặt'.");
+            $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đã được duyệt', "Đơn mua hàng {$purchaseOrder->code} đã được duyệt và chuyển sang trạng thái 'Đã đặt' - Chờ hàng về.");
         }
 
         return back()->with('success', 'Đã duyệt đơn mua hàng!');
+    }
+
+    private function syncLinkedSaleOrdersStatus(PurchaseOrder $purchaseOrder): void
+    {
+        $saleIds = collect([$purchaseOrder->sale_id]);
+        
+        $purchaseOrder->loadMissing('items.saleOrderRequestItem.saleOrderRequest');
+        foreach ($purchaseOrder->items as $item) {
+            if ($item->saleOrderRequestItem && $item->saleOrderRequestItem->saleOrderRequest) {
+                $saleIds->push($item->saleOrderRequestItem->saleOrderRequest->sale_id);
+            }
+        }
+
+        $uniqueSaleIds = $saleIds->filter()->unique();
+        foreach ($uniqueSaleIds as $saleId) {
+            $sale = \App\Models\Sale::find($saleId);
+            if ($sale) {
+                $poCode = $purchaseOrder->code;
+                $logMsg = "[PO Team]: PO {$poCode} đã được đặt hàng - Chờ hàng về.";
+                if (!str_contains($sale->note ?? '', $poCode)) {
+                    $sale->update([
+                        'note' => trim(($sale->note ?? '') . "\n" . $logMsg)
+                    ]);
+                }
+            }
+        }
     }
 
     public function reject(Request $request, PurchaseOrder $purchaseOrder)

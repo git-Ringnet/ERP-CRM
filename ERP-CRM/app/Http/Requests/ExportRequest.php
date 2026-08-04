@@ -110,6 +110,23 @@ class ExportRequest extends FormRequest
                 continue;
             }
 
+            // Check if it's a service item linked to a Sale
+            $isService = false;
+            $refType = $this->input('reference_type') ?? ($this->route('export')?->reference_type);
+            $refId = $this->input('reference_id') ?? ($this->route('export')?->reference_id);
+            if ($refType === 'sale' && $refId) {
+                $saleItem = \App\Models\SaleItem::where('sale_id', $refId)
+                    ->where('product_id', $productId)
+                    ->first();
+                if ($saleItem && $saleItem->is_service) {
+                    $isService = true;
+                }
+            }
+
+            if ($isService) {
+                continue;
+            }
+
             // Filter out empty values
             $selectedSerials = array_filter($selectedSerials, fn($id) => !empty($id));
             $selectedCount = count($selectedSerials);

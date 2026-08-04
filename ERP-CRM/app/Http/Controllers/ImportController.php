@@ -409,6 +409,63 @@ class ImportController extends Controller
                 $item->update(['processed_at' => now()]);
             }
 
+            // Sync approved quantities back to PO items
+            if ($import->reference_type === 'purchase_order' && $import->reference_id) {
+                $po = \App\Models\PurchaseOrder::find($import->reference_id);
+                if ($po) {
+                    $po->load('items');
+                    foreach ($unprocessedItems as $item) {
+                        $poItem = null;
+                        if ($item->comments && preg_match('/\[POItem:(\d+)\]/', $item->comments, $matches)) {
+                            $poItemId = (int)$matches[1];
+                            $poItem = $po->items->firstWhere('id', $poItemId);
+                        }
+                        
+                        if (!$poItem) {
+                            $poItem = $po->items->firstWhere('product_id', $item->product_id);
+                        }
+                        
+                        if ($poItem) {
+                            $poItemTag = "[POItem:{$poItem->id}]";
+                            
+                            $totalApprovedQty = \App\Models\ImportItem::whereHas('import', function($q) {
+                                    $q->where('status', 'completed');
+                                })
+                                ->where(function($q) use ($poItemTag, $poItem) {
+                                    $q->where('comments', 'like', "%{$poItemTag}%")
+                                      ->orWhere(function($sq) use ($poItem) {
+                                          $sq->where('product_id', $poItem->product_id)
+                                             ->where('comments', 'not like', '%[POItem:%');
+                                      });
+                                })
+                                ->sum('quantity');
+                                
+                            $totalApprovedQty += $item->quantity;
+                            
+                            $poItem->received_quantity = min($poItem->quantity, $totalApprovedQty);
+                            if ($poItem->received_quantity >= $poItem->quantity) {
+                                $poItem->status = 'received';
+                            } else {
+                                $poItem->status = 'shipping';
+                            }
+                            $poItem->save();
+                        }
+                    }
+                    
+                    // After updating PO items, recheck and auto-update PO status
+                    $po->load('items');
+                    $allReceived = $po->items->every(fn($i) => $i->status === 'received' || $i->status === 'cancelled');
+                    if ($allReceived) {
+                        $po->update([
+                            'status' => 'received',
+                            'actual_delivery' => now(),
+                        ]);
+                    } elseif ($po->items->contains(fn($i) => $i->received_quantity > 0)) {
+                        $po->update(['status' => 'partial_received']);
+                    }
+                }
+            }
+
             // Kiểm tra xem đã về đủ hàng so với PO chưa (nếu có reference PO)
             $allDone = true;
             if ($import->reference_type === 'purchase_order') {

@@ -36,13 +36,19 @@ class PurchaseOrderRequestController extends Controller
 
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager');
-        if (!$isAdmin) {
-            $query->where('status', '!=', SaleOrderRequest::STATUS_PENDING_ADMIN);
-        }
+        $myRequestsOnly = $request->boolean('my_requests');
 
-        if (!$user->can('view_all_sales') && !$user->can('view_all_purchase_orders')) {
+        if ($myRequestsOnly || (!$user->can('view_all_sales') && !$user->can('view_all_purchase_orders') && !$user->can('view_pr_approvals'))) {
+            // Strictly show ONLY requests created by this user or for their sales orders
             $query->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
+                  ->orWhereHas('sale', fn($sq) => $sq->where('user_id', $user->id));
+            });
+        } elseif (!$isAdmin) {
+            // Staff with view permissions: exclude PENDING_ADMIN requests created by others
+            $query->where(function ($q) use ($user) {
+                $q->where('status', '!=', SaleOrderRequest::STATUS_PENDING_ADMIN)
+                  ->orWhere('created_by', $user->id)
                   ->orWhereHas('sale', fn($sq) => $sq->where('user_id', $user->id));
             });
         }

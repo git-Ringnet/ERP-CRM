@@ -1,18 +1,26 @@
 @extends('layouts.app')
 
-@section('title', 'Tạo yêu cầu đặt hàng')
-@section('page-title', 'Yêu cầu đặt hàng cho đơn: ' . $sale->code)
+@section('title', isset($orderRequest) ? 'Chỉnh sửa yêu cầu đặt hàng' : 'Tạo yêu cầu đặt hàng')
+@section('page-title', (isset($orderRequest) ? 'Chỉnh sửa yêu cầu: ' . $orderRequest->code : 'Yêu cầu đặt hàng cho đơn: ' . $sale->code))
 
 @section('content')
 <div class="bg-white rounded-lg shadow-sm overflow-hidden">
     <div class="p-4 sm:p-6 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
         <div class="flex items-center">
             <div class="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center text-white mr-4">
-                <i class="fas fa-cart-plus text-xl"></i>
+                <i class="fas {{ isset($orderRequest) ? 'fa-edit' : 'fa-cart-plus' }} text-xl"></i>
             </div>
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Khởi tạo yêu cầu đặt hàng</h3>
-                <p class="text-sm text-emerald-700">Theo mẫu chuẩn của hệ thống</p>
+                <h3 class="text-lg font-bold text-gray-900">
+                    {{ isset($orderRequest) ? 'Chỉnh sửa yêu cầu đặt hàng' : 'Khởi tạo yêu cầu đặt hàng' }}
+                    @if(isset($orderRequest))
+                        <span class="text-sm font-normal text-gray-500 ml-2">#{{ $orderRequest->code }}</span>
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-bold {{ $orderRequest->status === 'draft' ? 'bg-gray-200 text-gray-700' : 'bg-orange-200 text-orange-700' }}">
+                            {{ $orderRequest->status_label }}
+                        </span>
+                    @endif
+                </h3>
+                <p class="text-sm text-emerald-700">{{ isset($orderRequest) ? 'Đơn hàng: ' . $sale->code : 'Theo mẫu chuẩn của hệ thống' }}</p>
             </div>
         </div>
         <a href="{{ route('sales.show', $sale->id) }}" class="text-gray-500 hover:text-gray-700">
@@ -20,8 +28,12 @@
         </a>
     </div>
 
-    <form action="{{ route('sales.order-request.store', $sale->id) }}" method="POST" enctype="multipart/form-data" id="orderRequestForm">
+    <form action="{{ isset($orderRequest) ? route('sales.order-request.update', [$sale->id, $orderRequest->id]) : route('sales.order-request.store', $sale->id) }}" method="POST" enctype="multipart/form-data" id="orderRequestForm">
         @csrf
+        @if(isset($orderRequest))
+            @method('PUT')
+        @endif
+        <input type="hidden" name="action_type" id="action_type" value="submit">
         <div class="p-4 sm:p-6 space-y-6">
             {{-- Info Banner --}}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start">
@@ -40,7 +52,7 @@
                         <input type="text" id="global_si_name" name="global_si_name" required
                             class="searchable-input w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
                             placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                            value="{{ old('global_si_name', '') }}">
+                            value="{{ old('global_si_name', $sale->customer_name ?: ($sale->customer->name ?? '')) }}">
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-emerald-50 cursor-pointer text-sm"
@@ -138,9 +150,41 @@
                             </tr>
                         </thead>
                         <tbody id="itemRows">
+                            @php
+                                // When editing, build a map of saved order request items keyed by sale_item_id
+                                $orItemsMap = [];
+                                if (isset($orderRequest)) {
+                                    foreach ($orderRequest->items as $orItem) {
+                                        if ($orItem->sale_item_id) {
+                                            $orItemsMap[$orItem->sale_item_id] = $orItem;
+                                        }
+                                    }
+                                }
+                            @endphp
                             @foreach($sale->items as $idx => $saleItem)
                             @php
                                 $partNumber = $saleItem->product ? $saleItem->product->code : $saleItem->product_name;
+                                // Use saved order request item data if editing
+                                $orItem = $orItemsMap[$saleItem->id] ?? null;
+                                $savedVendorId = $orItem ? $orItem->vendor_id : $saleItem->vendor_id;
+                                $savedType = $orItem ? $orItem->type : $saleItem->type;
+                                $savedPartNumber = $orItem ? $orItem->part_number : $partNumber;
+                                $savedQty = $orItem ? $orItem->quantity : $saleItem->quantity;
+                                $savedUnit = $orItem ? $orItem->unit : ($saleItem->product->unit ?? '');
+                                $savedSn = $orItem ? $orItem->serial_number : ($saleItem->serial_number ?? '');
+                                $savedExpDate = $orItem && $orItem->exp_date ? $orItem->exp_date->format('Y-m-d') : '';
+                                $savedSiName = $orItem ? $orItem->si_name : '';
+                                $savedPosId = $orItem ? $orItem->pos_id : '';
+                                $savedNeedsCq = $orItem ? $orItem->needs_cq : false;
+                                $savedAddress = $orItem ? $orItem->address : '';
+                                // Split eu_name_mst back into eu_name and mst
+                                $savedEuName = '';
+                                $savedMst = '';
+                                if ($orItem && $orItem->eu_name_mst) {
+                                    $parts = explode(' - ', $orItem->eu_name_mst, 2);
+                                    $savedEuName = $parts[0] ?? '';
+                                    $savedMst = $parts[1] ?? '';
+                                }
                             @endphp
                             <tr class="item-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">
                                 <td class="px-1 py-1">
@@ -149,7 +193,7 @@
                                         onchange="handleVendorTypeChange(this.closest('.item-row'))">
                                         <option value="">-- Chọn --</option>
                                         @foreach($suppliers as $s)
-                                            <option value="{{ $s->id }}" data-name="{{ $s->name }}" {{ $s->id == $saleItem->vendor_id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                            <option value="{{ $s->id }}" data-name="{{ $s->name }}" {{ $s->id == $savedVendorId ? 'selected' : '' }}>{{ $s->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
@@ -159,7 +203,7 @@
                                         onchange="handleVendorTypeChange(this.closest('.item-row'))">
                                         <option value="">-- Chọn --</option>
                                         @foreach(\App\Models\SaleOrderRequest::TYPES as $t)
-                                            <option value="{{ $t }}" {{ $saleItem->type == $t ? 'selected' : '' }}>{{ $t }}</option>
+                                            <option value="{{ $t }}" {{ $savedType == $t ? 'selected' : '' }}>{{ $t }}</option>
                                         @endforeach
                                     </select>
                                 </td>
@@ -167,49 +211,62 @@
                                     <label class="cq-checkbox-label inline-flex items-center gap-1 cursor-pointer" style="display:none;" title="Tick nếu cần cấp CQ riêng cho item này">
                                         <input type="checkbox" name="order_request_items[{{ $idx }}][needs_cq]" value="1"
                                             class="needs-cq-checkbox w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                                            onchange="handleNeedsCqChange(this.closest('.item-row'))">
+                                            onchange="handleNeedsCqChange(this.closest('.item-row'))"
+                                            {{ $savedNeedsCq ? 'checked' : '' }}>
                                         <span class="text-[10px] text-gray-600">CQ</span>
                                     </label>
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][part_number]" required
-                                        value="{{ $partNumber }}" placeholder="P/N"
+                                        value="{{ $savedPartNumber }}" placeholder="P/N"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                     <input type="hidden" name="order_request_items[{{ $idx }}][product_id]" value="{{ $saleItem->product_id }}">
                                     <input type="hidden" name="order_request_items[{{ $idx }}][sale_item_id]" value="{{ $saleItem->id }}">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="number" name="order_request_items[{{ $idx }}][quantity]" required step="0.01"
-                                        value="{{ $saleItem->quantity }}"
-                                        class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                                        value="{{ $savedQty }}"
+                                        class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                                        oninput="updateSnInputs(this.closest('.item-row'))">
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][unit]"
-                                        value="{{ $saleItem->product->unit ?? '' }}" placeholder="Đơn vị"
+                                        value="{{ $savedUnit }}" placeholder="Đơn vị"
                                         class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
                                 </td>
-                                <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][serial_number]" placeholder="SN"
-                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                <td class="px-1 py-1 min-w-[130px]">
+                                    <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[{{ $idx }}][serial_number][]">
+                                        @php
+                                            $qtyCount = max(1, (int)floor((float)$savedQty));
+                                            $existingSerials = !empty($savedSn) ? array_map('trim', explode(',', $savedSn)) : [];
+                                        @endphp
+                                        @for($sIdx = 0; $sIdx < $qtyCount; $sIdx++)
+                                            <input type="text" name="order_request_items[{{ $idx }}][serial_number][]" 
+                                                value="{{ $existingSerials[$sIdx] ?? '' }}"
+                                                placeholder="{{ $qtyCount > 1 ? 'SN ' . ($sIdx + 1) : 'SN' }}"
+                                                class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                        @endfor
+                                    </div>
                                 </td>
                                 <td class="px-1 py-1">
                                     <input type="text" name="order_request_items[{{ $idx }}][exp_date]" placeholder="YYYY-MM-DD"
+                                        value="{{ $savedExpDate }}"
                                         class="exp-date-picker w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][si_name]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][si_name]" value="{{ $savedSiName }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1">
-                                    <input type="text" name="order_request_items[{{ $idx }}][pos_id]" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][pos_id]" value="{{ $savedPosId }}" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="POS ID" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1 eu-field">
-                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name]" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][eu_name]" value="{{ $savedEuName }}" class="eu-name-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập EU Name" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1 eu-field">
-                                    <input type="text" name="order_request_items[{{ $idx }}][mst]" class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
+                                    <input type="text" name="order_request_items[{{ $idx }}][mst]" value="{{ $savedMst }}" class="mst-input w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập MST" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1 eu-field">
-                                    <input type="text" name="order_request_items[{{ $idx }}][address]"
+                                    <input type="text" name="order_request_items[{{ $idx }}][address]" value="{{ $savedAddress }}"
                                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50" placeholder="Nhập thông tin" autocomplete="off">
                                 </td>
                                 <td class="px-1 py-1 text-center">
@@ -231,7 +288,7 @@
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ghi chú cho PO team</label>
                     <textarea name="order_request_note" rows="2" placeholder="Ghi chú thêm nếu có..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"></textarea>
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ isset($orderRequest) ? $orderRequest->note : '' }}</textarea>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">File đính kèm</label>
@@ -246,9 +303,13 @@
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                 Hủy bỏ
             </a>
-            <button type="submit" 
+            <button type="submit" formnovalidate onclick="document.getElementById('action_type').value='draft';"
+                class="px-5 py-2 bg-amber-500 text-white font-bold text-sm rounded-lg hover:bg-amber-600 shadow-md transition-colors">
+                <i class="fas fa-save mr-2"></i> Lưu nháp
+            </button>
+            <button type="button" onclick="document.getElementById('action_type').value='submit'; showConfirmModal();"
                 class="px-8 py-2 bg-emerald-600 text-white font-bold text-sm rounded-lg hover:bg-emerald-700 shadow-md transition-colors">
-                <i class="fas fa-paper-plane mr-2"></i> Gửi yêu cầu
+                <i class="fas fa-paper-plane mr-2"></i> {{ isset($orderRequest) && $orderRequest->status !== 'draft' ? 'Gửi lại yêu cầu' : 'Gửi yêu cầu' }}
             </button>
         </div>
     </form>
@@ -490,14 +551,6 @@
         const addr = document.getElementById('global_address').value;
         
         document.querySelectorAll('.item-row').forEach(row => {
-            const isFTN = isFortinetVendor(row);
-            const typeSelect = row.querySelector('.type-select');
-            const isHW = typeSelect && typeSelect.value === 'HW';
-            const cqCheckbox = row.querySelector('.needs-cq-checkbox');
-            
-            // Fortinet HW with unchecked CQ = Stock / Runrate item without CQ
-            const isFtnHwNoCq = isFTN && isHW && cqCheckbox && !cqCheckbox.checked;
-            
             const siInput = row.querySelector('input[name$="[si_name]"]');
             if (siInput) siInput.value = si;
             
@@ -508,15 +561,9 @@
             const mstInput = row.querySelector('.mst-input');
             const addrInput = row.querySelector('input[name$="[address]"]');
             
-            if (isFtnHwNoCq) {
-                if (euInput) euInput.value = '';
-                if (mstInput) mstInput.value = '';
-                if (addrInput) addrInput.value = '';
-            } else {
-                if (euInput) euInput.value = eu;
-                if (mstInput) mstInput.value = mst;
-                if (addrInput) addrInput.value = addr;
-            }
+            if (euInput) euInput.value = eu;
+            if (mstInput) mstInput.value = mst;
+            if (addrInput) addrInput.value = addr;
         });
     }
 
@@ -607,15 +654,18 @@
             </td>
             <td class="px-1 py-1">
                 <input type="number" name="order_request_items[${rowIdx}][quantity]" required step="0.01" value="1"
-                    class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+                    class="qty-input w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                    oninput="updateSnInputs(this.closest('.item-row'))">
             </td>
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][unit]" placeholder="Đơn vị"
                     class="w-full border border-gray-300 rounded px-1 py-1.5 text-xs text-center focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
             </td>
-            <td class="px-1 py-1">
-                <input type="text" name="order_request_items[${rowIdx}][serial_number]" placeholder="SN"
-                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">
+            <td class="px-1 py-1 min-w-[130px]">
+                <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[${rowIdx}][serial_number][]">
+                    <input type="text" name="order_request_items[${rowIdx}][serial_number][]" placeholder="SN"
+                        class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                </div>
             </td>
             <td class="px-1 py-1">
                 <input type="text" name="order_request_items[${rowIdx}][exp_date]" placeholder="YYYY-MM-DD"
@@ -654,6 +704,40 @@
         rowIdx++;
     }
 
+    function updateSnInputs(row) {
+        const qtyInput = row.querySelector('.qty-input') || row.querySelector('input[name*="[quantity]"]');
+        const container = row.querySelector('.sn-inputs-container');
+        if (!qtyInput || !container) return;
+
+        const rawQty = parseFloat(qtyInput.value);
+        const targetCount = isNaN(rawQty) || rawQty <= 0 ? 1 : Math.max(1, Math.min(50, Math.floor(rawQty)));
+        
+        const existingInputs = container.querySelectorAll('.sn-input');
+        const currentValues = Array.from(existingInputs).map(inp => inp.value);
+
+        let namePattern = container.dataset.namePattern;
+        if (!namePattern) {
+            const sampleInput = container.querySelector('input');
+            namePattern = sampleInput ? sampleInput.getAttribute('name') : '';
+            if (namePattern && !namePattern.endsWith('[]')) {
+                namePattern += '[]';
+            }
+            container.dataset.namePattern = namePattern;
+        }
+
+        container.innerHTML = '';
+        for (let i = 0; i < targetCount; i++) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.name = namePattern;
+            input.placeholder = targetCount > 1 ? `SN ${i + 1}` : 'SN';
+            input.className = 'sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 mt-1 first:mt-0';
+            input.autocomplete = 'off';
+            input.value = currentValues[i] || '';
+            container.appendChild(input);
+        }
+    }
+
     function removeRow(btn) {
         if (document.querySelectorAll('.item-row').length > 1) {
             btn.closest('.item-row').remove();
@@ -669,9 +753,10 @@
             initSearchableSelect(siSelect, () => syncGlobalToRows());
         }
         
-        // Initialize CQ checkbox visibility for all existing rows FIRST
+        // Initialize CQ checkbox visibility and SN inputs for all existing rows FIRST
         document.querySelectorAll('.item-row').forEach(row => {
             handleVendorTypeChange(row);
+            updateSnInputs(row);
         });
         
         // Then sync global values

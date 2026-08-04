@@ -52,6 +52,8 @@ class SaleItem extends Model
         'contractor_tax_enabled',
         'extra_expenses_data',
         'custom_fields',
+        'supplier_id',
+        'is_service',
     ];
 
     protected $casts = [
@@ -84,6 +86,8 @@ class SaleItem extends Model
         'contractor_tax_enabled' => 'boolean',
         'extra_expenses_data' => 'array',
         'custom_fields' => 'array',
+        'supplier_id' => 'integer',
+        'is_service' => 'boolean',
     ];
 
     /**
@@ -219,6 +223,14 @@ class SaleItem extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Relationship with Supplier (Vendor)
+     */
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     /**
