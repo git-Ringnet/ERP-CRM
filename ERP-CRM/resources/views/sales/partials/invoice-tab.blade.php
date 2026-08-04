@@ -59,59 +59,71 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-4">
-                                    <div class="flex flex-col gap-2">
-                                        {{-- Link to system draft (always available if not rejected) --}}
-                                        @if($request->status !== 'rejected')
-                                            <a href="{{ route('sales.pdf', ['sale' => $sale->id, 'is_draft' => 1]) }}" target="_blank" class="inline-flex items-center text-[10px] font-bold text-indigo-600 hover:text-indigo-800">
-                                                <i class="fas fa-eye mr-1"></i> XEM BẢN NHÁP (HỆ THỐNG)
-                                            </a>
-                                        @endif
-
+                                    <div class="flex flex-col gap-1.5">
                                         @if($request->draft_path)
-                                            <a href="{{ asset('storage/' . $request->draft_path) }}" target="_blank" class="inline-flex items-center text-[10px] font-bold text-blue-600 hover:text-blue-800">
-                                                <i class="fas fa-file-pdf mr-1"></i> HĐ NHÁP (FILE TẢI LÊN)
+                                            <a href="{{ asset('storage/' . $request->draft_path) }}" target="_blank" class="inline-flex items-center text-[11px] font-bold text-blue-600 hover:text-blue-800">
+                                                <i class="fas fa-file-pdf mr-1 text-blue-500"></i> File HĐ đính kèm ({{ $request->revisions->count() > 0 ? 'v' . $request->revisions->max('version') : 'v1' }})
                                             </a>
-                                        @endif
-                                        @if($request->official_path)
-                                            <a href="{{ asset('storage/' . $request->official_path) }}" target="_blank" class="inline-flex items-center text-[10px] font-bold text-green-600 hover:text-green-800">
-                                                <i class="fas fa-file-invoice mr-1"></i> HĐ CHÍNH THỨC
-                                            </a>
-                                        @endif
-                                        @if($request->delivery_note_path)
-                                            <a href="{{ asset('storage/' . $request->delivery_note_path) }}" target="_blank" class="inline-flex items-center text-[10px] font-bold text-purple-600 hover:text-purple-800">
-                                                <i class="fas fa-clipboard-check mr-1"></i> BB BÀN GIAO
-                                            </a>
+                                        @else
+                                            <span class="text-[10px] text-gray-400 italic">Chưa đính kèm file</span>
                                         @endif
                                     </div>
                                 </td>
                                 <td class="px-4 py-4">
-                                    <div class="flex items-center gap-2">
-                                        {{-- Actions for Pending Request --}}
+                                        @if(auth()->id() === (int)$request->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                                            <button type="button" 
+                                                data-request="{{ json_encode($request) }}"
+                                                onclick="openEditInvoiceContentModalFromButton(this)" 
+                                                class="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold rounded hover:bg-indigo-100 flex items-center gap-1" 
+                                                title="Chỉnh sửa nội dung xuất HĐ chung & từng part">
+                                                <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG
+                                            </button>
+                                        @endif
+
+                                        {{-- 1. Status: pending -> Accountant imports file --}}
                                         @if($request->status === 'pending')
-                                            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
-                                                <button onclick="openDraftModal({{ $request->id }})" class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 shadow-sm" title="Duyệt và xuất hóa đơn nháp">
-                                                    DUYỆT NHÁP
-                                                </button>
-                                                <button onclick="openRejectModal({{ $request->id }})" class="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100" title="Từ chối">
-                                                    <i class="fas fa-times"></i>
+                                            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                                                <button onclick="openDraftModal({{ $request->id }})" class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 shadow-sm flex items-center gap-1" title="Import file hóa đơn">
+                                                    <i class="fas fa-file-import"></i> IMPORT FILE HĐ
                                                 </button>
                                             @endif
                                             
-                                            @if(auth()->id() === $request->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
+                                            @if(auth()->id() === (int)$request->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
                                                 <form action="{{ route('invoice-requests.cancel', $request->id) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn hủy yêu cầu này?')">
                                                     @csrf @method('DELETE')
-                                                    <button type="submit" class="p-1.5 bg-gray-50 text-gray-500 rounded hover:bg-gray-100" title="Hủy yêu cầu">
+                                                    <button type="submit" class="p-1 bg-gray-50 text-gray-500 rounded hover:bg-gray-100" title="Hủy yêu cầu">
                                                         <i class="fas fa-trash-alt"></i>
                                                     </button>
                                                 </form>
                                             @endif
-                                        @endif
 
-                                        {{-- Finance Actions (Official) --}}
-                                        @if($request->status === 'draft_issued' && auth()->user()->hasAnyRole(['super_admin', 'accountant']))
-                                            <button onclick="openOfficialModal({{ $request->id }})" class="px-3 py-1 bg-green-600 text-white text-[10px] font-bold rounded hover:bg-green-700 shadow-sm">
-                                                XÁC NHẬN CHÍNH THỨC
-                                            </button>
+                                        {{-- 2. Status: rejected -> ONLY show Import file mới button --}}
+                                        @elseif($request->status === 'rejected')
+                                            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                                                <button onclick="openDraftModal({{ $request->id }})" class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 shadow-sm flex items-center gap-1" title="Import lại file hóa đơn mới">
+                                                    <i class="fas fa-file-import"></i> IMPORT FILE MỚI
+                                                </button>
+                                            @endif
+
+                                        {{-- 3. Status: draft_issued -> Show ONLY XÁC NHẬN and CHƯA CHÍNH XÁC --}}
+                                        @elseif($request->status === 'draft_issued')
+                                            @if(auth()->id() === (int)$request->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
+                                                <form action="{{ route('invoice-requests.confirm', $request->id) }}" method="POST" onsubmit="return confirm('Bạn đã kiểm tra file hóa đơn chính xác?')">
+                                                    @csrf
+                                                    <button type="submit" class="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded hover:bg-emerald-700 shadow-sm flex items-center gap-1" title="Xác nhận file hóa đơn chính xác">
+                                                        <i class="fas fa-check-circle"></i> XÁC NHẬN
+                                                    </button>
+                                                </form>
+                                                <button onclick="openRejectModal({{ $request->id }})" class="px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded hover:bg-red-100 font-semibold" title="Phản hồi chưa chính xác">
+                                                    CHƯA CHÍNH XÁC
+                                                </button>
+                                            @endif
+
+                                        {{-- 4. Status: official_issued -> Completed --}}
+                                        @elseif($request->status === 'official_issued')
+                                            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                                                <i class="fas fa-check-double mr-1"></i> HOÀN TẤT
+                                            </span>
                                         @endif
                                     </div>
                                 </td>

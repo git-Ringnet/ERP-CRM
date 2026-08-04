@@ -40,6 +40,10 @@
                 @csrf
                 <input type="file" id="bulk-import-serial-file" name="serial_file" accept=".xlsx,.xls,.csv" onchange="this.form.submit()">
             </form>
+            <a href="{{ route('purchase-orders.import-serials-template') }}"
+                class="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">
+                <i class="fas fa-file-download mr-2"></i> Tải mẫu Import Serial
+            </a>
             <a href="{{ route('purchase-orders.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>

@@ -58,6 +58,14 @@ class Export extends Model
     }
 
     /**
+     * Get the associated sale order if reference_type is sale.
+     */
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class, 'reference_id');
+    }
+
+    /**
      * Get the contact person for this export.
      */
     public function contact(): BelongsTo

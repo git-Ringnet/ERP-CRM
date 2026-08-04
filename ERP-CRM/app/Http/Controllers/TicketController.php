@@ -85,6 +85,19 @@ class TicketController extends Controller
             'target_user_id' => 'required_if:source,sales|nullable|exists:users,id',
         ]);
 
+        if ($request->type === 'borrow') {
+            foreach ($request->items as $item) {
+                if (!empty($item['selected_serial_ids'])) {
+                    $borrowedSerials = ProductItem::whereIn('id', $item['selected_serial_ids'])->get();
+                    foreach ($borrowedSerials as $serialItem) {
+                        if ($serialItem->isProjectItem()) {
+                            return back()->withInput()->with('error', "Không thể mượn thiết bị '{$serialItem->sku}' vì đây là Hàng dự án. Hàng dự án không được phép mượn.");
+                        }
+                    }
+                }
+            }
+        }
+
         DB::beginTransaction();
         try {
             $ticket = Ticket::create([
@@ -451,11 +464,15 @@ class TicketController extends Controller
 
         $items = ProductItem::with([
             'warehouse',
-            'import.purchaseOrder.sale.user'
+            'import.purchaseOrder.sale.user',
+            'po_item.saleOrderRequestItem'
         ])
         ->where('product_id', $productId)
         ->where('status', ProductItem::STATUS_IN_STOCK)
-        ->get();
+        ->get()
+        ->filter(function($item) {
+            return !$item->isProjectItem(); // Strictly block project items from borrowing
+        });
 
         $warehouseStock = [];
         $salesStock = [];

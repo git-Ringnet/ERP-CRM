@@ -78,6 +78,48 @@ class ExcelImportService
     }
 
     /**
+     * Generate PO Serial Import template
+     */
+    public function generatePoSerialTemplate(): string
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Mẫu Nhập Serial PO');
+
+        // Headers expected by findExcelHeaderIndexes: PO Code, Part Number, Serial Number
+        $headers = ['Mã PO', 'Part Number', 'Số Serial (S/N)'];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:C1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:C1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A1:C1')->getFont()->getColor()->setRGB('FFFFFF');
+
+        $examples = [
+            ['PO2026-0001', 'ST4000VN006', 'WW67EWKA'],
+            ['PO2026-0001', 'ST4000VN006', 'WW67H60T'],
+            ['PO2026-0002', 'XGS2220-30F-US0101F', 'S242L02014561'],
+        ];
+
+        $row = 2;
+        foreach ($examples as $example) {
+            $sheet->fromArray($example, null, 'A' . $row);
+            $row++;
+        }
+
+        foreach (range('A', 'C') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $lastRow = $row - 1;
+        $sheet->getStyle("A1:C{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'po_serial_template_') . '.xlsx';
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tempFile);
+
+        return $tempFile;
+    }
+
+    /**
      * Generate Inventory Excel template
      * Requirements: 6.2, 6.4, 6.5
      * Updated: New format per customer request

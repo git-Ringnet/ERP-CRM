@@ -306,4 +306,58 @@ class SaleItem extends Model
             self::WARRANTY_STATUS_NO_WARRANTY => 'gray',
         ];
     }
+
+    public function saleOrderRequestItems()
+    {
+        return $this->hasMany(SaleOrderRequestItem::class, 'sale_item_id');
+    }
+
+    /**
+     * Determine if this SaleItem is classified as a Project item (Hàng dự án) vs Run-rate item (Hàng run-rate)
+     */
+    public function isProjectItem(): bool
+    {
+        // 1. Check linked SaleOrderRequestItem directly
+        $sori = $this->saleOrderRequestItems->first();
+        if (!$sori) {
+            $sori = SaleOrderRequestItem::whereHas('saleOrderRequest', function($q) {
+                $q->where('sale_id', $this->sale_id);
+            })->where(function($q) {
+                if ($this->product_id) {
+                    $q->where('product_id', $this->product_id);
+                } else {
+                    $q->where('part_number', $this->product_name);
+                }
+            })->first();
+        }
+
+        if ($sori) {
+            return $sori->isProjectItem();
+        }
+
+        // 2. Fallback check based on vendor, part_number, custom_fields
+        $vendorName = strtolower($this->product?->brand ?? '');
+        $partNumber = strtolower($this->product?->code ?? $this->product_name ?? '');
+        $isFortinet = str_contains($vendorName, 'fortinet') 
+            || str_starts_with($partNumber, 'fa') 
+            || str_starts_with($partNumber, 'fg') 
+            || str_starts_with($partNumber, 'fw') 
+            || str_starts_with($partNumber, 'fc') 
+            || str_starts_with($partNumber, 'fad');
+
+        $needsCq = !empty($this->custom_fields['needs_cq']);
+        $euInfo = trim((string)($this->custom_fields['eu_name_mst'] ?? $this->custom_fields['eu_name'] ?? ''));
+
+        if ($isFortinet) {
+            if (!$needsCq && empty($euInfo)) {
+                return false;
+            }
+            return true;
+        } else {
+            if (empty($euInfo) && !$needsCq) {
+                return false;
+            }
+            return true;
+        }
+    }
 }

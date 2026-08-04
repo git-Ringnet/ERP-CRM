@@ -220,13 +220,30 @@ class PurchaseImportSyncService
 
                 $itemWarehouseId = $this->resolveWarehouseForPoItem($poItem, $warehouseId);
 
+                // Parse serials and filter out already imported ones to support flexible partial matching
+                $poSerials = [];
+                if (!empty($poItem->serial_number)) {
+                    $decoded = is_array($poItem->serial_number) ? $poItem->serial_number : json_decode($poItem->serial_number, true);
+                    if (is_array($decoded)) {
+                        $poSerials = array_values(array_filter($decoded, fn($s) => !empty(trim((string)$s))));
+                    }
+                }
+                if (!empty($poSerials)) {
+                    $existingRealSerials = \App\Models\ProductItem::where('product_id', $productId)
+                        ->whereIn('sku', $poSerials)
+                        ->pluck('sku')
+                        ->toArray();
+                    $poSerials = array_values(array_diff($poSerials, $existingRealSerials));
+                }
+                $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
+
                 ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $productId,
                     'warehouse_id' => $itemWarehouseId,
                     'quantity' => $qty,
                     'unit' => $poItem->unit,
-                    'serial_number' => $poItem->serial_number,
+                    'serial_number' => $serialJson,
                     'cost' => $poItem->unit_price * ($purchaseOrder->exchange_rate ?? 1),
                     'comments' => "[POItem:{$poItem->id}] Từ PO {$purchaseOrder->code} (Nhận đợt ngày " . now()->format('d/m/Y') . ")",
                 ]);
@@ -397,6 +414,15 @@ class PurchaseImportSyncService
                     } elseif (is_string($poItemSerials) && !empty(trim($poItemSerials))) {
                         $poSerialsArray = [trim($poItemSerials)];
                     }
+                }
+
+                // Filter out serials that already exist in the database to support flexible partial matching
+                if (!empty($poSerialsArray) && $poItem->product_id) {
+                    $existingRealSerials = \App\Models\ProductItem::where('product_id', $poItem->product_id)
+                        ->whereIn('sku', $poSerialsArray)
+                        ->pluck('sku')
+                        ->toArray();
+                    $poSerialsArray = array_values(array_diff($poSerialsArray, $existingRealSerials));
                 }
 
                 // Find matching ImportItem

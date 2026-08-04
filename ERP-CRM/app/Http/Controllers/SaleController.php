@@ -315,6 +315,18 @@ class SaleController extends Controller
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
 
+            $user = auth()->user();
+            $canCustomizePaymentTerms = $user && (
+                $user->hasRole('super_admin') || 
+                $user->hasRole('admin') || 
+                $user->hasRole('director') || 
+                $user->hasRole('accountant')
+            );
+
+            if (!$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
+                return back()->withInput()->with('error', 'Tài khoản Sales không có quyền tự tùy chỉnh cấu hình điều khoản thanh toán. Vui lòng chọn điều khoản mẫu cố định.');
+            }
+
             $exceptionFilePath = null;
             $isPaymentException = false;
             if (($validated['payment_term_type'] ?? null) === 'bod_exception' && $request->hasFile('payment_exception_file')) {
@@ -639,6 +651,18 @@ class SaleController extends Controller
             }
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
+
+            $user = auth()->user();
+            $canCustomizePaymentTerms = $user && (
+                $user->hasRole('super_admin') || 
+                $user->hasRole('admin') || 
+                $user->hasRole('director') || 
+                $user->hasRole('accountant')
+            );
+
+            if (!$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
+                return back()->withInput()->with('error', 'Tài khoản Sales không có quyền tự tùy chỉnh cấu hình điều khoản thanh toán. Vui lòng chọn điều khoản mẫu cố định.');
+            }
 
             $isPaymentException = $sale->is_payment_exception;
             $exceptionFilePath = $sale->payment_exception_file;
@@ -3554,6 +3578,15 @@ class SaleController extends Controller
             return back()->with('error', 'Mốc thanh toán không tồn tại.');
         }
 
+        // Bắt buộc upload UNC trước khi cho phép xác nhận thanh toán
+        $hasProof = !empty($schedule->evidence_path) 
+                    || $schedule->evidences()->whereIn('status', ['pending', 'verified'])->exists() 
+                    || $schedule->status === 'pending_finance';
+
+        if (!$hasProof) {
+            return back()->with('error', 'Bắt buộc phải Upload UNC (Ủy nhiệm chi / Chứng từ thanh toán) trước khi xác nhận thanh toán.');
+        }
+
         $oldStatus = $schedule->status;
         $schedule->status = 'paid';
         $schedule->confirmed_by = $user->name;
@@ -4017,6 +4050,11 @@ class SaleController extends Controller
             return back()->with('error', 'Đơn hàng bán chưa được duyệt. Không thể tạo yêu cầu xuất kho.');
         }
 
+        $hasConfirmedInvoice = $sale->invoiceRequests()->where('status', 'official_issued')->exists();
+        if (!$hasConfirmedInvoice) {
+            return back()->with('error', 'Cần Sales xác nhận hóa đơn trước khi tạo yêu cầu xuất kho.');
+        }
+
         $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'items' => 'required|array',
@@ -4054,7 +4092,7 @@ class SaleController extends Controller
                     throw new \Exception("Số lượng xuất cho sản phẩm ID {$productId} ({$qty}) vượt quá số lượng còn lại có thể xuất ({$remaining}).");
                 }
 
-                if ($sale->type === 'retail') {
+                if (!$sale->isProjectOrder() && $sale->type === 'retail') {
                     $salespersonName = $sale->employee?->name ?? $sale->user?->name;
                     if ($salespersonName) {
                         $heldQty = \App\Models\ProductItem::where('product_id', $productId)

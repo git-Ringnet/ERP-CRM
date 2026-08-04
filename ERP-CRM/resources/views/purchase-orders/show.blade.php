@@ -141,6 +141,10 @@
                         class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs">
                         <i class="fas fa-file-upload mr-1 text-purple-600"></i> Import Serial
                     </button>
+                    <a href="{{ route('purchase-orders.import-serials-template') }}"
+                        class="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-bold transition-all duration-200 flex items-center shadow-xs">
+                        <i class="fas fa-file-download mr-1 text-amber-500"></i> Tải mẫu Serial
+                    </a>
                     <form id="import-serial-form" action="{{ route('purchase-orders.import-serials', $purchaseOrder) }}" method="POST" enctype="multipart/form-data" class="hidden">
                         @csrf
                         <input type="file" id="import-serial-file" name="serial_file" accept=".xlsx,.xls,.csv" onchange="this.form.submit()">
@@ -646,13 +650,22 @@
                                 @if($item->serial_number)
                                     @php
                                         $serials = json_decode($item->serial_number, true);
+                                        $sCount = is_array($serials) ? count($serials) : 0;
+                                        $qQty = $item->quantity;
                                     @endphp
-                                    @if(is_array($serials) && count($serials) > 0)
-                                        <div class="mt-1.5 p-2 bg-purple-50 text-purple-700 rounded border border-purple-100 text-[10px]">
-                                            <div class="font-bold mb-0.5"><i class="fas fa-barcode mr-1"></i> Số Serial đã import ({{ count($serials) }}):</div>
-                                            <div class="font-mono break-all leading-tight">{{ implode(', ', $serials) }}</div>
+                                    <div class="mt-1.5 p-2 bg-purple-50 text-purple-700 rounded border border-purple-100 text-[10px]">
+                                        <div class="font-bold mb-0.5 flex items-center justify-between gap-1">
+                                            <span><i class="fas fa-barcode mr-1"></i> Số Serial đã nhập/khớp: {{ $sCount }}/{{ $qQty }}</span>
+                                            @if($sCount < $qQty)
+                                                <span class="text-[9px] font-extrabold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">Đợt {{ $sCount }}/{{ $qQty }} (Còn {{ $qQty - $sCount }})</span>
+                                            @else
+                                                <span class="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Đã đủ 100%</span>
+                                            @endif
                                         </div>
-                                    @endif
+                                        @if($sCount > 0)
+                                            <div class="font-mono break-all leading-tight mt-1 text-purple-900">{{ implode(', ', $serials) }}</div>
+                                        @endif
+                                    </div>
                                 @endif
                                 @if(!in_array($purchaseOrder->status, ['received', 'cancelled']))
                                     <button type="button" 
@@ -987,7 +1000,9 @@
                 <div>
                     <label for="manual_serials_input" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nhập danh sách Serial <span class="text-red-500">*</span></label>
                     <textarea id="manual_serials_input" name="serials" rows="6" placeholder="Mỗi dòng là 1 serial hoặc cách nhau bằng dấu phẩy..." class="w-full border-gray-200 rounded-lg text-sm font-mono focus:border-purple-500 focus:ring-purple-500"></textarea>
-                    <p class="text-xs text-gray-400 mt-1">Lưu ý: Các serial đã nhập kho thực tế thành công sẽ luôn được bảo toàn để bảo vệ số tồn kho.</p>
+                    <p class="text-xs text-purple-800 bg-purple-50 p-2.5 rounded-lg border border-purple-100 mt-1.5">
+                        <i class="fas fa-info-circle mr-1 text-purple-600"></i> <strong>Nhập/Khớp Serial linh hoạt theo từng đợt:</strong> Hệ thống cho phép nhập trước số Serial tương ứng với từng đợt hàng về. Không bắt buộc phải nhập đủ 100% số lượng cùng lúc. Các Serial đã xuất/nhập kho thực tế sẽ luôn được bảo toàn.
+                    </p>
                 </div>
                 <div class="flex justify-end gap-3 pt-2">
                     <button type="button" onclick="closeManualSerialModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">Hủy bỏ</button>

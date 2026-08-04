@@ -827,13 +827,19 @@
                                             </button>
                                             
                                             @if($isFinance)
-                                                <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block">
-                                                    @csrf
-                                                    <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm"
-                                                            onclick="return confirm('Xác nhận khách hàng đã thanh toán đợt này?')">
-                                                        <i class="fas fa-check mr-1"></i> Xác nhận TT
+                                                @if(!empty($ms['proof_file_path']))
+                                                    <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block">
+                                                        @csrf
+                                                        <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm"
+                                                                onclick="return confirm('Xác nhận khách hàng đã thanh toán đợt này?')">
+                                                            <i class="fas fa-check mr-1"></i> Xác nhận TT
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <button type="button" disabled class="px-2 py-1 text-[11px] bg-gray-200 text-gray-400 font-semibold rounded cursor-not-allowed shadow-sm" title="Yêu cầu phải upload chứng từ UNC trước khi xác nhận thanh toán">
+                                                        <i class="fas fa-lock mr-1 text-[10px]"></i> Bắt buộc UNC
                                                     </button>
-                                                </form>
+                                                @endif
                                             @endif
                                             
                                             @if($canApproveMilestone)
@@ -1445,11 +1451,33 @@
         <!-- Tab: Warehouse & Export -->
         <div x-show="activeTab === 'warehouse'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-95">
             <div class="bg-white rounded-b-lg shadow-sm p-6 border border-gray-200">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex justify-between items-center mb-4">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900">Chi tiết hàng hóa & Xuất kho</h3>
                         <p class="text-xs text-gray-500 mt-1">Theo dõi số lượng hàng về, số lượng đã xuất và số lượng còn lại có thể xuất.</p>
                     </div>
+                </div>
+
+                <!-- Cross-reference Banner cho Kho tra cứu (STT 4 & 5) -->
+                <div class="mb-6 p-3.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-4 shadow-sm">
+                    <div class="flex items-center gap-4 flex-wrap text-xs">
+                        <div class="flex items-center gap-1.5 font-bold text-slate-800">
+                            <i class="fas fa-shopping-cart text-indigo-600"></i> Mã đơn hàng (SO): <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 font-mono text-sm">{{ $sale->code }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 font-bold text-slate-800">
+                            <i class="fas fa-file-contract text-blue-600"></i> Mã PO Khách hàng: <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-mono text-sm">{{ $sale->po_number ?: 'Không có (Tìm theo SO)' }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 font-bold text-slate-800">
+                            <i class="fas fa-file-invoice text-emerald-600"></i> Mã Yêu cầu Hóa đơn: 
+                            @php $confirmedInv = $sale->invoiceRequests->where('status', 'official_issued')->first() ?: $sale->invoiceRequests->first(); @endphp
+                            @if($confirmedInv)
+                                <span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 font-mono text-sm">HĐ #{{ $confirmedInv->id }} ({{ $confirmedInv->status_label }})</span>
+                            @else
+                                <span class="bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">Chưa tạo yêu cầu HĐ</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
                     
                     @if(in_array($sale->status, ['approved', 'shipping']))
                         @php
@@ -1463,7 +1491,7 @@
                                     ->where('product_id', $item->product_id)
                                     ->sum('quantity');
 
-                                if ($sale->type === 'retail') {
+                                if (!$sale->isProjectOrder() && $sale->type === 'retail') {
                                     // For retail/runrate orders: Sales can borrow from warehouse stock, limited to the ordered quantity on the SO
                                     $remainingToExport = $item->quantity - $totalExported;
                                 } else {
@@ -1483,10 +1511,20 @@
                             }
                         @endphp
                         
+                        @php
+                            $hasConfirmedInvoice = $sale->invoiceRequests()->where('status', 'official_issued')->exists();
+                        @endphp
+                        
                         @if($hasRemainingToExport)
-                            <button type="button" onclick="openExportModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-md">
-                                <i class="fas fa-file-export mr-2"></i> YÊU CẦU XUẤT HÀNG
-                            </button>
+                            @if($hasConfirmedInvoice)
+                                <button type="button" onclick="openExportModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-md">
+                                    <i class="fas fa-file-export mr-2"></i> YÊU CẦU XUẤT HÀNG
+                                </button>
+                            @else
+                                <div class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-xs font-bold shadow-sm" title="Vui lòng xác nhận hóa đơn tại tab Quản lý Hóa đơn trước khi yêu cầu xuất hàng">
+                                    <i class="fas fa-lock text-amber-600"></i> Cần Sales xác nhận Hóa đơn trước khi Yêu cầu xuất hàng
+                                </div>
+                            @endif
                         @endif
                     @endif
                 </div>
@@ -1582,7 +1620,15 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-center whitespace-nowrap">
-                                        @if($item->product_id)
+                                        @if($isLicense)
+                                            <span class="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full"><i class="fas fa-key mr-1"></i>License</span>
+                                        @elseif($isService)
+                                            <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-concierge-bell mr-1"></i>Dịch vụ</span>
+                                        @elseif($item->isProjectItem())
+                                            <span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-semibold border border-gray-200 cursor-not-allowed" title="Hàng dự án không được phép mượn hàng">
+                                                <i class="fas fa-lock mr-1 text-[10px] text-gray-400"></i> Hàng dự án (Không mượn)
+                                            </span>
+                                        @elseif($item->product_id)
                                             <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn hàng cho sản phẩm này">
                                                 <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
                                             </a>
@@ -1715,14 +1761,15 @@
                 @csrf
                 <!-- Warehouse Selector -->
                 @php
+                    $isProjectOrder = $sale->isProjectOrder();
                     $defaultExportWarehouseId = '';
                     if ($sale->items->every(fn($i) => stripos($i->product?->code ?? '', 'FC-') === 0 || stripos($i->product?->code ?? '', 'license') !== false)) {
                         $licenseWh = \App\Models\Warehouse::where('code', 'WH_LICENSE')->first();
                         if ($licenseWh) $defaultExportWarehouseId = $licenseWh->id;
-                    } elseif ($sale->type === 'project') {
+                    } elseif ($isProjectOrder) {
                         $projectWh = \App\Models\Warehouse::where('code', 'WH_PROJECT')->first();
                         if ($projectWh) $defaultExportWarehouseId = $projectWh->id;
-                    } elseif ($sale->type === 'retail') {
+                    } else {
                         $runrateWh = \App\Models\Warehouse::where('code', 'WH_RUNRATE')->first();
                         if ($runrateWh) $defaultExportWarehouseId = $runrateWh->id;
                     }
@@ -1767,7 +1814,7 @@
                                             ->where('product_id', $item->product_id)
                                             ->sum('quantity');
 
-                                        if ($sale->type === 'retail') {
+                                        if (!$isProjectOrder) {
                                             // Retail/runrate: remaining to export is SO ordered quantity - already exported
                                             $remaining = max(0, $item->quantity - $totalExported);
                                         } else {
@@ -1784,7 +1831,7 @@
                                             </td>
                                             <td class="px-4 py-3 text-center font-bold text-red-500">
                                                 {{ number_format($remaining) }}
-                                                @if($sale->type === 'retail')
+                                                @if(!$isProjectOrder)
                                                     <div class="text-[10px] text-gray-400 font-normal mt-0.5">
                                                         Đang giữ: <span class="held-qty-display font-bold text-teal-600">0</span>
                                                     </div>
@@ -1829,6 +1876,7 @@
     <script>
         // Held stock data for the salesperson (only relevant for retail SOs)
         window.saleType = @json($sale->type);
+        window.isProjectOrder = @json($isProjectOrder);
         window.salesHeldStock = @json($heldStockData);
 
         function openExportModal() {

@@ -175,6 +175,15 @@ class TransactionService
                         }
                     }
 
+                    // Filter out already registered serials in the system for this product
+                    if (!empty($serials)) {
+                        $existingSerials = \App\Models\ProductItem::where('product_id', $item->product_id)
+                            ->whereIn('sku', $serials)
+                            ->pluck('sku')
+                            ->toArray();
+                        $serials = array_values(array_diff($serials, $existingSerials));
+                    }
+
                     // Check if this import is linked to a PO and detect if it was created from a preload ticket
                     $borrowerName = null;
                     if ($transaction->reference_type === 'purchase_order') {

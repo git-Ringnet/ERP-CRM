@@ -25,27 +25,134 @@
         </div>
         
         <div class="flex items-center gap-2">
-            @if($invoiceRequest->status === 'pending' && auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
-                <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                    <i class="fas fa-check"></i> DUYỆT NHÁP
-                </button>
-                <button onclick="openActionModal('reject')" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all font-bold text-sm flex items-center gap-2">
-                    <i class="fas fa-times"></i> TỪ CHỐI
+            {{-- Accountant: Import file hóa đơn / Import file mới --}}
+            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                @if($invoiceRequest->status === 'rejected')
+                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
+                        <i class="fas fa-file-import"></i> IMPORT LẠI FILE HÓA ĐƠN MỚI
+                    </button>
+                @elseif($invoiceRequest->status === 'pending')
+                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
+                        <i class="fas fa-file-import"></i> IMPORT FILE HÓA ĐƠN
+                    </button>
+                @endif
+            @endif
+
+            {{-- Sales: Confirm invoice OR Mark incorrect --}}
+            @if($invoiceRequest->status === 'draft_issued' && (auth()->id() === (int)$invoiceRequest->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])))
+                <form action="{{ route('invoice-requests.confirm', $invoiceRequest->id) }}" method="POST" onsubmit="return confirm('Bạn đã kiểm tra và xác nhận file hóa đơn hoàn toàn chính xác?')">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-sm shadow-sm flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> XÁC NHẬN HÓA ĐƠN
+                    </button>
+                </form>
+
+                <button onclick="openActionModal('reject')" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all font-bold text-sm flex items-center gap-2" title="Phản hồi file hóa đơn chưa chính xác">
+                    <i class="fas fa-times-circle"></i> CHƯA CHÍNH XÁC
                 </button>
             @endif
 
-            @if($invoiceRequest->status === 'draft_issued' && auth()->user()->hasAnyRole(['super_admin', 'accountant']))
-                <button onclick="openActionModal('official')" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                    <i class="fas fa-file-invoice"></i> XÁC NHẬN CHÍNH THỨC
+            @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-sm flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
+                    <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG HÓA ĐƠN
                 </button>
+            @endif
+
+            {{-- Status Official Completed Badge --}}
+            @if($invoiceRequest->status === 'official_issued')
+                <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
+                    <i class="fas fa-check-double"></i> ĐÃ XÁC NHẬN HOÀN TẤT
+                </span>
             @endif
         </div>
     </div>
+
+    @if($invoiceRequest->status === 'rejected')
+        <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-start">
+                <div class="flex-shrink-0 text-red-500">
+                    <i class="fas fa-exclamation-triangle text-lg"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-bold text-red-800">Sales phản hồi Hóa đơn chưa chính xác / Cần chỉnh sửa</h3>
+                    <div class="mt-1 text-xs text-red-700">
+                        <strong>Lý do phản hồi:</strong> {{ $invoiceRequest->rejection_reason }}
+                    </div>
+                    <div class="mt-2 text-[11px] text-red-600">
+                        * Kế toán kiểm tra lý do trên, chuẩn bị file hóa đơn mới và bấm nút <strong>"IMPORT LẠI FILE HÓA ĐƠN MỚI"</strong> để cập nhật phiên bản mới.
+                    </div>
+                </div>
+            </div>
+            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+                <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow transition-all flex items-center gap-2 flex-shrink-0">
+                    <i class="fas fa-file-import"></i> IMPORT LẠI FILE HÓA ĐƠN MỚI
+                </button>
+            @endif
+        </div>
+    @endif
 
     <!-- Main Layout -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <!-- Cột Trái & Giữa: Thông tin yêu cầu -->
         <div class="lg:col-span-2 space-y-6">
+            <!-- Timeline & Lịch sử các lần thay đổi file hóa đơn nháp -->
+            <div class="bg-white rounded-xl border border-gray-150 p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-indigo-900 border-b border-gray-100 pb-3 uppercase tracking-wider flex items-center justify-between mb-4">
+                    <span><i class="fas fa-history text-indigo-500 mr-2"></i> Lịch sử các lần thay đổi file & Phản hồi</span>
+                    <span class="text-xs text-gray-500 font-normal">Tổng số phiên bản: {{ $invoiceRequest->revisions ? $invoiceRequest->revisions->count() : 0 }}</span>
+                </h3>
+
+                @if($invoiceRequest->revisions && $invoiceRequest->revisions->count() > 0)
+                    <div class="space-y-3">
+                        @foreach($invoiceRequest->revisions as $rev)
+                            <div class="p-3.5 rounded-lg border {{ $rev->action === 'draft_rejected' ? 'bg-red-50/60 border-red-200' : ($rev->action === 'reimported' ? 'bg-blue-50/60 border-blue-200' : 'bg-gray-50 border-gray-200') }}">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase {{ $rev->action === 'draft_rejected' ? 'bg-red-100 text-red-800' : ($rev->action === 'reimported' ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-800') }}">
+                                            v{{ $rev->version }}
+                                        </span>
+                                        <span class="text-xs font-bold text-gray-800">{{ $rev->formatted_action }}</span>
+                                    </div>
+                                    <div class="text-[11px] text-gray-500">
+                                        <i class="far fa-clock mr-1"></i> {{ $rev->created_at->format('d/m/Y H:i') }}
+                                        @if($rev->user)
+                                            | <span class="font-semibold text-gray-700">{{ $rev->user->name }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                @if($rev->note)
+                                    <div class="text-xs text-gray-700 mt-1 p-2 bg-white/80 rounded border border-gray-150">
+                                        <strong class="text-gray-800">Ghi chú / Lý do:</strong> {{ $rev->note }}
+                                    </div>
+                                @endif
+
+                                @if($rev->draft_path || $rev->official_path || $rev->delivery_note_path)
+                                    <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-gray-200/60">
+                                        @if($rev->draft_path)
+                                            <a href="{{ asset('storage/' . $rev->draft_path) }}" target="_blank" class="inline-flex items-center text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-sm">
+                                                <i class="fas fa-file-pdf mr-1 text-blue-500"></i> Hóa đơn nháp (File v{{ $rev->version }})
+                                            </a>
+                                        @endif
+                                        @if($rev->official_path)
+                                            <a href="{{ asset('storage/' . $rev->official_path) }}" target="_blank" class="inline-flex items-center text-[11px] font-bold text-green-600 hover:text-green-800 bg-white px-2 py-0.5 rounded border border-green-200 shadow-sm">
+                                                <i class="fas fa-file-invoice mr-1 text-green-500"></i> Hóa đơn chính thức
+                                            </a>
+                                        @endif
+                                        @if($rev->delivery_note_path)
+                                            <a href="{{ asset('storage/' . $rev->delivery_note_path) }}" target="_blank" class="inline-flex items-center text-[11px] font-bold text-purple-600 hover:text-purple-800 bg-white px-2 py-0.5 rounded border border-purple-200 shadow-sm">
+                                                <i class="fas fa-clipboard-check mr-1 text-purple-500"></i> BB Bàn giao
+                                            </a>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-xs text-gray-500 italic p-3 text-center bg-gray-50 rounded">Chưa có lịch sử phiên bản nào.</div>
+                @endif
+            </div>
             <!-- Thông tin các bên -->
             <div class="bg-white rounded-xl border border-gray-150 p-6 shadow-sm">
                 <h3 class="text-sm font-bold text-indigo-900 border-b border-gray-100 pb-3 uppercase tracking-wider flex items-center gap-2 mb-4">
@@ -170,7 +277,20 @@
                                     <td class="px-4 py-3 text-gray-500">{{ $index + 1 }}</td>
                                     <td class="px-4 py-3 font-semibold text-gray-800">
                                         {{ $productCode }}
-                                        <div class="text-xs font-normal text-gray-500 mt-0.5">{{ $item->product->name ?? $saleItem->product_name ?? $item->product_name }}</div>
+                                        @php
+                                            $customPartDesc = null;
+                                            if (!empty($invoiceRequest->item_descriptions)) {
+                                                $sId = $saleItem ? $saleItem->id : $item->id;
+                                                $customPartDesc = $invoiceRequest->item_descriptions[$sId] ?? $invoiceRequest->item_descriptions[$productId] ?? null;
+                                            }
+                                        @endphp
+                                        @if($customPartDesc && $customPartDesc !== ($item->product->name ?? $saleItem->product_name ?? $item->product_name))
+                                            <div class="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 mt-1 inline-block">
+                                                <i class="fas fa-file-signature text-[10px] mr-1"></i>Nội dung xuất HĐ: {{ $customPartDesc }}
+                                            </div>
+                                        @else
+                                            <div class="text-xs font-normal text-gray-500 mt-0.5">{{ $item->product->name ?? $saleItem->product_name ?? $item->product_name }}</div>
+                                        @endif
                                     </td>
                                     @if($sale->items->first() && array_key_exists('custom_fields', $sale->items->first()->toArray()))
                                         <td class="px-4 py-3 text-xs text-gray-600 italic">
@@ -303,7 +423,7 @@
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
         <!-- Draft Header -->
         <div id="modalHeaderDraft" class="hidden p-6 border-b border-gray-100 flex justify-between items-center bg-blue-50 rounded-t-xl">
-            <h3 class="text-lg font-bold text-blue-900">Duyệt & Tải lên hóa đơn nháp</h3>
+            <h3 class="text-lg font-bold text-blue-900">Tải lên / Import lại hóa đơn nháp</h3>
             <button onclick="closeActionModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
         <!-- Official Header -->
@@ -313,7 +433,7 @@
         </div>
         <!-- Reject Header -->
         <div id="modalHeaderReject" class="hidden p-6 border-b border-gray-100 flex justify-between items-center bg-red-50 rounded-t-xl">
-            <h3 class="text-lg font-bold text-red-900">Từ chối yêu cầu xuất hóa đơn</h3>
+            <h3 class="text-lg font-bold text-red-900">Báo Hóa đơn nháp chưa chính xác</h3>
             <button onclick="closeActionModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
 
@@ -323,11 +443,14 @@
             <!-- Draft Form Content -->
             <div id="formContentDraft" class="hidden space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Chọn file hóa đơn nháp (PDF, PNG, JPG)</label>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Chọn file hóa đơn nháp (PDF, PNG, JPG, DOCX)</label>
                     <input type="file" name="draft_file" accept=".pdf,image/*,.doc,.docx"
-                        class="w-full border border-dashed border-gray-300 rounded-lg px-4 py-8 text-center cursor-pointer hover:bg-gray-50 transition-all">
+                        class="w-full border border-dashed border-gray-300 rounded-lg px-4 py-6 text-center cursor-pointer hover:bg-gray-50 transition-all">
                 </div>
-                <p class="text-[10px] text-gray-500 mt-2 italic">* Nếu không đính kèm file, hệ thống sẽ sử dụng bản in mặc định của SO làm bản nháp.</p>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ghi chú cho phiên bản này (Không bắt buộc)</label>
+                    <input type="text" name="note" placeholder="VD: Đã điều chỉnh địa chỉ thuế theo yêu cầu của Sales..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
             </div>
 
             <!-- Official Form Content -->
@@ -357,8 +480,8 @@
             <!-- Reject Form Content -->
             <div id="formContentReject" class="hidden space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lý do từ chối xuất HĐ <span class="text-red-500">*</span></label>
-                    <textarea name="reason" rows="3" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="VD: Thiếu UNC hoặc sai thông tin thuế..."></textarea>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lý do phản hồi HĐ chưa chính xác <span class="text-red-500">*</span></label>
+                    <textarea name="reason" rows="3" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="VD: Nhầm tên công ty thuế, sai đơn giá sản phẩm, hoặc thiếu thông tin..."></textarea>
                 </div>
             </div>
 
@@ -391,7 +514,7 @@ function openActionModal(action) {
         document.getElementById('formContentDraft').classList.remove('hidden');
         form.action = "{{ route('invoice-requests.issue-draft', $invoiceRequest->id) }}";
         submitBtn.className = "flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm shadow";
-        submitBtn.innerText = "XÁC NHẬN NHÁP";
+        submitBtn.innerText = "XÁC NHẬN IMPORT NHÁP";
     } else if (action === 'official') {
         document.getElementById('modalHeaderOfficial').classList.remove('hidden');
         document.getElementById('formContentOfficial').classList.remove('hidden');
@@ -404,13 +527,13 @@ function openActionModal(action) {
         updatePaymentDueDate(formattedToday);
         
         submitBtn.className = "flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm shadow";
-        submitBtn.innerText = "XUẤT HÓA ĐƠN";
+        submitBtn.innerText = "XUẤT HÓA ĐƠN CHÍNH THỨC";
     } else if (action === 'reject') {
         document.getElementById('modalHeaderReject').classList.remove('hidden');
         document.getElementById('formContentReject').classList.remove('hidden');
         form.action = "{{ route('invoice-requests.reject', $invoiceRequest->id) }}";
         submitBtn.className = "flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm shadow";
-        submitBtn.innerText = "TỪ CHỐI";
+        submitBtn.innerText = "GỬI BÁO SAI";
     }
     
     modal.classList.remove('hidden');
@@ -447,11 +570,173 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+
+<!-- Modal Chỉnh sửa Nội dung Hóa đơn & từng Part (STT 7) -->
+<div id="editContentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full transform transition-all overflow-hidden">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-50">
+            <h3 class="text-lg font-bold text-indigo-900"><i class="fas fa-edit mr-2"></i>Chỉnh sửa Yêu cầu xuất hóa đơn</h3>
+            <button onclick="closeEditContentModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        <form action="{{ route('invoice-requests.update-content', $invoiceRequest->id) }}" method="POST" class="p-6 overflow-y-auto max-h-[85vh] space-y-6">
+            @csrf @method('PUT')
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Cột trái: Thông tin hóa đơn & Bên bán -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-wider border-b border-indigo-50 pb-1.5">
+                        <i class="fas fa-file-contract mr-1.5"></i>Thông tin hóa đơn & Bên bán</h4>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tên người bán (Sales P.I.C) <span class="text-red-500">*</span></label>
+                        <input type="text" name="seller_name" value="{{ $invoiceRequest->seller_name }}" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Đơn vị bán hàng <span class="text-red-500">*</span></label>
+                        <input type="text" name="seller_company" value="{{ $invoiceRequest->seller_company }}" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Nội dung xuất hóa đơn (Thiết bị/Dịch vụ)</label>
+                        <textarea name="invoice_content_note" rows="3"
+                            placeholder="Chi tiết sản phẩm, nội dung đặc biệt khi xuất hóa đơn..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">{{ $invoiceRequest->invoice_content_note }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Cột phải: Thông tin giao hàng & Bên mua -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-wider border-b border-indigo-50 pb-1.5">
+                        <i class="fas fa-shipping-fast mr-1.5"></i>Thông tin giao hàng & Bên mua</h4>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tên Công ty/Cá nhân mua hàng <span class="text-red-500">*</span></label>
+                        <input type="text" name="tax_name" value="{{ $invoiceRequest->tax_name }}" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Mã số thuế <span class="text-red-500">*</span></label>
+                            <input type="text" name="tax_code" value="{{ $invoiceRequest->tax_code }}" required
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Email nhận HĐ</label>
+                            <input type="email" name="billing_email" value="{{ $invoiceRequest->billing_email }}"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Địa chỉ xuất hóa đơn <span class="text-red-500">*</span></label>
+                        <textarea name="tax_address" rows="2" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">{{ $invoiceRequest->tax_address }}</textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Người nhận hàng</label>
+                            <input type="text" name="delivery_contact" value="{{ $invoiceRequest->delivery_contact }}"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">SĐT nhận hàng</label>
+                            <input type="text" name="delivery_phone" value="{{ $invoiceRequest->delivery_phone }}"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Địa chỉ giao nhận thực tế</label>
+                        <textarea name="delivery_address" rows="2"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">{{ $invoiceRequest->delivery_address }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nội dung xuất HĐ chi tiết từng sản phẩm / Part (STT 7) -->
+            <div class="mt-6 pt-4 border-t border-gray-100">
+                <label class="block text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i class="fas fa-edit"></i> Nội dung xuất hóa đơn theo từng sản phẩm / Part (Tùy chỉnh nếu cần)
+                </label>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-gray-50 text-gray-600 font-bold uppercase">
+                            <tr>
+                                <th class="p-2.5 w-12 text-center">STT</th>
+                                <th class="p-2.5">Sản phẩm / Part Number</th>
+                                <th class="p-2.5 w-24 text-right">Số lượng</th>
+                                <th class="p-2.5">Nội dung xuất HĐ tùy chỉnh (cho Part này)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            @foreach($sale->items as $idx => $sItem)
+                                @php
+                                    $pCode = $sItem->product->code ?? $sItem->product_name;
+                                    $pName = $sItem->product->name ?? $sItem->product_name;
+                                    $curCustom = $invoiceRequest->item_descriptions[$sItem->id] ?? $pName;
+                                @endphp
+                                <tr>
+                                    <td class="p-2.5 text-center font-bold text-gray-500">{{ $idx + 1 }}</td>
+                                    <td class="p-2.5">
+                                        <div class="font-bold text-gray-800">{{ $pName }}</div>
+                                        <div class="text-[11px] text-indigo-600 font-mono">PN: {{ $pCode }}</div>
+                                    </td>
+                                    <td class="p-2.5 text-right font-bold text-gray-800">{{ $sItem->quantity }}</td>
+                                    <td class="p-2.5">
+                                        <input type="text" name="item_descriptions[{{ $sItem->id }}]" value="{{ $curCustom }}"
+                                            placeholder="Nhập tên/nội dung xuất HĐ thay thế cho part này..."
+                                            class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Dòng dưới cùng: Điều khoản thanh toán & Ghi chú thêm -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-4 border-t border-gray-100">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Điều khoản thanh toán của đơn hàng</label>
+                    <textarea name="payment_terms_note" rows="2"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">{{ $invoiceRequest->payment_terms_note }}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ghi chú thêm gửi kế toán</label>
+                    <textarea name="note" rows="2" placeholder="Ghi chú thêm..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">{{ $invoiceRequest->note }}</textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <button type="button" onclick="closeEditContentModal()" class="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200">HỦY</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg text-xs hover:bg-indigo-700 shadow-md"><i class="fas fa-save mr-1"></i>LƯU THAY ĐỔI</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditContentModal() {
+    document.getElementById('editContentModal').classList.remove('hidden');
+}
+function closeEditContentModal() {
+    document.getElementById('editContentModal').classList.add('hidden');
+}
 
 // Close on escape
 window.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeActionModal();
+        closeEditContentModal();
     }
 });
 </script>

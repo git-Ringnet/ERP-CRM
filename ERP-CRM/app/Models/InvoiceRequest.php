@@ -33,6 +33,11 @@ class InvoiceRequest extends Model
         'delivery_contact',
         'delivery_phone',
         'payment_terms_note',
+        'item_descriptions',
+    ];
+
+    protected $casts = [
+        'item_descriptions' => 'array',
     ];
 
     /**
@@ -76,15 +81,23 @@ class InvoiceRequest extends Model
     }
 
     /**
+     * Relationship with Revisions (Lịch sử các phiên bản HĐ nháp/chính thức)
+     */
+    public function revisions()
+    {
+        return $this->hasMany(InvoiceRequestRevision::class)->orderBy('version', 'desc')->orderBy('id', 'desc');
+    }
+
+    /**
      * Get status label
      */
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {
-            'pending' => 'Chờ xử lý',
-            'draft_issued' => 'Đã xuất nháp',
-            'official_issued' => 'Đã xuất chính thức',
-            'rejected' => 'Bị từ chối',
+            'pending' => 'Chờ KT import hóa đơn',
+            'draft_issued' => 'Đã đính kèm HĐ (Chờ Sales xác nhận)',
+            'official_issued' => 'Đã xác nhận hoàn tất',
+            'rejected' => 'Hóa đơn chưa chính xác',
             default => 'Không xác định',
         };
     }
@@ -95,9 +108,9 @@ class InvoiceRequest extends Model
     public function getStatusColorAttribute(): string
     {
         return match($this->status) {
-            'pending' => 'bg-yellow-100 text-yellow-800',
+            'pending' => 'bg-amber-100 text-amber-800',
             'draft_issued' => 'bg-blue-100 text-blue-800',
-            'official_issued' => 'bg-green-100 text-green-800',
+            'official_issued' => 'bg-emerald-100 text-emerald-800',
             'rejected' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
         };

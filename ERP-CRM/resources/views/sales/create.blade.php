@@ -326,9 +326,22 @@
             </div>
 
             <!-- Payment terms type and Milestones Editor -->
+            @php
+                $currentUser = auth()->user();
+                $canCustomizePaymentTerms = $currentUser && (
+                    $currentUser->hasRole('super_admin') || 
+                    $currentUser->hasRole('admin') || 
+                    $currentUser->hasRole('director') || 
+                    $currentUser->hasRole('accountant')
+                );
+            @endphp
+            <script>
+                window.canCustomizePaymentTerms = {{ $canCustomizePaymentTerms ? 'true' : 'false' }};
+            </script>
             <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết
+                <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                    <span class="flex items-center"><i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết</span>
+                    <span class="text-xs font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i class="fas fa-info-circle mr-1"></i>Chọn theo Điều khoản mẫu quy định</span>
                 </h4>
                 
                 <input type="hidden" name="payment_term_type" id="payment_term_type" value="">
@@ -342,7 +355,6 @@
                             @foreach($paymentTemplates as $tpl)
                                 <option value="template_{{ $tpl->id }}" data-items="{{ json_encode($tpl->items) }}" data-code="{{ $tpl->code }}">{{ $tpl->name }}</option>
                             @endforeach
-                            <option value="custom">Tùy chỉnh...</option>
                         </select>
                     </div>
                 </div>
@@ -364,18 +376,16 @@
 
                 <div id="milestonesTableContainer" class="hidden mt-3">
                     <div class="overflow-x-auto pb-2">
-                        <table class="w-full text-left border-collapse min-w-[1200px]">
+                        <table class="w-full text-left border-collapse min-w-[1000px]">
                             <thead>
                                 <tr class="bg-gray-100 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                    <th class="p-2 min-w-[250px] text-sm">Tên đợt thanh toán</th>
+                                    <th class="p-2 min-w-[220px] text-sm">Tên đợt thanh toán</th>
                                     <th class="p-2 min-w-[90px] text-sm">Tỷ lệ (%)</th>
                                     <th class="p-2 min-w-[160px] text-sm">Số tiền (Tự tính)</th>
                                     <th class="p-2 min-w-[180px] text-sm">Thời điểm thanh toán</th>
                                     <th class="p-2 min-w-[160px] text-sm">Giai đoạn kiểm soát</th>
-                                    <th class="p-2 min-w-[80px] text-sm">Có chặn?</th>
                                     <th class="p-2 min-w-[140px] text-sm">Chứng từ bắt buộc</th>
                                     <th class="p-2 min-w-[100px] text-sm">Hạn (ngày)</th>
-                                    <th class="p-2 w-10 text-center text-sm">Xóa</th>
                                 </tr>
                             </thead>
                             <tbody id="milestoneList" class="divide-y divide-gray-100">
@@ -386,9 +396,6 @@
                     
                     <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
                         <span id="milestonePercentSumIndicator" class="text-sm font-semibold text-gray-700">Tổng tỷ lệ: 0%</span>
-                        <button type="button" onclick="addPaymentMilestone()" class="btn-secondary text-xs py-1.5 px-3">
-                            <i class="fas fa-plus mr-1"></i> Thêm đợt thanh toán
-                        </button>
                     </div>
                 </div>
             </div>
@@ -2116,6 +2123,11 @@ function addPaymentMilestone(ms = {}) {
     const list = document.getElementById('milestoneList');
     if (!list) return;
 
+    const isSalesReadOnly = !window.canCustomizePaymentTerms;
+    const readOnlyAttr = isSalesReadOnly ? 'readonly' : '';
+    const disabledAttr = isSalesReadOnly ? 'disabled' : '';
+    const bgClass = isSalesReadOnly ? 'bg-gray-100 text-gray-700 cursor-not-allowed' : '';
+
     const index = milestoneIndex++;
     const label = ms.milestone_name || ms.label || '';
     const percent = ms.percentage || ms.percent || 0;
@@ -2137,70 +2149,63 @@ function addPaymentMilestone(ms = {}) {
     row.id = `milestone-row-${index}`;
     row.innerHTML = `
         <td class="p-2">
-            <input type="text" name="payment_terms[${index}][milestone_name]" value="${label}" required
-                   list="milestone-names" placeholder="VD: Cọc, Đợt 1,..." class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+            <input type="text" name="payment_terms[${index}][milestone_name]" value="${label}" required readonly
+                   list="milestone-names" placeholder="VD: Cọc, Đợt 1,..." class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="number" name="payment_terms[${index}][percentage]" value="${percent}" required min="0" max="100" step="any"
-                       class="milestone-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right">
+                <input type="number" name="payment_terms[${index}][percentage]" value="${percent}" required min="0" max="100" step="any" readonly
+                       class="milestone-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right bg-gray-50 text-gray-800">
                 <span class="ml-1 text-sm text-gray-500">%</span>
             </div>
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="text" inputmode="numeric" name="payment_terms[${index}][amount]" value="${formattedAmount}" required
-                       class="milestone-amount-input w-36 border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium">
+                <input type="text" inputmode="numeric" name="payment_terms[${index}][amount]" value="${formattedAmount}" required readonly
+                       class="milestone-amount-input w-36 border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium bg-gray-50 text-gray-800">
                 <span class="ml-1 text-sm text-gray-500">₫</span>
             </div>
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][timing]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+            <select name="payment_terms[${index}][timing]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
                 <option value="after_contract" ${timing === 'after_contract' ? 'selected' : ''}>Sau khi ký HĐMB</option>
                 <option value="after_delivery_notice" ${timing === 'after_delivery_notice' ? 'selected' : ''}>Sau khi có thông báo giao hàng</option>
                 <option value="before_export" ${timing === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
                 <option value="after_delivery" ${timing === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
                 <option value="after_invoice" ${timing === 'after_invoice' ? 'selected' : ''}>Sau khi xuất hóa đơn</option>
             </select>
+            <input type="hidden" name="payment_terms[${index}][timing]" value="${timing}">
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][required_before]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+            <select name="payment_terms[${index}][required_before]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
                 <option value="before_order" ${requiredBefore === 'before_order' ? 'selected' : ''}>Trước khi đặt hàng</option>
                 <option value="before_export" ${requiredBefore === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
                 <option value="after_delivery" ${requiredBefore === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
             </select>
+            <input type="hidden" name="payment_terms[${index}][required_before]" value="${requiredBefore}">
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][is_blocking]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
-                <option value="yes" ${isBlocking === 'yes' ? 'selected' : ''}>Có</option>
-                <option value="no" ${isBlocking === 'no' ? 'selected' : ''}>Không</option>
-            </select>
-        </td>
-        <td class="p-2">
-            <select name="payment_terms[${index}][required_docs]" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+            <select name="payment_terms[${index}][required_docs]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
                 <option value="unc" ${requiredDocs === 'unc' ? 'selected' : ''}>UNC</option>
                 <option value="credit_note" ${requiredDocs === 'credit_note' ? 'selected' : ''}>Giấy báo có</option>
                 <option value="other" ${requiredDocs === 'other' ? 'selected' : ''}>Chứng từ khác</option>
                 <option value="none" ${requiredDocs === 'none' ? 'selected' : ''}>Không yêu cầu</option>
             </select>
+            <input type="hidden" name="payment_terms[${index}][required_docs]" value="${requiredDocs}">
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="number" name="payment_terms[${index}][due_days]" value="${dueDays}" required min="0"
-                       class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right">
+                <input type="number" name="payment_terms[${index}][due_days]" value="${dueDays}" required min="0" readonly
+                       class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right bg-gray-50 text-gray-800">
                 <span class="ml-1 text-xs text-gray-500">ngày</span>
             </div>
+            <input type="hidden" name="payment_terms[${index}][is_blocking]" value="${isBlocking}">
             <input type="hidden" name="payment_terms[${index}][status]" value="${ms.status || 'unpaid'}">
             <input type="hidden" name="payment_terms[${index}][confirmed_by]" value="${ms.confirmed_by || ''}">
             <input type="hidden" name="payment_terms[${index}][confirmed_at]" value="${ms.confirmed_at || ''}">
             <input type="hidden" name="payment_terms[${index}][proof_file_path]" value="${ms.proof_file_path || ''}">
             <input type="hidden" name="payment_terms[${index}][bod_approval_file_path]" value="${ms.bod_approval_file_path || ''}">
             <input type="hidden" name="payment_terms[${index}][delegated_to_id]" value="${ms.delegated_to_id || ''}">
-        </td>
-        <td class="p-2 text-center">
-            <button type="button" onclick="removePaymentMilestone(${index})" class="text-red-500 hover:text-red-700">
-                <i class="fas fa-trash-alt"></i>
-            </button>
         </td>
     `;
     list.appendChild(row);

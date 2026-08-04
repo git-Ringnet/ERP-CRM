@@ -466,23 +466,9 @@ class ImportController extends Controller
                 }
             }
 
-            // Kiểm tra xem đã về đủ hàng so với PO chưa (nếu có reference PO)
-            $allDone = true;
-            if ($import->reference_type === 'purchase_order') {
-                $po = PurchaseOrder::find($import->reference_id);
-                if ($po) {
-                    $po->load('items');
-                    // Nếu PO vẫn còn món chưa về (không phải received/cancelled) thì chưa xong
-                    $hasMoreInPo = $po->items->contains(fn($i) => !in_array($i->status, ['received', 'cancelled']));
-                    if ($hasMoreInPo) {
-                        $allDone = false;
-                    }
-                }
-            }
-
-            // Cập nhật trạng thái phiếu
+            // Cập nhật trạng thái phiếu nhập kho thành hoàn thành (Đã duyệt)
             $import->update([
-                'status' => $allDone ? 'completed' : 'pending'
+                'status' => 'completed'
             ]);
 
             // Tạo bút toán kế toán tự động (Lịch sử: Duyệt)
@@ -497,7 +483,7 @@ class ImportController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => $allDone ? 'Toàn bộ phiếu nhập đã được duyệt hoàn tất.' : 'Đã duyệt nhập kho các sản phẩm vừa về. Phiếu vẫn mở để chờ đợt hàng tiếp theo.'
+                'message' => 'Duyệt phiếu nhập kho thành công. Tất cả sản phẩm trong phiếu đã được nhập vào kho.'
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
             DB::rollBack();

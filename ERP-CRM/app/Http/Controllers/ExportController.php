@@ -53,7 +53,7 @@ class ExportController extends Controller
     {
         $this->authorize('viewAny', Export::class);
 
-        $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer']);
+        $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer', 'sale.invoiceRequests']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -83,9 +83,26 @@ class ExportController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        // Search by code
+        // Multi-criteria Search (Code, Sale Order SO, PO Number from linked Purchase Orders, Customer, Invoice Request ID)
         if ($request->filled('search')) {
-            $query->where('code', 'like', "%{$request->search}%");
+            $search = trim($request->search);
+            $query->where(function($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('note', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('sale', function($sq) use ($search) {
+                      $sq->where('code', 'like', "%{$search}%")
+                        ->orWhereHas('invoiceRequests', function($iq) use ($search) {
+                            $iq->where('id', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('orderRequests.items.purchaseOrderItems.purchaseOrder', function($poq) use ($search) {
+                            $poq->where('code', 'like', "%{$search}%");
+                        });
+                  });
+            });
         }
 
         $exports = $query->orderBy('date', 'desc')

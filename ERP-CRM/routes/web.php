@@ -221,7 +221,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/invoice-requests/{invoiceRequest}', [\App\Http\Controllers\InvoiceRequestController::class, 'show'])->name('invoice-requests.show');
     Route::post('/invoice-requests/{invoiceRequest}/issue-draft', [\App\Http\Controllers\InvoiceRequestController::class, 'issueDraft'])->name('invoice-requests.issue-draft');
     Route::post('/invoice-requests/{invoiceRequest}/issue-official', [\App\Http\Controllers\InvoiceRequestController::class, 'issueOfficial'])->name('invoice-requests.issue-official');
+    Route::post('/invoice-requests/{invoiceRequest}/confirm', [\App\Http\Controllers\InvoiceRequestController::class, 'confirm'])->name('invoice-requests.confirm');
     Route::post('/invoice-requests/{invoiceRequest}/reject', [\App\Http\Controllers\InvoiceRequestController::class, 'reject'])->name('invoice-requests.reject');
+    Route::put('/invoice-requests/{invoiceRequest}/update-content', [\App\Http\Controllers\InvoiceRequestController::class, 'updateContent'])->name('invoice-requests.update-content');
     Route::delete('/invoice-requests/{invoiceRequest}', [\App\Http\Controllers\InvoiceRequestController::class, 'cancel'])->name('invoice-requests.cancel');
 
     // Cost Formula routes
@@ -329,6 +331,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-orders/export/excel', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
     Route::get('/purchase-orders/pr-items', [PurchaseOrderController::class, 'getPrItems'])->name('purchase-orders.pr-items');
     Route::get('/api/purchase-orders/generate-code', [PurchaseOrderController::class, 'generateCodeApi'])->name('purchase-orders.generate-code-api');
+    Route::get('/purchase-orders/import-serials-template', [PurchaseOrderController::class, 'downloadImportSerialsTemplate'])->name('purchase-orders.import-serials-template');
     Route::resource('purchase-orders', PurchaseOrderController::class);
     Route::post('/purchase-orders/{purchaseOrder}/submit-approval', [PurchaseOrderController::class, 'submitApproval'])->name('purchase-orders.submit-approval');
     Route::post('/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');

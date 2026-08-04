@@ -222,6 +222,33 @@ class ProductItem extends Model
         return $this->po_item ? $this->po_item->saleOrderRequestItem : null;
     }
 
+    /**
+     * Determine if this ProductItem is classified as a Project item (Hàng dự án) vs Run-rate item (Hàng run-rate)
+     */
+    public function isProjectItem(): bool
+    {
+        if ($this->warehouse && $this->warehouse->code === 'WH_PROJECT') {
+            return true;
+        }
+        if ($this->warehouse && $this->warehouse->code === 'WH_RUNRATE') {
+            return false;
+        }
+
+        if ($this->sale_order_request_item) {
+            return $this->sale_order_request_item->isProjectItem();
+        }
+
+        if ($this->import && $this->import->purchaseOrder) {
+            foreach ($this->import->purchaseOrder->items as $poItem) {
+                if ($poItem->saleOrderRequestItem) {
+                    return $poItem->saleOrderRequestItem->isProjectItem();
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function getProjectNameAttribute(): ?string
     {
         // Try to get sale from sale order request item or purchase order

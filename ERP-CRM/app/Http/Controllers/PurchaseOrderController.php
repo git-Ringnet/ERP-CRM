@@ -1107,6 +1107,7 @@ class PurchaseOrderController extends Controller
             }
         }
 
+        $oldReceivedQty = (float) $item->received_quantity;
         // Cập nhật số lượng đã nhận nếu trạng thái là received
         if ($validated['status'] === 'received') {
             $item->received_quantity = $item->quantity;
@@ -1118,7 +1119,10 @@ class PurchaseOrderController extends Controller
 
         // Logic tạo phiếu nhập kho (Import) khi hàng về
         if ($validated['status'] === 'received') {
-            $this->syncPoItemToImport($item);
+            $batchQty = $item->quantity - $oldReceivedQty;
+            if ($batchQty > 0) {
+                $this->syncPoItemToImport($item, $batchQty);
+            }
         }
 
         // Auto-check: nếu tất cả items đều 'received' → cập nhật PO status
@@ -1297,8 +1301,10 @@ class PurchaseOrderController extends Controller
 
             // Cập nhật received_quantity CHỈ cho các items vừa chuyển (không động vào items đã received trước đó)
             $purchaseOrder->load('items');
+            $itemBatchQtys = [];
             foreach ($purchaseOrder->items as $item) {
                 if (in_array($item->id, $shippingItemIds) && $item->received_quantity < $item->quantity) {
+                    $itemBatchQtys[$item->id] = $item->quantity - $item->received_quantity;
                     $item->received_quantity = $item->quantity;
                     $item->save();
                 }
@@ -1320,7 +1326,8 @@ class PurchaseOrderController extends Controller
             // Sync CHỈ các items vừa mới chuyển sang 'received' (không sync lại items đã nhập kho trước đó)
             foreach ($purchaseOrder->items as $item) {
                 if (in_array($item->id, $shippingItemIds)) {
-                    $this->syncPoItemToImport($item);
+                    $batchQty = $itemBatchQtys[$item->id] ?? $item->quantity;
+                    $this->syncPoItemToImport($item, $batchQty);
                 }
             }
 
@@ -1350,7 +1357,7 @@ class PurchaseOrderController extends Controller
     /**
      * Đồng bộ một sản phẩm từ PO sang Phiếu nhập kho (Import)
      */
-    private function syncPoItemToImport(PurchaseOrderItem $item): void
+    private function syncPoItemToImport(PurchaseOrderItem $item, ?float $batchQty = null): void
     {
         try {
             $po = $item->purchaseOrder;
@@ -1405,23 +1412,42 @@ class PurchaseOrderController extends Controller
 
             $itemWarehouseId = $this->purchaseImportSyncService->resolveWarehouseForPoItem($item, $import->warehouse_id);
 
-            if (!$existing) {
+            // Parse and filter out already imported serials
+            $poSerials = [];
+            if (!empty($item->serial_number)) {
+                $decoded = is_array($item->serial_number) ? $item->serial_number : json_decode($item->serial_number, true);
+                if (is_array($decoded)) {
+                    $poSerials = array_values(array_filter($decoded, fn($s) => !empty(trim((string)$s))));
+                }
+            }
+            if (!empty($poSerials)) {
+                $existingRealSerials = \App\Models\ProductItem::where('product_id', $item->product_id)
+                    ->whereIn('sku', $poSerials)
+                    ->pluck('sku')
+                    ->toArray();
+                $poSerials = array_values(array_diff($poSerials, $existingRealSerials));
+            }
+            $serialJson = !empty($poSerials) ? json_encode($poSerials) : null;
+
+            $qtyToImport = $batchQty !== null ? $batchQty : $item->quantity;
+
+            if (!$existing || $existing->processed_at !== null) {
                 \App\Models\ImportItem::create([
                     'import_id' => $import->id,
                     'product_id' => $item->product_id,
                     'warehouse_id' => $itemWarehouseId,
-                    'quantity' => $item->quantity,
+                    'quantity' => $qtyToImport,
                     'cost' => $item->unit_price, 
                     'warehouse_price' => $item->unit_price,
                     'comments' => $comment,
-                    'serial_number' => $item->serial_number,
+                    'serial_number' => $serialJson,
                 ]);
             } else {
                 $existing->update([
-                    'quantity' => $item->quantity,
+                    'quantity' => $qtyToImport,
                     'warehouse_id' => $itemWarehouseId,
                     'comments' => $comment,
-                    'serial_number' => $item->serial_number,
+                    'serial_number' => $serialJson,
                 ]);
             }
 
@@ -1670,6 +1696,22 @@ class PurchaseOrderController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Import thất bại: ' . $e->getMessage());
+        }
+    }
+
+    public function downloadImportSerialsTemplate()
+    {
+        $this->authorize('viewAny', PurchaseOrder::class);
+
+        try {
+            $excelImportService = app(\App\Services\ExcelImportService::class);
+            $tempFile = $excelImportService->generatePoSerialTemplate();
+            
+            $filename = 'mau_import_serial_po_' . date('Y-m-d') . '.xlsx';
+            
+            return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Lỗi khi tạo file mẫu: ' . $e->getMessage());
         }
     }
 

@@ -1540,4 +1540,23 @@ class Sale extends Model
             'has_exception' => (bool) $this->is_payment_exception,
         ];
     }
+
+    /**
+     * Determine if this Sale order is a Project Order (Hàng có mã dự án / Đơn hàng dự án)
+     */
+    public function isProjectOrder(): bool
+    {
+        if (!empty($this->project_id)) {
+            return true;
+        }
+        if ($this->type === 'project') {
+            return true;
+        }
+        foreach ($this->items as $item) {
+            if ($item->isProjectItem()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

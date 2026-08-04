@@ -34,7 +34,7 @@
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
                                 <i class="fas fa-search text-xs"></i>
                             </span>
-                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã phiếu..."
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Mã phiếu, SO, PO, HĐ, Khách hàng..."
                                 style="padding-left: 2.5rem !important;"
                                 class="w-full pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
                         </div>
@@ -133,6 +133,7 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn hàng SO / PO / HĐ</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dự án / Khách hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
@@ -150,6 +151,56 @@
                                     class="text-orange-600 hover:text-orange-800 font-medium">
                                     {{ $export->code }}
                                 </a>
+                            </td>
+                            <td class="px-4 py-3 text-sm">
+                                @php
+                                    $saleObj = $export->sale;
+                                    if (!$saleObj && str_starts_with($export->code, 'SO-')) {
+                                        $saleObj = \App\Models\Sale::where('code', $export->code)->first();
+                                    }
+                                @endphp
+
+                                @if($saleObj)
+                                    @php
+                                        $custPo = $saleObj->po_number;
+                                        $linkedPos = $saleObj->all_purchase_orders ?? collect();
+                                        $linkedPoCodes = $linkedPos->pluck('code')->filter()->implode(', ');
+                                    @endphp
+                                    <div class="flex flex-col gap-1">
+                                        <!-- SO Code -->
+                                        <a href="{{ route('sales.show', $saleObj) }}" class="font-bold text-indigo-600 hover:underline text-xs flex items-center gap-1">
+                                            <i class="fas fa-shopping-cart text-[10px]"></i> {{ $saleObj->code }}
+                                        </a>
+
+                                        <!-- PO Info (Customer PO & Linked POs) -->
+                                        @if($custPo && !empty($linkedPoCodes) && $custPo !== $linkedPoCodes)
+                                            <div class="text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 w-fit" title="Mã PO Khách hàng">
+                                                <i class="fas fa-file-contract text-[10px] text-blue-500 mr-1"></i>PO KH: {{ $custPo }}
+                                            </div>
+                                            <div class="text-[11px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 w-fit" title="Mã PO Mua hàng">
+                                                <i class="fas fa-truck-loading text-[10px] text-purple-500 mr-1"></i>PO Mua: {{ $linkedPoCodes }}
+                                            </div>
+                                        @elseif($custPo || !empty($linkedPoCodes))
+                                            <div class="text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 w-fit" title="Mã PO liên kết">
+                                                <i class="fas fa-file-contract text-[10px] text-blue-500 mr-1"></i>PO: {{ $custPo ?: $linkedPoCodes }}
+                                            </div>
+                                        @else
+                                            <div class="text-[10px] text-gray-400 italic">
+                                                <i class="fas fa-file-contract text-[10px] mr-1"></i>PO: <span class="text-gray-400 font-normal">Chưa có</span>
+                                            </div>
+                                        @endif
+
+                                        <!-- Invoice Request Badge -->
+                                        @if($saleObj->invoiceRequests && $saleObj->invoiceRequests->count() > 0)
+                                            @php $confirmedInv = $saleObj->invoiceRequests->where('status', 'official_issued')->first() ?: $saleObj->invoiceRequests->first(); @endphp
+                                            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block w-fit">
+                                                <i class="fas fa-file-invoice mr-1"></i>HĐ #{{ $confirmedInv->id }} ({{ $confirmedInv->status_label }})
+                                            </span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-gray-400 text-xs">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-sm">
                                 @if($export->project)

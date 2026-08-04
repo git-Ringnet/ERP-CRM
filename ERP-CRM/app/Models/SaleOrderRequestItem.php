@@ -60,6 +60,39 @@ class SaleOrderRequestItem extends Model
     }
 
     /**
+     * Determine if this item is classified as a Project item (Hàng dự án) vs Run-rate item (Hàng run-rate)
+     */
+    public function isProjectItem(): bool
+    {
+        $vendorName = strtolower($this->vendor ?? ($this->product?->brand ?? ''));
+        $partNumber = strtolower($this->part_number ?? ($this->product?->code ?? ''));
+        $isFortinet = str_contains($vendorName, 'fortinet') 
+            || str_starts_with($partNumber, 'fa') 
+            || str_starts_with($partNumber, 'fg') 
+            || str_starts_with($partNumber, 'fw') 
+            || str_starts_with($partNumber, 'fc') 
+            || str_starts_with($partNumber, 'fad');
+
+        $type = strtoupper(trim((string)($this->type ?? '')));
+        $needsCq = (bool)($this->needs_cq ?? false);
+        $euInfo = trim((string)($this->eu_name_mst ?? $this->eu_name ?? ''));
+
+        if ($isFortinet) {
+            // Fortinet: HW without CQ checkbox & without EU info -> Run-rate
+            if ($type === 'HW' && !$needsCq && empty($euInfo)) {
+                return false;
+            }
+            return true;
+        } else {
+            // Non-Fortinet: empty EU info & needs_cq false -> Run-rate
+            if (empty($euInfo) && !$needsCq) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /**
      * Tính tổng số lượng đã đặt hàng từ các PO liên kết (loại trừ các PO đã hủy)
      */
     public function getOrderedQuantityTotalAttribute(): float
