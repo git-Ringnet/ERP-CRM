@@ -685,40 +685,85 @@ class ExportController extends Controller
             }
         }
 
-        $export->update(['status' => 'pending_invoice']);
-
-        // Notify Accountants
-        $accountants = User::whereHas('roles', function ($q) {
-            $q->where('slug', 'accountant');
-        })->get();
+        $hasConfirmedInvoice = false;
+        if ($export->reference_type === 'sale') {
+            $sale = \App\Models\Sale::find($export->reference_id);
+            if ($sale) {
+                $hasConfirmedInvoice = $sale->invoiceRequests()->where('status', 'official_issued')->exists();
+            }
+        }
 
         $adminName = $user->name;
-        foreach ($accountants as $accountant) {
-            Notification::create([
-                'user_id' => $accountant->id,
-                'type' => 'export_invoice_request',
-                'title' => 'Yêu cầu xuất hóa đơn & giao hàng',
-                'message' => "Admin {$adminName} đã duyệt đề xuất xuất kho cho đơn {$export->code}. Vui lòng xuất hóa đơn và bàn giao hàng.",
-                'link' => route('exports.show', $export->id),
-                'icon' => 'fas fa-file-invoice-dollar',
-                'color' => 'orange',
-            ]);
-        }
 
-        // Notify Sales (creator)
-        if ($export->employee_id) {
-            Notification::create([
-                'user_id' => $export->employee_id,
-                'type' => 'export_approved',
-                'title' => 'Đề xuất xuất kho đã được Admin duyệt',
-                'message' => "Đề xuất xuất kho cho đơn {$export->code} đã được Admin duyệt và chuyển Kế toán xuất hóa đơn.",
-                'link' => route('sales.show', $export->reference_id),
-                'icon' => 'fas fa-check-circle',
-                'color' => 'green',
-            ]);
-        }
+        if ($hasConfirmedInvoice) {
+            $export->update(['status' => 'pending']);
 
-        return response()->json(['success' => true, 'message' => 'Đã duyệt đề xuất xuất kho, chuyển cho Kế toán xuất hóa đơn.']);
+            // Notify Warehouse Team to perform physical export
+            $warehouseUsers = User::whereHas('roles', function ($q) {
+                $q->whereIn('slug', ['warehouse_manager', 'warehouse_staff']);
+            })->get();
+
+            foreach ($warehouseUsers as $whUser) {
+                Notification::create([
+                    'user_id' => $whUser->id,
+                    'type' => 'export_ready',
+                    'title' => 'Đơn hàng sẵn sàng xuất kho',
+                    'message' => "Đơn hàng {$export->code} đã hoàn tất hóa đơn. Vui lòng tiến hành thực hiện xuất kho.",
+                    'link' => route('exports.show', $export->id),
+                    'icon' => 'fas fa-truck-loading',
+                    'color' => 'green',
+                ]);
+            }
+
+            // Notify Sales (creator)
+            if ($export->employee_id) {
+                Notification::create([
+                    'user_id' => $export->employee_id,
+                    'type' => 'export_approved',
+                    'title' => 'Đề xuất xuất kho đã được Admin duyệt',
+                    'message' => "Đề xuất xuất kho cho đơn {$export->code} đã được Admin duyệt và sẵn sàng xuất kho thực tế.",
+                    'link' => route('sales.show', $export->reference_id),
+                    'icon' => 'fas fa-check-circle',
+                    'color' => 'green',
+                ]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Đã duyệt đề xuất xuất kho, hàng sẵn sàng xuất kho thực tế.']);
+        } else {
+            $export->update(['status' => 'pending_invoice']);
+
+            // Notify Accountants
+            $accountants = User::whereHas('roles', function ($q) {
+                $q->where('slug', 'accountant');
+            })->get();
+
+            foreach ($accountants as $accountant) {
+                Notification::create([
+                    'user_id' => $accountant->id,
+                    'type' => 'export_invoice_request',
+                    'title' => 'Yêu cầu xuất hóa đơn & giao hàng',
+                    'message' => "Admin {$adminName} đã duyệt đề xuất xuất kho cho đơn {$export->code}. Vui lòng xuất hóa đơn và bàn giao hàng.",
+                    'link' => route('exports.show', $export->id),
+                    'icon' => 'fas fa-file-invoice-dollar',
+                    'color' => 'orange',
+                ]);
+            }
+
+            // Notify Sales (creator)
+            if ($export->employee_id) {
+                Notification::create([
+                    'user_id' => $export->employee_id,
+                    'type' => 'export_approved',
+                    'title' => 'Đề xuất xuất kho đã được Admin duyệt',
+                    'message' => "Đề xuất xuất kho cho đơn {$export->code} đã được Admin duyệt và chuyển Kế toán xuất hóa đơn.",
+                    'link' => route('sales.show', $export->reference_id),
+                    'icon' => 'fas fa-check-circle',
+                    'color' => 'green',
+                ]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Đã duyệt đề xuất xuất kho, chuyển cho Kế toán xuất hóa đơn.']);
+        }
     }
 
     /**

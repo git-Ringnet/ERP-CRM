@@ -28,7 +28,12 @@ class DatabaseBackupController extends Controller
      */
     public function export(Request $request)
     {
-        ini_set('memory_limit', '512M');
+        // Increase limits for large file handling
+        ini_set('memory_limit', '1024M');
+        ini_set('max_execution_time', '600');
+        ini_set('max_input_time', '600');
+        set_time_limit(600);
+        
         $request->validate([
             'password' => 'required|string|min:8',
         ]);
@@ -127,9 +132,14 @@ class DatabaseBackupController extends Controller
      */
     public function import(Request $request)
     {
-        ini_set('memory_limit', '512M');
+        // Increase limits for large file handling
+        ini_set('memory_limit', '1024M');
+        ini_set('max_execution_time', '600');
+        ini_set('max_input_time', '600');
+        set_time_limit(600);
+        
         $request->validate([
-            'backup_file' => 'required|file',
+            'backup_file' => 'required|file|max:204800', // 200MB
             'password' => 'required|string',
             'confirm_restore' => 'required|accepted',
         ]);

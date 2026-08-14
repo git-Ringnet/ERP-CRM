@@ -189,6 +189,14 @@ class InvoiceRequestController extends Controller
                 if ($linkedExport && $linkedExport->status === 'pending_invoice') {
                     $linkedExport->update(['status' => 'pending']);
                 }
+            } else {
+                $linkedExports = \App\Models\Export::where('reference_type', 'sale')
+                    ->where('reference_id', $invoiceRequest->sale_id)
+                    ->where('status', 'pending_invoice')
+                    ->get();
+                foreach ($linkedExports as $le) {
+                    $le->update(['status' => 'pending']);
+                }
             }
 
             // Update invoice_date and payment_due_date on Sale
@@ -230,6 +238,22 @@ class InvoiceRequestController extends Controller
                 'official_path' => $invoiceRequest->draft_path,
                 'note' => 'Sales đã kiểm tra và xác nhận hóa đơn chính xác.',
             ]);
+
+            // Update linked export status from pending_invoice to pending (Chờ xử lý / Chờ kho xuất)
+            if ($invoiceRequest->export_id) {
+                $linkedExport = \App\Models\Export::find($invoiceRequest->export_id);
+                if ($linkedExport && $linkedExport->status === 'pending_invoice') {
+                    $linkedExport->update(['status' => 'pending']);
+                }
+            } else {
+                $linkedExports = \App\Models\Export::where('reference_type', 'sale')
+                    ->where('reference_id', $invoiceRequest->sale_id)
+                    ->where('status', 'pending_invoice')
+                    ->get();
+                foreach ($linkedExports as $le) {
+                    $le->update(['status' => 'pending']);
+                }
+            }
 
             // Notify Accountants / Finance
             $accountants = \App\Models\User::whereHas('roles', fn($q) => $q->whereIn('slug', ['accountant', 'super_admin', 'sales_manager']))->get();

@@ -1889,7 +1889,7 @@
         }
 
         function updateExportMaxQuantities() {
-            if (window.saleType !== 'retail') return;
+            if (window.isProjectOrder || window.saleType !== 'retail') return;
 
             var warehouseSelect = document.getElementById('export_warehouse_select');
             var selectedWarehouseId = warehouseSelect ? parseInt(warehouseSelect.value) : 0;

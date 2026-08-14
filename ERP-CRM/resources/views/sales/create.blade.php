@@ -2149,54 +2149,54 @@ function addPaymentMilestone(ms = {}) {
     row.id = `milestone-row-${index}`;
     row.innerHTML = `
         <td class="p-2">
-            <input type="text" name="payment_terms[${index}][milestone_name]" value="${label}" required readonly
-                   list="milestone-names" placeholder="VD: Cọc, Đợt 1,..." class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
+            <input type="text" name="payment_terms[${index}][milestone_name]" value="${label}" required ${readOnlyAttr}
+                   list="milestone-names" placeholder="VD: Cọc, Đợt 1,..." class="w-full border border-gray-300 rounded px-2 py-1 text-sm ${bgClass || 'bg-white'} text-gray-800">
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="number" name="payment_terms[${index}][percentage]" value="${percent}" required min="0" max="100" step="any" readonly
-                       class="milestone-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right bg-gray-50 text-gray-800">
+                <input type="number" name="payment_terms[${index}][percentage]" value="${percent}" required min="0" max="100" step="any" ${readOnlyAttr}
+                       class="milestone-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right ${bgClass || 'bg-white'} text-gray-800">
                 <span class="ml-1 text-sm text-gray-500">%</span>
             </div>
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="text" inputmode="numeric" name="payment_terms[${index}][amount]" value="${formattedAmount}" required readonly
-                       class="milestone-amount-input w-36 border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium bg-gray-50 text-gray-800">
+                <input type="text" inputmode="numeric" name="payment_terms[${index}][amount]" value="${formattedAmount}" required ${readOnlyAttr}
+                       class="milestone-amount-input w-36 border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium ${bgClass || 'bg-white'} text-gray-800">
                 <span class="ml-1 text-sm text-gray-500">₫</span>
             </div>
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][timing]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
+            <select name="payment_terms[${index}][timing]" ${disabledAttr} class="w-full border border-gray-300 rounded px-2 py-1 text-sm ${bgClass || 'bg-white'} text-gray-800">
                 <option value="after_contract" ${timing === 'after_contract' ? 'selected' : ''}>Sau khi ký HĐMB</option>
                 <option value="after_delivery_notice" ${timing === 'after_delivery_notice' ? 'selected' : ''}>Sau khi có thông báo giao hàng</option>
                 <option value="before_export" ${timing === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
                 <option value="after_delivery" ${timing === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
                 <option value="after_invoice" ${timing === 'after_invoice' ? 'selected' : ''}>Sau khi xuất hóa đơn</option>
             </select>
-            <input type="hidden" name="payment_terms[${index}][timing]" value="${timing}">
+            ${isSalesReadOnly ? `<input type="hidden" name="payment_terms[${index}][timing]" value="${timing}">` : ''}
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][required_before]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
+            <select name="payment_terms[${index}][required_before]" ${disabledAttr} class="w-full border border-gray-300 rounded px-2 py-1 text-sm ${bgClass || 'bg-white'} text-gray-800">
                 <option value="before_order" ${requiredBefore === 'before_order' ? 'selected' : ''}>Trước khi đặt hàng</option>
                 <option value="before_export" ${requiredBefore === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
                 <option value="after_delivery" ${requiredBefore === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
             </select>
-            <input type="hidden" name="payment_terms[${index}][required_before]" value="${requiredBefore}">
+            ${isSalesReadOnly ? `<input type="hidden" name="payment_terms[${index}][required_before]" value="${requiredBefore}">` : ''}
         </td>
         <td class="p-2">
-            <select name="payment_terms[${index}][required_docs]" disabled class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 text-gray-800">
+            <select name="payment_terms[${index}][required_docs]" ${disabledAttr} class="w-full border border-gray-300 rounded px-2 py-1 text-sm ${bgClass || 'bg-white'} text-gray-800">
                 <option value="unc" ${requiredDocs === 'unc' ? 'selected' : ''}>UNC</option>
                 <option value="credit_note" ${requiredDocs === 'credit_note' ? 'selected' : ''}>Giấy báo có</option>
                 <option value="other" ${requiredDocs === 'other' ? 'selected' : ''}>Chứng từ khác</option>
                 <option value="none" ${requiredDocs === 'none' ? 'selected' : ''}>Không yêu cầu</option>
             </select>
-            <input type="hidden" name="payment_terms[${index}][required_docs]" value="${requiredDocs}">
+            ${isSalesReadOnly ? `<input type="hidden" name="payment_terms[${index}][required_docs]" value="${requiredDocs}">` : ''}
         </td>
         <td class="p-2">
             <div class="flex items-center">
-                <input type="number" name="payment_terms[${index}][due_days]" value="${dueDays}" required min="0" readonly
-                       class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right bg-gray-50 text-gray-800">
+                <input type="number" name="payment_terms[${index}][due_days]" value="${dueDays}" required min="0"
+                       class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right bg-white text-gray-800">
                 <span class="ml-1 text-xs text-gray-500">ngày</span>
             </div>
             <input type="hidden" name="payment_terms[${index}][is_blocking]" value="${isBlocking}">
