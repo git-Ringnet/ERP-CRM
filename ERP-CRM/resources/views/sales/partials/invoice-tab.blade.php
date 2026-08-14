@@ -107,7 +107,7 @@
 
                                         {{-- 3. Status: draft_issued -> Show ONLY XÁC NHẬN and CHƯA CHÍNH XÁC --}}
                                         @elseif($request->status === 'draft_issued')
-                                            @if(auth()->id() === (int)$request->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
+                                            @if(auth()->id() === (int)$request->requester_id || auth()->id() === (int)($sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager']))
                                                 <form action="{{ route('invoice-requests.confirm', $request->id) }}" method="POST" onsubmit="return confirm('Bạn đã kiểm tra file hóa đơn chính xác?')">
                                                     @csrf
                                                     <button type="submit" class="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded hover:bg-emerald-700 shadow-sm flex items-center gap-1" title="Xác nhận file hóa đơn chính xác">

@@ -39,7 +39,7 @@
             @endif
 
             {{-- Sales: Confirm invoice OR Mark incorrect --}}
-            @if($invoiceRequest->status === 'draft_issued' && (auth()->id() === (int)$invoiceRequest->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])))
+            @if($invoiceRequest->status === 'draft_issued' && (auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])))
                 <form action="{{ route('invoice-requests.confirm', $invoiceRequest->id) }}" method="POST" onsubmit="return confirm('Bạn đã kiểm tra và xác nhận file hóa đơn hoàn toàn chính xác?')">
                     @csrf
                     <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-sm shadow-sm flex items-center gap-2">
@@ -52,7 +52,7 @@
                 </button>
             @endif
 
-            @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+            @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
                 <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-sm flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
                     <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG HÓA ĐƠN
                 </button>

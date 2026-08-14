@@ -15,7 +15,9 @@ class QuotationPolicy extends BasePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $this->checkPermission($user, 'view_quotations');
+        return $this->checkPermission($user, 'view_quotations') ||
+               $this->checkPermission($user, 'view_all_quotations') ||
+               $this->checkPermission($user, 'view_own_quotations');
     }
 
     /**
@@ -27,18 +29,13 @@ class QuotationPolicy extends BasePolicy
      */
     public function view(User $user, Quotation $quotation): bool
     {
-        // Check if user has general view permission
-        if ($this->checkPermission($user, 'view_quotations')) {
-            return true;
-        }
-
-        // Check if user has view_all_quotations permission
+        // If user has view_all_quotations, allow
         if ($this->checkPermission($user, 'view_all_quotations')) {
             return true;
         }
 
-        // Check if user has view_own_quotations permission and owns the quotation
-        if ($this->checkPermission($user, 'view_own_quotations')) {
+        // If user has view_own_quotations or view_quotations, only allow if they own the quotation
+        if ($this->checkPermission($user, 'view_own_quotations') || $this->checkPermission($user, 'view_quotations')) {
             return $quotation->created_by === $user->id;
         }
 

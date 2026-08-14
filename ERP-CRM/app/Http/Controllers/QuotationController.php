@@ -39,9 +39,8 @@ class QuotationController extends Controller
 
         // Apply data filtering based on permissions
         $user = auth()->user();
-        if (!$user->can('view_all_quotations') && !$user->can('view_quotations')) {
-            // User only has view_own_quotations permission
-            if ($user->can('view_own_quotations')) {
+        if (!$user->can('view_all_quotations')) {
+            if ($user->can('view_own_quotations') || $user->can('view_quotations')) {
                 $query->where('created_by', $user->id);
             } else {
                 // User has no permission to view quotations

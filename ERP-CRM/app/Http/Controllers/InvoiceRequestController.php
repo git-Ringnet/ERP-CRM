@@ -218,7 +218,7 @@ class InvoiceRequestController extends Controller
      */
     public function confirm(Request $request, InvoiceRequest $invoiceRequest)
     {
-        if (auth()->id() !== (int)$invoiceRequest->requester_id && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
+        if (auth()->id() !== (int)$invoiceRequest->requester_id && auth()->id() !== (int)($invoiceRequest->sale->user_id ?? 0) && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
             return back()->with('error', 'Bạn không có quyền xác nhận hóa đơn cho yêu cầu này.');
         }
 
@@ -287,6 +287,10 @@ class InvoiceRequestController extends Controller
         $request->validate([
             'reason' => 'required|string',
         ]);
+
+        if (auth()->id() !== (int)$invoiceRequest->requester_id && auth()->id() !== (int)($invoiceRequest->sale->user_id ?? 0) && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
+            return back()->with('error', 'Bạn không có quyền phản hồi hóa đơn cho yêu cầu này.');
+        }
 
         DB::beginTransaction();
         try {
