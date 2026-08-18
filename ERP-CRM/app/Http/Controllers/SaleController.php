@@ -3426,8 +3426,7 @@ class SaleController extends Controller
         $isAuthorized = $user->hasRole('director') || 
                         $user->hasRole('super_admin') || 
                         $user->hasRole('admin') || 
-                        ($sale->payment_exception_delegated_to === $user->id) ||
-                        ($sale->user_id === $user->id);
+                        ($sale->payment_exception_delegated_to === $user->id);
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
@@ -3814,8 +3813,7 @@ class SaleController extends Controller
                         $user->hasRole('super_admin') || 
                         $user->hasRole('admin') || 
                         ($schedule->delegated_to_id === $user->id) ||
-                        ($sale->payment_exception_delegated_to === $user->id) ||
-                        ($sale->user_id === $user->id);
+                        ($sale->payment_exception_delegated_to === $user->id);
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');

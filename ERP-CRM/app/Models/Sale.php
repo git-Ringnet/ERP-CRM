@@ -1442,7 +1442,9 @@ class Sale extends Model
                     'required_before' => $s->blocking_stage === 'BLOCK_PO_SEND' ? 'before_order' : ($s->blocking_stage === 'BLOCK_WAREHOUSE_EXPORT' ? 'before_export' : 'after_delivery'),
                     'is_blocking' => $s->blocking_stage ? 'yes' : 'no',
                     'required_docs' => $s->required_docs,
-                    'status' => $s->status,
+                    'status' => $s->status === 'exception_approved' 
+                        ? ($s->blocking_stage === 'BLOCK_PO_SEND' ? 'approved_preload' : 'approved_export_before_payment') 
+                        : $s->status,
                     'due_days' => $s->due_days,
                     'due_date' => $s->due_date ? $s->due_date->format('Y-m-d') : null,
                     'proof_file_path' => $s->proof_file_path,

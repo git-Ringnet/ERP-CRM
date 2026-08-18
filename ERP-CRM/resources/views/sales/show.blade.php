@@ -632,7 +632,7 @@
 
             <!-- Phê duyệt ngoại lệ cấp Đơn hàng bởi Giám đốc (BOD) -->
             @php
-                $canApproveSaleException = $isBOD || ($sale->payment_exception_delegated_to === auth()->id()) || ($sale->user_id === auth()->id());
+                $canApproveSaleException = $isBOD || ($sale->payment_exception_delegated_to === auth()->id());
             @endphp
             @if((!$payStatus['eligible_for_order'] || !$payStatus['eligible_for_export']) && $canApproveSaleException && !$sale->is_payment_exception)
                 <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
@@ -736,8 +736,7 @@
                                 $requiredBefore = $ms['required_before'] ?? 'after_delivery';
                                 $canApproveMilestone = $isBOD || 
                                                        (($ms['delegated_to_id'] ?? null) === $currentUser->id) || 
-                                                       ($sale->payment_exception_delegated_to === $currentUser->id) ||
-                                                       ($sale->user_id === $currentUser->id);
+                                                       ($sale->payment_exception_delegated_to === $currentUser->id);
                                 
                                 $statusLabel = 'Chưa thanh toán';
                                 $statusColor = 'bg-gray-100 text-gray-700';
@@ -820,7 +819,7 @@
                                 <td class="p-3 text-center">
                                     <div class="flex items-center justify-center space-x-2">
                                         <!-- Actions for unpaid milestones -->
-                                        @if(in_array($status, ['unpaid', 'due', 'overdue', 'not_yet_due', 'approved_preload', 'approved_export_before_payment']))
+                                        @if(in_array($status, ['unpaid', 'due', 'overdue', 'not_yet_due']))
                                             <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
                                                     class="px-2.5 py-1 text-xs bg-primary text-white font-bold rounded-md hover:bg-primary-hover shadow-sm">
                                                 <i class="fas fa-upload mr-1"></i> Upload UNC
