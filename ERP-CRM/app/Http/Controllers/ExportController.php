@@ -429,6 +429,17 @@ class ExportController extends Controller
                 ])->toArray(),
             ], $export);
 
+            // Tự động chuyển trạng thái đơn hàng bán sang 'shipping' (Giao hàng) hoặc 'completed' (Hoàn thành) khi đã duyệt xuất kho
+            if ($export->reference_type === 'sale' && $export->reference_id) {
+                $sale = \App\Models\Sale::find($export->reference_id);
+                if ($sale) {
+                    $sale->checkAndAutoRecordCompletion();
+                    if ($sale->status === 'approved') {
+                        $sale->update(['status' => 'shipping']);
+                    }
+                }
+            }
+
 
 
             // Tạo bút toán kế toán tự động

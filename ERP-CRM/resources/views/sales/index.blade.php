@@ -346,33 +346,59 @@
                                 </div>
                                 @endif
 
-                                {{-- Hạn thanh toán tính từ ngày xuất HĐ --}}
-                                @if($sale->payment_status !== 'paid')
-                                    @if($sale->invoice_date)
-                                        @php
-                                            $debtDays = $sale->customer->debt_days ?? 0;
-                                            $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
-                                            $daysLeft = now()->diffInDays($dueDate, false);
-                                        @endphp
-                                        @if($daysLeft < 0)
-                                            <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 inline-block">
-                                                <i class="fas fa-exclamation-circle"></i> Quá hạn {{ abs((int)$daysLeft) }}d
-                                            </div>
-                                        @elseif($daysLeft <= 3)
-                                            <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 inline-block">
-                                                <i class="fas fa-clock"></i> {{ $daysLeft == 0 ? 'Tới hạn' : 'Còn ' . (int)$daysLeft . 'd' }}
-                                            </div>
-                                        @else
-                                            <div class="text-[10px] text-gray-400 mt-1">
-                                                <i class="far fa-calendar-alt"></i> {{ $dueDate->format('d/m/Y') }}
-                                            </div>
-                                        @endif
-                                    @else
-                                        <div class="text-[10px] text-gray-400 italic mt-1">
-                                            Chờ xuất HĐ
-                                        </div>
-                                    @endif
-                                @endif
+                                 {{-- Hạn thanh toán --}}
+                                 @if($sale->payment_status !== 'paid')
+                                     @php
+                                         $dueDate = null;
+                                         $earliestUnpaid = $sale->paymentSchedules
+                                             ? $sale->paymentSchedules->where('status', '!=', 'paid')->sortBy('sort_order')->first()
+                                             : null;
+
+                                         if ($earliestUnpaid && $earliestUnpaid->due_date) {
+                                             $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date);
+                                         } elseif ($sale->invoice_date) {
+                                             $debtDays = $sale->customer->debt_days ?? 30;
+                                             $dueDate = \Carbon\Carbon::parse($sale->invoice_date)->addDays($debtDays);
+                                         }
+                                     @endphp
+
+                                     @if($dueDate)
+                                         @php
+                                             $daysLeft = now()->startOfDay()->diffInDays($dueDate->startOfDay(), false);
+                                         @endphp
+                                         @if($daysLeft < 0)
+                                             <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 inline-block" title="Hạn thanh toán: {{ $dueDate->format('d/m/Y') }}">
+                                                 <i class="fas fa-exclamation-circle"></i> Quá hạn {{ abs((int)$daysLeft) }}d
+                                             </div>
+                                         @elseif($daysLeft == 0)
+                                             <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 inline-block" title="Hạn thanh toán: {{ $dueDate->format('d/m/Y') }}">
+                                                 <i class="fas fa-clock"></i> Tới hạn
+                                             </div>
+                                         @elseif($daysLeft <= 3)
+                                             <div class="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 inline-block" title="Hạn thanh toán: {{ $dueDate->format('d/m/Y') }}">
+                                                 <i class="fas fa-clock"></i> Còn {{ (int)$daysLeft }}d
+                                             </div>
+                                         @else
+                                             <div class="text-[10px] text-gray-500 mt-1" title="Hạn thanh toán: {{ $dueDate->format('d/m/Y') }}">
+                                                 <i class="far fa-calendar-alt"></i> {{ $dueDate->format('d/m/Y') }}
+                                             </div>
+                                         @endif
+                                     @else
+                                         <div class="text-[10px] text-gray-400 italic mt-1">
+                                             @if($earliestUnpaid)
+                                                 @if($earliestUnpaid->trigger_type === 'ON_GOODS_DELIVERED')
+                                                     Chờ giao hàng
+                                                 @elseif($earliestUnpaid->trigger_type === 'ON_INVOICE_ISSUED')
+                                                     Chờ xuất HĐ
+                                                 @else
+                                                     Chờ sự kiện
+                                                 @endif
+                                             @else
+                                                 Chờ xuất HĐ
+                                             @endif
+                                         </div>
+                                     @endif
+                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 {{-- Delivery Progress --}}

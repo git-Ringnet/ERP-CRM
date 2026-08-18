@@ -820,7 +820,7 @@
                                 <td class="p-3 text-center">
                                     <div class="flex items-center justify-center space-x-2">
                                         <!-- Actions for unpaid milestones -->
-                                        @if(in_array($status, ['unpaid', 'due', 'overdue']))
+                                        @if(in_array($status, ['unpaid', 'due', 'overdue', 'not_yet_due', 'approved_preload', 'approved_export_before_payment']))
                                             <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
                                                     class="px-2.5 py-1 text-xs bg-primary text-white font-bold rounded-md hover:bg-primary-hover shadow-sm">
                                                 <i class="fas fa-upload mr-1"></i> Upload UNC

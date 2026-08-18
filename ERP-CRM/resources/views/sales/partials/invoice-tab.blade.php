@@ -6,8 +6,9 @@
         </div>
         
         @if(
-            ($sale->type === 'retail' && in_array($sale->status, ['approved', 'shipping', 'completed'])) ||
-            ($sale->type !== 'retail' && in_array($sale->dashboard_status, ['received', 'invoiced', 'completed']))
+            (($sale->type === 'retail' && in_array($sale->status, ['approved', 'shipping', 'completed'])) ||
+            ($sale->type !== 'retail' && in_array($sale->dashboard_status, ['received', 'invoiced', 'completed']))) &&
+            $sale->invoiceRequests->isEmpty()
         )
             <button onclick="openInvoiceRequestModal()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-sm">
                 <i class="fas fa-plus-circle mr-2"></i> GỬI YÊU CẦU MỚI

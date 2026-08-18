@@ -877,7 +877,7 @@ class Sale extends Model
             'received' => 'Hàng đã về',
             'pending_export_approval' => 'Chờ duyệt xuất kho',
             'invoicing' => 'Chờ KT xuất HĐ',
-            'invoiced' => 'Giao hàng',
+            'invoiced' => $this->delivery_date ? 'Chờ thanh toán' : 'Giao hàng',
             'completed' => 'Hoàn thành',
             'cancelled' => 'Đã hủy',
             default => 'Không xác định',
@@ -903,7 +903,7 @@ class Sale extends Model
             'received' => 'bg-emerald-100 text-emerald-800',
             'pending_export_approval' => 'bg-orange-100 text-orange-800',
             'invoicing' => 'bg-cyan-100 text-cyan-800',
-            'invoiced' => 'bg-amber-100 text-amber-800',
+            'invoiced' => $this->delivery_date ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800',
             'completed' => 'bg-green-100 text-green-800',
             'cancelled' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
@@ -963,7 +963,12 @@ class Sale extends Model
         // Thêm trạng thái tới hạn / quá hạn
         if ($this->payment_status !== 'paid') {
             $dueDate = null;
-            if ($this->payment_due_date) {
+            
+            // Ưu tiên lấy từ mốc thanh toán chưa hoàn thành gần nhất
+            $earliestUnpaid = $this->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->first();
+            if ($earliestUnpaid && $earliestUnpaid->due_date) {
+                $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date)->startOfDay();
+            } elseif ($this->payment_due_date) {
                 $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
             } elseif ($this->invoice_date) {
                 $debtDays = $this->customer?->debt_days ?? 30;
@@ -993,7 +998,12 @@ class Sale extends Model
         // Ưu tiên hiển thị trạng thái tới hạn / quá hạn
         if ($this->payment_status !== 'paid') {
             $dueDate = null;
-            if ($this->payment_due_date) {
+            
+            // Ưu tiên lấy từ mốc thanh toán chưa hoàn thành gần nhất
+            $earliestUnpaid = $this->paymentSchedules()->where('status', '!=', 'paid')->orderBy('sort_order')->first();
+            if ($earliestUnpaid && $earliestUnpaid->due_date) {
+                $dueDate = \Carbon\Carbon::parse($earliestUnpaid->due_date)->startOfDay();
+            } elseif ($this->payment_due_date) {
                 $dueDate = \Carbon\Carbon::parse($this->payment_due_date)->startOfDay();
             } elseif ($this->invoice_date) {
                 $debtDays = $this->customer?->debt_days ?? 30;
@@ -1397,6 +1407,22 @@ class Sale extends Model
     public function exports()
     {
         return $this->hasMany(Export::class, 'reference_id')->where('reference_type', 'sale');
+    }
+
+    /**
+     * Auto transition Sale status to completed if fully paid and export completed.
+     */
+    public function checkAndAutoRecordCompletion(): void
+    {
+        $isFullyPaid = $this->payment_status === 'paid' || ($this->total > 0 && $this->paid_amount >= $this->total);
+        $hasCompletedExport = $this->exports()->where('status', 'completed')->exists();
+        
+        if ($isFullyPaid && $hasCompletedExport) {
+            if ($this->status !== 'completed') {
+                $this->status = 'completed';
+                $this->save();
+            }
+        }
     }
 
     /**

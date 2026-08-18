@@ -133,7 +133,7 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with(['project', 'user', 'customer', 'quotation', 'items.product'])->orderBy('created_at', 'desc')->paginate(10);
+        $sales = $query->with(['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules'])->orderBy('created_at', 'desc')->paginate(10);
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
         $saleCodes = $sales->pluck('code')->toArray();
@@ -3620,6 +3620,7 @@ class SaleController extends Controller
         $sale->paid_amount = $totalPaid;
         $sale->updateDebt();
         $sale->save();
+        $sale->checkAndAutoRecordCompletion();
 
         // Create financial transaction
         try {
@@ -4028,6 +4029,11 @@ class SaleController extends Controller
         $date = $request->input('delivery_date');
         $sale->update(['delivery_date' => $date]);
         $sale->updateMilestoneDueDates();
+        
+        $sale->checkAndAutoRecordCompletion();
+        if ($sale->status === 'approved') {
+            $sale->update(['status' => 'shipping']);
+        }
 
         // Also update any completed export voucher linked to this sale
         $completedExport = \App\Models\Export::where('reference_id', $sale->id)

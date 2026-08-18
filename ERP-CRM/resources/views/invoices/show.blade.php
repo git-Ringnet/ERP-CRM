@@ -481,7 +481,7 @@
             <div id="formContentReject" class="hidden space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lý do phản hồi HĐ chưa chính xác <span class="text-red-500">*</span></label>
-                    <textarea name="reason" rows="3" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="VD: Nhầm tên công ty thuế, sai đơn giá sản phẩm, hoặc thiếu thông tin..."></textarea>
+                    <textarea name="reason" id="action_reason" rows="3" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="VD: Nhầm tên công ty thuế, sai đơn giá sản phẩm, hoặc thiếu thông tin..."></textarea>
                 </div>
             </div>
 
@@ -500,6 +500,15 @@ function openActionModal(action) {
     const modal = document.getElementById('actionModal');
     const form = document.getElementById('actionForm');
     const submitBtn = document.getElementById('submitActionBtn');
+    
+    const invoiceDate = document.getElementById('action_invoice_date');
+    const paymentDueDate = document.getElementById('action_payment_due_date');
+    const reason = document.getElementById('action_reason');
+    
+    // Reset required attributes to prevent hidden fields from blocking form submission
+    if (invoiceDate) invoiceDate.required = false;
+    if (paymentDueDate) paymentDueDate.required = false;
+    if (reason) reason.required = false;
     
     // Hide all headers & contents
     document.getElementById('modalHeaderDraft').classList.add('hidden');
@@ -523,8 +532,11 @@ function openActionModal(action) {
         // Set dates
         const today = new Date();
         const formattedToday = formatDate(today);
-        document.getElementById('action_invoice_date').value = formattedToday;
+        if (invoiceDate) invoiceDate.value = formattedToday;
         updatePaymentDueDate(formattedToday);
+        
+        if (invoiceDate) invoiceDate.required = true;
+        if (paymentDueDate) paymentDueDate.required = true;
         
         submitBtn.className = "flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm shadow";
         submitBtn.innerText = "XUẤT HÓA ĐƠN CHÍNH THỨC";
@@ -532,6 +544,9 @@ function openActionModal(action) {
         document.getElementById('modalHeaderReject').classList.remove('hidden');
         document.getElementById('formContentReject').classList.remove('hidden');
         form.action = "{{ route('invoice-requests.reject', $invoiceRequest->id) }}";
+        
+        if (reason) reason.required = true;
+        
         submitBtn.className = "flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm shadow";
         submitBtn.innerText = "GỬI BÁO SAI";
     }
