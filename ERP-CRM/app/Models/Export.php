@@ -114,6 +114,50 @@ class Export extends Model
     }
 
     /**
+     * Scope: Filter exports based on user roles/departments.
+     */
+    public function scopeForUser($query, User $user)
+    {
+        // Admin, BOD, PM, PO, Warehouse, Accountant, Legal Team, Order Management see all
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']) ||
+            $user->department === 'PM' ||
+            $user->department === 'PO' ||
+            $user->department === 'Warehouse') {
+            return $query;
+        }
+
+        // Sales Manager sees team exports (associated with team projects or team sales)
+        if ($user->hasRole('sales_manager')) {
+            return $query->where(function ($q) use ($user) {
+                $q->whereHas('project', function ($pq) use ($user) {
+                    $pq->where('manager_id', $user->id)
+                      ->orWhereHas('manager', function ($m) use ($user) {
+                          $m->where('department', $user->department);
+                      });
+                })
+                ->orWhereHas('sale', function ($sq) use ($user) {
+                    $sq->where('user_id', $user->id)
+                      ->orWhereHas('user', function ($m) use ($user) {
+                          $m->where('department', $user->department);
+                      });
+                })
+                ->orWhere('employee_id', $user->id);
+            });
+        }
+
+        // Standard Sales staff: only see own exports (linked to own project, own sale, or created by self)
+        return $query->where(function ($q) use ($user) {
+            $q->whereHas('project', function ($pq) use ($user) {
+                $pq->where('manager_id', $user->id);
+            })
+            ->orWhereHas('sale', function ($sq) use ($user) {
+                $sq->where('user_id', $user->id);
+            })
+            ->orWhere('employee_id', $user->id);
+        });
+    }
+
+    /**
      * Generate unique export code.
      */
     public static function generateCode(): string

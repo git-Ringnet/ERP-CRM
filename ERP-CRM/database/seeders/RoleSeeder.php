@@ -197,7 +197,8 @@ class RoleSeeder extends Seeder
                 $allPermissions,
                 ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 'projects', 
                  'customer_care_stages', 'customer_debts', 'sale_reports', 'price_lists', 'warranties',
-                 'milestone_templates', 'work_schedules', 'communication_logs', 'products', 'marketing_events']
+                 'milestone_templates', 'work_schedules', 'communication_logs', 'products', 'marketing_events',
+                 'technical_tickets', 'technical_dashboard', 'technical_support_logs']
             );
             // View-only: inventory, shipping, exports, cost_formulas, imports (đối soát thông tin nhập kho)
             $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
@@ -223,7 +224,8 @@ class RoleSeeder extends Seeder
             $salesStaffPerms = $this->getPermissionsByModulesAndActions(
                 $allPermissions,
                 ['customers', 'sales', 'quotations', 'leads', 'opportunities', 'activities', 
-                 'customer_care_stages', 'projects', 'communication_logs', 'marketing_events'],
+                 'customer_care_stages', 'projects', 'communication_logs', 'marketing_events',
+                 'technical_tickets', 'technical_support_logs'],
                 ['view', 'create', 'edit']
             );
             // View-only modules
@@ -237,7 +239,8 @@ class RoleSeeder extends Seeder
                 ['purchase_requests', 'purchase_orders'], ['view', 'create', 'edit']
             );
             $ownPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'view_own_sales', 'view_own_quotations', 'view_own_purchase_orders', 'view_dashboard'
+                'view_own_sales', 'view_own_quotations', 'view_own_purchase_orders', 'view_dashboard',
+                'view_technical_dashboard'
             ]);
             $salesStaffPerms = array_unique(array_merge($salesStaffPerms, $viewPerms, $purchasePerms, $ownPerms));
 

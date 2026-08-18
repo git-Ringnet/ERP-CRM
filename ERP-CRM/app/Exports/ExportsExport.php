@@ -21,6 +21,7 @@ class ExportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
     public function collection()
     {
         $query = Export::with(['warehouse', 'employee', 'project', 'customer'])
+            ->forUser(auth()->user())
             ->orderBy('date', 'desc');
 
         // Apply filters

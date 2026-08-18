@@ -27,7 +27,46 @@ class ExportPolicy extends BasePolicy
      */
     public function view(User $user, Export $export): bool
     {
-        return $this->checkPermission($user, 'view_exports');
+        if (!$this->checkPermission($user, 'view_exports')) {
+            return false;
+        }
+
+        // Admin, BOD, PM, PO, Warehouse, Accountant, Legal Team, Order Management see all
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'warehouse_manager', 'warehouse_staff', 'purchase_manager', 'purchase_staff', 'accountant', 'legal_team', 'order_management']) ||
+            $user->department === 'PM' ||
+            $user->department === 'PO' ||
+            $user->department === 'Warehouse') {
+            return true;
+        }
+
+        // Sales Manager sees team exports (associated with team projects or team sales)
+        if ($user->hasRole('sales_manager')) {
+            $relatedProject = $export->project;
+            if ($relatedProject) {
+                if ($relatedProject->manager_id === $user->id || ($relatedProject->manager && $relatedProject->manager->department === $user->department)) {
+                    return true;
+                }
+            }
+            $relatedSale = $export->sale;
+            if ($relatedSale) {
+                if ($relatedSale->user_id === $user->id || ($relatedSale->user && $relatedSale->user->department === $user->department)) {
+                    return true;
+                }
+            }
+            return $export->employee_id === $user->id;
+        }
+
+        // Standard Sales staff: only see own exports (linked to own project, own sale, or created by self)
+        $relatedProject = $export->project;
+        if ($relatedProject && $relatedProject->manager_id === $user->id) {
+            return true;
+        }
+        $relatedSale = $export->sale;
+        if ($relatedSale && $relatedSale->user_id === $user->id) {
+            return true;
+        }
+
+        return $export->employee_id === $user->id;
     }
 
     /**

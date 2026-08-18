@@ -53,7 +53,8 @@ class ExportController extends Controller
     {
         $this->authorize('viewAny', Export::class);
 
-        $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer', 'sale.invoiceRequests']);
+        $query = Export::with(['warehouse', 'employee', 'items', 'project', 'customer', 'sale.invoiceRequests'])
+            ->forUser(auth()->user());
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {

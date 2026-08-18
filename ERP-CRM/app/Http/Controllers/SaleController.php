@@ -133,7 +133,7 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with(['project', 'user', 'customer', 'quotation'])->orderBy('created_at', 'desc')->paginate(10);
+        $sales = $query->with(['project', 'user', 'customer', 'quotation', 'items.product'])->orderBy('created_at', 'desc')->paginate(10);
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
         $saleCodes = $sales->pluck('code')->toArray();

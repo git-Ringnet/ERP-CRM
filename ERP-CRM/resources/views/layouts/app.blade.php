@@ -520,6 +520,41 @@
                     </div>
                 @endcanany
 
+                @canany(['view_technical_tickets', 'view_technical_dashboard'])
+                    <div class="mt-4">
+                        <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
+                            onclick="toggleDropdown('technical')">
+                            <div class="flex items-center">
+                                <i class="fas fa-tools w-6 text-yellow-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Technical</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-technical"></i>
+                        </div>
+
+                        <div class="dropdown-section" id="dropdown-technical">
+                            @can('view_technical_dashboard')
+                                <a href="{{ route('technical.dashboard') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.dashboard') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-chart-pie w-6 text-pink-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo</span>
+                                </a>
+                            @endcan
+                            @can('view_technical_tickets')
+                                <a href="{{ route('technical-tickets.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
+                                </a>
+                                <a href="{{ route('technical.support-logs.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
+                                </a>
+                            @endcan
+                        </div>
+                    </div>
+                @endcanany
+
                 @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_all_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_all_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports', 'view_pr_approvals', 'view_needs_ordering'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
@@ -1045,7 +1080,7 @@
             };
 
             // Initialize dropdown states from localStorage
-            const sections = ['masterData', 'warehouse', 'reports', 'accounting', 'sales', 'purchasing', 'system', 'access'];
+            const sections = ['masterData', 'warehouse', 'reports', 'accounting', 'sales', 'purchasing', 'system', 'access', 'technical'];
             sections.forEach(function (sectionId) {
                 const dropdown = document.getElementById('dropdown-' + sectionId);
                 const arrow = document.getElementById('arrow-' + sectionId);

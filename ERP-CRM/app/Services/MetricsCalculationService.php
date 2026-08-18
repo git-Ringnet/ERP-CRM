@@ -612,7 +612,7 @@ class MetricsCalculationService
     {
         $sales = Sale::whereBetween('date', [$start, $end])
             ->where('status', '!=', 'cancelled')
-            ->with(['purchaseOrders', 'customer', 'user'])
+            ->with(['purchaseOrders', 'customer', 'user', 'items.product'])
             ->orderBy('date', 'desc')
             ->get();
 

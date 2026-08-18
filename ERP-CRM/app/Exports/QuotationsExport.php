@@ -24,6 +24,17 @@ class QuotationsExport implements FromCollection, WithHeadings, WithMapping, Wit
     {
         $query = Quotation::with('customer')->orderBy('created_at', 'desc');
 
+        // Apply data filtering based on permissions
+        $user = auth()->user();
+        if ($user && !$user->can('view_all_quotations')) {
+            if ($user->can('view_own_quotations') || $user->can('view_quotations')) {
+                $query->where('created_by', $user->id);
+            } else {
+                // User has no permission to view quotations
+                return collect();
+            }
+        }
+
         if (!empty($this->filters['search'])) {
             $query->search($this->filters['search']);
         }

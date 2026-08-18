@@ -638,6 +638,27 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/sales-revenues/{salesRevenue}/cell', [\App\Http\Controllers\SalesRevenueController::class, 'updateCell'])->name('sales-revenues.update-cell');
     Route::delete('/sales-revenues/{salesRevenue}', [\App\Http\Controllers\SalesRevenueController::class, 'destroy'])->name('sales-revenues.destroy');
     Route::get('/sales-revenues/export/excel', [\App\Http\Controllers\SalesRevenueController::class, 'export'])->name('sales-revenues.export');
+
+    // =========================================================================
+    // Technical Module Routes
+    // =========================================================================
+    Route::get('/technical/dashboard', [\App\Http\Controllers\TechnicalDashboardController::class, 'index'])->name('technical.dashboard');
+    Route::get('/technical/export', [\App\Http\Controllers\TechnicalDashboardController::class, 'export'])->name('technical.export');
+    
+    Route::get('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'index'])->name('technical.support-logs.index');
+    Route::post('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'storeCentralized'])->name('technical.support-logs.store-centralized');
+    Route::put('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'updateCentralized'])->name('technical.support-logs.update-centralized');
+    Route::delete('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroyCentralized'])->name('technical.support-logs.destroy-centralized');
+    
+    Route::resource('technical-tickets', \App\Http\Controllers\TechnicalTicketController::class);
+    
+    Route::post('/technical-tickets/{ticket}/attachments', [\App\Http\Controllers\TechnicalTicketController::class, 'uploadAttachment'])->name('technical-tickets.attachments.upload');
+    Route::get('/technical-tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\TechnicalTicketController::class, 'downloadAttachment'])->name('technical-tickets.attachments.download');
+    Route::delete('/technical-tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\TechnicalTicketController::class, 'deleteAttachment'])->name('technical-tickets.attachments.delete');
+    
+    Route::post('/technical-tickets/{ticket}/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'store'])->name('technical-tickets.support-logs.store');
+    Route::put('/technical-tickets/{ticket}/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'update'])->name('technical-tickets.support-logs.update');
+    Route::delete('/technical-tickets/{ticket}/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroy'])->name('technical-tickets.support-logs.destroy');
 });
 
 // Auth routes (login, logout, etc.)

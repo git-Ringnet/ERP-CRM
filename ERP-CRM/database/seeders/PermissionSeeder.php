@@ -75,6 +75,9 @@ class PermissionSeeder extends Seeder
             'marketing_events' => ['view', 'create', 'edit', 'delete'],
             'pr_approvals' => ['view', 'create', 'edit', 'delete'],
             'needs_ordering' => ['view', 'create'],
+            'technical_tickets' => ['view', 'create', 'edit', 'delete', 'export'],
+            'technical_dashboard' => ['view'],
+            'technical_support_logs' => ['manage'],
         ];
         
         $permissions = [];
@@ -285,6 +288,9 @@ class PermissionSeeder extends Seeder
             'employee_asset_reports' => 'Báo cáo tài sản',
             'pr_approvals' => 'Duyệt yêu cầu (PR)',
             'needs_ordering' => 'Gom đơn cần đặt',
+            'technical_tickets' => 'Ticket kỹ thuật',
+            'technical_dashboard' => 'Dashboard Kỹ thuật',
+            'technical_support_logs' => 'Nhật ký Hỗ trợ (Report Tech)',
         ];
         
         $actionText = $actionMap[$action] ?? ucfirst($action);
@@ -367,6 +373,9 @@ class PermissionSeeder extends Seeder
             'employee_asset_reports' => 'báo cáo tài sản',
             'pr_approvals' => 'duyệt yêu cầu (PR)',
             'needs_ordering' => 'gom đơn cần đặt',
+            'technical_tickets' => 'ticket kỹ thuật',
+            'technical_dashboard' => 'dashboard kỹ thuật',
+            'technical_support_logs' => 'nhật ký hỗ trợ kỹ thuật',
         ];
         
         $actionText = $actionMap[$action] ?? $action;

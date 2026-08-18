@@ -803,9 +803,26 @@ class Sale extends Model
         $associatedPos = $this->all_purchase_orders;
         $hasOrderRequests = $this->orderRequests()->exists();
 
-        // If no POs and no Order Requests -> In-Stock Order (Hàng có sẵn trong kho, không cần đặt hàng)
+        // Check if all physical items in the sale are available in stock
+        $allInStock = true;
+        foreach ($this->items as $item) {
+            if ($item->is_service) {
+                continue;
+            }
+            $product = $item->product;
+            if (!$product || $product->in_stock_quantity < $item->quantity) {
+                $allInStock = false;
+                break;
+            }
+        }
+
+        // If no POs and no Order Requests
         if ($associatedPos->isEmpty() && !$hasOrderRequests) {
-            return 'ready_in_stock';
+            if ($allInStock) {
+                return 'ready_in_stock';
+            } else {
+                return 'waiting_order';
+            }
         }
 
         // If has Order Requests but no POs created yet -> Waiting to place order
