@@ -35,6 +35,7 @@ class TechnicalTicket extends Model
         'department',
         'project_name',
         'solution',
+        'ticket_details',
     ];
 
     protected $casts = [
@@ -49,6 +50,7 @@ class TechnicalTicket extends Model
         'created_by' => 'integer',
         'sales_owner_id' => 'integer',
         'team_lead_id' => 'integer',
+        'ticket_details' => 'array',
     ];
 
     // ===================================================================
@@ -217,5 +219,69 @@ class TechnicalTicket extends Model
         }
 
         return $prefix . sprintf('%04d', $nextSeq);
+    }
+
+    public static function calculateSlaDeadline(string $priority, $fromTime = null): ?Carbon
+    {
+        if (!$fromTime) {
+            $fromTime = Carbon::now();
+        } else {
+            $fromTime = Carbon::parse($fromTime);
+        }
+
+        $hoursToAdd = 0;
+        if ($priority === 'high') {
+            $hoursToAdd = 4;
+        } elseif ($priority === 'medium') {
+            $hoursToAdd = 8;
+        } else {
+            return null;
+        }
+
+        $current = $fromTime->copy();
+        
+        while ($hoursToAdd > 0) {
+            if ($current->isWeekend()) {
+                $current->next(Carbon::MONDAY)->setTime(8, 0, 0);
+            }
+            
+            $morningStart = $current->copy()->setTime(8, 0, 0);
+            $morningEnd = $current->copy()->setTime(12, 0, 0);
+            $afternoonStart = $current->copy()->setTime(13, 30, 0);
+            $afternoonEnd = $current->copy()->setTime(17, 30, 0);
+            
+            if ($current->greaterThanOrEqualTo($afternoonEnd)) {
+                $current->addDay()->setTime(8, 0, 0);
+                continue;
+            }
+            
+            if ($current->lessThan($morningStart)) {
+                $current->setTime(8, 0, 0);
+            }
+            
+            if ($current->greaterThanOrEqualTo($morningStart) && $current->lessThan($morningEnd)) {
+                $availableHours = $current->diffInMinutes($morningEnd) / 60;
+                if ($hoursToAdd <= $availableHours) {
+                    $current->addMinutes($hoursToAdd * 60);
+                    $hoursToAdd = 0;
+                } else {
+                    $hoursToAdd -= $availableHours;
+                    $current = $afternoonStart->copy();
+                }
+            } elseif ($current->greaterThanOrEqualTo($morningEnd) && $current->lessThan($afternoonStart)) {
+                $current = $afternoonStart->copy();
+            } elseif ($current->greaterThanOrEqualTo($afternoonStart) && $current->lessThan($afternoonEnd)) {
+                $availableHours = $current->diffInMinutes($afternoonEnd) / 60;
+                if ($hoursToAdd <= $availableHours) {
+                    $current->addMinutes($hoursToAdd * 60);
+                    $hoursToAdd = 0;
+                } else {
+                    $hoursToAdd -= $availableHours;
+                    $current->addDay()->setTime(8, 0, 0);
+                }
+            }
+        }
+        
+        return $current;
     }
 }

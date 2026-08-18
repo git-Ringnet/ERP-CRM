@@ -91,56 +91,56 @@
             <table class="w-full text-sm text-left">
                 <thead class="bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
                     <tr class="divide-x divide-gray-150 border-b border-gray-200">
-                        <th class="px-6 py-3 text-center w-12">STT</th>
-                        <th class="px-6 py-3 w-32">Mã Ticket</th>
-                        <th class="px-6 py-3">Tiêu đề / Công việc</th>
-                        <th class="px-6 py-3 w-40">Loại công việc</th>
-                        <th class="px-6 py-3 w-40">Khách hàng</th>
-                        <th class="px-6 py-3 w-40">Kỹ sư phụ trách</th>
-                        <th class="px-6 py-3 text-center w-28">Độ ưu tiên</th>
-                        <th class="px-6 py-3 text-center w-28">Hạn SLA</th>
-                        <th class="px-6 py-3 text-center w-32">Trạng thái</th>
-                        <th class="px-6 py-3 text-center w-20">Thao tác</th>
+                        <th class="px-3 py-2.5 text-center w-12">STT</th>
+                        <th class="px-3 py-2.5 w-32">Mã Ticket</th>
+                        <th class="px-3 py-2.5">Tiêu đề / Công việc</th>
+                        <th class="px-3 py-2.5 w-44">Loại công việc</th>
+                        <th class="px-3 py-2.5 w-40">Khách hàng</th>
+                        <th class="px-3 py-2.5 w-40">Kỹ sư phụ trách</th>
+                        <th class="px-3 py-2.5 text-center w-28">Độ ưu tiên</th>
+                        <th class="px-3 py-2.5 text-center w-36">Hạn SLA</th>
+                        <th class="px-3 py-2.5 text-center w-32">Trạng thái</th>
+                        <th class="px-3 py-2.5 text-center w-24">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @forelse($tickets as $ticket)
                         <tr class="hover:bg-gray-50/50 divide-x divide-gray-100 {{ $ticket->is_overdue ? 'bg-red-50/20' : '' }}">
-                            <td class="px-6 py-4 text-center text-gray-500">
+                            <td class="px-3 py-2 text-center text-gray-500">
                                 {{ ($tickets->currentPage() - 1) * $tickets->perPage() + $loop->iteration }}
                             </td>
-                            <td class="px-6 py-4 font-bold text-gray-700 whitespace-nowrap">
+                            <td class="px-3 py-2 font-bold text-gray-700 whitespace-nowrap">
                                 {{ $ticket->code }}
                             </td>
-                            <td class="px-6 py-4">
-                                <div class="font-semibold text-gray-900">{{ $ticket->title }}</div>
+                            <td class="px-3 py-2">
+                                <div class="font-semibold text-gray-900 leading-tight">{{ $ticket->title }}</div>
                                 @if($ticket->project)
                                     <div class="text-xs text-purple-600 font-semibold mt-0.5"><i class="fas fa-diagram-project mr-1"></i> Dự án: {{ $ticket->project->name }}</div>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 text-gray-600">
+                            <td class="px-3 py-2 text-gray-600 leading-snug">
                                 {{ $ticket->work_type_label }}
                             </td>
-                            <td class="px-6 py-4 text-gray-600">
+                            <td class="px-3 py-2 text-gray-600 leading-snug">
                                 {{ $ticket->customer->name ?? 'N/A' }}
                             </td>
-                            <td class="px-6 py-4 text-gray-700 font-medium">
+                            <td class="px-3 py-2 text-gray-700 font-medium leading-snug">
                                 {{ $ticket->assignedTo->name ?? 'Chưa phân công' }}
                             </td>
-                            <td class="px-6 py-4 text-center">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-{{ $ticket->priority_color }}-100 text-{{ $ticket->priority_color }}-800">
+                            <td class="px-3 py-2 text-center whitespace-nowrap">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-{{ $ticket->priority_color }}-100 text-{{ $ticket->priority_color }}-800">
                                     {{ $ticket->priority_label }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-center text-gray-500 {{ $ticket->is_overdue ? 'text-red-600 font-bold' : '' }}">
+                            <td class="px-3 py-2 text-center text-gray-500 whitespace-nowrap {{ $ticket->is_overdue ? 'text-red-600 font-bold' : '' }}">
                                 {{ $ticket->sla_deadline ? $ticket->sla_deadline->format('d/m/Y H:i') : '-' }}
                             </td>
-                            <td class="px-6 py-4 text-center">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-{{ $ticket->status_color }}-100 text-{{ $ticket->status_color }}-800">
+                            <td class="px-3 py-2 text-center">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-{{ $ticket->status_color }}-100 text-{{ $ticket->status_color }}-800 whitespace-nowrap">
                                     {{ $ticket->status_label }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-center whitespace-nowrap">
+                            <td class="px-3 py-2 text-center whitespace-nowrap">
                                 <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="inline-flex items-center px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors">
                                     <i class="fas fa-eye mr-1"></i> Chi tiết
                                 </a>

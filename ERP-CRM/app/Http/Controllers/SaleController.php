@@ -3565,9 +3565,9 @@ class SaleController extends Controller
     {
         $user = auth()->user();
         $isAuthorized = $user->hasRole('accountant') || 
+                        $user->hasRole('director') || 
                         $user->hasRole('super_admin') || 
-                        $user->hasRole('admin') || 
-                        ($sale->user_id === $user->id);
+                        $user->hasRole('admin');
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền xác nhận thanh toán.');

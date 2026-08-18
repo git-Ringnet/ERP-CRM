@@ -826,7 +826,7 @@
                                                 <i class="fas fa-upload mr-1"></i> Upload UNC
                                             </button>
                                             
-                                            @if($isFinance)
+                                            @if($isFinance || $isBOD)
                                                 @if(!empty($ms['proof_file_path']))
                                                     <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block">
                                                         @csrf
@@ -875,7 +875,7 @@
                                                 </a>
                                             @endif
                                             
-                                            @if($isFinance || $sale->user_id === $currentUser->id)
+                                            @if($isFinance || $isBOD)
                                                 <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block mr-2">
                                                     @csrf
                                                     <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm">

@@ -149,12 +149,18 @@ class TechnicalTicketController extends Controller
             'department' => 'nullable|string|max:255',
             'project_name' => 'nullable|string|max:255',
             'solution' => 'nullable|string',
+            'ticket_details' => 'nullable|array',
             'attachments.*' => 'nullable|file|max:20480', // 20MB max per file
         ]);
 
         $data = $request->all();
         $data['code'] = TechnicalTicket::generateCode();
         $data['created_by'] = Auth::id();
+
+        // Calculate SLA if blank
+        if (empty($data['sla_deadline'])) {
+            $data['sla_deadline'] = TechnicalTicket::calculateSlaDeadline($data['priority']);
+        }
         
         // If assigned to an engineer and status is default (open), switch to assigned
         if (isset($data['assigned_to']) && (!isset($data['status']) || $data['status'] === 'open')) {
@@ -281,10 +287,16 @@ class TechnicalTicketController extends Controller
             'department' => 'nullable|string|max:255',
             'project_name' => 'nullable|string|max:255',
             'solution' => 'nullable|string',
+            'ticket_details' => 'nullable|array',
         ]);
 
         $ticket = TechnicalTicket::findOrFail($id);
         $data = $request->all();
+
+        // Calculate SLA if blank or if priority changed and SLA was blank or matches previous auto-calculation
+        if (empty($data['sla_deadline'])) {
+            $data['sla_deadline'] = TechnicalTicket::calculateSlaDeadline($data['priority'], $ticket->created_at);
+        }
 
         // Handle timestamps on resolution
         if (in_array($data['status'], ['completed', 'closed'])) {

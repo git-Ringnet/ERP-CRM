@@ -21,6 +21,8 @@
     openCust: false,
     engSearch: '',
     custSearch: '',
+    engTyping: false,
+    custTyping: false,
     editLog(id) {
         var log = this.supportLogsList.find(function(l){ return l.id == id; });
         if (!log) return;
@@ -151,6 +153,167 @@
                                 <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Nguyên nhân / Phương án / Cách xử lý</h3>
                                 <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-900 whitespace-pre-line leading-relaxed">
                                     {{ $ticket->solution }}
+                                </div>
+                            </div>
+                        @endif
+
+                        <!-- Dynamic Ticket Details -->
+                        @if($ticket->ticket_details && count($ticket->ticket_details) > 0)
+                            <div class="border-t border-gray-150 pt-4">
+                                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Chi tiết bổ sung (theo loại Ticket)</h3>
+                                <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                                    @if($ticket->work_type === 'survey')
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Hình thức họp</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['meeting_type'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Thời gian họp</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['meeting_time']) ? date('d/m/Y H:i', strtotime($ticket->ticket_details['meeting_time'])) : 'N/A' }}</span>
+                                        </div>
+                                        @if(($ticket->ticket_details['meeting_type'] ?? '') === 'Offline')
+                                            <div class="md:col-span-2">
+                                                <span class="text-xs font-bold text-gray-400 block">Địa chỉ họp Offline</span>
+                                                <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['meeting_address'] ?? 'N/A' }}</span>
+                                            </div>
+                                        @endif
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Nội dung / mục tiêu</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['meeting_goal'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'BOM')
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Yêu cầu kỹ thuật / Spec</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['spec_requirements'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'documentation')
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Mô tả yêu cầu tài liệu</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['doc_description'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Bản chào giá / BOM tham chiếu</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['doc_bom'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'POC')
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Thiết bị / Model</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_model'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Số lượng mượn</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_quantity'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Yêu cầu kế hoạch/phương án PoC</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_require_plan'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Ngày mượn thiết bị</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_borrow_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_borrow_date'])) : 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Ngày trả thiết bị</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_return_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_return_date'])) : 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Địa điểm triển khai POC</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_location'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Mục tiêu POC</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['poc_goal'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'deployment')
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Hình thức triển khai</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['deploy_type'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Thời gian triển khai</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['deploy_time']) ? date('d/m/Y H:i', strtotime($ticket->ticket_details['deploy_time'])) : 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Địa chỉ triển khai</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['deploy_address'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Phạm vi công việc (Scope of Work - SoW)</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['deploy_sow'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'after_sales')
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Contact liên hệ</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['after_sales_contact'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">S/N thiết bị lỗi</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['after_sales_serial'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Mô tả vấn đề / Sự cố</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['after_sales_problem'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'event')
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Tên sự kiện (Event Name)</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_name'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Thời gian tổ chức</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['event_time']) ? date('d/m/Y H:i', strtotime($ticket->ticket_details['event_time'])) : 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Đối tượng tham gia</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_attendees'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Địa điểm tổ chức</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_location'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Cử Speaker tham gia?</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_speaker'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Chuẩn bị Slide trình bày?</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_slide'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Triển khai Demo trực tiếp?</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['event_demo'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Yêu cầu khác</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['event_notes'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'training')
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Đối tượng đào tạo</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['training_audience'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Hình thức</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['training_format'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-gray-400 block">Thời gian đào tạo</span>
+                                            <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['training_time']) ? date('d/m/Y H:i', strtotime($ticket->ticket_details['training_time'])) : 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Địa điểm đào tạo (nếu Offline)</span>
+                                            <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['training_location'] ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Nội dung / Mục tiêu đề xuất</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['training_goal'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @elseif($ticket->work_type === 'other')
+                                        <div class="md:col-span-2">
+                                            <span class="text-xs font-bold text-gray-400 block">Mô tả yêu cầu</span>
+                                            <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['other_description'] ?? 'N/A' }}</span>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         @endif
@@ -460,8 +623,9 @@
                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
                                    x-model="engSearch"
                                    @focus="openEng = true"
-                                   @input="openEng = true"
-                                   @click.away="setTimeout(function(){ openEng = false; let found = engineersList.find(function(e){ return e.id == logData.user_id; }); engSearch = found ? found.name : '' }, 200)">
+                                   @click="openEng = true"
+                                   @input="openEng = true; engTyping = true"
+                                   @click.away="openEng = false; engTyping = false; const found = engineersList.find(e => e.id == logData.user_id); engSearch = found ? found.name : ''">
                             <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
                                 <i class="fas fa-chevron-down text-xs"></i>
                             </div>
@@ -469,8 +633,8 @@
                         <div x-show="openEng" class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5" x-cloak>
                             <template x-for="eng in engineersList" :key="eng.id">
                                 <button type="button" 
-                                        x-show="engSearch === '' || eng.name.toLowerCase().includes(engSearch.toLowerCase())" 
-                                        @click="logData.user_id = eng.id; engSearch = eng.name; openEng = false" 
+                                        x-show="!engTyping || eng.name.toLowerCase().includes(engSearch.toLowerCase())" 
+                                        @mousedown.prevent="logData.user_id = eng.id; engSearch = eng.name; openEng = false; engTyping = false" 
                                         class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors" 
                                         x-text="eng.name"></button>
                             </template>
@@ -510,22 +674,23 @@
                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
                                    x-model="custSearch"
                                    @focus="openCust = true"
-                                   @input="openCust = true"
-                                   @click.away="setTimeout(function(){ openCust = false; custSearch = logData.customer_info || '' }, 200)">
+                                   @click="openCust = true"
+                                   @input="openCust = true; custTyping = true"
+                                   @click.away="openCust = false; custTyping = false; custSearch = logData.customer_info || ''">
                             <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
                                 <i class="fas fa-chevron-down text-xs"></i>
                             </div>
                         </div>
                         <div x-show="openCust" class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5" x-cloak>
                             <button type="button" 
-                                    @click="logData.customer_info = ''; custSearch = ''; openCust = false" 
+                                    @mousedown.prevent="logData.customer_info = ''; custSearch = ''; openCust = false; custTyping = false" 
                                     class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
                                 -- Chọn Khách hàng --
                             </button>
                             <template x-for="cust in customersList" :key="cust.name">
                                 <button type="button" 
-                                        x-show="custSearch === '' || cust.name.toLowerCase().includes(custSearch.toLowerCase())" 
-                                        @click="logData.customer_info = cust.name; custSearch = cust.name; openCust = false" 
+                                        x-show="!custTyping || cust.name.toLowerCase().includes(custSearch.toLowerCase())" 
+                                        @mousedown.prevent="logData.customer_info = cust.name; custSearch = cust.name; openCust = false; custTyping = false" 
                                         class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors" 
                                         x-text="cust.name"></button>
                             </template>
