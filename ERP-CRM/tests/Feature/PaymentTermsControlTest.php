@@ -360,9 +360,9 @@ class PaymentTermsControlTest extends TestCase
     }
 
     /**
-     * Test Salesperson can confirm payment
+     * Test Salesperson cannot confirm payment but Finance/BOD can
      */
-    public function test_salesperson_can_confirm_payment(): void
+    public function test_salesperson_cannot_confirm_payment(): void
     {
         $sale = Sale::create([
             'code' => 'TESTSALE06',
@@ -388,10 +388,17 @@ class PaymentTermsControlTest extends TestCase
             ]
         ]);
 
+        // 1. Salesperson tries to confirm -> should fail
         $this->actingAs($this->salesUser);
         $response = $this->post(route('sales.milestones.confirmPayment', [$sale->id, 0]));
         $response->assertRedirect();
-        
+        $response->assertSessionHas('error');
+        $this->assertEquals('pending_finance', $sale->paymentSchedules()->first()->status);
+
+        // 2. Accountant tries to confirm -> should succeed
+        $this->actingAs($this->accountantUser);
+        $response = $this->post(route('sales.milestones.confirmPayment', [$sale->id, 0]));
+        $response->assertRedirect();
         $this->assertEquals('paid', $sale->paymentSchedules()->first()->status);
     }
 
@@ -425,5 +432,54 @@ class PaymentTermsControlTest extends TestCase
         ]);
 
         $this->assertEquals('pending', $sale->paymentSchedules()->first()->status);
+    }
+
+    /**
+     * Test Salesperson cannot approve exceptions (whole sale or milestone) without delegation
+     */
+    public function test_salesperson_cannot_approve_exceptions_without_delegation(): void
+    {
+        $sale = Sale::create([
+            'code' => 'TESTSALE08',
+            'type' => 'project',
+            'customer_id' => $this->customer->id,
+            'customer_name' => $this->customer->name,
+            'user_id' => $this->salesUser->id,
+            'date' => now(),
+            'total' => 10000000,
+            'pl_status' => 'approved',
+            'payment_term_type' => 'milestones',
+            'payment_terms' => [
+                [
+                    'milestone_name' => 'Đợt 1',
+                    'percentage' => 100,
+                    'amount' => 10000000,
+                    'required_before' => 'before_order',
+                    'timing' => 'after_contract',
+                    'required_docs' => 'unc',
+                    'due_days' => 5,
+                    'status' => 'unpaid'
+                ]
+            ]
+        ]);
+
+        Storage::fake('public');
+        $this->actingAs($this->salesUser);
+
+        // 1. Salesperson tries to approve whole sale exception -> should fail
+        $file = UploadedFile::fake()->create('approval.pdf', 100);
+        $response = $this->post(route('sales.approvePaymentException', $sale->id), [
+            'payment_exception_files' => [$file]
+        ]);
+        $response->assertSessionHas('error');
+        $this->assertFalse($sale->fresh()->is_payment_exception);
+
+        // 2. Salesperson tries to approve milestone exception -> should fail
+        $file2 = UploadedFile::fake()->create('milestone_approval.pdf', 100);
+        $response2 = $this->post(route('sales.milestones.approveException', [$sale->id, 0]), [
+            'bod_approval_file' => $file2
+        ]);
+        $response2->assertSessionHas('error');
+        $this->assertEquals('unpaid', $sale->paymentSchedules()->first()->status);
     }
 }
