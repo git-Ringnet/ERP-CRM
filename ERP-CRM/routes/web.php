@@ -650,8 +650,11 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'updateCentralized'])->name('technical.support-logs.update-centralized');
     Route::delete('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroyCentralized'])->name('technical.support-logs.destroy-centralized');
     
+    Route::post('/technical-tickets/{ticket}/pickup', [\App\Http\Controllers\TechnicalTicketController::class, 'pickup'])->name('technical-tickets.pickup');
+    Route::put('/technical-tickets/{ticket}/progress', [\App\Http\Controllers\TechnicalTicketController::class, 'updateProgress'])->name('technical-tickets.update-progress');
     Route::resource('technical-tickets', \App\Http\Controllers\TechnicalTicketController::class);
     
+    Route::post('/technical-tickets/{ticket}/comments', [\App\Http\Controllers\TechnicalTicketController::class, 'storeComment'])->name('technical-tickets.comments.store');
     Route::post('/technical-tickets/{ticket}/attachments', [\App\Http\Controllers\TechnicalTicketController::class, 'uploadAttachment'])->name('technical-tickets.attachments.upload');
     Route::get('/technical-tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\TechnicalTicketController::class, 'downloadAttachment'])->name('technical-tickets.attachments.download');
     Route::delete('/technical-tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\TechnicalTicketController::class, 'deleteAttachment'])->name('technical-tickets.attachments.delete');

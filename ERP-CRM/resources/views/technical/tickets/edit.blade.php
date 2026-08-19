@@ -13,33 +13,28 @@
     @endpush
 
     <div class="" x-data="{ 
-        workType: '{{ old('work_type', $ticket->work_type) }}',
-        openCust: false, custSearch: '', customerId: '{{ old('customer_id', $ticket->customer_id) }}', customerName: '', custTyping: false,
-        openSales: false, salesSearch: '', salesOwnerId: '{{ old('sales_owner_id', $ticket->sales_owner_id) }}', salesOwnerName: '', salesTyping: false,
-        openLead: false, leadSearch: '', teamLeadId: '{{ old('team_lead_id', $ticket->team_lead_id) }}', teamLeadName: '', leadTyping: false,
-        openEng: false, engSearch: '', assignedTo: '{{ old('assigned_to', $ticket->assigned_to) }}', assignedToName: '', engTyping: false,
+            workType: '{{ old('work_type', $ticket->work_type) }}',
+            openSales: false, salesSearch: '', salesOwnerId: '{{ old('sales_owner_id', $ticket->sales_owner_id) }}', salesOwnerName: '', salesTyping: false,
+            openLead: false, leadSearch: '', teamLeadId: '{{ old('team_lead_id', $ticket->team_lead_id) }}', teamLeadName: '', leadTyping: false,
+            openEng: false, engSearch: '', assignedTo: '{{ is_array(old('assigned_to', $ticket->assigned_to)) ? (collect(old('assigned_to', $ticket->assigned_to))->first() ?? '') : old('assigned_to', $ticket->assigned_to) }}', assignedToName: '', engTyping: false,
 
-        usersList: window.editTicketUsers || [],
-        customersList: window.editTicketCustomers || [],
+            usersList: window.editTicketUsers || [],
+            engineersList: window.editTicketEngineers || [],
 
-        init() {
-            var user = this.usersList.find(function(u){ return u.id == this.salesOwnerId; }.bind(this));
-            this.salesOwnerName = user ? user.name : '';
-            this.salesSearch = this.salesOwnerName;
+            init() {
+                var user = this.usersList.find(function(u){ return u.id == this.salesOwnerId; }.bind(this));
+                this.salesOwnerName = user ? user.name : '';
+                this.salesSearch = this.salesOwnerName;
 
-            var lead = this.usersList.find(function(u){ return u.id == this.teamLeadId; }.bind(this));
-            this.teamLeadName = lead ? lead.name : '';
-            this.leadSearch = this.teamLeadName;
+                var lead = this.usersList.find(function(u){ return u.id == this.teamLeadId; }.bind(this));
+                this.teamLeadName = lead ? lead.name : '';
+                this.leadSearch = this.teamLeadName;
 
-            var eng = this.usersList.find(function(u){ return u.id == this.assignedTo; }.bind(this));
-            this.assignedToName = eng ? eng.name : '';
-            this.engSearch = this.assignedToName;
-
-            var cust = this.customersList.find(function(c){ return c.id == this.customerId; }.bind(this));
-            this.customerName = cust ? cust.name : '';
-            this.custSearch = this.customerName;
-        }
-    }">
+                var eng = this.usersList.find(function(u){ return u.id == this.assignedTo; }.bind(this));
+                this.assignedToName = eng ? eng.name : '';
+                this.engSearch = this.assignedToName;
+            }
+        }">
         <div class="flex items-center space-x-2">
             <a href="{{ route('technical-tickets.show', $ticket->id) }}"
                 class="text-gray-500 hover:text-gray-700 transition-colors">
@@ -52,7 +47,7 @@
             class="space-y-6">
             @csrf
             @method('PUT')
-            
+
             @if ($errors->any())
                 <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3 shadow-sm">
                     <span class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0 mt-0.5">
@@ -73,7 +68,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center">
                     <span class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-2"></span>
-                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">a) Thông tin chung</h3>
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Thông tin chung</h3>
                 </div>
 
                 <div class="p-6 space-y-6">
@@ -81,7 +76,7 @@
                         <!-- Ticket Title -->
                         <div class="md:col-span-2">
                             <label for="title" class="block text-sm font-semibold text-gray-700 mb-1">Tiêu đề / Tên công
-                                việc (*)</label>
+                                việc <span class="text-red-500">*</span></label>
                             <input type="text" name="title" id="title" required
                                 placeholder="Ví dụ: Triển khai tường lửa Fortigate cho Khách hàng A"
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary @error('title') border-red-500 @enderror"
@@ -94,7 +89,7 @@
                         <!-- Work Type (Loại ticket) -->
                         <div>
                             <label for="work_type" class="block text-sm font-semibold text-gray-700 mb-1">Loại Ticket
-                                (*)</label>
+                                <span class="text-red-500">*</span></label>
                             <select name="work_type" id="work_type" x-model="workType" required
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary @error('work_type') border-red-500 @enderror">
                                 <option value="">-- Chọn loại ticket --</option>
@@ -118,7 +113,7 @@
                         <!-- Priority -->
                         <div>
                             <label for="priority" class="block text-sm font-semibold text-gray-700 mb-1">Priority
-                                (*)</label>
+                                <span class="text-red-500">*</span></label>
                             <select name="priority" id="priority" required
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary @error('priority') border-red-500 @enderror">
                                 <option value="medium" {{ old('priority', $ticket->priority) === 'medium' ? 'selected' : '' }}>Medium</option>
@@ -157,11 +152,12 @@
 
                         <!-- Sales Owner (Searchable Select) -->
                         <div class="relative">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Sales Owner (*)</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Sales Owner <span class="text-red-500">*</span></label>
                             <div class="relative">
                                 <input type="text" placeholder="-- Chọn Sales Owner --"
                                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="salesSearch" @focus="openSales = true" @click="openSales = true" @input="openSales = true; salesTyping = true"
+                                    x-model="salesSearch" @focus="openSales = true" @click="openSales = true"
+                                    @input="openSales = true; salesTyping = true"
                                     @click.away="openSales = false; salesTyping = false; const found = usersList.find(u => u.id == salesOwnerId); salesSearch = found ? found.name : ''">
                                 <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
                                     <i class="fas fa-chevron-down text-xs"></i>
@@ -194,35 +190,6 @@
                             </select>
                         </div>
 
-                        <!-- Customer Searchable Select -->
-                        <div class="relative">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Khách hàng liên quan</label>
-                            <div class="relative">
-                                <input type="text" placeholder="-- Chọn Khách hàng --"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="custSearch" @focus="openCust = true" @click="openCust = true" @input="openCust = true; custTyping = true"
-                                    @click.away="openCust = false; custTyping = false; const found = customersList.find(c => c.id == customerId); custSearch = found ? found.name : ''">
-                                <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-xs"></i>
-                                </div>
-                            </div>
-                            <div x-show="openCust"
-                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5"
-                                x-cloak>
-                                <button type="button" @mousedown.prevent="customerId = ''; custSearch = ''; openCust = false; custTyping = false"
-                                    class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
-                                    -- Không chọn / Không có --
-                                </button>
-                                <template x-for="cust in customersList" :key="cust.id">
-                                    <button type="button"
-                                        x-show="!custTyping || cust.name.toLowerCase().includes(custSearch.toLowerCase())"
-                                        @mousedown.prevent="customerId = cust.id; custSearch = cust.name; openCust = false; custTyping = false"
-                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
-                                        x-text="cust.name"></button>
-                                </template>
-                            </div>
-                            <input type="hidden" name="customer_id" :value="customerId">
-                        </div>
 
                         <!-- Project / Partner / EU Name -->
                         <div>
@@ -245,9 +212,10 @@
                     </div>
 
                     <!-- Group: Liên kết CRM (Grouped for neatness) -->
-                    <div class="border-t border-gray-150 pt-4 space-y-4">
+                    <div class="border-t border-gray-150 pt-4 space-y-4"
+                        x-show="workType && workType !== 'event' && workType !== 'other'" x-cloak>
                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Liên kết nhanh CRM</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 gap-6">
                             <!-- Project Link -->
                             <div>
                                 <label for="project_id" class="block text-xs font-semibold text-gray-600 mb-1">Liên kết Dự
@@ -257,32 +225,6 @@
                                     <option value="">-- Không chọn / Không có --</option>
                                     @foreach($projects as $proj)
                                         <option value="{{ $proj->id }}" {{ old('project_id', $ticket->project_id) == $proj->id ? 'selected' : '' }}>{{ $proj->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <!-- Opportunity Link -->
-                            <div>
-                                <label for="opportunity_id" class="block text-xs font-semibold text-gray-600 mb-1">Liên kết
-                                    Cơ hội (Opportunity)</label>
-                                <select name="opportunity_id" id="opportunity_id"
-                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                    <option value="">-- Không chọn / Không có --</option>
-                                    @foreach($opportunities as $opp)
-                                        <option value="{{ $opp->id }}" {{ old('opportunity_id', $ticket->opportunity_id) == $opp->id ? 'selected' : '' }}>{{ $opp->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <!-- Sales Link -->
-                            <div>
-                                <label for="sale_id" class="block text-xs font-semibold text-gray-600 mb-1">Liên kết Đơn
-                                    hàng (Sales Order)</label>
-                                <select name="sale_id" id="sale_id"
-                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                    <option value="">-- Không chọn / Không có --</option>
-                                    @foreach($sales as $s)
-                                        <option value="{{ $s->id }}" {{ old('sale_id', $ticket->sale_id) == $s->id ? 'selected' : '' }}>{{ $s->code }} - {{ $s->customer_name }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -296,9 +238,11 @@
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                     <div class="flex items-center">
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2"></span>
-                        <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Thông tin riêng cho loại Ticket</h3>
+                        <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Thông tin riêng cho loại Ticket
+                        </h3>
                     </div>
-                    <span class="text-xs font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full" x-text="'Loại: ' + workType"></span>
+                    <span class="text-xs font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full"
+                        x-text="'Loại: ' + workType"></span>
                 </div>
 
                 <div class="p-6 space-y-6">
@@ -306,22 +250,31 @@
                     <div x-show="workType === 'survey'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Hình thức họp</label>
-                            <select name="ticket_details[meeting_type]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="Online" {{ (old('ticket_details.meeting_type', $ticket->ticket_details['meeting_type'] ?? '') === 'Online') ? 'selected' : '' }}>Họp Online</option>
-                                <option value="Offline" {{ (old('ticket_details.meeting_type', $ticket->ticket_details['meeting_type'] ?? '') === 'Offline') ? 'selected' : '' }}>Họp Offline</option>
+                            <select name="ticket_details[meeting_type]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="Online" {{ (old('ticket_details.meeting_type', $ticket->ticket_details['meeting_type'] ?? '') === 'Online') ? 'selected' : '' }}>Họp
+                                    Online</option>
+                                <option value="Offline" {{ (old('ticket_details.meeting_type', $ticket->ticket_details['meeting_type'] ?? '') === 'Offline') ? 'selected' : '' }}>Họp
+                                    Offline</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Thời gian họp</label>
-                            <input type="datetime-local" name="ticket_details[meeting_time]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.meeting_time', $ticket->ticket_details['meeting_time'] ?? '') }}">
+                            <input type="datetime-local" name="ticket_details[meeting_time]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.meeting_time', $ticket->ticket_details['meeting_time'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Địa chỉ (nếu Offline)</label>
-                            <input type="text" name="ticket_details[meeting_address]" placeholder="Địa điểm họp cụ thể..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.meeting_address', $ticket->ticket_details['meeting_address'] ?? '') }}">
+                            <input type="text" name="ticket_details[meeting_address]" placeholder="Địa điểm họp cụ thể..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.meeting_address', $ticket->ticket_details['meeting_address'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Nội dung / mục tiêu</label>
-                            <textarea name="ticket_details[meeting_goal]" rows="3" placeholder="Mục tiêu cuộc họp, nội dung khảo sát..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.meeting_goal', $ticket->ticket_details['meeting_goal'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[meeting_goal]" rows="3"
+                                placeholder="Mục tiêu cuộc họp, nội dung khảo sát..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.meeting_goal', $ticket->ticket_details['meeting_goal'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -329,7 +282,9 @@
                     <div x-show="workType === 'BOM'" class="space-y-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu kỹ thuật / Spec</label>
-                            <textarea name="ticket_details[spec_requirements]" rows="4" placeholder="Mô tả các yêu cầu kỹ thuật, thông số Spec cần kiểm tra..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.spec_requirements', $ticket->ticket_details['spec_requirements'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[spec_requirements]" rows="4"
+                                placeholder="Mô tả các yêu cầu kỹ thuật, thông số Spec cần kiểm tra..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.spec_requirements', $ticket->ticket_details['spec_requirements'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -337,11 +292,17 @@
                     <div x-show="workType === 'documentation'" class="grid grid-cols-1 gap-6">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Mô tả yêu cầu tài liệu</label>
-                            <textarea name="ticket_details[doc_description]" rows="3" placeholder="Yêu cầu Spec, Datasheet, hồ sơ thầu, proposal..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.doc_description', $ticket->ticket_details['doc_description'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[doc_description]" rows="3"
+                                placeholder="Yêu cầu Spec, Datasheet, hồ sơ thầu, proposal..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.doc_description', $ticket->ticket_details['doc_description'] ?? '') }}</textarea>
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Bản chào giá / BOM tham chiếu</label>
-                            <input type="text" name="ticket_details[doc_bom]" placeholder="Thông tin BOM hoặc cấu hình tham chiếu..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.doc_bom', $ticket->ticket_details['doc_bom'] ?? '') }}">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Bản chào giá / BOM tham
+                                chiếu</label>
+                            <input type="text" name="ticket_details[doc_bom]"
+                                placeholder="Thông tin BOM hoặc cấu hình tham chiếu..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.doc_bom', $ticket->ticket_details['doc_bom'] ?? '') }}">
                         </div>
                     </div>
 
@@ -349,34 +310,52 @@
                     <div x-show="workType === 'POC'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Thiết bị / Model</label>
-                            <input type="text" name="ticket_details[poc_model]" placeholder="Ví dụ: Sophos XGS 2100, Fortigate 100F..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.poc_model', $ticket->ticket_details['poc_model'] ?? '') }}">
+                            <input type="text" name="ticket_details[poc_model]"
+                                placeholder="Ví dụ: Sophos XGS 2100, Fortigate 100F..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.poc_model', $ticket->ticket_details['poc_model'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Số lượng mượn</label>
-                            <input type="number" name="ticket_details[poc_quantity]" min="1" placeholder="Số lượng..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.poc_quantity', $ticket->ticket_details['poc_quantity'] ?? '') }}">
+                            <input type="number" name="ticket_details[poc_quantity]" min="1" placeholder="Số lượng..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.poc_quantity', $ticket->ticket_details['poc_quantity'] ?? '') }}">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu kế hoạch/phương án PoC</label>
-                            <select name="ticket_details[poc_require_plan]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="No" {{ (old('ticket_details.poc_require_plan', $ticket->ticket_details['poc_require_plan'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)</option>
-                                <option value="Yes" {{ (old('ticket_details.poc_require_plan', $ticket->ticket_details['poc_require_plan'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)</option>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu kế hoạch/phương án
+                                PoC</label>
+                            <select name="ticket_details[poc_require_plan]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="No" {{ (old('ticket_details.poc_require_plan', $ticket->ticket_details['poc_require_plan'] ?? '') === 'No') ? 'selected' : '' }}>Không
+                                    (No)</option>
+                                <option value="Yes" {{ (old('ticket_details.poc_require_plan', $ticket->ticket_details['poc_require_plan'] ?? '') === 'Yes') ? 'selected' : '' }}>Có
+                                    (Yes)</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày mượn thiết bị</label>
-                            <input type="date" name="ticket_details[poc_borrow_date]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.poc_borrow_date', $ticket->ticket_details['poc_borrow_date'] ?? '') }}">
+                            <input type="date" name="ticket_details[poc_borrow_date]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.poc_borrow_date', $ticket->ticket_details['poc_borrow_date'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày trả thiết bị</label>
-                            <input type="date" name="ticket_details[poc_return_date]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.poc_return_date', $ticket->ticket_details['poc_return_date'] ?? '') }}">
+                            <input type="date" name="ticket_details[poc_return_date]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.poc_return_date', $ticket->ticket_details['poc_return_date'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm triển khai POC</label>
-                            <input type="text" name="ticket_details[poc_location]" placeholder="Địa chỉ Onsite triển khai..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.poc_location', $ticket->ticket_details['poc_location'] ?? '') }}">
+                            <input type="text" name="ticket_details[poc_location]"
+                                placeholder="Địa chỉ Onsite triển khai..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.poc_location', $ticket->ticket_details['poc_location'] ?? '') }}">
                         </div>
                         <div class="md:col-span-3">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Mục tiêu POC</label>
-                            <textarea name="ticket_details[poc_goal]" rows="3" placeholder="Các tính năng kỹ thuật cần chứng minh, tiêu chí đạt..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.poc_goal', $ticket->ticket_details['poc_goal'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[poc_goal]" rows="3"
+                                placeholder="Các tính năng kỹ thuật cần chứng minh, tiêu chí đạt..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.poc_goal', $ticket->ticket_details['poc_goal'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -384,38 +363,58 @@
                     <div x-show="workType === 'deployment'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Hình thức triển khai</label>
-                            <select name="ticket_details[deploy_type]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="Onsite" {{ (old('ticket_details.deploy_type', $ticket->ticket_details['deploy_type'] ?? '') === 'Onsite') ? 'selected' : '' }}>Onsite</option>
-                                <option value="Remote" {{ (old('ticket_details.deploy_type', $ticket->ticket_details['deploy_type'] ?? '') === 'Remote') ? 'selected' : '' }}>Remote</option>
+                            <select name="ticket_details[deploy_type]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="Onsite" {{ (old('ticket_details.deploy_type', $ticket->ticket_details['deploy_type'] ?? '') === 'Onsite') ? 'selected' : '' }}>Onsite
+                                </option>
+                                <option value="Remote" {{ (old('ticket_details.deploy_type', $ticket->ticket_details['deploy_type'] ?? '') === 'Remote') ? 'selected' : '' }}>Remote
+                                </option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Thời gian triển khai</label>
-                            <input type="datetime-local" name="ticket_details[deploy_time]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.deploy_time', $ticket->ticket_details['deploy_time'] ?? '') }}">
+                            <input type="datetime-local" name="ticket_details[deploy_time]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.deploy_time', $ticket->ticket_details['deploy_time'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Địa chỉ triển khai</label>
-                            <input type="text" name="ticket_details[deploy_address]" placeholder="Địa chỉ Onsite (nếu có)..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.deploy_address', $ticket->ticket_details['deploy_address'] ?? '') }}">
+                            <input type="text" name="ticket_details[deploy_address]"
+                                placeholder="Địa chỉ Onsite (nếu có)..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.deploy_address', $ticket->ticket_details['deploy_address'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Phạm vi công việc (Scope of Work - SoW)</label>
-                            <textarea name="ticket_details[deploy_sow]" rows="3" placeholder="Mô tả phạm vi công việc cần cấu hình, cài đặt..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.deploy_sow', $ticket->ticket_details['deploy_sow'] ?? '') }}</textarea>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Phạm vi công việc (Scope of Work -
+                                SoW)</label>
+                            <textarea name="ticket_details[deploy_sow]" rows="3"
+                                placeholder="Mô tả phạm vi công việc cần cấu hình, cài đặt..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.deploy_sow', $ticket->ticket_details['deploy_sow'] ?? '') }}</textarea>
                         </div>
                     </div>
 
                     <!-- f) Ticket After-sales support -->
                     <div x-show="workType === 'after_sales'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Contact liên hệ (Email/SĐT)</label>
-                            <input type="text" name="ticket_details[after_sales_contact]" placeholder="Họ tên, SĐT hoặc Email khách hàng..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.after_sales_contact', $ticket->ticket_details['after_sales_contact'] ?? '') }}">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Contact liên hệ
+                                (Email/SĐT)</label>
+                            <input type="text" name="ticket_details[after_sales_contact]"
+                                placeholder="Họ tên, SĐT hoặc Email khách hàng..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.after_sales_contact', $ticket->ticket_details['after_sales_contact'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">S/N thiết bị lỗi</label>
-                            <input type="text" name="ticket_details[after_sales_serial]" placeholder="Serial Number của thiết bị..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.after_sales_serial', $ticket->ticket_details['after_sales_serial'] ?? '') }}">
+                            <input type="text" name="ticket_details[after_sales_serial]"
+                                placeholder="Serial Number của thiết bị..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.after_sales_serial', $ticket->ticket_details['after_sales_serial'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Mô tả vấn đề / Sự cố</label>
-                            <textarea name="ticket_details[after_sales_problem]" rows="4" placeholder="Mô tả chi tiết lỗi phát sinh, hiện tượng sự cố kỹ thuật..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.after_sales_problem', $ticket->ticket_details['after_sales_problem'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[after_sales_problem]" rows="4"
+                                placeholder="Mô tả chi tiết lỗi phát sinh, hiện tượng sự cố kỹ thuật..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.after_sales_problem', $ticket->ticket_details['after_sales_problem'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -423,44 +422,65 @@
                     <div x-show="workType === 'event'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Tên sự kiện (Event Name)</label>
-                            <input type="text" name="ticket_details[event_name]" placeholder="Nhập tên sự kiện, hội thảo..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.event_name', $ticket->ticket_details['event_name'] ?? '') }}">
+                            <input type="text" name="ticket_details[event_name]" placeholder="Nhập tên sự kiện, hội thảo..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.event_name', $ticket->ticket_details['event_name'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Thời gian tổ chức</label>
-                            <input type="datetime-local" name="ticket_details[event_time]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.event_time', $ticket->ticket_details['event_time'] ?? '') }}">
+                            <input type="datetime-local" name="ticket_details[event_time]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.event_time', $ticket->ticket_details['event_time'] ?? '') }}">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm tổ chức</label>
-                            <input type="text" name="ticket_details[event_location]" placeholder="Địa chỉ tổ chức sự kiện..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.event_location', $ticket->ticket_details['event_location'] ?? '') }}">
+                            <input type="text" name="ticket_details[event_location]"
+                                placeholder="Địa chỉ tổ chức sự kiện..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.event_location', $ticket->ticket_details['event_location'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Đối tượng tham gia</label>
-                            <input type="text" name="ticket_details[event_attendees]" placeholder="Partner, Customer, End-User..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.event_attendees', $ticket->ticket_details['event_attendees'] ?? '') }}">
+                            <input type="text" name="ticket_details[event_attendees]"
+                                placeholder="Partner, Customer, End-User..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.event_attendees', $ticket->ticket_details['event_attendees'] ?? '') }}">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Cử Speaker tham gia?</label>
-                            <select name="ticket_details[event_speaker]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="No" {{ (old('ticket_details.event_speaker', $ticket->ticket_details['event_speaker'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)</option>
-                                <option value="Yes" {{ (old('ticket_details.event_speaker', $ticket->ticket_details['event_speaker'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)</option>
+                            <select name="ticket_details[event_speaker]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="No" {{ (old('ticket_details.event_speaker', $ticket->ticket_details['event_speaker'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)
+                                </option>
+                                <option value="Yes" {{ (old('ticket_details.event_speaker', $ticket->ticket_details['event_speaker'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)
+                                </option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Chuẩn bị Slide trình bày?</label>
-                            <select name="ticket_details[event_slide]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="No" {{ (old('ticket_details.event_slide', $ticket->ticket_details['event_slide'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)</option>
-                                <option value="Yes" {{ (old('ticket_details.event_slide', $ticket->ticket_details['event_slide'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)</option>
+                            <select name="ticket_details[event_slide]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="No" {{ (old('ticket_details.event_slide', $ticket->ticket_details['event_slide'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)
+                                </option>
+                                <option value="Yes" {{ (old('ticket_details.event_slide', $ticket->ticket_details['event_slide'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)
+                                </option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Triển khai Demo trực tiếp?</label>
-                            <select name="ticket_details[event_demo]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="No" {{ (old('ticket_details.event_demo', $ticket->ticket_details['event_demo'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)</option>
-                                <option value="Yes" {{ (old('ticket_details.event_demo', $ticket->ticket_details['event_demo'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)</option>
+                            <select name="ticket_details[event_demo]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="No" {{ (old('ticket_details.event_demo', $ticket->ticket_details['event_demo'] ?? '') === 'No') ? 'selected' : '' }}>Không (No)
+                                </option>
+                                <option value="Yes" {{ (old('ticket_details.event_demo', $ticket->ticket_details['event_demo'] ?? '') === 'Yes') ? 'selected' : '' }}>Có (Yes)
+                                </option>
                             </select>
                         </div>
                         <div class="md:col-span-3">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu khác</label>
-                            <textarea name="ticket_details[event_notes]" rows="3" placeholder="Các yêu cầu chuẩn bị thiết bị, banner, quà tặng..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.event_notes', $ticket->ticket_details['event_notes'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[event_notes]" rows="3"
+                                placeholder="Các yêu cầu chuẩn bị thiết bị, banner, quà tặng..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.event_notes', $ticket->ticket_details['event_notes'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -468,30 +488,46 @@
                     <div x-show="workType === 'training'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Đối tượng đào tạo</label>
-                            <select name="ticket_details[training_audience]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="Internal" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Internal') ? 'selected' : '' }}>Nội bộ (Internal)</option>
-                                <option value="Partner" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Partner') ? 'selected' : '' }}>Đối tác (Partner)</option>
-                                <option value="Customer" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Customer') ? 'selected' : '' }}>Khách hàng (Customer)</option>
+                            <select name="ticket_details[training_audience]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="Internal" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Internal') ? 'selected' : '' }}>
+                                    Nội bộ (Internal)</option>
+                                <option value="Partner" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Partner') ? 'selected' : '' }}>
+                                    Đối tác (Partner)</option>
+                                <option value="Customer" {{ (old('ticket_details.training_audience', $ticket->ticket_details['training_audience'] ?? '') === 'Customer') ? 'selected' : '' }}>
+                                    Khách hàng (Customer)</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Hình thức</label>
-                            <select name="ticket_details[training_format]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="Online" {{ (old('ticket_details.training_format', $ticket->ticket_details['training_format'] ?? '') === 'Online') ? 'selected' : '' }}>Online</option>
-                                <option value="Offline" {{ (old('ticket_details.training_format', $ticket->ticket_details['training_format'] ?? '') === 'Offline') ? 'selected' : '' }}>Offline</option>
+                            <select name="ticket_details[training_format]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                <option value="Online" {{ (old('ticket_details.training_format', $ticket->ticket_details['training_format'] ?? '') === 'Online') ? 'selected' : '' }}>
+                                    Online</option>
+                                <option value="Offline" {{ (old('ticket_details.training_format', $ticket->ticket_details['training_format'] ?? '') === 'Offline') ? 'selected' : '' }}>
+                                    Offline</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Thời gian đào tạo</label>
-                            <input type="datetime-local" name="ticket_details[training_time]" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.training_time', $ticket->ticket_details['training_time'] ?? '') }}">
+                            <input type="datetime-local" name="ticket_details[training_time]"
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.training_time', $ticket->ticket_details['training_time'] ?? '') }}">
                         </div>
                         <div class="md:col-span-3">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm đào tạo (nếu Offline)</label>
-                            <input type="text" name="ticket_details[training_location]" placeholder="Địa chỉ phòng Lab, văn phòng..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" value="{{ old('ticket_details.training_location', $ticket->ticket_details['training_location'] ?? '') }}">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm đào tạo (nếu
+                                Offline)</label>
+                            <input type="text" name="ticket_details[training_location]"
+                                placeholder="Địa chỉ phòng Lab, văn phòng..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                value="{{ old('ticket_details.training_location', $ticket->ticket_details['training_location'] ?? '') }}">
                         </div>
                         <div class="md:col-span-3">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nội dung / Mục tiêu đề xuất</label>
-                            <textarea name="ticket_details[training_goal]" rows="3" placeholder="Các bài Lab, nội dung sản phẩm cần đào tạo..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.training_goal', $ticket->ticket_details['training_goal'] ?? '') }}</textarea>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nội dung / Mục tiêu đề
+                                xuất</label>
+                            <textarea name="ticket_details[training_goal]" rows="3"
+                                placeholder="Các bài Lab, nội dung sản phẩm cần đào tạo..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.training_goal', $ticket->ticket_details['training_goal'] ?? '') }}</textarea>
                         </div>
                     </div>
 
@@ -499,58 +535,31 @@
                     <div x-show="workType === 'other'" class="space-y-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Mô tả yêu cầu</label>
-                            <textarea name="ticket_details[other_description]" rows="4" placeholder="Mô tả cụ thể yêu cầu hỗ trợ khác..." class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.other_description', $ticket->ticket_details['other_description'] ?? '') }}</textarea>
+                            <textarea name="ticket_details[other_description]" rows="4"
+                                placeholder="Mô tả cụ thể yêu cầu hỗ trợ khác..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ old('ticket_details.other_description', $ticket->ticket_details['other_description'] ?? '') }}</textarea>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- CARD 2: PHÂN CÔNG & TRẠNG THÁI (TECHNICAL PICKUP) -->
+            <!-- CARD 2: PHÂN CÔNG (TECHNICAL PICKUP) -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center">
                     <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 mr-2"></span>
-                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">b) Thông tin Technical Pickup</h3>
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Thông tin Technical Pickup</h3>
                 </div>
 
                 <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <!-- Team Lead Searchable Select -->
-                        <div class="relative">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Team Lead</label>
-                            <div class="relative">
-                                <input type="text" placeholder="-- Chọn Team Lead --"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="leadSearch" @focus="openLead = true" @click="openLead = true" @input="openLead = true; leadTyping = true"
-                                    @click.away="openLead = false; leadTyping = false; const found = usersList.find(u => u.id == teamLeadId); leadSearch = found ? found.name : ''">
-                                <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-xs"></i>
-                                </div>
-                            </div>
-                            <div x-show="openLead"
-                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5"
-                                x-cloak>
-                                <button type="button" @mousedown.prevent="teamLeadId = ''; leadSearch = ''; openLead = false; leadTyping = false"
-                                    class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
-                                    -- Không chọn / Không có --
-                                </button>
-                                <template x-for="user in usersList" :key="user.id">
-                                    <button type="button"
-                                        x-show="!leadTyping || user.name.toLowerCase().includes(leadSearch.toLowerCase())"
-                                        @mousedown.prevent="teamLeadId = user.id; leadSearch = user.name; openLead = false; leadTyping = false"
-                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
-                                        x-text="user.name"></button>
-                                </template>
-                            </div>
-                            <input type="hidden" name="team_lead_id" :value="teamLeadId">
-                        </div>
-
+                    <div class="grid grid-cols-1 gap-6">
                         <!-- Engineer Searchable Select -->
                         <div class="relative">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Engineer (Kỹ sư thực hiện)</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Kỹ sư phụ trách <span class="text-red-500">*</span></label>
                             <div class="relative">
                                 <input type="text" placeholder="-- Chọn Kỹ sư --"
                                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="engSearch" @focus="openEng = true" @click="openEng = true" @input="openEng = true; engTyping = true"
+                                    x-model="engSearch" @focus="openEng = true" @click="openEng = true"
+                                    @input="openEng = true; engTyping = true"
                                     @click.away="openEng = false; engTyping = false; const found = usersList.find(u => u.id == assignedTo); engSearch = found ? found.name : ''">
                                 <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
                                     <i class="fas fa-chevron-down text-xs"></i>
@@ -559,11 +568,12 @@
                             <div x-show="openEng"
                                 class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5"
                                 x-cloak>
-                                <button type="button" @mousedown.prevent="assignedTo = ''; engSearch = ''; openEng = false; engTyping = false"
+                                <button type="button"
+                                    @mousedown.prevent="assignedTo = ''; engSearch = ''; openEng = false; engTyping = false"
                                     class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
                                     -- Chưa phân công --
                                 </button>
-                                <template x-for="user in usersList" :key="user.id">
+                                <template x-for="user in engineersList" :key="user.id">
                                     <button type="button"
                                         x-show="!engTyping || user.name.toLowerCase().includes(engSearch.toLowerCase())"
                                         @mousedown.prevent="assignedTo = user.id; engSearch = user.name; openEng = false; engTyping = false"
@@ -572,24 +582,6 @@
                                 </template>
                             </div>
                             <input type="hidden" name="assigned_to" :value="assignedTo">
-                        </div>
-
-                        <!-- Status -->
-                        <div>
-                            <label for="status" class="block text-sm font-semibold text-gray-700 mb-1">Trạng thái
-                                Ticket</label>
-                            <select name="status" id="status"
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="open" {{ old('status', $ticket->status) === 'open' ? 'selected' : '' }}>Open
-                                </option>
-                                <option value="assigned" {{ old('status', $ticket->status) === 'assigned' ? 'selected' : '' }}>Assigned</option>
-                                <option value="in_progress" {{ old('status', $ticket->status) === 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                                <option value="waiting" {{ old('status', $ticket->status) === 'waiting' ? 'selected' : '' }}>
-                                    Waiting (Customer/Partner/Vendor)</option>
-                                <option value="completed" {{ old('status', $ticket->status) === 'completed' ? 'selected' : '' }}>Completed</option>
-                                <option value="closed" {{ old('status', $ticket->status) === 'closed' ? 'selected' : '' }}>
-                                    Closed</option>
-                            </select>
                         </div>
                     </div>
                 </div>
@@ -640,7 +632,7 @@
     @push('scripts')
         <script>
             window.editTicketUsers = @json($users->map(fn($u) => ['id' => $u->id, 'name' => $u->name]));
-            window.editTicketCustomers = @json($customers->map(fn($c) => ['id' => $c->id, 'name' => $c->name]));
+            window.editTicketEngineers = @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name]));
         </script>
     @endpush
 @endsection

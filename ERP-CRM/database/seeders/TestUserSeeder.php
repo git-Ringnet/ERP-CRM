@@ -100,6 +100,22 @@ class TestUserSeeder extends Seeder
                 'position' => 'PM Specialist',
                 'department' => 'PM'
             ],
+            [
+                'email' => 'tech_lead@erp.com',
+                'name' => 'Technical Lead User',
+                'employee_code' => 'TL001',
+                'role_slug' => 'technical_lead',
+                'position' => 'Technical Team Lead',
+                'department' => 'Technical'
+            ],
+            [
+                'email' => 'tech_eng@erp.com',
+                'name' => 'Technical Engineer User',
+                'employee_code' => 'TE001',
+                'role_slug' => 'technical_engineer',
+                'position' => 'Technical Engineer',
+                'department' => 'Technical'
+            ],
         ];
 
         // Get admin user for 'assigned_by' reference

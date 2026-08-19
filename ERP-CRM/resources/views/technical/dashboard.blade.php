@@ -41,6 +41,15 @@
                 </select>
             </div>
             <div>
+                <label for="created_by" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nhân viên Sales</label>
+                <select name="created_by" id="created_by" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                    <option value="">Tất cả Sales</option>
+                    @foreach($salesUsers as $sale)
+                        <option value="{{ $sale->id }}" {{ (isset($filters['created_by']) && $filters['created_by'] == $sale->id) ? 'selected' : '' }}>{{ $sale->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
                 <label for="customer_id" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Khách hàng</label>
                 <select name="customer_id" id="customer_id" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
                     <option value="">Tất cả khách hàng</option>
@@ -71,14 +80,15 @@
                 <label for="work_type" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại công việc</label>
                 <select name="work_type" id="work_type" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
                     <option value="">Tất cả loại</option>
-                    <option value="BOM" {{ (isset($filters['work_type']) && $filters['work_type'] == 'BOM') ? 'selected' : '' }}>Lên cấu hình (BOM)</option>
-                    <option value="POC" {{ (isset($filters['work_type']) && $filters['work_type'] == 'POC') ? 'selected' : '' }}>Đánh giá kỹ thuật (PoC)</option>
-                    <option value="Deployment" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Deployment') ? 'selected' : '' }}>Triển khai (Deployment)</option>
-                    <option value="Training" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Training') ? 'selected' : '' }}>Đào tạo chuyển giao (Training)</option>
-                    <option value="Event" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Event') ? 'selected' : '' }}>Hỗ trợ sự kiện (Event)</option>
-                    <option value="Documentation" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Documentation') ? 'selected' : '' }}>Tài liệu hướng dẫn (Documentation)</option>
-                    <option value="Support After Sales" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Support After Sales') ? 'selected' : '' }}>Hỗ trợ sau bán hàng</option>
-                    <option value="Internal" {{ (isset($filters['work_type']) && $filters['work_type'] == 'Internal') ? 'selected' : '' }}>Hỗ trợ nội bộ</option>
+                    <option value="survey" {{ (isset($filters['work_type']) && $filters['work_type'] == 'survey') ? 'selected' : '' }}>Khảo sát / Tư vấn / Thiết kế</option>
+                    <option value="BOM" {{ (isset($filters['work_type']) && $filters['work_type'] == 'BOM') ? 'selected' : '' }}>BOM Support</option>
+                    <option value="documentation" {{ (isset($filters['work_type']) && $filters['work_type'] == 'documentation') ? 'selected' : '' }}>Technical Documents</option>
+                    <option value="POC" {{ (isset($filters['work_type']) && $filters['work_type'] == 'POC') ? 'selected' : '' }}>POC / Demo</option>
+                    <option value="deployment" {{ (isset($filters['work_type']) && $filters['work_type'] == 'deployment') ? 'selected' : '' }}>Deployment</option>
+                    <option value="after_sales" {{ (isset($filters['work_type']) && $filters['work_type'] == 'after_sales') ? 'selected' : '' }}>After-sales support</option>
+                    <option value="training" {{ (isset($filters['work_type']) && $filters['work_type'] == 'training') ? 'selected' : '' }}>Training / Update</option>
+                    <option value="event" {{ (isset($filters['work_type']) && $filters['work_type'] == 'event') ? 'selected' : '' }}>Event / Speaker</option>
+                    <option value="other" {{ (isset($filters['work_type']) && $filters['work_type'] == 'other') ? 'selected' : '' }}>Other</option>
                 </select>
             </div>
             <div>

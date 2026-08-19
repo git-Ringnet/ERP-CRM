@@ -95,6 +95,18 @@ class RoleSeeder extends Seeder
                 'description' => 'Chị Bích - Quản lý đơn hàng, kiểm tra ngân sách MKT và quản lý PO team',
                 'status' => 'active',
             ],
+            [
+                'name' => 'Technical Team Lead',
+                'slug' => 'technical_lead',
+                'description' => 'Trưởng nhóm kỹ thuật - Phân công ticket, kiểm tra và duyệt đóng ticket',
+                'status' => 'active',
+            ],
+            [
+                'name' => 'Technical Engineer',
+                'slug' => 'technical_engineer',
+                'description' => 'Kỹ sư kỹ thuật - Tự nhận hoặc nhận phân công, thực hiện xử lý công việc và báo cáo nhật ký',
+                'status' => 'active',
+            ],
         ];
         
         // Insert roles (use insertOrIgnore for idempotence)
@@ -426,6 +438,40 @@ class RoleSeeder extends Seeder
             $debtPerms = $this->getPermissionsBySlugs($allPermissions, ['record_payment_customer_debts']);
             $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms, $financialPerms, $exportPerms, $debtPerms));
             $this->attachPermissionsToRole($roles['accountant'], $accountantPerms, $now);
+        }
+
+        // ============================================================
+        // TECHNICAL TEAM LEAD
+        // ============================================================
+        if (isset($roles['technical_lead'])) {
+            $techLeadPerms = $this->getPermissionsByModules(
+                $allPermissions,
+                ['technical_tickets', 'technical_dashboard', 'technical_support_logs']
+            );
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['customers', 'products', 'projects', 'opportunities', 'sales'],
+                ['view']
+            );
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_dashboard']);
+            $techLeadPerms = array_unique(array_merge($techLeadPerms, $viewPerms, $specialPerms));
+            $this->attachPermissionsToRole($roles['technical_lead'], $techLeadPerms, $now);
+        }
+
+        // ============================================================
+        // TECHNICAL ENGINEER
+        // ============================================================
+        if (isset($roles['technical_engineer'])) {
+            $techEngPerms = array_unique(array_merge(
+                $this->getPermissionsByModulesAndActions($allPermissions, ['technical_tickets'], ['view', 'create', 'edit', 'export']),
+                $this->getPermissionsByModules($allPermissions, ['technical_dashboard', 'technical_support_logs'])
+            ));
+            $viewPerms = $this->getPermissionsByModulesAndActions($allPermissions,
+                ['customers', 'products', 'projects', 'opportunities', 'sales'],
+                ['view']
+            );
+            $specialPerms = $this->getPermissionsBySlugs($allPermissions, ['view_dashboard']);
+            $techEngPerms = array_unique(array_merge($techEngPerms, $viewPerms, $specialPerms));
+            $this->attachPermissionsToRole($roles['technical_engineer'], $techEngPerms, $now);
         }
     }
     

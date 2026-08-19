@@ -31,7 +31,7 @@ class TechnicalDashboardController extends Controller
         }
 
         $filters = $request->only([
-            'date_from', 'date_to', 'assigned_to', 'customer_id', 'supplier_id', 'project_id', 'work_type', 'priority', 'sla_status'
+            'date_from', 'date_to', 'assigned_to', 'customer_id', 'supplier_id', 'project_id', 'work_type', 'priority', 'sla_status', 'created_by'
         ]);
 
         // Base Query
@@ -63,6 +63,9 @@ class TechnicalDashboardController extends Controller
         }
         if (!empty($filters['priority'])) {
             $baseQuery->where('priority', $filters['priority']);
+        }
+        if (!empty($filters['created_by'])) {
+            $baseQuery->where('created_by', $filters['created_by']);
         }
         if (isset($filters['sla_status']) && $filters['sla_status'] !== '') {
             $sla = $filters['sla_status'];
@@ -203,11 +206,17 @@ class TechnicalDashboardController extends Controller
         $customers = Customer::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
         $projects = Project::orderBy('name')->get();
+        $salesUsers = User::where('status', 'active')
+            ->whereHas('roles', function($q) {
+                $q->whereIn('slug', ['sales_manager', 'sales_staff', 'super_admin', 'director']);
+            })
+            ->orderBy('name')
+            ->get();
 
         return view('technical.dashboard', compact(
             'totalTickets', 'openTickets', 'closedTickets', 'pendingTickets', 'escalateTickets', 'overdueTickets', 'slaRate',
             'engineerStats', 'salesStats', 'vendorStats', 'projectStats', 'categoryStats',
-            'engineers', 'customers', 'suppliers', 'projects', 'filters'
+            'engineers', 'customers', 'suppliers', 'projects', 'salesUsers', 'filters'
         ));
     }
 

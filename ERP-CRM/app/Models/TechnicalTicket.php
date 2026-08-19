@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\LogsActivity;
 use Carbon\Carbon;
 
 class TechnicalTicket extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'technical_tickets';
 
@@ -112,6 +113,16 @@ class TechnicalTicket extends Model
         return $this->hasMany(TechnicalTicketAttachment::class, 'technical_ticket_id');
     }
 
+    public function comments(): HasMany
+    {
+        return $this->hasMany(TechnicalTicketComment::class, 'technical_ticket_id')->latest();
+    }
+
+    public function assignedEngineers()
+    {
+        return $this->belongsToMany(User::class, 'technical_ticket_engineers', 'technical_ticket_id', 'user_id')->withTimestamps();
+    }
+
     // ===================================================================
     // Accessors & Mutators
     // ===================================================================
@@ -125,9 +136,7 @@ class TechnicalTicket extends Model
             'waiting' => 'Waiting (Customer/Partner/Vendor)',
             'completed' => 'Completed',
             'closed' => 'Closed',
-            'pending' => 'Tạm ngưng (Pending)',
-            'escalate' => 'Cần hỗ trợ (Escalate)',
-            default => $this->status,
+            default => ucfirst($this->status),
         };
     }
 
@@ -140,8 +149,6 @@ class TechnicalTicket extends Model
             'waiting' => 'purple',
             'completed' => 'green',
             'closed' => 'gray',
-            'pending' => 'orange',
-            'escalate' => 'red',
             default => 'gray',
         };
     }

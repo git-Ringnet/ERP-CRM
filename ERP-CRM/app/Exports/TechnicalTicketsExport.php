@@ -6,9 +6,12 @@ use App\Models\TechnicalTicket;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
 
-class TechnicalTicketsExport implements FromCollection, WithHeadings, WithMapping
+class TechnicalTicketsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
     protected $filters;
 
@@ -173,6 +176,22 @@ class TechnicalTicketsExport implements FromCollection, WithHeadings, WithMappin
             $slaStatus,
             $processingTime,
             $ticket->supportLogs->count(),
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => [
+                'font' => [
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF']
+                ],
+                'fill' => [
+                    'fillType' => 'solid',
+                    'startColor' => ['rgb' => '3B82F6'] // Sleek primary blue matching theme
+                ]
+            ],
         ];
     }
 }
