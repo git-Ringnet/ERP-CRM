@@ -393,21 +393,24 @@ class TechnicalTicketController extends Controller
      */
     public function show($id)
     {
-        if (!Gate::allows('view_technical_tickets')) {
-            abort(403, 'Bạn không có quyền xem ticket kỹ thuật.');
-        }
-
         $ticket = TechnicalTicket::with([
             'customer', 'project', 'opportunity', 'sale', 'supplier', 
             'assignedTo', 'creator', 'supportLogs.user', 'attachments.uploader', 'assignedEngineers'
         ])->findOrFail($id);
 
         $currentUserId = auth()->id();
+        $isRequester = ($ticket->created_by === $currentUserId);
+
+        // A user who can create a ticket must be able to open the ticket they
+        // just created, even when their role is not allowed to browse all tickets.
+        if (!Gate::allows('view_technical_tickets') && !$isRequester) {
+            abort(403, 'Bạn không có quyền xem ticket kỹ thuật.');
+        }
+
         $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
         $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
         $isTeamLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole;
-        $isRequester = ($ticket->created_by === $currentUserId);
         $isSalesOwner = ($ticket->sales_owner_id === $currentUserId);
         $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
 

@@ -20,7 +20,7 @@ class TechnicalSupportLogController extends Controller
      */
     public function index(Request $request)
     {
-        if (!Gate::allows('view_technical_tickets')) {
+        if (!Gate::allows('manage_technical_support_logs')) {
             abort(403, 'Bạn không có quyền xem nhật ký hỗ trợ.');
         }
 

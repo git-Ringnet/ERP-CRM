@@ -520,7 +520,7 @@
                     </div>
                 @endcanany
 
-                @canany(['view_technical_tickets', 'view_technical_dashboard'])
+                @canany(['view_technical_tickets', 'create_technical_tickets', 'manage_technical_support_logs', 'view_technical_dashboard', 'export_technical_tickets'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('technical')">
@@ -539,18 +539,29 @@
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo</span>
                                 </a>
                             @endcan
+                            @can('export_technical_tickets')
+                                <a href="{{ route('technical.export') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors">
+                                    <i class="fas fa-file-excel w-6 text-green-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Xuất báo cáo Ticket</span>
+                                </a>
+                            @endcan
+                            @canany(['view_technical_tickets', 'manage_technical_support_logs'])
                             @can('view_technical_tickets')
                                 <a href="{{ route('technical-tickets.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
                                 </a>
+                            @endcan
+                            @can('manage_technical_support_logs')
                                 <a href="{{ route('technical.support-logs.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
                                 </a>
                             @endcan
+                            @endcanany
                         </div>
                     </div>
                 @endcanany

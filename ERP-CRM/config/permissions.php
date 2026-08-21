@@ -60,5 +60,8 @@ return [
         'marketing_events' => 'Sự kiện Marketing',
         'pr_approvals' => 'Duyệt yêu cầu (PR)',
         'needs_ordering' => 'Gom đơn cần đặt',
+        'technical_dashboard' => 'Dashboard kỹ thuật',
+        'technical_tickets' => 'Ticket kỹ thuật',
+        'technical_support_logs' => 'Nhật ký hỗ trợ kỹ thuật',
     ],
 ];

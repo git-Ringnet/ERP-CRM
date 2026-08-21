@@ -107,7 +107,7 @@ return new class extends Migration
                 'name' => 'Xuất báo cáo Ticket kỹ thuật',
                 'slug' => 'export_technical_tickets',
                 'description' => 'Quyền xuất danh sách ticket kỹ thuật ra Excel',
-                'module' => 'technical_tickets',
+                'module' => 'technical_dashboard',
                 'action' => 'export',
                 'created_at' => $now,
                 'updated_at' => $now,

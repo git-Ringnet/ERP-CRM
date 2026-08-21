@@ -7,30 +7,27 @@
         <p class="text-gray-600 mt-1">Quản lý quyền cho từng vai trò</p>
     </div>
 
-    @if(session('success'))
-    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4 flex justify-between items-center">
-        <span>{{ session('success') }}</span>
-        <button onclick="this.parentElement.remove()" class="text-green-700 hover:text-green-900">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    @endif
-
-    @if(session('error'))
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 flex justify-between items-center">
-        <span>{{ session('error') }}</span>
-        <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-900">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    @endif
-
     <div class="bg-white rounded-lg shadow">
         <form action="{{ route('permissions.matrix.update') }}" method="POST" id="matrixForm" class="p-6">
             @csrf
+            <input type="hidden" name="permissions_json" id="permissionsJson" value="">
+
+            <div class="mb-6 max-w-md">
+                <label for="moduleSearch" class="block text-sm font-medium text-gray-700 mb-1">Tìm module</label>
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="search" id="moduleSearch"
+                        class="w-full rounded-lg border-gray-300 pl-10 pr-4 focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="Ví dụ: Technical, Bán hàng, Kho hàng..." autocomplete="off">
+                </div>
+            </div>
+
+            <div id="noModuleResults" class="hidden rounded-lg bg-yellow-50 px-4 py-3 text-sm text-yellow-800 mb-6">
+                Không tìm thấy module phù hợp.
+            </div>
 
             @foreach($groupedPermissions as $module => $permissions)
-            <div class="mb-6">
+            <div class="mb-6 permission-module" data-module-search="{{ $module }} {{ config('permissions.modules.' . $module, ucfirst($module)) }}">
                 <h5 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-3">{{ config('permissions.modules.' . $module, ucfirst($module)) }}</h5>
                 <div class="overflow-x-auto">
                     <table class="min-w-full border border-gray-200">
@@ -61,7 +58,6 @@
                                 <td class="px-4 py-2 text-center border-b border-r border-gray-200">
                                     <input type="checkbox" 
                                            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 permission-checkbox" 
-                                           name="permissions[{{ $role->id }}][]" 
                                            value="{{ $permission->id }}"
                                            data-role-id="{{ $role->id }}"
                                            data-permission-id="{{ $permission->id }}"
@@ -96,6 +92,27 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const matrixForm = document.getElementById('matrixForm');
+    const permissionsJson = document.getElementById('permissionsJson');
+    const moduleSearch = document.getElementById('moduleSearch');
+    const noModuleResults = document.getElementById('noModuleResults');
+
+    moduleSearch.addEventListener('input', function() {
+        const keyword = this.value.trim().toLocaleLowerCase('vi-VN');
+        let visibleModules = 0;
+
+        document.querySelectorAll('.permission-module').forEach(function(module) {
+            const matches = !keyword || module.dataset.moduleSearch.toLocaleLowerCase('vi-VN').includes(keyword);
+            module.classList.toggle('hidden', !matches);
+
+            if (matches) {
+                visibleModules++;
+            }
+        });
+
+        noModuleResults.classList.toggle('hidden', visibleModules > 0);
+    });
+
     // Toggle all checkboxes in a row
     document.querySelectorAll('.toggle-row').forEach(function(link) {
         link.addEventListener('click', function(e) {
@@ -123,6 +140,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 checkbox.checked = !allChecked;
             });
         });
+    });
+
+    // Send the whole matrix in one field. This avoids PHP's max_input_vars
+    // limit truncating a large checkbox matrix during submission.
+    matrixForm.addEventListener('submit', function() {
+        const permissions = {};
+
+        document.querySelectorAll('.permission-checkbox').forEach(function(checkbox) {
+            const roleId = checkbox.dataset.roleId;
+
+            if (!Object.prototype.hasOwnProperty.call(permissions, roleId)) {
+                permissions[roleId] = [];
+            }
+
+            if (checkbox.checked) {
+                permissions[roleId].push(Number(checkbox.value));
+            }
+        });
+
+        permissionsJson.value = JSON.stringify(permissions);
     });
 });
 </script>

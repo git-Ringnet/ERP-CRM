@@ -55,6 +55,8 @@ class PermissionController extends Controller
     {
         // Get all active roles with their permissions
         $roles = Role::with('permissions')
+            // Super admin bypasses all permission checks and is not configurable.
+            ->where('slug', '!=', 'super_admin')
             ->orderBy('name')
             ->get();
 
@@ -85,11 +87,43 @@ class PermissionController extends Controller
      */
     public function updateMatrix(Request $request)
     {
-        // Get all roles to ensure we update all of them (even if no permissions selected)
-        $allRoles = Role::pluck('id');
-        
-        // Get permissions data from request (may be empty for some roles)
-        $permissionsData = $request->input('permissions', []);
+        // Super admin always has full access and must not be configurable from the matrix.
+        // Update every other role, including roles with no selected permissions.
+        $allRoles = Role::where('slug', '!=', 'super_admin')->pluck('id');
+
+        /*
+         * The matrix can contain thousands of checkboxes. Sending them as
+         * permissions[role_id][] may exceed PHP's max_input_vars limit, causing
+         * PHP to silently discard part of the request. Because this action syncs
+         * every role, that previously resulted in permissions being removed.
+         *
+         * The UI now sends one JSON field. Keep the old payload as a fallback
+         * for compatibility, but never treat a malformed JSON payload as an
+         * empty matrix.
+         */
+        if ($request->has('permissions_json')) {
+            $permissionsData = json_decode($request->input('permissions_json'), true);
+
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($permissionsData)) {
+                return redirect()->back()->with('error', 'Dữ liệu phân quyền không hợp lệ. Quyền chưa được thay đổi.');
+            }
+        } else {
+            $permissionsData = $request->input('permissions', []);
+        }
+
+        $validPermissionIds = Permission::pluck('id')->flip();
+
+        foreach ($permissionsData as $roleId => $permissionIds) {
+            if (!$allRoles->contains((int) $roleId) || !is_array($permissionIds)) {
+                return redirect()->back()->with('error', 'Dữ liệu phân quyền không hợp lệ. Quyền chưa được thay đổi.');
+            }
+
+            foreach ($permissionIds as $permissionId) {
+                if (!$validPermissionIds->has((int) $permissionId)) {
+                    return redirect()->back()->with('error', 'Dữ liệu phân quyền không hợp lệ. Quyền chưa được thay đổi.');
+                }
+            }
+        }
 
         try {
             // Loop through each role and update their permissions

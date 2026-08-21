@@ -15,11 +15,13 @@
                 <p class="text-xs text-gray-500">Lọc dữ liệu thống kê và xuất báo cáo Excel cho BOD và Leader</p>
             </div>
             
+            @can('export_technical_tickets')
             <div class="mt-4 md:mt-0">
                 <button type="submit" form="dashboardFilterForm" formaction="{{ route('technical.export') }}" class="inline-flex items-center px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm">
                     <i class="fas fa-file-excel mr-2"></i> Xuất Báo Cáo Excel
                 </button>
             </div>
+            @endcan
         </div>
 
         <form id="dashboardFilterForm" method="GET" action="{{ route('technical.dashboard') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
