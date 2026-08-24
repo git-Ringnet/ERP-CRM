@@ -174,6 +174,52 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $this->authorize('delete', $product);
 
+        // Check if product is in use by quotations
+        if (\App\Models\QuotationItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Báo giá.');
+        }
+
+        // Check if product is in use by sales orders
+        if (\App\Models\SaleItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Đơn hàng bán.');
+        }
+
+        // Check if product is in use by purchase orders
+        if (\App\Models\PurchaseOrderItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Đơn mua hàng.');
+        }
+
+        // Check if product has inventory / items
+        if (\App\Models\ProductItem::where('product_id', $id)->exists() || \App\Models\Inventory::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang có sản phẩm hoặc tồn kho trong hệ thống.');
+        }
+
+        // Check if product is in use by warehouse transactions
+        if (\App\Models\ImportItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu nhập kho.');
+        }
+
+        if (\App\Models\ExportItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu xuất kho.');
+        }
+
+        if (\App\Models\TransferItem::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu chuyển kho.');
+        }
+
+        // Check if product is marked as damaged good
+        if (\App\Models\DamagedGood::where('product_id', $id)->exists()) {
+            return redirect()->back()
+                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Báo cáo hàng hỏng.');
+        }
+
         $product->delete();
 
         return redirect()->route('products.index')

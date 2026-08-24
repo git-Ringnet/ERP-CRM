@@ -230,6 +230,24 @@ class SaleController extends Controller
         }
         $request->merge(['products' => $products]);
 
+        // Custom validation check for new products and existing products
+        foreach ($products as $key => $prod) {
+            if (isset($prod['product_id'])) {
+                if ($prod['product_id'] === 'new') {
+                    if (empty($prod['new_name'])) {
+                        return back()->withInput()->withErrors(["products.{$key}.new_name" => "Tên sản phẩm mới không được để trống."]);
+                    }
+                    if (empty($prod['new_code'])) {
+                        return back()->withInput()->withErrors(["products.{$key}.new_code" => "Mã sản phẩm mới không được để trống."]);
+                    }
+                } else {
+                    if (!\App\Models\Product::where('id', $prod['product_id'])->exists()) {
+                        return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                    }
+                }
+            }
+        }
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
@@ -243,7 +261,10 @@ class SaleController extends Controller
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'exists:products,id'],
+            'products.*.product_id' => ['required', 'string'],
+            'products.*.new_name' => ['nullable', 'string', 'max:2000'],
+            'products.*.new_code' => ['nullable', 'string', 'max:50'],
+            'products.*.new_unit' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
@@ -267,6 +288,25 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $processedProducts = [];
+            foreach ($validated['products'] as $item) {
+                if ($item['product_id'] === 'new') {
+                    $newCode = strtoupper(trim($item['new_code']));
+                    $product = Product::where('code', $newCode)->first();
+                    if (!$product) {
+                        $product = Product::create([
+                            'code' => $newCode,
+                            'name' => $item['new_name'],
+                            'unit' => $item['new_unit'] ?: 'Cái',
+                            'category' => 'A',
+                        ]);
+                    }
+                    $item['product_id'] = $product->id;
+                }
+                $processedProducts[] = $item;
+            }
+            $validated['products'] = $processedProducts;
+
             $code = $validated['code'];
 
             $customer = Customer::find($validated['customer_id']);
@@ -572,6 +612,24 @@ class SaleController extends Controller
         }
         $request->merge(['products' => $products]);
 
+        // Custom validation check for new products and existing products
+        foreach ($products as $key => $prod) {
+            if (isset($prod['product_id'])) {
+                if ($prod['product_id'] === 'new') {
+                    if (empty($prod['new_name'])) {
+                        return back()->withInput()->withErrors(["products.{$key}.new_name" => "Tên sản phẩm mới không được để trống."]);
+                    }
+                    if (empty($prod['new_code'])) {
+                        return back()->withInput()->withErrors(["products.{$key}.new_code" => "Mã sản phẩm mới không được để trống."]);
+                    }
+                } else {
+                    if (!\App\Models\Product::where('id', $prod['product_id'])->exists()) {
+                        return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                    }
+                }
+            }
+        }
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
@@ -587,7 +645,10 @@ class SaleController extends Controller
             'status' => ['nullable', 'in:pending,approved,shipping,completed,cancelled'],
             'note' => ['nullable', 'string'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'exists:products,id'],
+            'products.*.product_id' => ['required', 'string'],
+            'products.*.new_name' => ['nullable', 'string', 'max:2000'],
+            'products.*.new_code' => ['nullable', 'string', 'max:50'],
+            'products.*.new_unit' => ['nullable', 'string', 'max:50'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
@@ -611,6 +672,25 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $processedProducts = [];
+            foreach ($validated['products'] as $item) {
+                if ($item['product_id'] === 'new') {
+                    $newCode = strtoupper(trim($item['new_code']));
+                    $product = Product::where('code', $newCode)->first();
+                    if (!$product) {
+                        $product = Product::create([
+                            'code' => $newCode,
+                            'name' => $item['new_name'],
+                            'unit' => $item['new_unit'] ?: 'Cái',
+                            'category' => 'A',
+                        ]);
+                    }
+                    $item['product_id'] = $product->id;
+                }
+                $processedProducts[] = $item;
+            }
+            $validated['products'] = $processedProducts;
+
             $customer = Customer::find($validated['customer_id']);
 
             // Calculate totals

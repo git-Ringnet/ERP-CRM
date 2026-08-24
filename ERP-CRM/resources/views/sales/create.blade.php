@@ -216,6 +216,9 @@
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                     <input type="hidden" name="products[0][is_liquidation]" value="0" class="is-liquidation-input">
                                 </div>
+                                <input type="hidden" name="products[0][new_name]" class="new-name-input">
+                                <input type="hidden" name="products[0][new_code]" class="new-code-input">
+                                <input type="hidden" name="products[0][new_unit]" class="new-unit-input" value="Cái">
                             </div>
                             <div class="md:col-span-1">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
@@ -780,7 +783,9 @@ function initSearchableSelect(container, onSelect) {
     function renderAjaxOptions(data) {
         dropdown.innerHTML = '';
         
-        if (data.length === 0) {
+        const query = input.value.trim();
+
+        if (data.length === 0 && query.length === 0) {
             dropdown.innerHTML = '<div class="px-3 py-2 text-gray-500">Không tìm thấy kết quả</div>';
             return;
         }
@@ -827,6 +832,28 @@ function initSearchableSelect(container, onSelect) {
             
             dropdown.appendChild(opt);
         });
+
+        if (query.length > 0) {
+            const addOpt = document.createElement('div');
+            addOpt.className = 'searchable-option px-3 py-2 hover:bg-emerald-50 text-emerald-600 font-bold border-t border-gray-100 cursor-pointer';
+            addOpt.dataset.value = 'new';
+            addOpt.dataset.text = `+ Thêm sản phẩm mới: "${query}"`;
+            addOpt.dataset.code = `[SP Mới] ${query}`;
+            addOpt.dataset.name = query;
+            addOpt.innerHTML = `
+                <div class="flex items-center text-xs">
+                    <i class="fas fa-plus mr-1.5"></i>
+                    <span>Tạo sản phẩm mới: "${query}"</span>
+                </div>
+            `;
+            addOpt.addEventListener('click', () => {
+                input.value = `[SP Mới] ${query}`;
+                hiddenInput.value = 'new';
+                dropdown.classList.add('hidden');
+                if (onSelect) onSelect(addOpt);
+            });
+            dropdown.appendChild(addOpt);
+        }
     }
     
     function filterOptions(query) {
@@ -939,6 +966,21 @@ function initAllSearchableSelects() {
                 const priceInput = row.querySelector('.price-input');
                 const warrantyInput = row.querySelector('.warranty-input');
                 
+                // Populate hidden fields if new product is selected
+                const newNameInput = row.querySelector('.new-name-input');
+                const newCodeInput = row.querySelector('.new-code-input');
+                const newUnitInput = row.querySelector('.new-unit-input');
+                
+                if (opt.dataset.value === 'new') {
+                    if (newNameInput) newNameInput.value = opt.dataset.name || '';
+                    if (newCodeInput) newCodeInput.value = opt.dataset.name || '';
+                    if (newUnitInput) newUnitInput.value = 'Cái';
+                } else {
+                    if (newNameInput) newNameInput.value = '';
+                    if (newCodeInput) newCodeInput.value = '';
+                    if (newUnitInput) newUnitInput.value = 'Cái';
+                }
+
                 if (priceInput && opt.dataset.price) {
                     const basePriceVnd = parseFloat(opt.dataset.price);
                     
@@ -1261,6 +1303,9 @@ function addProductRow() {
                     <input type="hidden" name="products[${productIndex}][is_liquidation]" value="0" class="is-liquidation-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                 </div>
+                <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input">
+                <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input">
+                <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="Cái">
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
@@ -1742,6 +1787,16 @@ function validateAndSubmit() {
             }
         } else {
             hasValidProduct = true;
+            
+            // If it is a new product, validate new name and new code
+            if (productId.value === 'new') {
+                const newName = row.querySelector('.new-name-input');
+                const newCode = row.querySelector('.new-code-input');
+                if (!newName || !newName.value.trim() || !newCode || !newCode.value.trim()) {
+                    errors.push(`Sản phẩm mới chưa hợp lệ (dòng ${index + 1})`);
+                    productInput.classList.add('border-red-500');
+                }
+            }
         }
         
         if (productId.value) {
