@@ -61,11 +61,11 @@ class Handler extends ExceptionHandler
     {
         $message = $this->getAuthorizationMessage($e);
         
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonUnauthorizedResponse($message, $e);
         }
         
-        return $this->webUnauthorizedResponse($message);
+        return response()->view('errors.403', ['exception' => $e], 403);
     }
 
     /**
@@ -79,14 +79,14 @@ class Handler extends ExceptionHandler
     {
         $message = $e->getMessage() ?: 'Bạn không có quyền truy cập chức năng này.';
         
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'message' => $message,
                 'error' => 'Forbidden'
             ], 403);
         }
         
-        return $this->webUnauthorizedResponse($message);
+        return response()->view('errors.403', ['exception' => $e], 403);
     }
 
     /**

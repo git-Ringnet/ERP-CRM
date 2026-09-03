@@ -2910,7 +2910,7 @@ class SaleController extends Controller
     public function approveOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
         }
 
@@ -2963,7 +2963,7 @@ class SaleController extends Controller
     public function rejectOrderRequestByAdmin(Request $request, Sale $sale, \App\Models\SaleOrderRequest $orderRequest)
     {
         $user = auth()->user();
-        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+        if (!$user || !$user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện hành động này.');
         }
 

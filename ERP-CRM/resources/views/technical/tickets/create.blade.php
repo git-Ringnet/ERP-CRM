@@ -22,6 +22,18 @@
                                         usersList: window.createTicketUsers || [],
                                         customersList: window.createTicketCustomers || [],
 
+                                        pocDevices: {{ json_encode(old('ticket_details.poc_devices', [['name' => old('ticket_details.poc_model', ''), 'quantity' => old('ticket_details.poc_quantity', 1), 'note' => '']])) }},
+                                        addPocDevice() {
+                                            this.pocDevices.push({ name: '', quantity: 1, note: '' });
+                                        },
+                                        removePocDevice(index) {
+                                            if (this.pocDevices.length > 1) {
+                                                this.pocDevices.splice(index, 1);
+                                            } else {
+                                                this.pocDevices[0] = { name: '', quantity: 1, note: '' };
+                                            }
+                                        },
+
                                         init() {
                                             var user = this.usersList.find(function(u){ return u.id == this.salesOwnerId; }.bind(this));
                                             this.salesOwnerName = user ? user.name : '';
@@ -310,48 +322,83 @@
                     </div>
 
                     <!-- d) Ticket POC/Demo -->
-                    <div x-show="workType === 'POC'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Thiết bị / Model</label>
-                            <input type="text" name="ticket_details[poc_model]"
-                                placeholder="Ví dụ: Sophos XGS 2100, Fortigate 100F..."
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                    <div x-show="workType === 'POC'" class="space-y-6">
+                        <!-- Danh sách thiết bị mượn PoC/Demo -->
+                        <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="text-sm font-bold text-gray-800 flex items-center">
+                                    <i class="fas fa-server text-indigo-600 mr-2"></i> Danh sách Thiết bị / Model Mượn POC
+                                </label>
+                                <button type="button" @click="addPocDevice()"
+                                    class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-xs font-semibold transition-colors shadow-sm">
+                                    <i class="fas fa-plus mr-1.5"></i> Thêm thiết bị
+                                </button>
+                            </div>
+
+                            <div class="space-y-3">
+                                <template x-for="(device, idx) in pocDevices" :key="idx">
+                                    <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm transition-all hover:border-indigo-300">
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1" x-text="'Thiết bị / Model #' + (idx + 1)"></label>
+                                            <input type="text" :name="'ticket_details[poc_devices][' + idx + '][name]'" x-model="device.name"
+                                                placeholder="Ví dụ: Sophos XGS 2100, SonicWall TZ470..."
+                                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                        </div>
+                                        <div class="w-full md:w-36">
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Số lượng</label>
+                                            <input type="number" :name="'ticket_details[poc_devices][' + idx + '][quantity]'" x-model="device.quantity" min="1" placeholder="Số lượng..."
+                                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                        </div>
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Ghi chú / Serial (nếu có)</label>
+                                            <input type="text" :name="'ticket_details[poc_devices][' + idx + '][note]'" x-model="device.note"
+                                                placeholder="Ghi chú cấu hình, phụ kiện..."
+                                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                        </div>
+                                        <div class="flex items-end pb-1 md:self-end">
+                                            <button type="button" @click="removePocDevice(idx)"
+                                                class="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                                title="Xóa thiết bị này">
+                                                <i class="fas fa-trash-alt text-sm"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Số lượng mượn</label>
-                            <input type="number" name="ticket_details[poc_quantity]" min="1" placeholder="Số lượng..."
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu kế hoạch/phương án
-                                PoC</label>
-                            <select name="ticket_details[poc_require_plan]"
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                <option value="No">Không (No)</option>
-                                <option value="Yes">Có (Yes)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày mượn thiết bị</label>
-                            <input type="date" name="ticket_details[poc_borrow_date]"
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày trả thiết bị</label>
-                            <input type="date" name="ticket_details[poc_return_date]"
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm triển khai POC</label>
-                            <input type="text" name="ticket_details[poc_location]"
-                                placeholder="Địa chỉ Onsite triển khai..."
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                        </div>
-                        <div class="md:col-span-3">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Mục tiêu POC</label>
-                            <textarea name="ticket_details[poc_goal]" rows="3"
-                                placeholder="Các tính năng kỹ thuật cần chứng minh, tiêu chí đạt..."
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+
+                        <!-- Các trường thông tin chi tiết POC khác -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Yêu cầu kế hoạch/phương án PoC</label>
+                                <select name="ticket_details[poc_require_plan]"
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                    <option value="No">Không (No)</option>
+                                    <option value="Yes">Có (Yes)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày mượn thiết bị</label>
+                                <input type="date" name="ticket_details[poc_borrow_date]"
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Ngày trả thiết bị</label>
+                                <input type="date" name="ticket_details[poc_return_date]"
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Địa điểm triển khai POC</label>
+                                <input type="text" name="ticket_details[poc_location]"
+                                    placeholder="Địa chỉ Onsite triển khai..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Mục tiêu POC</label>
+                                <textarea name="ticket_details[poc_goal]" rows="3"
+                                    placeholder="Các tính năng kỹ thuật cần chứng minh, tiêu chí đạt..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+                            </div>
                         </div>
                     </div>
 

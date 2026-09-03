@@ -26,6 +26,30 @@ class TechnicalSupportLogController extends Controller
 
         $query = TechnicalSupportLog::with(['ticket', 'user']);
 
+        $currentUserId = auth()->id();
+        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+
+        // Non-leads/admins only see their own support logs or logs for their assigned tickets
+        if (!$isManagerOrAdmin && !$isTechLeadRole) {
+            if (auth()->user()->hasRole('technical_engineer')) {
+                $query->where(function ($q) use ($currentUserId) {
+                    $q->where('user_id', $currentUserId)
+                      ->orWhereHas('ticket', function ($tq) use ($currentUserId) {
+                          $tq->where('assigned_to', $currentUserId)
+                             ->orWhereHas('assignedEngineers', function ($eq) use ($currentUserId) {
+                                 $eq->where('users.id', $currentUserId);
+                             });
+                      });
+                });
+            } else {
+                $query->whereHas('ticket', function ($tq) use ($currentUserId) {
+                    $tq->where('created_by', $currentUserId)
+                       ->orWhere('sales_owner_id', $currentUserId);
+                });
+            }
+        }
+
         // Filters
         if ($request->filled('date_from')) {
             $query->whereDate('log_date', '>=', $request->input('date_from'));
@@ -102,7 +126,7 @@ class TechnicalSupportLogController extends Controller
         }
 
         return redirect()->route('technical.support-logs.index')
-            ->with('success_swal', 'Đã thêm nhật ký hỗ trợ mới thành công.');
+            ->with('success', 'Đã thêm nhật ký hỗ trợ mới thành công.');
     }
 
     /**
@@ -148,7 +172,7 @@ class TechnicalSupportLogController extends Controller
         $ticket->update($ticketUpdateData);
 
         return redirect()->route('technical-tickets.show', $ticket->id)
-            ->with('success_swal', 'Đã thêm nhật ký hỗ trợ mới và cập nhật trạng thái ticket.');
+            ->with('success', 'Đã thêm nhật ký hỗ trợ mới và cập nhật trạng thái ticket.');
     }
 
     /**
@@ -189,7 +213,7 @@ class TechnicalSupportLogController extends Controller
         $ticket->update($ticketUpdateData);
 
         return redirect()->route('technical-tickets.show', $ticket->id)
-            ->with('success_swal', 'Cập nhật nhật ký hỗ trợ thành công.');
+            ->with('success', 'Cập nhật nhật ký hỗ trợ thành công.');
     }
 
     /**
@@ -205,7 +229,7 @@ class TechnicalSupportLogController extends Controller
         $log->delete();
 
         return redirect()->route('technical-tickets.show', $ticketId)
-            ->with('success_swal', 'Đã xóa nhật ký hỗ trợ.');
+            ->with('success', 'Đã xóa nhật ký hỗ trợ.');
     }
 
     /**
@@ -249,7 +273,7 @@ class TechnicalSupportLogController extends Controller
         }
 
         return redirect()->route('technical.support-logs.index')
-            ->with('success_swal', 'Cập nhật nhật ký hỗ trợ thành công.');
+            ->with('success', 'Cập nhật nhật ký hỗ trợ thành công.');
     }
 
     /**
@@ -265,6 +289,6 @@ class TechnicalSupportLogController extends Controller
         $log->delete();
 
         return redirect()->route('technical.support-logs.index')
-            ->with('success_swal', 'Đã xóa nhật ký hỗ trợ.');
+            ->with('success', 'Đã xóa nhật ký hỗ trợ.');
     }
 }

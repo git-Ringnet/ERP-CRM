@@ -38,15 +38,38 @@ class TechnicalTicketController extends Controller
             ->where('resolved_at', '<=', Carbon::now()->subDays(3))
             ->update(['status' => 'closed']);
 
-        $query = TechnicalTicket::with(['customer', 'project', 'assignedTo', 'creator', 'assignedEngineers']);
+        $query = TechnicalTicket::with(['customer', 'project', 'assignedTo', 'creator', 'assignedEngineers'])
+            ->withCount(['comments', 'supportLogs', 'attachments']);
 
         $currentUserId = auth()->id();
         $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
 
         if (!$isManagerOrAdmin && !$isTechLeadRole) {
-            // Non-leads can only see tickets they are associated with, OR unassigned self-pickup types
-            $query->where(function ($q) use ($currentUserId) {
+            $userRoleIds = auth()->user()->roles->pluck('id')->toArray();
+            $userRoleSlugs = auth()->user()->roles->pluck('slug')->toArray();
+            
+            // Find which work types the current user is allowed to view/pickup when unassigned
+            $allowedUnassignedTypes = [];
+            $allPerms = TechnicalTicket::getWorkTypePermissions();
+            foreach ($allPerms as $wKey => $wConfig) {
+                $scope = is_array($wConfig) ? ($wConfig['scope'] ?? 'leader') : $wConfig;
+                $customRoles = is_array($wConfig) ? ($wConfig['roles'] ?? []) : [];
+                
+                if ($scope === 'everyone') {
+                    $allowedUnassignedTypes[] = $wKey;
+                } elseif (($scope === 'all' || $scope === 'tech_all') && auth()->user()->hasAnyRole(['technical_engineer', 'technical_lead'])) {
+                    $allowedUnassignedTypes[] = $wKey;
+                } elseif ($scope === 'custom' && !empty($customRoles)) {
+                    $matched = !empty(array_intersect($userRoleIds, (array)$customRoles)) || !empty(array_intersect($userRoleSlugs, (array)$customRoles));
+                    if ($matched) {
+                        $allowedUnassignedTypes[] = $wKey;
+                    }
+                }
+            }
+
+            // Non-leads can only see tickets they are associated with, OR unassigned permitted types
+            $query->where(function ($q) use ($currentUserId, $allowedUnassignedTypes) {
                 $q->where('created_by', $currentUserId)
                   ->orWhere('sales_owner_id', $currentUserId)
                   ->orWhere('assigned_to', $currentUserId)
@@ -55,10 +78,9 @@ class TechnicalTicketController extends Controller
                       $sq->where('users.id', $currentUserId);
                   });
                 
-                // If the user has technical engineer role, allow viewing unassigned non-restricted tickets
-                if (auth()->user()->hasRole('technical_engineer')) {
-                    $q->orWhere(function ($sub) {
-                        $sub->whereNotIn('work_type', ['BOM', 'documentation', 'after_sales'])
+                if (!empty($allowedUnassignedTypes)) {
+                    $q->orWhere(function ($sub) use ($allowedUnassignedTypes) {
+                        $sub->whereIn('work_type', $allowedUnassignedTypes)
                             ->whereDoesntHave('assignedEngineers');
                     });
                 }
@@ -89,6 +111,21 @@ class TechnicalTicketController extends Controller
         }
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->input('customer_id'));
+        }
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', $request->input('supplier_id'));
+        }
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->input('project_id'));
+        }
+        if ($request->filled('created_by')) {
+            $query->where('created_by', $request->input('created_by'));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->input('date_to'));
         }
 
         if ($request->filled('sla_status')) {
@@ -130,8 +167,16 @@ class TechnicalTicketController extends Controller
             ->orderBy('name')
             ->get();
         $customers = Customer::orderBy('name')->get();
+        $suppliers = Supplier::orderBy('name')->get();
+        $projects = Project::orderBy('name')->get();
+        $salesUsers = User::where('status', 'active')
+            ->whereHas('roles', function($q) {
+                $q->whereIn('slug', ['sales_manager', 'sales_staff', 'sales', 'super_admin', 'director']);
+            })
+            ->orderBy('name')
+            ->get();
 
-        return view('technical.tickets.index', compact('tickets', 'engineers', 'customers'));
+        return view('technical.tickets.index', compact('tickets', 'engineers', 'customers', 'suppliers', 'projects', 'salesUsers'));
     }
 
     /**
@@ -219,10 +264,10 @@ class TechnicalTicketController extends Controller
                     ->withInput()
                     ->withErrors(['assigned_to' => 'Chỉ Team Lead hoặc Quản trị viên mới có quyền phân công cho Kỹ sư khác. Kỹ sư chỉ được phép tự nhận (self-pickup) ticket cho chính mình.']);
             }
-            if (in_array($request->work_type, ['BOM', 'documentation', 'after_sales'])) {
+            if (in_array($request->work_type, TechnicalTicket::getLeaderOnlyWorkTypes())) {
                 return redirect()->back()
                     ->withInput()
-                    ->withErrors(['assigned_to' => 'Đối với các loại ticket BOM Support, Technical Documents và After-sales support, chỉ Technical Team Lead mới có quyền phân công. Kỹ sư không được phép tự nhận (self-pickup).']);
+                    ->withErrors(['assigned_to' => 'Đối với loại ticket này, chỉ Technical Team Lead hoặc Quản trị viên mới có quyền tiếp nhận và phân công. Kỹ sư không được phép tự nhận (self-pickup).']);
             }
         }
 
@@ -235,6 +280,25 @@ class TechnicalTicketController extends Controller
         }
         
         $data['assigned_to'] = !empty($assignedIds) ? $assignedIds[0] : null;
+
+        // Normalize POC devices if present
+        if (isset($data['ticket_details']['poc_devices']) && is_array($data['ticket_details']['poc_devices'])) {
+            $filteredDevices = [];
+            foreach ($data['ticket_details']['poc_devices'] as $dev) {
+                if (!empty($dev['name'])) {
+                    $filteredDevices[] = [
+                        'name' => trim($dev['name']),
+                        'quantity' => max(1, intval($dev['quantity'] ?? 1)),
+                        'note' => trim($dev['note'] ?? ''),
+                    ];
+                }
+            }
+            $data['ticket_details']['poc_devices'] = $filteredDevices;
+            if (!empty($filteredDevices)) {
+                $data['ticket_details']['poc_model'] = implode(', ', array_filter(array_column($filteredDevices, 'name')));
+                $data['ticket_details']['poc_quantity'] = array_sum(array_column($filteredDevices, 'quantity'));
+            }
+        }
 
         // If assigned to an engineer and status is default (open), switch to assigned
         if (!empty($assignedIds) && (!isset($data['status']) || $data['status'] === 'open')) {
@@ -270,7 +334,7 @@ class TechnicalTicketController extends Controller
         }
 
         // Send notifications
-        $requiresLeadAssign = in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales']);
+        $requiresLeadAssign = $ticket->isLeaderOnly();
         
         if ($requiresLeadAssign) {
             // ONLY Technical Leads
@@ -278,7 +342,7 @@ class TechnicalTicketController extends Controller
                 ->whereHas('roles', function($q) {
                     $q->where('slug', 'technical_lead');
                 })->get();
-            $msg = "Có ticket kỹ thuật mới cần phân công: {$ticket->code} - {$ticket->title}";
+            $msg = "Có ticket kỹ thuật mới cần phân công (Chỉ Lead): {$ticket->code} - {$ticket->title}";
             foreach ($recipients as $recipient) {
                 \App\Models\Notification::create([
                     'user_id' => $recipient->id,
@@ -295,17 +359,17 @@ class TechnicalTicketController extends Controller
             // ALL Tech staff
             $recipients = User::where('status', 'active')
                 ->whereHas('roles', function($q) {
-                    $q->whereIn('slug', ['technical_lead', 'technical_engineer']);
+                    $q->where('slug', ['technical_lead', 'technical_engineer']);
                 })->get();
-            $msg = "Có ticket kỹ thuật mới: {$ticket->code} - {$ticket->title}";
+            $msg = "Có ticket kỹ thuật mới sẵn sàng pickup: {$ticket->code} - {$ticket->title}";
             foreach ($recipients as $recipient) {
                 \App\Models\Notification::create([
                     'user_id' => $recipient->id,
                     'type' => 'technical_ticket',
-                    'title' => 'Ticket Kỹ thuật mới',
+                    'title' => 'Ticket Kỹ thuật mới (Tự nhận)',
                     'message' => $msg,
                     'link' => route('technical-tickets.show', $ticket->id),
-                    'icon' => 'exclamation-circle',
+                    'icon' => 'ticket-alt',
                     'color' => 'blue',
                     'is_read' => false,
                 ]);
@@ -351,7 +415,7 @@ class TechnicalTicketController extends Controller
         }
 
         return redirect()->route('technical-tickets.show', $ticket->id)
-            ->with('success_swal', 'Tạo ticket kỹ thuật thành công.');
+            ->with('success', 'Tạo ticket kỹ thuật thành công.');
     }
 
     /**
@@ -361,9 +425,6 @@ class TechnicalTicketController extends Controller
     {
         $ticket = TechnicalTicket::findOrFail($id);
         $currentUserId = auth()->id();
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
-        $isTeamLead = $isTechLeadRole || $isManagerOrAdmin;
 
         // Check if already assigned
         if ($ticket->assignedEngineers()->exists()) {
@@ -371,10 +432,10 @@ class TechnicalTicketController extends Controller
                 ->withErrors(['general' => 'Ticket này đã được nhận hoặc phân công cho Kỹ sư khác.']);
         }
 
-        // If it's a restricted type and they are not a Team Lead, block it
-        if (!$isTeamLead && in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales'])) {
+        // Check if user has pickup permission based on work type permission matrix
+        if (!$ticket->canUserPickup(auth()->user())) {
             return redirect()->back()
-                ->withErrors(['general' => 'Đối với các loại ticket BOM Support, Technical Documents và After-sales support, chỉ Technical Team Lead mới có quyền phân công. Kỹ sư không được phép tự nhận (self-pickup).']);
+                ->withErrors(['general' => 'Bạn không có quyền tự nhận (pickup) loại ticket này theo cấu hình ma trận phân quyền.']);
         }
 
         // Assign to current user and change status to assigned
@@ -419,9 +480,8 @@ class TechnicalTicketController extends Controller
             $isAssociated = $isRequester || $isSalesOwner || $isAssignedEngineer || ($ticket->team_lead_id === $currentUserId);
             
             if (!$isAssociated) {
-                // If not associated, check if they are tech engineer and can pick it up (unassigned & non-restricted work type)
-                $canViewUnassigned = auth()->user()->hasRole('technical_engineer')
-                    && !in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales'])
+                // If not associated, check if user is allowed to view/pickup this unassigned ticket
+                $canViewUnassigned = $ticket->canUserPickup(auth()->user())
                     && !$ticket->assignedEngineers()->exists();
 
                 if (!$canViewUnassigned) {
@@ -468,8 +528,8 @@ class TechnicalTicketController extends Controller
 
         $ticket = TechnicalTicket::with('assignedEngineers')->findOrFail($id);
 
-        if ($ticket->status === 'closed') {
-            abort(403, 'Ticket đã đóng không thể chỉnh sửa.');
+        if (in_array($ticket->status, ['in_progress', 'waiting', 'completed', 'closed'])) {
+            abort(403, 'Ticket đã chuyển sang trạng thái "' . $ticket->status_label . '", không được phép chỉnh sửa.');
         }
 
         $currentUserId = auth()->id();
@@ -481,9 +541,9 @@ class TechnicalTicketController extends Controller
         $isSalesOwner = ($ticket->sales_owner_id === $currentUserId);
         $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
 
-        if (in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales'])) {
+        if ($ticket->isLeaderOnly()) {
             if (!$isTeamLead && !$isRequester && !$isSalesOwner && !$isAssignedEngineer) {
-                abort(403, 'Bạn không có quyền chỉnh sửa ticket này. Đối với các loại ticket BOM Support, Technical Documents và After-sales support, bạn chỉ được phép chỉnh sửa khi được phân công.');
+                abort(403, 'Bạn không có quyền chỉnh sửa ticket này. Đối với các loại ticket chỉ Leader tiếp nhận, bạn chỉ được phép chỉnh sửa khi được phân công.');
             }
         }
         $customers = Customer::orderBy('name')->get();
@@ -542,8 +602,8 @@ class TechnicalTicketController extends Controller
 
         $ticket = TechnicalTicket::findOrFail($id);
 
-        if ($ticket->status === 'closed') {
-            abort(403, 'Ticket đã đóng không thể chỉnh sửa.');
+        if (in_array($ticket->status, ['in_progress', 'waiting', 'completed', 'closed'])) {
+            abort(403, 'Ticket đã chuyển sang trạng thái "' . $ticket->status_label . '", không được phép chỉnh sửa.');
         }
 
         $currentUserId = auth()->id();
@@ -579,10 +639,10 @@ class TechnicalTicketController extends Controller
                     ->withErrors(['assigned_to' => 'Chỉ Team Lead hoặc Quản trị viên mới có quyền phân công cho Kỹ sư khác. Kỹ sư chỉ được phép tự nhận (self-pickup) ticket cho chính mình.']);
             }
             
-            if ($ticket->assigned_to != $assignedIds[0] && in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales'])) {
+            if ($ticket->assigned_to != $assignedIds[0] && $ticket->isLeaderOnly()) {
                 return redirect()->back()
                     ->withInput()
-                    ->withErrors(['assigned_to' => 'Đối với các loại ticket BOM Support, Technical Documents và After-sales support, chỉ Technical Team Lead mới có quyền phân công. Kỹ sư không được phép tự nhận (self-pickup).']);
+                    ->withErrors(['assigned_to' => 'Đối với loại ticket này, chỉ Technical Team Lead hoặc Quản lý mới có quyền phân công. Kỹ sư không được phép tự nhận (self-pickup).']);
             }
         }
 
@@ -653,6 +713,25 @@ class TechnicalTicketController extends Controller
 
         $data['assigned_to'] = !empty($assignedIds) ? $assignedIds[0] : null;
 
+        // Normalize POC devices if present
+        if (isset($data['ticket_details']['poc_devices']) && is_array($data['ticket_details']['poc_devices'])) {
+            $filteredDevices = [];
+            foreach ($data['ticket_details']['poc_devices'] as $dev) {
+                if (!empty($dev['name'])) {
+                    $filteredDevices[] = [
+                        'name' => trim($dev['name']),
+                        'quantity' => max(1, intval($dev['quantity'] ?? 1)),
+                        'note' => trim($dev['note'] ?? ''),
+                    ];
+                }
+            }
+            $data['ticket_details']['poc_devices'] = $filteredDevices;
+            if (!empty($filteredDevices)) {
+                $data['ticket_details']['poc_model'] = implode(', ', array_filter(array_column($filteredDevices, 'name')));
+                $data['ticket_details']['poc_quantity'] = array_sum(array_column($filteredDevices, 'quantity'));
+            }
+        }
+
         // Resolve customer_id automatically from system links
         if (empty($data['customer_id'])) {
             if (!empty($data['project_id'])) {
@@ -695,7 +774,7 @@ class TechnicalTicketController extends Controller
         }
 
         return redirect()->route('technical-tickets.show', $ticket->id)
-            ->with('success_swal', 'Cập nhật ticket kỹ thuật thành công.');
+            ->with('success', 'Cập nhật ticket kỹ thuật thành công.');
     }
 
     /**
@@ -709,8 +788,8 @@ class TechnicalTicketController extends Controller
 
         $ticket = TechnicalTicket::findOrFail($id);
 
-        if ($ticket->status === 'closed') {
-            abort(403, 'Ticket đã đóng không thể xóa.');
+        if (!in_array($ticket->status, ['open', 'assigned'])) {
+            abort(403, 'Ticket đã chuyển sang trạng thái "' . $ticket->status_label . '", không được phép xóa.');
         }
         
         // Delete attachments from storage
@@ -722,7 +801,7 @@ class TechnicalTicketController extends Controller
         $ticket->delete();
 
         return redirect()->route('technical-tickets.index')
-            ->with('success_swal', 'Xóa ticket kỹ thuật thành công.');
+            ->with('success', 'Xóa ticket kỹ thuật thành công.');
     }
 
     public function uploadAttachment(Request $request, $id)
@@ -759,10 +838,10 @@ class TechnicalTicketController extends Controller
         }
 
         if ($uploadedCount > 0) {
-            return redirect()->back()->with('success_swal', "Tải lên thành công {$uploadedCount} tài liệu.");
+            return redirect()->back()->with('success', "Tải lên thành công {$uploadedCount} tài liệu.");
         }
 
-        return redirect()->back()->with('error_swal', 'Không có tài liệu tải lên nào hợp lệ.');
+        return redirect()->back()->with('error', 'Không có tài liệu tải lên nào hợp lệ.');
     }
 
     /**
@@ -792,11 +871,20 @@ class TechnicalTicketController extends Controller
         $attachment = TechnicalTicketAttachment::where('technical_ticket_id', $ticketId)
             ->findOrFail($attachmentId);
 
+        $currentUserId = auth()->id();
+        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+        $isUploader = ($attachment->uploaded_by === $currentUserId);
+
+        // Technical engineers must not delete attachments uploaded by Sales / Requester
+        if (!$isUploader && !$isManagerOrAdmin) {
+            abort(403, 'Bạn không có quyền xóa tài liệu đính kèm này (Kỹ thuật không được phép xóa tài liệu từ yêu cầu của Sales).');
+        }
+
         // Delete from storage
         Storage::delete($attachment->file_path);
         $attachment->delete();
 
-        return redirect()->back()->with('success_swal', 'Đã xóa tài liệu đính kèm.');
+        return redirect()->back()->with('success', 'Đã xóa tài liệu đính kèm.');
     }
 
     /**
@@ -846,14 +934,13 @@ class TechnicalTicketController extends Controller
 
             $data = ['solution' => $request->solution];
 
-            // If engineer checked "completed" checkbox → only log comment, status remains in_progress
+            // If engineer checked "completed" checkbox → mark completed and notify sales to review & close
             if ($request->has('is_completed') && $request->is_completed == 1) {
-                if (in_array($ticket->status, ['open', 'assigned', 'waiting'])) {
-                    $data['status'] = 'in_progress';
-                }
+                $data['status'] = 'completed';
+                $data['resolved_at'] = Carbon::now();
 
                 // Log to discussion
-                $commentText = "[Cập nhật tiến độ] Đã hoàn thành công việc kỹ thuật.";
+                $commentText = "[Hoàn thành kỹ thuật] Kỹ sư đã xử lý xong công việc kỹ thuật.";
                 if ($request->solution) {
                     $commentText .= "\nPhương án xử lý: " . $request->solution;
                 }
@@ -862,6 +949,23 @@ class TechnicalTicketController extends Controller
                     'user_id' => $currentUserId,
                     'comment' => $commentText,
                 ]);
+
+                // Notify Sales / Requester / Owner to review and close ticket
+                $salesNotifyIds = array_filter(array_unique([$ticket->created_by, $ticket->sales_owner_id, $ticket->team_lead_id]));
+                foreach ($salesNotifyIds as $notifyUserId) {
+                    if ($notifyUserId && $notifyUserId !== $currentUserId) {
+                        \App\Models\Notification::create([
+                            'user_id' => $notifyUserId,
+                            'type' => 'technical_ticket_completed',
+                            'title' => 'Ticket Kỹ thuật đã hoàn thành',
+                            'message' => "Kỹ sư đã hoàn thành xử lý ticket: {$ticket->code} - {$ticket->title}. Vui lòng xem xét và Đóng (Close) ticket.",
+                            'link' => route('technical-tickets.show', $ticket->id),
+                            'icon' => 'check-circle',
+                            'color' => 'green',
+                            'is_read' => false,
+                        ]);
+                    }
+                }
             } elseif ($request->has('is_waiting') && $request->is_waiting == 1) {
                 // Waiting for Customer/Partner/Vendor
                 $data['status'] = 'waiting';

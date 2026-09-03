@@ -115,17 +115,17 @@
     <!-- Central Logs Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
+            <table class="w-full text-sm text-left table-fixed">
                 <thead class="bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
                     <tr class="divide-x divide-gray-150 border-b border-gray-200">
-                        <th class="px-4 py-2.5 text-center w-12">STT</th>
-                        <th class="px-4 py-2.5 w-32 text-center">Ngày ghi nhận</th>
-                        <th class="px-4 py-2.5 w-40">Ticket liên quan</th>
-                        <th class="px-4 py-2.5 w-44">Kỹ sư thực hiện</th>
-                        <th class="px-4 py-2.5 w-[450px]">Nội dung hỗ trợ kỹ thuật</th>
-                        <th class="px-4 py-2.5 w-48">Khách hàng / Người liên hệ</th>
-                        <th class="px-4 py-2.5 text-center w-32">Trạng thái công việc</th>
-                        <th class="px-4 py-2.5 text-center w-28">Thao tác</th>
+                        <th class="px-3 py-2.5 text-center w-12 shrink-0">STT</th>
+                        <th class="px-3 py-2.5 w-28 text-center shrink-0">Ngày ghi nhận</th>
+                        <th class="px-3 py-2.5 w-32 shrink-0">Ticket liên quan</th>
+                        <th class="px-3 py-2.5 w-36 shrink-0">Kỹ sư thực hiện</th>
+                        <th class="px-4 py-2.5 w-[33%]">Nội dung hỗ trợ kỹ thuật</th>
+                        <th class="px-4 py-2.5 w-[19%]">Khách hàng / Người liên hệ</th>
+                        <th class="px-3 py-2.5 text-center w-36 min-w-[120px] shrink-0">Trạng thái công việc</th>
+                        <th class="px-3 py-2.5 text-center w-28 min-w-[100px] shrink-0">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -143,35 +143,35 @@
                                         {{ $log->ticket->code }}
                                     </a>
                                 @else
-                                    N/A
+                                    <span class="text-gray-400">N/A</span>
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 font-medium text-gray-800">
                                 {{ $log->user->name ?? 'N/A' }}
                             </td>
                             <td class="px-4 py-2.5">
-                                <div class="text-gray-900 whitespace-pre-line leading-relaxed line-clamp-3 hover:line-clamp-none transition-all duration-200 cursor-pointer break-words" title="Click to expand/collapse">
+                                <div class="text-gray-900 whitespace-pre-line leading-relaxed break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;">
                                     {{ $log->support_content }}
                                 </div>
                                 @if($log->serial_number)
-                                    <div class="text-xs text-purple-600 font-semibold mt-1"><i class="fas fa-barcode mr-1"></i>S/N: {{ $log->serial_number }}</div>
+                                    <div class="text-xs text-purple-600 font-semibold mt-1 break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;"><i class="fas fa-barcode mr-1"></i>S/N: {{ $log->serial_number }}</div>
                                 @endif
                                 @if($log->notes)
-                                    <div class="text-xs text-amber-600 italic mt-0.5"><i class="fas fa-sticky-note mr-1"></i>Note: {{ $log->notes }}</div>
+                                    <div class="text-xs text-amber-600 italic mt-0.5 break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;"><i class="fas fa-sticky-note mr-1"></i>Note: {{ $log->notes }}</div>
                                 @endif
                             </td>
                             <td class="px-4 py-2.5 text-gray-600">
-                                <div class="font-semibold text-gray-800">{{ $log->customer_info ?: 'N/A' }}</div>
+                                <div class="font-semibold text-gray-800 break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;">{{ $log->customer_info ?: 'N/A' }}</div>
                                 @if($log->contact_info)
-                                    <div class="text-xs text-gray-400 mt-0.5"><i class="fas fa-user-circle mr-1"></i>PIC: {{ $log->contact_info }}</div>
+                                    <div class="text-xs text-gray-400 mt-0.5 break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;"><i class="fas fa-user-circle mr-1"></i>PIC: {{ $log->contact_info }}</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5 text-center">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-{{ $log->status_color }}-100 text-{{ $log->status_color }}-800">
+                            <td class="px-3 py-2.5 text-center whitespace-nowrap">
+                                <span class="inline-block whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-{{ $log->status_color }}-100 text-{{ $log->status_color }}-800">
                                     {{ $log->status_label }}
                                 </span>
                             </td>
-                            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-center whitespace-nowrap">
                                 <div class="flex items-center justify-center space-x-2">
                                     @can('manage_technical_support_logs')
                                         <button @click="editLog({{ $log->id }})" class="inline-flex items-center px-2 py-1 bg-yellow-500 text-white text-xs font-bold rounded hover:bg-yellow-600 transition-colors">

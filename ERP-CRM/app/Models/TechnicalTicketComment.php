@@ -13,6 +13,8 @@ class TechnicalTicketComment extends Model
         'comment'
     ];
 
+    protected $touches = ['ticket'];
+
     /**
      * Get the user who posted the comment.
      */

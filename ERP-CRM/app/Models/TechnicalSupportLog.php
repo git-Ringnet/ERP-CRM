@@ -25,6 +25,8 @@ class TechnicalSupportLog extends Model
         'notes',
     ];
 
+    protected $touches = ['ticket'];
+
     protected $casts = [
         'log_date' => 'date',
         'technical_ticket_id' => 'integer',

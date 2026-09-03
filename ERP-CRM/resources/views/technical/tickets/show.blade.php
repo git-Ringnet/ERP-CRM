@@ -76,10 +76,7 @@
                 $isTechLeadRole = auth()->user()->hasRole('technical_lead');
                 $isTeamLead = $isTechLeadRole || $isManagerOrAdmin;
                 
-                // Restrict pickup visibility to Technical Staff roles only
-                $isTechStaff = auth()->user()->hasAnyRole(['technical_lead', 'technical_engineer', 'super_admin']);
-                
-                $canPickup = $isTechStaff && ($isTeamLead || !in_array($ticket->work_type, ['BOM', 'documentation', 'after_sales']));
+                $canPickup = $ticket->canUserPickup(auth()->user());
                 $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', auth()->id())->exists();
                 $canUpdateProgress = $isAssignedEngineer || $isTechLeadRole || auth()->user()->hasAnyRole(['super_admin', 'director']);
             @endphp
@@ -140,7 +137,7 @@
 
                 @endif
 
-                @if($ticket->status !== 'closed')
+                @if(in_array($ticket->status, ['open', 'assigned']))
                     @can('edit_technical_tickets')
                         @if(!auth()->user()->hasRole('technical_engineer'))
                             <a href="{{ route('technical-tickets.edit', $ticket->id) }}"
@@ -345,41 +342,74 @@
                                                     class="font-semibold text-gray-800">{{ $ticket->ticket_details['doc_bom'] ?? 'N/A' }}</span>
                                             </div>
                                         @elseif($ticket->work_type === 'POC')
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-400 block">Thiết bị / Model</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_model'] ?? 'N/A' }}</span>
+                                            @php
+                                                $pocDevices = $ticket->ticket_details['poc_devices'] ?? [];
+                                                if (empty($pocDevices) && !empty($ticket->ticket_details['poc_model'])) {
+                                                    $pocDevices = [[
+                                                        'name' => $ticket->ticket_details['poc_model'],
+                                                        'quantity' => $ticket->ticket_details['poc_quantity'] ?? 1,
+                                                        'note' => '',
+                                                    ]];
+                                                }
+                                            @endphp
+
+                                            <div class="col-span-full bg-indigo-50/40 rounded-xl p-4 border border-indigo-100 mb-2">
+                                                <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider block mb-2">
+                                                    <i class="fas fa-server mr-1 text-indigo-600"></i> Danh sách thiết bị mượn PoC / Demo
+                                                </span>
+                                                @if(!empty($pocDevices) && is_array($pocDevices) && count($pocDevices) > 0)
+                                                    <div class="overflow-x-auto">
+                                                        <table class="min-w-full divide-y divide-gray-200 text-xs">
+                                                            <thead>
+                                                                <tr class="text-left text-gray-500 font-semibold bg-white/70">
+                                                                    <th class="py-2 px-3">STT</th>
+                                                                    <th class="py-2 px-3">Thiết bị / Model</th>
+                                                                    <th class="py-2 px-3 text-center">Số lượng mượn</th>
+                                                                    <th class="py-2 px-3">Ghi chú / Serial</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-gray-100 bg-white">
+                                                                @foreach($pocDevices as $pIdx => $pDev)
+                                                                    @if(!empty($pDev['name']))
+                                                                        <tr>
+                                                                            <td class="py-2 px-3 text-gray-400 font-medium">{{ $pIdx + 1 }}</td>
+                                                                            <td class="py-2 px-3 font-bold text-gray-900">{{ $pDev['name'] }}</td>
+                                                                            <td class="py-2 px-3 text-center">
+                                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
+                                                                                    {{ $pDev['quantity'] ?? 1 }}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td class="py-2 px-3 text-gray-600 italic">{{ $pDev['note'] ?? '-' }}</td>
+                                                                        </tr>
+                                                                    @endif
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                @else
+                                                    <span class="text-xs text-gray-400 italic">Chưa có thông tin thiết bị mượn</span>
+                                                @endif
                                             </div>
+
                                             <div>
-                                                <span class="text-xs font-bold text-gray-400 block">Số lượng mượn</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_quantity'] ?? 'N/A' }}</span>
-                                            </div>
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-400 block">Yêu cầu kế hoạch/phương án
-                                                    PoC</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_require_plan'] ?? 'N/A' }}</span>
+                                                <span class="text-xs font-bold text-gray-400 block">Yêu cầu kế hoạch/phương án PoC</span>
+                                                <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_require_plan'] ?? 'N/A' }}</span>
                                             </div>
                                             <div>
                                                 <span class="text-xs font-bold text-gray-400 block">Ngày mượn thiết bị</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_borrow_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_borrow_date'])) : 'N/A' }}</span>
+                                                <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_borrow_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_borrow_date'])) : 'N/A' }}</span>
                                             </div>
                                             <div>
                                                 <span class="text-xs font-bold text-gray-400 block">Ngày trả thiết bị</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_return_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_return_date'])) : 'N/A' }}</span>
+                                                <span class="font-semibold text-gray-800">{{ !empty($ticket->ticket_details['poc_return_date']) ? date('d/m/Y', strtotime($ticket->ticket_details['poc_return_date'])) : 'N/A' }}</span>
                                             </div>
-                                            <div>
+                                            <div class="md:col-span-3">
                                                 <span class="text-xs font-bold text-gray-400 block">Địa điểm triển khai POC</span>
-                                                <span
-                                                    class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_location'] ?? 'N/A' }}</span>
+                                                <span class="font-semibold text-gray-800">{{ $ticket->ticket_details['poc_location'] ?? 'N/A' }}</span>
                                             </div>
-                                            <div class="md:col-span-2">
+                                            <div class="md:col-span-3">
                                                 <span class="text-xs font-bold text-gray-400 block">Mục tiêu POC</span>
-                                                <span
-                                                    class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['poc_goal'] ?? 'N/A' }}</span>
+                                                <span class="font-semibold text-gray-800 whitespace-pre-line">{{ $ticket->ticket_details['poc_goal'] ?? 'N/A' }}</span>
                                             </div>
                                         @elseif($ticket->work_type === 'deployment')
                                             <div>
@@ -636,19 +666,21 @@
                                                                 class="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center">
                                                                 <i class="fas fa-download mr-1"></i> Tải về
                                                             </a>
-                                                            <span class="text-gray-300">|</span>
-                                                            <form
-                                                                action="{{ route('technical-tickets.attachments.delete', [$ticket->id, $attach->id]) }}"
-                                                                method="POST"
-                                                                onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài liệu này?');"
-                                                                class="inline">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit"
-                                                                    class="text-red-500 hover:text-red-700 font-semibold text-xs">
-                                                                    <i class="fas fa-trash"></i> Xóa
-                                                                </button>
-                                                            </form>
+                                                            @if($attach->uploaded_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']))
+                                                                <span class="text-gray-300">|</span>
+                                                                <form
+                                                                    action="{{ route('technical-tickets.attachments.delete', [$ticket->id, $attach->id]) }}"
+                                                                    method="POST"
+                                                                    onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài liệu này?');"
+                                                                    class="inline">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit"
+                                                                        class="text-red-500 hover:text-red-700 font-semibold text-xs">
+                                                                        <i class="fas fa-trash"></i> Xóa
+                                                                    </button>
+                                                                </form>
+                                                            @endif
                                                         </div>
                                                     </div>
                                                 @endforeach
@@ -727,22 +759,22 @@
                                                 </div>
                                             </div>
 
-                                            <div class="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+                                            <div class="text-sm text-gray-700 whitespace-pre-line leading-relaxed break-all" style="word-break: break-word; overflow-wrap: anywhere;">
                                                 <strong>Nội dung hỗ trợ:</strong><br>
                                                 {{ $log->support_content }}
                                             </div>
 
                                             <div
                                                 class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-50 text-xs text-gray-500">
-                                                <div><strong>Số S/N:</strong> {{ $log->serial_number ?: 'N/A' }}</div>
-                                                <div><strong>Thông tin khách hàng:</strong> {{ $log->customer_info ?: 'N/A' }}
+                                                <div><strong>Số S/N:</strong> <span style="word-break: break-word; overflow-wrap: anywhere;">{{ $log->serial_number ?: 'N/A' }}</span></div>
+                                                <div><strong>Thông tin khách hàng:</strong> <span style="word-break: break-word; overflow-wrap: anywhere;">{{ $log->customer_info ?: 'N/A' }}</span>
                                                 </div>
-                                                <div><strong>Thông tin liên hệ:</strong> {{ $log->contact_info ?: 'N/A' }}</div>
+                                                <div><strong>Thông tin liên hệ:</strong> <span style="word-break: break-word; overflow-wrap: anywhere;">{{ $log->contact_info ?: 'N/A' }}</span></div>
                                             </div>
 
                                             @if($log->notes)
                                                 <div
-                                                    class="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100">
+                                                    class="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100 break-all" style="word-break: break-word; overflow-wrap: anywhere;">
                                                     <strong>Ghi chú:</strong> {{ $log->notes }}
                                                 </div>
                                             @endif
@@ -792,7 +824,7 @@
                                                     <span class="text-sm font-bold text-gray-800">{{ $comment->user->name ?? 'Người dùng' }}</span>
                                                     <span class="text-xs text-gray-400">{{ $comment->created_at->diffForHumans() }} ({{ $comment->created_at->format('d/m/Y H:i') }})</span>
                                                 </div>
-                                                <div class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
+                                                <div class="text-sm text-gray-600 whitespace-pre-line leading-relaxed break-all" style="word-break: break-word; overflow-wrap: anywhere;">
                                                     {{ $comment->comment }}
                                                 </div>
                                             </div>

@@ -35,7 +35,12 @@ function notificationBell() {
          */
         async fetchNotifications() {
             try {
-                const response = await fetch('/notifications/recent');
+                const response = await fetch('/notifications/recent', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
                 const data = await response.json();
                 this.notifications = data.notifications;
                 this.unreadCount = data.unreadCount;

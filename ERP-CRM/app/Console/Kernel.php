@@ -18,6 +18,9 @@ class Kernel extends ConsoleKernel
         // Gửi nhắc nhở hành động sắp đến hạn mỗi 15 phút
         $schedule->command('reminders:send-action-due')->everyFifteenMinutes();
 
+        // Kiểm tra và gửi cảnh báo ticket kỹ thuật sắp hết hạn SLA (trước 2h) mỗi 5 phút
+        $schedule->command('tickets:check-sla-deadlines')->everyFiveMinutes();
+
         // Fetch tỷ giá hối đoái từ Vietcombank mỗi ngày lúc 8h sáng
         $schedule->command('exchange-rates:fetch')->dailyAt('08:00');
 

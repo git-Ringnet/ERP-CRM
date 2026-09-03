@@ -242,7 +242,7 @@
 
                             @php
                                 $user = auth()->user();
-                                $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                                $isAdmin = $user && ($user->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager']));
                             @endphp
 
                             @if($req->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $isAdmin)

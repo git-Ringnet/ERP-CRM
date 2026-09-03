@@ -472,6 +472,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
     Route::get('/permissions/matrix', [PermissionController::class, 'matrix'])->name('permissions.matrix');
     Route::post('/permissions/matrix', [PermissionController::class, 'updateMatrix'])->name('permissions.matrix.update');
+    Route::post('/permissions/technical-tickets', [PermissionController::class, 'updateTechnicalTicketPermissions'])->name('permissions.technical-tickets.update');
 
     // User Management routes (Quản lý người dùng)
     Route::get('/users', [\App\Http\Controllers\UserController::class, 'index'])->name('users.index');

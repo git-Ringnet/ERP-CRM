@@ -37,6 +37,29 @@ class TechnicalDashboardController extends Controller
         // Base Query
         $baseQuery = TechnicalTicket::query();
 
+        $currentUserId = auth()->id();
+        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+
+        // Non-leads/admins only see their own tickets/data to prevent leaking project info
+        if (!$isManagerOrAdmin && !$isTechLeadRole) {
+            if (auth()->user()->hasRole('technical_engineer')) {
+                // Technical Engineer only sees tickets assigned to them
+                $baseQuery->where(function ($q) use ($currentUserId) {
+                    $q->where('assigned_to', $currentUserId)
+                      ->orWhereHas('assignedEngineers', function ($sq) use ($currentUserId) {
+                          $sq->where('users.id', $currentUserId);
+                      });
+                });
+            } else {
+                // Sales staff only sees tickets created by or owned by them
+                $baseQuery->where(function ($q) use ($currentUserId) {
+                    $q->where('created_by', $currentUserId)
+                      ->orWhere('sales_owner_id', $currentUserId);
+                });
+            }
+        }
+
         $now = Carbon::now();
 
         // Apply filters
@@ -201,6 +224,14 @@ class TechnicalDashboardController extends Controller
             ->orderBy('count', 'desc')
             ->get();
 
+        // 5. Recent Updated Tickets (Cập nhật & Trao đổi mới nhất)
+        $recentUpdatedTickets = (clone $baseQuery)
+            ->with(['customer', 'project', 'assignedTo', 'creator', 'assignedEngineers'])
+            ->withCount(['comments', 'supportLogs', 'attachments'])
+            ->orderBy('updated_at', 'desc')
+            ->limit(10)
+            ->get();
+
         // Entity lists for dropdowns
         $engineers = User::where('status', 'active')->orderBy('name')->get();
         $customers = Customer::orderBy('name')->get();
@@ -215,7 +246,7 @@ class TechnicalDashboardController extends Controller
 
         return view('technical.dashboard', compact(
             'totalTickets', 'openTickets', 'closedTickets', 'pendingTickets', 'escalateTickets', 'overdueTickets', 'slaRate',
-            'engineerStats', 'salesStats', 'vendorStats', 'projectStats', 'categoryStats',
+            'engineerStats', 'salesStats', 'vendorStats', 'projectStats', 'categoryStats', 'recentUpdatedTickets',
             'engineers', 'customers', 'suppliers', 'projects', 'salesUsers', 'filters'
         ));
     }

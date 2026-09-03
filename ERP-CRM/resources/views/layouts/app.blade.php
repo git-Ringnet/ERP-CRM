@@ -539,13 +539,6 @@
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo</span>
                                 </a>
                             @endcan
-                            @can('export_technical_tickets')
-                                <a href="{{ route('technical.export') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors">
-                                    <i class="fas fa-file-excel w-6 text-green-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Xuất báo cáo Ticket</span>
-                                </a>
-                            @endcan
                             @canany(['view_technical_tickets', 'manage_technical_support_logs'])
                             @can('view_technical_tickets')
                                 <a href="{{ route('technical-tickets.index') }}"

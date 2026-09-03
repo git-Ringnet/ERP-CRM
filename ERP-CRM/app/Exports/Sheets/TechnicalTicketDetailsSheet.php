@@ -1,92 +1,40 @@
 <?php
 
-namespace App\Exports;
+namespace App\Exports\Sheets;
 
-use App\Exports\Sheets\TechnicalEngineerWorkloadSheet;
-use App\Exports\Sheets\TechnicalSalesSheet;
-use App\Exports\Sheets\TechnicalVendorSheet;
-use App\Exports\Sheets\TechnicalWorkTypeSheet;
-use App\Exports\Sheets\TechnicalProjectSheet;
-use App\Exports\Sheets\TechnicalCustomerSheet;
-use App\Exports\Sheets\TechnicalTicketDetailsSheet;
 use App\Models\TechnicalTicket;
-use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use Carbon\Carbon;
 
-class TechnicalTicketsExport implements WithMultipleSheets
+class TechnicalTicketDetailsSheet implements FromCollection, WithHeadings, WithMapping, WithStyles, WithTitle, ShouldAutoSize
 {
     protected $filters;
+    protected $tickets;
 
-    public function __construct(array $filters = [])
+    public function __construct(array $filters = [], $tickets = null)
     {
         $this->filters = $filters;
+        $this->tickets = $tickets;
     }
 
-    /**
-     * Return array of sheets based on the report_type filter.
-     */
-    public function sheets(): array
+    public function title(): string
     {
-        $reportType = $this->filters['report_type'] ?? 'all';
-        $sheets = [];
+        return 'Chi Tiết Tất Cả Tickets';
+    }
 
-        // Preload filtered tickets collection once to share across sheets efficiently
-        $tickets = $this->getFilteredTickets();
-
-        switch ($reportType) {
-            case 'engineer':
-            case 'engineer_workload':
-                $sheets[] = new TechnicalEngineerWorkloadSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'sales':
-                $sheets[] = new TechnicalSalesSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'vendor':
-                $sheets[] = new TechnicalVendorSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'project':
-                $sheets[] = new TechnicalProjectSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'customer':
-                $sheets[] = new TechnicalCustomerSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'work_type':
-                $sheets[] = new TechnicalWorkTypeSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'raw_data':
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
-
-            case 'all':
-            default:
-                // Full comprehensive multi-sheet report
-                $sheets[] = new TechnicalEngineerWorkloadSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalSalesSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalVendorSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalWorkTypeSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalProjectSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalCustomerSheet($this->filters, $tickets);
-                $sheets[] = new TechnicalTicketDetailsSheet($this->filters, $tickets);
-                break;
+    public function collection()
+    {
+        if ($this->tickets) {
+            return $this->tickets;
         }
 
-        return $sheets;
-    }
-
-    protected function getFilteredTickets()
-    {
         $query = TechnicalTicket::with([
             'customer', 'project', 'opportunity', 'sale', 'supplier', 
             'assignedTo', 'creator', 'supportLogs', 'comments', 'assignedEngineers', 'salesOwner'
@@ -194,5 +142,95 @@ class TechnicalTicketsExport implements WithMultipleSheets
         }
 
         return $query->orderBy('created_at', 'desc')->get();
+    }
+
+    public function headings(): array
+    {
+        return [
+            'Mã Ticket',
+            'Tiêu đề công việc',
+            'Trạng thái',
+            'Loại việc (Work Type)',
+            'Độ ưu tiên',
+            'Khách hàng',
+            'Dự án (System Project)',
+            'Dự án/Partner (Nhập tay)',
+            'Cơ hội',
+            'Đơn hàng bán',
+            'Hãng / Nhà cung cấp (Vendor)',
+            'Kỹ sư thực hiện',
+            'Người tạo (Sales)',
+            'Sales phụ trách',
+            'Bộ phận yêu cầu',
+            'Hạn SLA (Due Date)',
+            'Thời gian hoàn thành',
+            'Trạng thái SLA',
+            'Thời gian xử lý (Giờ Workload)',
+            'Số lượt Log hỗ trợ',
+            'Số tin nhắn trao đổi',
+        ];
+    }
+
+    public function map($ticket): array
+    {
+        $processingTime = '';
+        if ($ticket->resolved_at) {
+            $processingTime = round($ticket->created_at->diffInMinutes($ticket->resolved_at) / 60, 2);
+        } elseif ($ticket->status !== 'completed' && $ticket->status !== 'closed') {
+            $processingTime = round($ticket->created_at->diffInMinutes(Carbon::now()) / 60, 2);
+        }
+
+        $slaStatus = 'Kịp hạn';
+        if ($ticket->is_overdue) {
+            $slaStatus = 'Trễ hạn';
+        } elseif (!$ticket->sla_deadline) {
+            $slaStatus = 'Không áp dụng';
+        }
+
+        $engineersNames = $ticket->assignedEngineers->pluck('name')->join(', ') ?: ($ticket->assignedTo->name ?? 'Chưa phân công');
+
+        return [
+            $ticket->code,
+            $ticket->title,
+            $ticket->status_label,
+            $ticket->work_type_label,
+            $ticket->priority_label,
+            $ticket->customer->name ?? '',
+            $ticket->project->name ?? '',
+            $ticket->project_name ?? '',
+            $ticket->opportunity->name ?? '',
+            $ticket->sale->code ?? '',
+            $ticket->supplier->name ?? '',
+            $engineersNames,
+            $ticket->creator->name ?? '',
+            $ticket->salesOwner->name ?? '',
+            $ticket->department ?? '',
+            $ticket->sla_deadline ? $ticket->sla_deadline->format('d/m/Y H:i') : '',
+            $ticket->resolved_at ? $ticket->resolved_at->format('d/m/Y H:i') : '',
+            $slaStatus,
+            $processingTime,
+            $ticket->supportLogs->count(),
+            $ticket->comments->count(),
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => [
+                'font' => [
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF']
+                ],
+                'fill' => [
+                    'fillType' => 'solid',
+                    'startColor' => ['rgb' => '2563EB'] // Primary Blue
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ]
+            ],
+        ];
     }
 }

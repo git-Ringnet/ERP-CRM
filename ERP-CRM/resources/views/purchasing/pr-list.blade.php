@@ -175,40 +175,39 @@
                                 <div class="flex justify-end gap-2">
                                     @php
                                         $currentUser = auth()->user();
-                                        $canApproveAdmin = $currentUser && ($currentUser->hasRole('admin') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('purchase_manager'));
+                                        $canApproveAdmin = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'sales_manager']));
+                                        $canApprovePurchasing = $currentUser && ($currentUser->hasAnyRole(['admin', 'super_admin', 'director', 'purchase_manager', 'purchaser']));
                                     @endphp
 
-                                    @if(!request('my_requests'))
-                                        @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
-                                            <form action="{{ route('sales.order-request.admin-approve', [$request->sale_id, $request->id]) }}" method="POST"
-                                                onsubmit="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')">
-                                                @csrf
-                                                <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt PR">
-                                                    <i class="fas fa-check-circle text-lg"></i>
-                                                </button>
-                                            </form>
-                                            <button type="button"
-                                                onclick="showAdminRejectModal('{{ $request->id }}', '{{ $request->code }}', '{{ $request->sale_id }}')"
-                                                class="text-red-600 hover:text-red-800 p-1" title="Trả về Sales">
-                                                <i class="fas fa-times-circle text-lg"></i>
+                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN && $canApproveAdmin)
+                                        <form action="{{ route('sales.order-request.admin-approve', [$request->sale_id, $request->id]) }}" method="POST"
+                                            onsubmit="return confirm('Xác nhận duyệt yêu cầu đặt hàng này?')">
+                                            @csrf
+                                            <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt PR">
+                                                <i class="fas fa-check-circle text-lg"></i>
                                             </button>
-                                        @endif
+                                        </form>
+                                        <button type="button"
+                                            onclick="showAdminRejectModal('{{ $request->id }}', '{{ $request->code }}', '{{ $request->sale_id }}')"
+                                            class="text-red-600 hover:text-red-800 p-1" title="Trả về Sales">
+                                            <i class="fas fa-times-circle text-lg"></i>
+                                        </button>
+                                    @endif
 
-                                        @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED)
-                                            <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST"
-                                                onsubmit="return confirm('Duyệt yêu cầu này?')">
-                                                @csrf
-                                                <input type="hidden" name="action" value="approve">
-                                                <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt">
-                                                    <i class="fas fa-check-circle text-lg"></i>
-                                                </button>
-                                            </form>
-                                            <button type="button"
-                                                onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
-                                                class="text-red-600 hover:text-red-800 p-1" title="Trả về">
-                                                <i class="fas fa-times-circle text-lg"></i>
+                                    @if($request->status === \App\Models\SaleOrderRequest::STATUS_SUBMITTED && $canApprovePurchasing)
+                                        <form action="{{ route('purchase-requests.verify', $request->id) }}" method="POST"
+                                            onsubmit="return confirm('Duyệt yêu cầu này?')">
+                                            @csrf
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="text-green-600 hover:text-green-800 p-1" title="Duyệt">
+                                                <i class="fas fa-check-circle text-lg"></i>
                                             </button>
-                                        @endif
+                                        </form>
+                                        <button type="button"
+                                            onclick="showRejectModal('{{ $request->id }}', '{{ $request->code }}')"
+                                            class="text-red-600 hover:text-red-800 p-1" title="Trả về">
+                                            <i class="fas fa-times-circle text-lg"></i>
+                                        </button>
                                     @endif
 
                                     @if(in_array($request->status, [\App\Models\SaleOrderRequest::STATUS_DRAFT, \App\Models\SaleOrderRequest::STATUS_NEED_INFO]) && $request->sale_id)

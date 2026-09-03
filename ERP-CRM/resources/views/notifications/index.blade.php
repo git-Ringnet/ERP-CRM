@@ -89,6 +89,7 @@ function markAsRead(notificationId) {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/json',
         }
     }).catch(error => {

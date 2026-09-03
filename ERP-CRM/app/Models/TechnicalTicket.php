@@ -205,6 +205,142 @@ class TechnicalTicket extends Model
     }
 
     // ===================================================================
+    // Work Type Permissions & Helpers
+    // ===================================================================
+
+    public static function getAllWorkTypes(): array
+    {
+        return [
+            'survey' => 'Khảo sát / Tư vấn / Thiết kế',
+            'BOM' => 'BOM Support',
+            'documentation' => 'Technical Documents',
+            'POC' => 'POC / Demo',
+            'deployment' => 'Deployment',
+            'after_sales' => 'After-sales support',
+            'training' => 'Training / Update',
+            'event' => 'Event / Speaker',
+            'other' => 'Other',
+        ];
+    }
+
+    public static function getWorkTypePermissions(): array
+    {
+        $defaults = [
+            'survey' => ['scope' => 'leader', 'roles' => []],
+            'BOM' => ['scope' => 'all', 'roles' => []],
+            'documentation' => ['scope' => 'all', 'roles' => []],
+            'POC' => ['scope' => 'leader', 'roles' => []],
+            'deployment' => ['scope' => 'leader', 'roles' => []],
+            'after_sales' => ['scope' => 'all', 'roles' => []],
+            'training' => ['scope' => 'leader', 'roles' => []],
+            'event' => ['scope' => 'leader', 'roles' => []],
+            'other' => ['scope' => 'leader', 'roles' => []],
+        ];
+
+        try {
+            $saved = Setting::get('technical_ticket_work_type_permissions');
+            if ($saved) {
+                $decoded = is_array($saved) ? $saved : json_decode($saved, true);
+                if (is_array($decoded)) {
+                    $normalized = [];
+                    foreach ($decoded as $k => $v) {
+                        if (is_string($v)) {
+                            $normalized[$k] = ['scope' => $v, 'roles' => []];
+                        } elseif (is_array($v)) {
+                            $normalized[$k] = [
+                                'scope' => $v['scope'] ?? 'leader',
+                                'roles' => $v['roles'] ?? [],
+                            ];
+                        }
+                    }
+                    return array_merge($defaults, $normalized);
+                }
+            }
+        } catch (\Throwable $e) {
+            // fallback to defaults
+        }
+
+        return $defaults;
+    }
+
+    public static function getSelfPickupWorkTypes(): array
+    {
+        $perms = self::getWorkTypePermissions();
+        $types = [];
+        foreach ($perms as $type => $config) {
+            $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
+            if (in_array($scope, ['all', 'tech_all', 'everyone', 'custom'])) {
+                $types[] = $type;
+            }
+        }
+        return $types;
+    }
+
+    public static function getLeaderOnlyWorkTypes(): array
+    {
+        $perms = self::getWorkTypePermissions();
+        $types = [];
+        foreach ($perms as $type => $config) {
+            $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
+            if ($scope === 'leader') {
+                $types[] = $type;
+            }
+        }
+        return $types;
+    }
+
+    public function canUserPickup(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        // Admins, Directors, Sales Managers, and Technical Leads can always pickup/assign
+        if ($user->hasAnyRole(['super_admin', 'director', 'sales_manager', 'technical_lead'])) {
+            return true;
+        }
+
+        $perms = self::getWorkTypePermissions();
+        $config = $perms[$this->work_type] ?? ['scope' => 'leader', 'roles' => []];
+        $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
+        $customRoles = is_array($config) ? ($config['roles'] ?? []) : [];
+
+        if ($scope === 'everyone') {
+            return true;
+        }
+
+        if ($scope === 'all' || $scope === 'tech_all') {
+            return $user->hasAnyRole(['technical_engineer', 'technical_lead', 'super_admin']);
+        }
+
+        if ($scope === 'custom' && !empty($customRoles)) {
+            $userRoleIds = $user->roles->pluck('id')->toArray();
+            $userRoleSlugs = $user->roles->pluck('slug')->toArray();
+            return !empty(array_intersect($userRoleIds, (array)$customRoles)) 
+                || !empty(array_intersect($userRoleSlugs, (array)$customRoles));
+        }
+
+        return false;
+    }
+
+    public function isSelfPickupAllowed(): bool
+    {
+        $perms = self::getWorkTypePermissions();
+        $config = $perms[$this->work_type] ?? ['scope' => 'leader'];
+        $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
+        return in_array($scope, ['all', 'tech_all', 'everyone', 'custom']);
+    }
+
+    public function isLeaderOnly(): bool
+    {
+        $perms = self::getWorkTypePermissions();
+        $config = $perms[$this->work_type] ?? ['scope' => 'leader'];
+        $scope = is_array($config) ? ($config['scope'] ?? 'leader') : $config;
+        return $scope === 'leader';
+    }
+
+    // ===================================================================
     // Static Helpers
     // ===================================================================
 

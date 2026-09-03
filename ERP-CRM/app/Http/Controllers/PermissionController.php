@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\Setting;
+use App\Models\TechnicalTicket;
 use App\Services\RoleServiceInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class PermissionController extends Controller
 {
@@ -19,7 +22,7 @@ class PermissionController extends Controller
     ) {
         // Apply CheckPermission middleware to each action
         $this->middleware('permission:view_permissions')->only(['index', 'matrix']);
-        $this->middleware('permission:edit_permissions')->only(['updateMatrix']);
+        $this->middleware('permission:edit_permissions')->only(['updateMatrix', 'updateTechnicalTicketPermissions']);
     }
 
     /**
@@ -66,6 +69,8 @@ class PermissionController extends Controller
             ->get();
 
         $groupedPermissions = $permissions->groupBy('module');
+        $ticketWorkTypes = TechnicalTicket::getAllWorkTypes();
+        $ticketWorkTypePermissions = TechnicalTicket::getWorkTypePermissions();
 
         // Return JSON for API requests
         if ($request->expectsJson()) {
@@ -74,11 +79,13 @@ class PermissionController extends Controller
                 'data' => [
                     'roles' => $roles,
                     'permissions' => $groupedPermissions,
+                    'ticketWorkTypes' => $ticketWorkTypes,
+                    'ticketWorkTypePermissions' => $ticketWorkTypePermissions,
                 ],
             ]);
         }
 
-        return view('permissions.matrix', compact('roles', 'groupedPermissions'));
+        return view('permissions.matrix', compact('roles', 'groupedPermissions', 'ticketWorkTypes', 'ticketWorkTypePermissions'));
     }
 
     /**
@@ -161,5 +168,50 @@ class PermissionController extends Controller
             return redirect()->back()
                 ->with('error', 'Có lỗi xảy ra khi cập nhật quyền: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update technical ticket work types permissions.
+     */
+    public function updateTechnicalTicketPermissions(Request $request)
+    {
+        $allowedTypes = array_keys(TechnicalTicket::getAllWorkTypes());
+        $inputPermissions = $request->input('work_type_permissions', []);
+
+        $sanitized = [];
+        foreach ($allowedTypes as $type) {
+            $config = $inputPermissions[$type] ?? [];
+            if (is_string($config)) {
+                $sanitized[$type] = [
+                    'scope' => in_array($config, ['leader', 'all', 'tech_all', 'everyone', 'custom']) ? $config : 'leader',
+                    'roles' => [],
+                ];
+            } elseif (is_array($config)) {
+                $scope = $config['scope'] ?? 'leader';
+                $roles = isset($config['roles']) && is_array($config['roles']) ? array_map('intval', $config['roles']) : [];
+                $sanitized[$type] = [
+                    'scope' => in_array($scope, ['leader', 'all', 'tech_all', 'everyone', 'custom']) ? $scope : 'leader',
+                    'roles' => $roles,
+                ];
+            }
+        }
+
+        Setting::updateOrCreate(
+            ['key' => 'technical_ticket_work_type_permissions'],
+            [
+                'value' => json_encode($sanitized),
+                'group' => 'technical'
+            ]
+        );
+        Cache::forget('setting.technical_ticket_work_type_permissions');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Cấu hình phân quyền loại Ticket kỹ thuật đã được lưu thành công.'
+            ]);
+        }
+
+        return back()->with('success', 'Cấu hình phân quyền loại Ticket kỹ thuật đã được cập nhật thành công.');
     }
 }
