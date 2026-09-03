@@ -120,10 +120,10 @@
                     <tr class="divide-x divide-gray-150 border-b border-gray-200">
                         <th class="px-3 py-2.5 text-center w-12 shrink-0">STT</th>
                         <th class="px-3 py-2.5 w-28 text-center shrink-0">Ngày ghi nhận</th>
-                        <th class="px-3 py-2.5 w-32 shrink-0">Ticket liên quan</th>
-                        <th class="px-3 py-2.5 w-36 shrink-0">Kỹ sư thực hiện</th>
-                        <th class="px-4 py-2.5 w-[33%]">Nội dung hỗ trợ kỹ thuật</th>
-                        <th class="px-4 py-2.5 w-[19%]">Khách hàng / Người liên hệ</th>
+                        <th class="px-3 py-2.5 w-44 shrink-0">Ticket liên quan</th>
+                        <th class="px-3 py-2.5 w-40 shrink-0">Kỹ sư thực hiện</th>
+                        <th class="px-4 py-2.5 w-[30%]">Nội dung hỗ trợ kỹ thuật</th>
+                        <th class="px-4 py-2.5 w-[20%]">Khách hàng / Người liên hệ</th>
                         <th class="px-3 py-2.5 text-center w-36 min-w-[120px] shrink-0">Trạng thái công việc</th>
                         <th class="px-3 py-2.5 text-center w-28 min-w-[100px] shrink-0">Thao tác</th>
                     </tr>
@@ -131,13 +131,13 @@
                 <tbody class="divide-y divide-gray-200">
                     @forelse($supportLogs as $log)
                         <tr class="hover:bg-gray-50/50 divide-x divide-gray-100">
-                            <td class="px-4 py-2.5 text-center text-gray-500">
+                            <td class="px-3 py-2.5 text-center text-gray-500">
                                 {{ ($supportLogs->currentPage() - 1) * $supportLogs->perPage() + $loop->iteration }}
                             </td>
-                            <td class="px-4 py-2.5 text-center font-semibold text-gray-700 whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-center font-semibold text-gray-700 whitespace-nowrap">
                                 {{ $log->log_date->format('d/m/Y') }}
                             </td>
-                            <td class="px-4 py-2.5 font-bold text-gray-700 whitespace-nowrap">
+                            <td class="px-3 py-2.5 font-bold text-gray-700 whitespace-nowrap">
                                 @if($log->ticket)
                                     <a href="{{ route('technical-tickets.show', $log->ticket->id) }}" class="text-blue-600 hover:underline">
                                         {{ $log->ticket->code }}
@@ -146,7 +146,7 @@
                                     <span class="text-gray-400">N/A</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2.5 font-medium text-gray-800">
+                            <td class="px-3 py-2.5 font-medium text-gray-800">
                                 {{ $log->user->name ?? 'N/A' }}
                             </td>
                             <td class="px-4 py-2.5">
@@ -224,19 +224,15 @@
                     <input type="hidden" name="_method" value="PUT">
                 </template>
 
-                <!-- Ticket Selection (Disabled on Edit Mode for safety, otherwise allowed) -->
+                <!-- Ticket Selection (Freely selectable on both Create and Edit) -->
                 <div>
-                    <label for="technical_ticket_id" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ticket Kỹ Thuật liên quan</label>
-                    <select name="technical_ticket_id" id="modal_technical_ticket_id" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" x-model="logData.technical_ticket_id" :disabled="logEditMode">
+                    <label for="modal_technical_ticket_id" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ticket Kỹ Thuật liên quan</label>
+                    <select name="technical_ticket_id" id="modal_technical_ticket_id" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" x-model="logData.technical_ticket_id">
                         <option value="">-- Không liên kết Ticket / Khác --</option>
                         @foreach($tickets as $t)
                             <option value="{{ $t->id }}">{{ $t->code }} - {{ $t->title }}</option>
                         @endforeach
                     </select>
-                    <!-- Keep hidden input on Edit Mode so the form still submits the ID correctly -->
-                    <template x-if="logEditMode">
-                        <input type="hidden" name="technical_ticket_id" :value="logData.technical_ticket_id">
-                    </template>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
