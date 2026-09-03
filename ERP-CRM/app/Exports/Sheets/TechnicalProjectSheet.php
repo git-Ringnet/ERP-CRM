@@ -48,12 +48,37 @@ class TechnicalProjectSheet implements FromCollection, WithHeadings, WithMapping
             }
 
             $completed = $projTickets->whereIn('status', ['completed', 'closed'])->count();
-            $inProgress = $projTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
+            $inProgress = $total - $completed;
+
+            // Resolve customer name with fallbacks
+            $customerName = $proj->customer->name 
+                ?? $proj->customer_name 
+                ?? $projTickets->pluck('customer.name')->filter()->first()
+                ?? 'Chưa cập nhật';
 
             $rows->push((object)[
                 'stt' => $stt++,
                 'name' => $proj->name,
-                'customer' => $proj->customer->name ?? 'N/A',
+                'customer' => $customerName,
+                'total' => $total,
+                'in_progress' => $inProgress,
+                'completed' => $completed,
+            ]);
+        }
+
+        // Group manual project names if any (project_id is null, project_name is filled)
+        $manualProjectTickets = $tickets->whereNull('project_id')->filter(fn($t) => !empty($t->project_name));
+        $manualGroups = $manualProjectTickets->groupBy('project_name');
+        foreach ($manualGroups as $pName => $pTickets) {
+            $total = $pTickets->count();
+            $completed = $pTickets->whereIn('status', ['completed', 'closed'])->count();
+            $inProgress = $pTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
+            $customerName = $pTickets->pluck('customer.name')->filter()->first() ?? 'Chưa cập nhật';
+
+            $rows->push((object)[
+                'stt' => $stt++,
+                'name' => $pName . ' (Nhập tay)',
+                'customer' => $customerName,
                 'total' => $total,
                 'in_progress' => $inProgress,
                 'completed' => $completed,

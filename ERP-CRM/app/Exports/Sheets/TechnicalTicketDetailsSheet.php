@@ -189,13 +189,18 @@ class TechnicalTicketDetailsSheet implements FromCollection, WithHeadings, WithM
 
         $engineersNames = $ticket->assignedEngineers->pluck('name')->join(', ') ?: ($ticket->assignedTo->name ?? 'Chưa phân công');
 
+        $customerName = $ticket->customer->name 
+            ?? $ticket->project->customer->name 
+            ?? $ticket->project->customer_name 
+            ?? '';
+
         return [
             $ticket->code,
             $ticket->title,
             $ticket->status_label,
             $ticket->work_type_label,
             $ticket->priority_label,
-            $ticket->customer->name ?? '',
+            $customerName,
             $ticket->project->name ?? '',
             $ticket->project_name ?? '',
             $ticket->opportunity->name ?? '',

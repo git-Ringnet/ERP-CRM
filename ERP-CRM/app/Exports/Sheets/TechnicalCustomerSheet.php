@@ -35,26 +35,63 @@ class TechnicalCustomerSheet implements FromCollection, WithHeadings, WithMappin
         $rows = collect();
         $stt = 1;
 
-        $customers = Customer::orderBy('name')->get();
+        // Group tickets by resolved customer name across all sources
+        $customerGroups = [];
+        $unassignedTickets = collect();
 
-        foreach ($customers as $cust) {
-            $custTickets = $tickets->where('customer_id', $cust->id);
-            $total = $custTickets->count();
-            if ($total === 0 && !empty($this->filters['customer_id']) && $this->filters['customer_id'] != $cust->id) {
-                continue;
-            }
-            if ($total === 0 && empty($this->filters['customer_id'])) {
-                continue;
-            }
+        foreach ($tickets as $ticket) {
+            $customerName = $ticket->customer->name 
+                ?? $ticket->project->customer->name 
+                ?? $ticket->project->customer_name 
+                ?? $ticket->opportunity->customer->name 
+                ?? $ticket->opportunity->customer_name 
+                ?? $ticket->sale->customer->name 
+                ?? $ticket->sale->customer_name 
+                ?? $ticket->supportLogs->pluck('customer_info')->filter()->first()
+                ?? null;
 
-            $completed = $custTickets->whereIn('status', ['completed', 'closed'])->count();
-            $inProgress = $custTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
+            if (!empty($customerName)) {
+                $customerGroups[$customerName][] = $ticket;
+            } else {
+                $unassignedTickets->push($ticket);
+            }
+        }
+
+        // Preload Customer models for contact details
+        $customersByName = Customer::whereIn('name', array_keys($customerGroups))->get()->keyBy('name');
+
+        foreach ($customerGroups as $name => $cTickets) {
+            $cTicketCollection = collect($cTickets);
+            $total = $cTicketCollection->count();
+            $completed = $cTicketCollection->whereIn('status', ['completed', 'closed'])->count();
+            $inProgress = $total - $completed;
+
+            $custModel = $customersByName->get($name);
+            $email = $custModel->email ?? '';
+            $phone = $custModel->phone ?? '';
 
             $rows->push((object)[
                 'stt' => $stt++,
-                'name' => $cust->name,
-                'email' => $cust->email ?? '',
-                'phone' => $cust->phone ?? '',
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'total' => $total,
+                'in_progress' => $inProgress,
+                'completed' => $completed,
+            ]);
+        }
+
+        // Append unassigned if any
+        if ($unassignedTickets->count() > 0 && empty($this->filters['customer_id'])) {
+            $total = $unassignedTickets->count();
+            $completed = $unassignedTickets->whereIn('status', ['completed', 'closed'])->count();
+            $inProgress = $unassignedTickets->whereIn('status', ['assigned', 'in_progress', 'waiting', 'pending', 'escalate'])->count();
+
+            $rows->push((object)[
+                'stt' => $stt++,
+                'name' => 'Khác / Chưa xác định Khách hàng',
+                'email' => '',
+                'phone' => '',
                 'total' => $total,
                 'in_progress' => $inProgress,
                 'completed' => $completed,
@@ -112,7 +149,9 @@ class TechnicalCustomerSheet implements FromCollection, WithHeadings, WithMappin
 
     protected function getFilteredTickets()
     {
-        $query = TechnicalTicket::with(['customer']);
+        $query = TechnicalTicket::with([
+            'customer', 'project.customer', 'opportunity.customer', 'sale.customer', 'supportLogs'
+        ]);
 
         if (!empty($this->filters['date_from'])) {
             $query->whereDate('created_at', '>=', $this->filters['date_from']);

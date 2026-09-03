@@ -525,7 +525,7 @@
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('technical')">
                             <div class="flex items-center">
-                                <i class="fas fa-tools w-6 text-yellow-400 flex-shrink-0"></i>
+                                <i class="fas fa-tools w-6 flex-shrink-0"></i>
                                 <span class="ml-3 sidebar-text whitespace-nowrap font-semibold">Technical</span>
                             </div>
                             <i class="fas fa-chevron-down dropdown-arrow sidebar-text" id="arrow-technical"></i>
@@ -540,20 +540,20 @@
                                 </a>
                             @endcan
                             @canany(['view_technical_tickets', 'manage_technical_support_logs'])
-                            @can('view_technical_tickets')
-                                <a href="{{ route('technical-tickets.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
-                                </a>
-                            @endcan
-                            @can('manage_technical_support_logs')
-                                <a href="{{ route('technical.support-logs.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
-                                </a>
-                            @endcan
+                                @can('view_technical_tickets')
+                                    <a href="{{ route('technical-tickets.index') }}"
+                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical-tickets.*') ? 'bg-primary text-white' : '' }}">
+                                        <i class="fas fa-ticket-alt w-6 text-teal-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Quản lý Ticket</span>
+                                    </a>
+                                @endcan
+                                @can('manage_technical_support_logs')
+                                    <a href="{{ route('technical.support-logs.index') }}"
+                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('technical.support-logs.*') ? 'bg-primary text-white' : '' }}">
+                                        <i class="fas fa-history w-6 text-yellow-400 flex-shrink-0"></i>
+                                        <span class="ml-3 sidebar-text whitespace-nowrap">Nhật ký hỗ trợ</span>
+                                    </a>
+                                @endcan
                             @endcanany
                         </div>
                     </div>
@@ -622,12 +622,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                                                                        <a href="{{ route('shipping-allocations.index') }}"
-                                                                                            class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                            <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                            <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                        </a>
-                                                                                    @endcan -->
+                                                                                            <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                            </a>
+                                                                                        @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
