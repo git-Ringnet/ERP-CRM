@@ -13,6 +13,7 @@ class ExportItem extends Model
     protected $fillable = [
         'export_id',
         'product_id',
+        'warehouse_id',
         'quantity',
         'requested_quantity',
         'unit',

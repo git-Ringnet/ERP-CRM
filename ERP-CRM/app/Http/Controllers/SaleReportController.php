@@ -19,34 +19,55 @@ class SaleReportController extends Controller
     public function index(Request $request): View
     {
         $this->authorize('viewAny', \App\Models\SaleReport::class);
+        $request->validate([
+            'payment_percent_min' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'payment_percent_max' => ['nullable', 'numeric', 'min:0', 'max:100', 'gte:payment_percent_min'],
+        ]);
         
         $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $customerId = $request->input('customer_id');
         $productId = $request->input('product_id');
         $userId = $request->input('user_id');
+        $vendorId = $request->input('vendor_id');
+        $paymentState = $request->input('payment_state');
+        $paymentPercentMin = $request->input('payment_percent_min');
+        $paymentPercentMax = $request->input('payment_percent_max');
+
+        // A Sales user must never obtain another salesperson's figures merely
+        // by changing the user_id query string.
+        $viewer = $request->user();
+        $canViewAllSales = $viewer->can('view_all_sales');
+        if (!$canViewAllSales) {
+            $userId = $viewer->id;
+        }
 
         // Summary statistics
-        $stats = $this->getSummaryStats($dateFrom, $dateTo, $customerId, $productId);
+        $stats = $this->getSummaryStats($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
 
         // Customer report
-        $customerReport = $this->getCustomerReport($dateFrom, $dateTo, $customerId);
+        $customerReport = $this->getCustomerReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
 
         // Product report
-        $productReport = $this->getProductReport($dateFrom, $dateTo, $productId);
+        $productReport = $this->getProductReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
 
         // Margin report (new)
-        $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId);
+        $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
 
         $customers = Customer::orderBy('name')->get();
         // Don't load all products to prevent slow page load
         $selectedProduct = $productId ? Product::find($productId) : null;
-        $users = User::orderBy('name')->get();
+        $users = $canViewAllSales
+            ? User::where(function ($query) {
+                $query->where('department', 'like', '%Sales%')->orWhereHas('sales');
+            })->orderBy('name')->get()
+            : User::whereKey($viewer->id)->get();
+        $vendors = \App\Models\Supplier::orderBy('name')->get(['id', 'name']);
 
         return view('sale-reports.index', compact(
             'stats', 'customerReport', 'productReport',
             'marginReport', 'customers', 'selectedProduct', 'users',
-            'dateFrom', 'dateTo', 'customerId', 'productId', 'userId'
+            'dateFrom', 'dateTo', 'customerId', 'productId', 'userId', 'vendorId', 'paymentState', 'paymentPercentMin', 'paymentPercentMax', 'vendors'
         ));
     }
 
@@ -54,9 +75,9 @@ class SaleReportController extends Controller
      * Get margin report data — matches the Excel template for Misa reconciliation.
      * Each row = one Sale order.
      */
-    private function getMarginReport($dateFrom, $dateTo, $customerId = null, $userId = null): array
+    private function getMarginReport($dateFrom, $dateTo, $customerId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
     {
-        $query = Sale::with(['customer', 'user'])
+        $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier'])
             ->whereBetween('date', [$dateFrom, $dateTo])
             ->whereIn('status', ['approved', 'shipping', 'completed']);
 
@@ -66,6 +87,8 @@ class SaleReportController extends Controller
         if ($userId) {
             $query->where('user_id', $userId);
         }
+        $this->applyVendorFilter($query, $vendorId);
+        $this->applyPaymentState($query, $paymentState, '', $paymentPercentMin, $paymentPercentMax);
 
         $sales = $query->orderBy('date', 'asc')->get();
 
@@ -78,9 +101,38 @@ class SaleReportController extends Controller
                 $mainProductCode = $firstItem->product->code ?? '';
             }
 
+            $brands = $sale->items->map(fn ($item) => $item->supplier?->name)
+                ->filter()->unique()->values()->implode(', ');
+            $isLicense = $sale->items->isNotEmpty() && $sale->items->every(function ($item) {
+                $description = strtolower(($item->product_name ?? '') . ' ' . ($item->product?->name ?? ''));
+                return str_contains($description, 'license') || str_contains($description, 'licence');
+            });
+            $productType = $sale->items->pluck('is_service')->contains(true)
+                ? 'Service'
+                : ($isLicense ? 'License' : 'HW');
+            $goodsCost = $sale->items->sum(fn ($item) => (float) $item->cost_total);
+            $financeCost = $sale->items->sum(fn ($item) => (float) $item->finance_cost);
+            $overdueInterestCost = $sale->items->sum(fn ($item) => (float) $item->overdue_interest_cost);
+            $managementCost = $sale->items->sum(fn ($item) => (float) $item->management_cost);
+            $support247Cost = $sale->items->sum(fn ($item) => (float) $item->support_247_cost);
+            $otherSupportCost = $sale->items->sum(fn ($item) => (float) $item->other_support_cost_vnd);
+            $technicalPocCost = $sale->items->sum(fn ($item) => $item->technical_poc_percent !== null
+                ? (float) $item->cost_total * ((float) $item->technical_poc_percent / 100)
+                : (float) $item->technical_poc_cost);
+            $implementationCost = $sale->items->sum(fn ($item) => $item->implementation_cost_percent !== null
+                ? (float) $item->cost_total * ((float) $item->implementation_cost_percent / 100)
+                : (float) $item->implementation_cost);
+            $contractorTax = $sale->items->sum(fn ($item) => $item->contractor_tax_percent !== null
+                ? (float) $item->cost_total * ((float) $item->contractor_tax_percent / 100)
+                : (float) $item->contractor_tax);
+            $totalCost = $goodsCost + $financeCost + $overdueInterestCost + $managementCost
+                + $support247Cost + $otherSupportCost + $technicalPocCost + $implementationCost + $contractorTax;
+
             // Use margin from Sale table for consistency
             $margin = (float) $sale->margin;
-            $revenueTotal = (float) $sale->total;
+            // VAT is collected on behalf of the tax authority, not revenue
+            // used for the gross-margin denominator.
+            $revenueTotal = (float) $sale->subtotal * (1 - ((float) $sale->discount / 100));
             
             // Calculate margin % based on revenue before tax (matches list view)
             $netRevenue = (float) $sale->subtotal - ((float) $sale->subtotal * ((float) $sale->discount / 100));
@@ -99,6 +151,21 @@ class SaleReportController extends Controller
                 'brand' => '', // Manual field — not in DB yet
                 'license' => '', // Manual field — not in DB yet
                 'product_type' => '', // Manual field — not in DB yet
+                'brand' => $brands,
+                'license' => $isLicense ? 'X' : '',
+                'product_type' => $productType,
+                'revenue_before_vat' => round($revenueTotal),
+                'vat_amount' => round((float) $sale->vat_amount),
+                'goods_cost' => round($goodsCost),
+                'finance_cost' => round($financeCost),
+                'overdue_interest_cost' => round($overdueInterestCost),
+                'management_cost' => round($managementCost),
+                'support_247_cost' => round($support247Cost),
+                'other_support_cost' => round($otherSupportCost),
+                'technical_poc_cost' => round($technicalPocCost),
+                'implementation_cost' => round($implementationCost),
+                'contractor_tax' => round($contractorTax),
+                'total_cost' => round($totalCost),
                 'main_product_code' => $mainProductCode,
                 'margin' => round($margin),
                 'margin_percent' => round($marginPercent, 1),
@@ -112,7 +179,7 @@ class SaleReportController extends Controller
         return $report;
     }
 
-    private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null): array
+    private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
     {
         $query = Sale::whereBetween('date', [$dateFrom, $dateTo])
             ->whereIn('status', ['approved', 'shipping', 'completed']); // Only include confirmed orders
@@ -126,17 +193,27 @@ class SaleReportController extends Controller
                 $q->where('product_id', $productId);
             });
         }
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+        $this->applyVendorFilter($query, $vendorId);
+        $this->applyPaymentState($query, $paymentState, '', $paymentPercentMin, $paymentPercentMax);
 
         // Clone query for sums to avoid issues if we needed to group (not needed here but good practice)
         
         $totalOrders = $query->count();
-        $totalRevenue = $query->sum('total');
+        $totalRevenue = (float) (clone $query)
+            ->sum(DB::raw('subtotal * (1 - COALESCE(discount, 0) / 100)'));
         $totalMargin = $query->sum('margin');
         
         // Calculate total net revenue for percent calculation
         $totalNetRevenue = Sale::whereBetween('date', [$dateFrom, $dateTo])
             ->whereIn('status', ['approved', 'shipping', 'completed'])
             ->when($customerId, fn($q) => $q->where('customer_id', $customerId))
+            ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->tap(fn($q) => $this->applyVendorFilter($q, $vendorId))
+            ->tap(fn($q) => $this->applyPaymentState($q, $paymentState, '', $paymentPercentMin, $paymentPercentMax))
             ->get()
             ->sum(function($s) {
                 return (float)$s->subtotal * (1 - (float)$s->discount / 100);
@@ -156,13 +233,13 @@ class SaleReportController extends Controller
         ];
     }
 
-    private function getCustomerReport($dateFrom, $dateTo, $customerId = null): array
+    private function getCustomerReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
     {
         $query = Sale::select(
                 'customer_id',
                 'customer_name',
                 DB::raw('COUNT(*) as order_count'),
-                DB::raw('SUM(total) as total_revenue'),
+                DB::raw('SUM(subtotal * (1 - COALESCE(discount, 0) / 100)) as total_revenue'),
                 DB::raw('SUM(margin) as total_profit')
             )
             ->whereBetween('date', [$dateFrom, $dateTo])
@@ -172,14 +249,26 @@ class SaleReportController extends Controller
         if ($customerId) {
             $query->where('customer_id', $customerId);
         }
+        if ($productId) {
+            $query->whereHas('items', fn($items) => $items->where('product_id', $productId));
+        }
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+        $this->applyVendorFilter($query, $vendorId);
+        $this->applyPaymentState($query, $paymentState, '', $paymentPercentMin, $paymentPercentMax);
 
         $results = $query->orderByDesc('total_revenue')->get();
 
-        return $results->map(function ($item) {
+        return $results->map(function ($item) use ($dateFrom, $dateTo, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax) {
             // Get net revenue sum for this customer in this range
             $netRevenueSum = Sale::where('customer_id', $item->customer_id)
-                ->whereBetween('date', [request('date_from'), request('date_to')])
+                ->whereBetween('date', [$dateFrom, $dateTo])
                 ->whereIn('status', ['approved', 'shipping', 'completed'])
+                ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
+                ->when($userId, fn($q) => $q->where('user_id', $userId))
+                ->tap(fn($q) => $this->applyVendorFilter($q, $vendorId))
+                ->tap(fn($q) => $this->applyPaymentState($q, $paymentState, '', $paymentPercentMin, $paymentPercentMax))
                 ->get()
                 ->sum(fn($s) => (float)$s->subtotal * (1 - (float)$s->discount / 100));
 
@@ -197,7 +286,7 @@ class SaleReportController extends Controller
         })->toArray();
     }
 
-    private function getProductReport($dateFrom, $dateTo, $productId = null): array
+    private function getProductReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
     {
         $query = SaleItem::select(
                 'sale_items.product_id',
@@ -216,6 +305,19 @@ class SaleReportController extends Controller
         if ($productId) {
             $query->where('sale_items.product_id', $productId);
         }
+        if ($customerId) {
+            $query->where('sales.customer_id', $customerId);
+        }
+        if ($userId) {
+            $query->where('sales.user_id', $userId);
+        }
+        if ($vendorId) {
+            $query->where(function ($itemsQuery) use ($vendorId) {
+                $itemsQuery->whereHas('sale.project', fn($project) => $project->where('vendor_id', $vendorId))
+                    ->orWhereHas('sale.orderRequests.items', fn($items) => $items->where('vendor_id', $vendorId));
+            });
+        }
+        $this->applyPaymentState($query, $paymentState, 'sales.', $paymentPercentMin, $paymentPercentMax);
 
         $results = $query->orderByDesc('total_revenue')->get();
 
@@ -237,12 +339,47 @@ class SaleReportController extends Controller
         })->toArray();
     }
 
+    /** Apply the brand/vendor filter consistently to sale-based reports. */
+    private function applyVendorFilter($query, $vendorId): void
+    {
+        if (!$vendorId) {
+            return;
+        }
+
+        $query->where(function ($sales) use ($vendorId) {
+            $sales->whereHas('project', fn ($project) => $project->where('vendor_id', $vendorId))
+                ->orWhereHas('orderRequests.items', fn ($items) => $items->where('vendor_id', $vendorId));
+        });
+    }
+
+    /** Filter consistently by payment completion, using revenue before VAT. */
+    private function applyPaymentState($query, ?string $paymentState, string $prefix = '', $paymentPercentMin = null, $paymentPercentMax = null): void
+    {
+        $paid = "COALESCE({$prefix}paid_amount, 0)";
+        $netRevenue = "({$prefix}subtotal * (1 - COALESCE({$prefix}discount, 0) / 100))";
+
+        if (in_array($paymentState, ['unpaid', 'partial', 'paid'], true)) {
+            match ($paymentState) {
+                'unpaid' => $query->whereRaw("{$paid} <= 0"),
+                'partial' => $query->whereRaw("{$paid} > 0 AND {$paid} < {$netRevenue}"),
+                'paid' => $query->whereRaw("{$netRevenue} > 0 AND {$paid} >= {$netRevenue}"),
+            };
+        }
+
+        if (is_numeric($paymentPercentMin)) {
+            $query->whereRaw("{$netRevenue} > 0 AND ({$paid} / {$netRevenue} * 100) >= ?", [(float) $paymentPercentMin]);
+        }
+        if (is_numeric($paymentPercentMax)) {
+            $query->whereRaw("{$netRevenue} > 0 AND ({$paid} / {$netRevenue} * 100) <= ?", [(float) $paymentPercentMax]);
+        }
+    }
+
     private function getMonthlyReport($dateFrom, $dateTo): array
     {
         $results = Sale::select(
                 DB::raw("DATE_FORMAT(date, '%Y-%m') as month"),
                 DB::raw('COUNT(*) as order_count'),
-                DB::raw('SUM(total) as total_revenue'),
+                DB::raw('SUM(subtotal * (1 - COALESCE(discount, 0) / 100)) as total_revenue'),
                 DB::raw('SUM(margin) as total_profit')
             )
             ->whereBetween('date', [$dateFrom, $dateTo])
@@ -294,7 +431,7 @@ class SaleReportController extends Controller
             ->selectRaw('
                 SUM(subtotal) as subtotal,
                 SUM(discount) as discount_percent_sum, -- This is meaningless
-                SUM(total) as total_revenue,
+                SUM(subtotal * (1 - COALESCE(discount, 0) / 100)) as total_revenue,
                 SUM(cost) as total_expenses,
                 SUM(margin) as total_profit
             ')
@@ -326,10 +463,9 @@ class SaleReportController extends Controller
 
     public function export(Request $request)
     {
-        $this->authorize('export', \App\Models\SaleReport::class);
-        
-        // Export logic here (Reuse existing export or create new one)
-        return redirect()->back()->with('warning', 'Chức năng xuất báo cáo đang được phát triển.');
+        // The primary Export Excel button must export the same filtered report,
+        // rather than returning a placeholder message.
+        return $this->exportMargin($request);
     }
 
     /**
@@ -338,13 +474,26 @@ class SaleReportController extends Controller
     public function exportMargin(Request $request)
     {
         $this->authorize('export', \App\Models\SaleReport::class);
+        $request->validate([
+            'payment_percent_min' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'payment_percent_max' => ['nullable', 'numeric', 'min:0', 'max:100', 'gte:payment_percent_min'],
+        ]);
 
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
         $customerId = $request->input('customer_id');
         $userId = $request->input('user_id');
+        $vendorId = $request->input('vendor_id');
+        $paymentState = $request->input('payment_state');
+        $paymentPercentMin = $request->input('payment_percent_min');
+        $paymentPercentMax = $request->input('payment_percent_max');
 
-        $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId);
+        // Preserve the same data boundary as the on-screen report.
+        if (!$request->user()->can('view_all_sales')) {
+            $userId = $request->user()->id;
+        }
+
+        $marginReport = $this->getMarginReport($dateFrom, $dateTo, $customerId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
 
         $fromFormatted = date('d/m/Y', strtotime($dateFrom));
         $toFormatted = date('d/m/Y', strtotime($dateTo));
@@ -377,7 +526,7 @@ class SaleReportController extends Controller
         ];
 
         // ── Row 1: Title ──
-        $sheet->mergeCells('A1:M1');
+        $sheet->mergeCells('A1:Y1');
         $sheet->setCellValue('A1', "Báo cáo Lãi/Lỗ (Margin) theo đơn hàng tháng .../(Từ {$fromFormatted} đến {$toFormatted})");
         $sheet->getStyle('A1')->getFont()->applyFromArray($titleFont);
 
@@ -398,12 +547,19 @@ class SaleReportController extends Controller
             'M3' => "Tỷ lệ khách hàng\nđã thanh toán (%)",
         ];
 
+        $headers += [
+            'N3' => 'Tiền hàng (chưa VAT)', 'O3' => 'Thuế VAT', 'P3' => 'Giá vốn hàng hóa',
+            'Q3' => 'Chi phí tài chính', 'R3' => 'Lãi vay quá hạn', 'S3' => 'QL/Back Office/Kỹ thuật',
+            'T3' => '24x7 Support', 'U3' => 'Other Support', 'V3' => 'Technical POC',
+            'W3' => 'Chi phí triển khai', 'X3' => 'Thuế nhà thầu', 'Y3' => 'Tổng chi phí',
+        ];
+
         foreach ($headers as $cell => $label) {
             $sheet->setCellValue($cell, $label);
         }
 
         // Apply header style
-        $headerRange = 'A3:M3';
+        $headerRange = 'A3:Y3';
         $sheet->getStyle($headerRange)->applyFromArray([
             'fill' => $headerFill,
             'font' => $headerFont,
@@ -417,7 +573,7 @@ class SaleReportController extends Controller
         $sheet->getRowDimension(3)->setRowHeight(45);
 
         // ── Column widths ──
-        $widths = ['A' => 5, 'B' => 28, 'C' => 20, 'D' => 14, 'E' => 10, 'F' => 8, 'G' => 22, 'H' => 14, 'I' => 16, 'J' => 10, 'K' => 18, 'L' => 20, 'M' => 16];
+        $widths = ['A' => 5, 'B' => 28, 'C' => 20, 'D' => 14, 'E' => 14, 'F' => 8, 'G' => 22, 'H' => 14, 'I' => 16, 'J' => 10, 'K' => 18, 'L' => 20, 'M' => 16, 'N' => 18, 'O' => 14, 'P' => 18, 'Q' => 16, 'R' => 16, 'S' => 20, 'T' => 14, 'U' => 14, 'V' => 16, 'W' => 18, 'X' => 16, 'Y' => 18];
         foreach ($widths as $col => $w) {
             $sheet->getColumnDimension($col)->setWidth($w);
         }
@@ -444,12 +600,25 @@ class SaleReportController extends Controller
             }
 
             $sheet->setCellValue("M{$row}", $data['payment_percent'] / 100);
+            $sheet->setCellValue("N{$row}", $data['revenue_before_vat']);
+            $sheet->setCellValue("O{$row}", $data['vat_amount']);
+            $sheet->setCellValue("P{$row}", $data['goods_cost']);
+            $sheet->setCellValue("Q{$row}", $data['finance_cost']);
+            $sheet->setCellValue("R{$row}", $data['overdue_interest_cost']);
+            $sheet->setCellValue("S{$row}", $data['management_cost']);
+            $sheet->setCellValue("T{$row}", $data['support_247_cost']);
+            $sheet->setCellValue("U{$row}", $data['other_support_cost']);
+            $sheet->setCellValue("V{$row}", $data['technical_poc_cost']);
+            $sheet->setCellValue("W{$row}", $data['implementation_cost']);
+            $sheet->setCellValue("X{$row}", $data['contractor_tax']);
+            $sheet->setCellValue("Y{$row}", $data['total_cost']);
 
             // Format numbers
             $sheet->getStyle("I{$row}")->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle("J{$row}")->getNumberFormat()->setFormatCode('0.0%');
             $sheet->getStyle("L{$row}")->getNumberFormat()->setFormatCode('#,##0');
             $sheet->getStyle("M{$row}")->getNumberFormat()->setFormatCode('0%');
+            $sheet->getStyle("N{$row}:Y{$row}")->getNumberFormat()->setFormatCode('#,##0');
 
             // Margin color: red if negative, green if positive
             if ($data['margin'] < 0) {
@@ -468,8 +637,8 @@ class SaleReportController extends Controller
 
             // Alternate row colors
             if ($row % 2 === 0) {
-                $sheet->getStyle("A{$row}:M{$row}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-                $sheet->getStyle("A{$row}:M{$row}")->getFill()->getStartColor()->setRGB('F2F7FB');
+                $sheet->getStyle("A{$row}:Y{$row}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+                $sheet->getStyle("A{$row}:Y{$row}")->getFill()->getStartColor()->setRGB('F2F7FB');
             }
 
             $row++;
@@ -478,7 +647,7 @@ class SaleReportController extends Controller
         // Data borders
         $lastRow = $row - 1;
         if ($lastRow >= 4) {
-            $sheet->getStyle("A4:M{$lastRow}")->applyFromArray([
+            $sheet->getStyle("A4:Y{$lastRow}")->applyFromArray([
                 'borders' => $borderAll,
                 'font' => ['size' => 10, 'name' => 'Arial'],
             ]);

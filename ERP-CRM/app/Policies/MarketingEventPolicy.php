@@ -20,7 +20,19 @@ class MarketingEventPolicy extends BasePolicy
      */
     public function view(User $user, MarketingEvent $marketingEvent): bool
     {
-        return $this->checkPermission($user, 'view_marketing_events');
+        if (!$this->checkPermission($user, 'view_marketing_events')) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager'])) {
+            return true;
+        }
+
+        // Sales may open only an event they created, one they were assigned to,
+        // or an event that explicitly invites a customer managed by them.
+        return $marketingEvent->created_by === $user->id
+            || $marketingEvent->requests()->where('assigned_to', $user->id)->exists()
+            || $marketingEvent->customers()->where('am', $user->id)->exists();
     }
 
     /**

@@ -117,6 +117,10 @@ class AuditLogControllerTest extends TestCase
             'created_at' => now(),
         ]);
 
+        // The model owns timestamps, so persist the historical timestamp after
+        // creation instead of relying on mass assignment of `created_at`.
+        $oldLog->forceFill(['created_at' => now()->subDays(10)])->saveQuietly();
+
         $this->actingAs($user);
 
         // Act

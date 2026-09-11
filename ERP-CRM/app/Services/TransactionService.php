@@ -29,14 +29,47 @@ class TransactionService
      */
     public function validateStock(int $productId, int $warehouseId, int $quantity): bool
     {
-        if ($this->inventoryService->hasSufficientStock($productId, $warehouseId, $quantity)) {
-            return true;
+        // Lock the balance while an export is being approved. Without this,
+        // two approval requests can both read the same balance before either
+        // one subtracts it.
+        $inventory = Inventory::where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->lockForUpdate()
+            ->first();
+
+        $actualStock = $this->inventoryService->calculateStockFromItems($productId, $warehouseId);
+        $recordedStock = (int) ($inventory?->stock ?? 0);
+
+        // Product items are the operational source of truth for a physical
+        // export. Reconcile the summary whenever it has drifted, rather than
+        // validating a stale Inventory value.
+        if ($recordedStock !== $actualStock) {
+            $this->inventoryService->resyncStockFromItems($productId, $warehouseId);
         }
 
-        // Auto resync stock count in inventories table from ProductItem actual count (status=in_stock)
-        $this->inventoryService->resyncStockFromItems($productId, $warehouseId);
-
         return $this->inventoryService->hasSufficientStock($productId, $warehouseId, $quantity);
+    }
+
+    /**
+     * Resolve the physical source warehouse for an export line. New vouchers
+     * persist it on export_items; legacy vouchers derive it from their chosen
+     * serials so they can still be approved correctly.
+     */
+    private function resolveExportItemWarehouseId(ExportItem $item, ?int $fallbackWarehouseId): ?int
+    {
+        if ($item->warehouse_id) {
+            return (int) $item->warehouse_id;
+        }
+
+        $serialIds = json_decode((string) $item->serial_number, true);
+        if (is_array($serialIds) && !empty($serialIds)) {
+            $warehouseId = ProductItem::whereIn('id', $serialIds)->value('warehouse_id');
+            if ($warehouseId) {
+                return (int) $warehouseId;
+            }
+        }
+
+        return $fallbackWarehouseId ? (int) $fallbackWarehouseId : null;
     }
 
     /**
@@ -66,7 +99,7 @@ class TransactionService
                     'other_cost' => $data['other_cost'] ?? 0,
                     'total_service_cost' => $data['total_service_cost'] ?? 0,
                     'discount_percent' => $data['discount_percent'] ?? 0,
-                    'vat_percent' => $data['vat_percent'] ?? 10,
+                    'vat_percent' => $data['vat_percent'] ?? 8,
                     'reference_type' => $data['reference_type'] ?? null,
                     'reference_id' => $data['reference_id'] ?? null,
                     'shipping_allocation_id' => $data['shipping_allocation_id'] ?? null,
@@ -156,6 +189,19 @@ class TransactionService
 
                 // Chỉ xử lý các items chưa được đồng bộ (processed_at is NULL)
                 foreach ($transaction->items()->whereNull('processed_at')->get() as $item) {
+                    // Backward compatibility: old pending imports may already
+                    // contain a service PO line. Mark it processed without
+                    // creating ProductItems or changing stock.
+                    if ($transaction->reference_type === 'purchase_order'
+                        && $item->comments
+                        && preg_match('/\[POItem:(\d+)\]/', $item->comments, $matches)) {
+                        $poItem = \App\Models\PurchaseOrderItem::with('saleOrderRequestItem.saleItem')->find((int) $matches[1]);
+                        if ($poItem?->saleOrderRequestItem?->saleItem?->is_service) {
+                            $item->update(['processed_at' => now()]);
+                            continue;
+                        }
+                    }
+
                     // Use item's warehouse_id if available, otherwise use transaction's warehouse_id
                     $warehouseId = $item->warehouse_id ?? $transaction->warehouse_id;
 
@@ -291,12 +337,22 @@ class TransactionService
                 ? $existingTransaction->warehouse_id
                 : ($data['warehouse_id'] ?? $data['items'][0]['warehouse_id'] ?? null);
 
-            // Validate stock for all items first (only when approving)
+            // Validate total demand per product and source warehouse. The same
+            // product can appear on multiple lines of a voucher; validating
+            // each line separately can overstate what is available.
             if ($existingTransaction) {
+                $stockRequirements = [];
+
                 foreach ($items as $item) {
                     $productId = is_array($item) ? $item['product_id'] : $item->product_id;
                     $quantity = is_array($item) ? $item['quantity'] : $item->quantity;
-                    $itemWarehouseId = is_array($item) ? ($item['warehouse_id'] ?? $warehouseId) : $warehouseId;
+                    $itemWarehouseId = is_array($item)
+                        ? ($item['warehouse_id'] ?? $warehouseId)
+                        : $this->resolveExportItemWarehouseId($item, $warehouseId);
+
+                    if (!$itemWarehouseId) {
+                        throw new Exception('Phiếu xuất chưa xác định kho xuất cho sản phẩm cần giao.');
+                    }
 
                     // Check if it's a service item linked to a Sale
                     $isService = false;
@@ -313,9 +369,24 @@ class TransactionService
                         continue;
                     }
 
-                    if (!$this->validateStock($productId, $itemWarehouseId, $quantity)) {
-                        $productName = \App\Models\Product::find($productId)->name ?? 'Unknown';
-                        throw new Exception("Không đủ tồn kho cho sản phẩm: {$productName}");
+                    $key = $productId . ':' . $itemWarehouseId;
+                    if (!isset($stockRequirements[$key])) {
+                        $stockRequirements[$key] = [
+                            'product_id' => (int) $productId,
+                            'warehouse_id' => (int) $itemWarehouseId,
+                            'quantity' => 0,
+                        ];
+                    }
+                    $stockRequirements[$key]['quantity'] += (int) $quantity;
+                }
+
+                foreach ($stockRequirements as $requirement) {
+                    if (!$this->validateStock($requirement['product_id'], $requirement['warehouse_id'], $requirement['quantity'])) {
+                        $productName = \App\Models\Product::find($requirement['product_id'])->name ?? 'Unknown';
+                        $warehouseName = \App\Models\Warehouse::find($requirement['warehouse_id'])->name ?? 'Chưa xác định kho';
+                        $available = $this->inventoryService->getCurrentStock($requirement['product_id'], $requirement['warehouse_id']);
+
+                        throw new Exception("Không đủ tồn kho cho sản phẩm: {$productName} tại kho {$warehouseName}. Khả dụng: {$available}; yêu cầu: {$requirement['quantity']}.");
                     }
                 }
             }
@@ -361,6 +432,7 @@ class TransactionService
                     ExportItem::create([
                         'export_id' => $transaction->id,
                         'product_id' => $item['product_id'],
+                        'warehouse_id' => $itemWarehouseId,
                         'quantity' => $item['quantity'],
                         'requested_quantity' => $item['requested_quantity'] ?? null,
                         'unit' => $item['unit'] ?? null,
@@ -380,6 +452,11 @@ class TransactionService
             // Requirements: 7.3
             if ($existingTransaction) {
                 foreach ($transaction->items as $item) {
+                    $itemWarehouseId = $this->resolveExportItemWarehouseId($item, $transaction->warehouse_id);
+                    if (!$itemWarehouseId) {
+                        throw new Exception('Phiếu xuất chưa xác định kho xuất cho sản phẩm cần giao.');
+                    }
+
                     // Check if it's a service item linked to a Sale
                     $isService = false;
                     if ($transaction->reference_type === 'sale' && $transaction->reference_id) {
@@ -399,7 +476,7 @@ class TransactionService
                     // Update inventory - subtract stock
                     $this->inventoryService->updateStock(
                         $item->product_id,
-                        $transaction->warehouse_id,
+                        $itemWarehouseId,
                         $item->quantity,
                         'subtract'
                     );
@@ -440,7 +517,7 @@ class TransactionService
                             $salespersonName = $sale->employee?->name ?? $sale->user?->name;
                             if ($salespersonName) {
                                 $borrowedItems = ProductItem::where('product_id', $item->product_id)
-                                    ->where('warehouse_id', $transaction->warehouse_id)
+                                    ->where('warehouse_id', $itemWarehouseId)
                                     ->where('status', $targetStatus)
                                     ->where('borrower', $salespersonName)
                                     ->whereNotIn('id', $productItemIds)
@@ -463,7 +540,7 @@ class TransactionService
                     if ($remainingQty > 0) {
                         // 1. Try No Serial items with correct status
                         $noSkuItems = ProductItem::where('product_id', $item->product_id)
-                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems))
                             ->noSerial()
@@ -484,7 +561,7 @@ class TransactionService
                     if ($remainingQty > 0) {
                         // 2. Try any items with correct status
                         $otherItems = ProductItem::where('product_id', $item->product_id)
-                            ->where('warehouse_id', $transaction->warehouse_id)
+                            ->where('warehouse_id', $itemWarehouseId)
                             ->where('status', $targetStatus)
                             ->whereNotIn('id', array_merge($productItemIds, $borrowedItems, $noSkuItems ?? []))
                             ->limit($remainingQty)

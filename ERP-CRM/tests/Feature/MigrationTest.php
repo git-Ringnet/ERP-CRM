@@ -18,8 +18,8 @@ class MigrationTest extends TestCase
     public function test_customers_table_has_expected_columns(): void
     {
         $this->assertTrue(Schema::hasColumns('customers', [
-            'id', 'code', 'name', 'email', 'phone', 'address', 'type',
-            'tax_code', 'website', 'contact_person', 'debt_limit', 'debt_days', 'note'
+            'id', 'name', 'name_en', 'abv_name', 'email', 'phone', 'address', 'type',
+            'tax_code', 'website', 'debt_limit', 'debt_days', 'payment_terms', 'note'
         ]));
     }
 
@@ -52,9 +52,8 @@ class MigrationTest extends TestCase
     public function test_products_table_has_expected_columns(): void
     {
         $this->assertTrue(Schema::hasColumns('products', [
-            'id', 'code', 'name', 'category', 'unit', 'price', 'cost', 'stock',
-            'min_stock', 'max_stock', 'management_type', 'auto_generate_serial',
-            'serial_prefix', 'expiry_months', 'track_expiry', 'description', 'note'
+            'id', 'code', 'name', 'category', 'unit', 'warranty_months',
+            'description', 'note'
         ]));
     }
 }

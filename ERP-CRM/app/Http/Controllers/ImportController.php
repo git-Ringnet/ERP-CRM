@@ -57,6 +57,14 @@ class ImportController extends Controller
             $query->where('warehouse_id', $request->warehouse_id);
         }
 
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', $request->supplier_id);
+        }
+
+        if ($request->filled('employee_id')) {
+            $query->where('employee_id', $request->employee_id);
+        }
+
         // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -80,8 +88,10 @@ class ImportController extends Controller
             ->paginate(15);
 
         $warehouses = Warehouse::active()->get();
+        $suppliers = \App\Models\Supplier::orderBy('name')->get(['id', 'name', 'code']);
+        $employees = \App\Models\User::where('status', 'active')->orderBy('name')->get(['id', 'name', 'employee_code']);
 
-        return view('imports.index', compact('imports', 'warehouses'));
+        return view('imports.index', compact('imports', 'warehouses', 'suppliers', 'employees'));
     }
 
     /**

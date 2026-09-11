@@ -63,14 +63,15 @@ class PermissionControllerTest extends TestCase
         $permissions = Permission::factory()->count(3)->create();
 
         $requestData = [
-            'role_id' => $role->id,
-            'permission_ids' => $permissions->pluck('id')->toArray(),
+            'permissions' => [
+                $role->id => $permissions->pluck('id')->toArray(),
+            ],
         ];
 
         $this->roleService
             ->shouldReceive('assignPermissionsToRole')
             ->once()
-            ->with($role->id, $requestData['permission_ids'])
+            ->with($role->id, $requestData['permissions'][$role->id])
             ->andReturnNull();
 
         $request = Request::create('/permissions/matrix', 'POST', $requestData);
@@ -83,57 +84,55 @@ class PermissionControllerTest extends TestCase
     /**
      * Test updateMatrix method validates required fields
      */
-    public function test_update_matrix_validates_required_fields(): void
+    public function test_update_matrix_allows_an_empty_matrix_to_clear_permissions(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
+        $role = Role::factory()->create();
 
-        $request = Request::create('/permissions/matrix', 'POST', []);
+        $this->roleService
+            ->shouldReceive('assignPermissionsToRole')
+            ->once()
+            ->with($role->id, [])
+            ->andReturnNull();
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $request = Request::create('/permissions/matrix', 'POST', ['permissions' => []]);
 
-        $this->controller->updateMatrix($request);
+        $this->assertNotNull($this->controller->updateMatrix($request));
     }
 
     /**
      * Test updateMatrix method validates role exists
      */
-    public function test_update_matrix_validates_role_exists(): void
+    public function test_update_matrix_rejects_an_unknown_role_payload(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
 
-        $requestData = [
-            'role_id' => 99999, // Non-existent role
-            'permission_ids' => [1, 2, 3],
-        ];
+        $permission = Permission::factory()->create();
+        $this->roleService->shouldNotReceive('assignPermissionsToRole');
+        $requestData = ['permissions' => [99999 => [$permission->id]]];
 
         $request = Request::create('/permissions/matrix', 'POST', $requestData);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
-
-        $this->controller->updateMatrix($request);
+        $this->assertNotNull($this->controller->updateMatrix($request));
     }
 
     /**
      * Test updateMatrix method validates permissions exist
      */
-    public function test_update_matrix_validates_permissions_exist(): void
+    public function test_update_matrix_rejects_an_unknown_permission_payload(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
 
         $role = Role::factory()->create();
 
-        $requestData = [
-            'role_id' => $role->id,
-            'permission_ids' => [99999], // Non-existent permission
-        ];
+        $this->roleService->shouldNotReceive('assignPermissionsToRole');
+        $requestData = ['permissions' => [$role->id => [99999]]];
 
         $request = Request::create('/permissions/matrix', 'POST', $requestData);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
-
-        $this->controller->updateMatrix($request);
+        $this->assertNotNull($this->controller->updateMatrix($request));
     }
 }

@@ -51,15 +51,18 @@
             <div class="flex flex-wrap items-center gap-2">
                 <!-- 1. Trạng thái nghiệp vụ (Workflow Actions - Prominent) -->
                 @if($purchaseOrder->status == 'draft')
+                    @can('update', $purchaseOrder)
                     <form action="{{ route('purchase-orders.submit-approval', $purchaseOrder) }}" method="POST" class="inline" id="submit-approval-form">
                         @csrf
                         <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-all duration-200 transform hover:scale-105 flex items-center shadow-sm">
                             <i class="fas fa-paper-plane mr-2"></i> Gửi yêu cầu duyệt
                         </button>
                     </form>
+                    @endcan
                 @endif
 
                 @if($purchaseOrder->status == 'pending_approval')
+                    @can('approve', $purchaseOrder)
                     <form action="{{ route('purchase-orders.approve', $purchaseOrder) }}" method="POST" class="inline" id="approve-form">
                         @csrf
                         <button type="submit" class="approve-btn px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center shadow-sm">
@@ -72,6 +75,7 @@
                             <i class="fas fa-times mr-2"></i> Từ chối
                         </button>
                     </form>
+                    @endcan
                 @endif
 
                 @php

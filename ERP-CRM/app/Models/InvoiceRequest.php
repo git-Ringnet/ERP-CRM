@@ -96,6 +96,7 @@ class InvoiceRequest extends Model
         return match($this->status) {
             'pending' => 'Chờ KT import hóa đơn',
             'draft_issued' => 'Đã đính kèm HĐ (Chờ Sales xác nhận)',
+            'sales_confirmed' => 'Sales đã xác nhận (Chờ KT phát hành)',
             'official_issued' => 'Đã xác nhận hoàn tất',
             'rejected' => 'Hóa đơn chưa chính xác',
             default => 'Không xác định',
@@ -110,6 +111,7 @@ class InvoiceRequest extends Model
         return match($this->status) {
             'pending' => 'bg-amber-100 text-amber-800',
             'draft_issued' => 'bg-blue-100 text-blue-800',
+            'sales_confirmed' => 'bg-violet-100 text-violet-800',
             'official_issued' => 'bg-emerald-100 text-emerald-800',
             'rejected' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',

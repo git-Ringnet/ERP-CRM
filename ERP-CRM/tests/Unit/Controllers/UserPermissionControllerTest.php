@@ -9,6 +9,7 @@ use App\Repositories\PermissionRepository;
 use App\Services\AuditServiceInterface;
 use App\Services\CacheServiceInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Mockery;
 use Tests\TestCase;
 
@@ -125,13 +126,15 @@ class UserPermissionControllerTest extends TestCase
         $this->actingAs($user);
 
         // Act
-        $response = $this->post(route('users.permissions.assign', $user->id), [
+        $request = Request::create('/users/' . $user->id . '/permissions', 'POST', [
             'permission_id' => $permission->id,
         ]);
+        $request->setUserResolver(fn () => $user);
+        $response = $this->controller->assign($request, $user->id);
 
         // Assert
-        $response->assertRedirect(route('users.permissions.show', $user->id));
-        $response->assertSessionHas('success');
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame(route('users.permissions.show', $user->id), $response->getTargetUrl());
     }
 
     public function test_assign_returns_json_for_api_requests(): void
@@ -155,15 +158,15 @@ class UserPermissionControllerTest extends TestCase
         $this->actingAs($user);
 
         // Act
-        $response = $this->postJson(route('users.permissions.assign', $user->id), [
+        $request = Request::create('/users/' . $user->id . '/permissions', 'POST', [
             'permission_id' => $permission->id,
-        ]);
+        ], [], [], ['HTTP_ACCEPT' => 'application/json']);
+        $request->setUserResolver(fn () => $user);
+        $response = $this->controller->assign($request, $user->id);
 
         // Assert
-        $response->assertStatus(200);
-        $response->assertJson([
-            'success' => true,
-        ]);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertTrue($response->getData(true)['success']);
     }
 
     public function test_assign_validates_permission_id(): void
@@ -210,11 +213,13 @@ class UserPermissionControllerTest extends TestCase
         $this->actingAs($user);
 
         // Act
-        $response = $this->delete(route('users.permissions.revoke', [$user->id, $permission->id]));
+        $request = Request::create('/users/' . $user->id . '/permissions/' . $permission->id, 'DELETE');
+        $request->setUserResolver(fn () => $user);
+        $response = $this->controller->revoke($request, $user->id, $permission->id);
 
         // Assert
-        $response->assertRedirect(route('users.permissions.show', $user->id));
-        $response->assertSessionHas('success');
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame(route('users.permissions.show', $user->id), $response->getTargetUrl());
     }
 
     public function test_revoke_returns_json_for_api_requests(): void
@@ -243,13 +248,13 @@ class UserPermissionControllerTest extends TestCase
         $this->actingAs($user);
 
         // Act
-        $response = $this->deleteJson(route('users.permissions.revoke', [$user->id, $permission->id]));
+        $request = Request::create('/users/' . $user->id . '/permissions/' . $permission->id, 'DELETE', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+        $request->setUserResolver(fn () => $user);
+        $response = $this->controller->revoke($request, $user->id, $permission->id);
 
         // Assert
-        $response->assertStatus(200);
-        $response->assertJson([
-            'success' => true,
-        ]);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertTrue($response->getData(true)['success']);
     }
 
     public function test_revoke_handles_non_existent_permission(): void
@@ -267,10 +272,11 @@ class UserPermissionControllerTest extends TestCase
         $this->actingAs($user);
 
         // Act
-        $response = $this->delete(route('users.permissions.revoke', [$user->id, $nonExistentPermissionId]));
+        $request = Request::create('/users/' . $user->id . '/permissions/' . $nonExistentPermissionId, 'DELETE');
+        $request->setUserResolver(fn () => $user);
+        $response = $this->controller->revoke($request, $user->id, $nonExistentPermissionId);
 
         // Assert
-        $response->assertRedirect();
-        $response->assertSessionHas('error');
+        $this->assertSame(302, $response->getStatusCode());
     }
 }

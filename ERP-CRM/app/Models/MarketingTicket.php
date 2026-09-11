@@ -12,6 +12,7 @@ class MarketingTicket extends Model
 
     protected $fillable = [
         'marketing_event_id',
+        'opportunity_id',
         'code',
         'type',
         'status',
@@ -51,6 +52,11 @@ class MarketingTicket extends Model
     public function event()
     {
         return $this->belongsTo(MarketingEvent::class, 'marketing_event_id');
+    }
+
+    public function opportunity()
+    {
+        return $this->belongsTo(Opportunity::class);
     }
 
     public function creator()

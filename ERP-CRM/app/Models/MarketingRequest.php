@@ -14,6 +14,7 @@ class MarketingRequest extends Model
     protected $fillable = [
         'marketing_ticket_id',
         'marketing_event_id',
+        'opportunity_id',
         'code',
         'support_team',
         'pic_type',
@@ -84,6 +85,11 @@ class MarketingRequest extends Model
     public function event()
     {
         return $this->belongsTo(MarketingEvent::class, 'marketing_event_id');
+    }
+
+    public function opportunity()
+    {
+        return $this->belongsTo(Opportunity::class);
     }
 
     public function assignee()

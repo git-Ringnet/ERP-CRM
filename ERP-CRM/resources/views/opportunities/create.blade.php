@@ -8,6 +8,22 @@
         <form action="{{ route('opportunities.store') }}" method="POST" id="opportunity_form" enctype="multipart/form-data">
             @csrf
 
+            @if ($errors->any())
+                <div id="opportunity_server_errors" class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                    <p class="font-semibold">Không thể tạo cơ hội. Vui lòng kiểm tra lại các thông tin sau:</p>
+                    <ul class="mt-2 list-disc space-y-1 pl-5">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <div id="opportunity_client_errors" class="hidden mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                <p class="font-semibold">Vui lòng nhập đầy đủ các trường bắt buộc:</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5"></ul>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Cột trái: Form Fields -->
                 <div class="lg:col-span-2 space-y-6">
@@ -21,13 +37,13 @@
                         <!-- Radio SI / EU -->
                         <div class="flex items-center gap-6 mb-6">
                             <label class="inline-flex items-center cursor-pointer">
-                                <input type="radio" name="customer_type" value="si" checked
+                                <input type="radio" name="customer_type" value="si" {{ old('customer_type', 'si') === 'si' ? 'checked' : '' }}
                                     onchange="toggleCustomerType('si')"
                                     class="text-primary focus:ring-primary h-4 w-4">
                                 <span class="ml-2 text-sm font-medium text-gray-700">SI (System Integrator)</span>
                             </label>
                             <label class="inline-flex items-center cursor-pointer">
-                                <input type="radio" name="customer_type" value="eu"
+                                <input type="radio" name="customer_type" value="eu" {{ old('customer_type') === 'eu' ? 'checked' : '' }}
                                     onchange="toggleCustomerType('eu')"
                                     class="text-primary focus:ring-primary h-4 w-4">
                                 <span class="ml-2 text-sm font-medium text-gray-700">EU (End User)</span>
@@ -170,7 +186,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Loại hoạt động <span class="text-red-500">*</span>
                                 </label>
-                                <select name="activity_type" id="activity_type" onchange="toggleActivityTypeOther(); toggleFilesAsterisk();" required
+                                <select name="activity_type" id="activity_type" onchange="toggleActivityTypeOther(); toggleFilesAsterisk(); toggleMarketingCoordination();" required
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
                                     <option value="">-- Chọn loại hoạt động --</option>
                                     @foreach($activityTypes as $key => $label)
@@ -252,10 +268,11 @@
                             </div>
 
                             <!-- Quà tặng / giveaway -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quà tặng / Giveaway cho khách hàng</label>
-                                <textarea name="giveaway" rows="2" placeholder="VD: Lịch công ty, sổ tay Horizon..."
+                            <div id="marketing_coordination_wrap" class="hidden">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Yêu cầu Marketing chuẩn bị quà tặng</label>
+                                <textarea name="giveaway" id="giveaway" rows="2" placeholder="VD: Bình giữ nhiệt, lịch công ty..."
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">{{ old('giveaway') }}</textarea>
+                                <p class="mt-1 text-xs text-purple-700">Chỉ áp dụng cho trình bày giải pháp. Sau khi BOD duyệt, hệ thống tự tạo ticket Marketing liên kết với Cơ hội này.</p>
                             </div>
                         </div>
                     </div>
@@ -275,6 +292,7 @@
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="needs_technical" id="needs_technical" value="1"
+                                        {{ old('needs_technical') ? 'checked' : '' }}
                                         onchange="toggleTechnicalSelect()" class="sr-only peer">
                                     <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                 </label>
@@ -288,7 +306,7 @@
                                 <select name="technical_user_id" id="technical_user_id"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
                                     <option value="">-- Chọn kỹ sư phối hợp --</option>
-                                    @foreach($users as $user)
+                                    @foreach($technicalUsers as $user)
                                         <option value="{{ $user->id }}" {{ old('technical_user_id') == $user->id ? 'selected' : '' }}>
                                             {{ $user->name }} ({{ $user->email }})
                                         </option>
@@ -613,6 +631,16 @@
             }
         }
 
+        function toggleMarketingCoordination() {
+            const isPresentation = ['demo_online', 'demo_offline'].includes(document.getElementById('activity_type').value);
+            const wrap = document.getElementById('marketing_coordination_wrap');
+            const giveaway = document.getElementById('giveaway');
+            if (!wrap || !giveaway) return;
+
+            wrap.classList.toggle('hidden', !isPresentation);
+            giveaway.disabled = !isPresentation;
+        }
+
         // Calculate time duration
         function calculateDuration() {
             const startStr = document.getElementById('start_time').value;
@@ -872,9 +900,32 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             calculateDuration();
-            toggleCustomerType('si');
+            toggleCustomerType(document.querySelector('input[name="customer_type"]:checked')?.value || 'si');
+            toggleTechnicalSelect();
             toggleCancelReason();
             toggleFilesAsterisk();
+            toggleMarketingCoordination();
+
+            // Native browser validation can otherwise be hard to notice on this
+            // long form, especially when the invalid field is outside the viewport.
+            const opportunityForm = document.getElementById('opportunity_form');
+            const clientErrors = document.getElementById('opportunity_client_errors');
+            if (opportunityForm && clientErrors) {
+                opportunityForm.addEventListener('invalid', function() {
+                    window.setTimeout(function() {
+                        const invalidFields = Array.from(opportunityForm.querySelectorAll(':invalid'))
+                            .filter(field => !field.disabled && field.offsetParent !== null);
+                        const messages = [...new Set(invalidFields.map(field => field.validationMessage || 'Trường bắt buộc chưa được nhập.'))];
+                        const list = clientErrors.querySelector('ul');
+
+                        if (!messages.length || !list) return;
+
+                        list.innerHTML = messages.map(message => `<li>${message}</li>`).join('');
+                        clientErrors.classList.remove('hidden');
+                        clientErrors.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 0);
+                }, true);
+            }
             
             // Check prefill customer_id
             const prefillCustId = "{{ $prefill['customer_id'] ?? '' }}";

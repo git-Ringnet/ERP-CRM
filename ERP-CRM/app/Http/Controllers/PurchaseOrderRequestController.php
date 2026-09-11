@@ -12,14 +12,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\CurrencyService;
+use App\Services\PurchaseOrderApprovalNotificationService;
 
 class PurchaseOrderRequestController extends Controller
 {
     protected $currencyService;
+    protected PurchaseOrderApprovalNotificationService $purchaseOrderApprovalNotificationService;
 
-    public function __construct(CurrencyService $currencyService)
+    public function __construct(CurrencyService $currencyService, PurchaseOrderApprovalNotificationService $purchaseOrderApprovalNotificationService)
     {
         $this->currencyService = $currencyService;
+        $this->purchaseOrderApprovalNotificationService = $purchaseOrderApprovalNotificationService;
     }
 
     /**
@@ -482,7 +485,9 @@ class PurchaseOrderRequestController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('purchase-orders.show', $po->id)
+            $this->purchaseOrderApprovalNotificationService->notifyApprovers($po);
+
+            return redirect()->route('purchase-orders.index', ['status' => 'pending_approval'])
                 ->with('success', 'Đã tạo Đơn đặt hàng ' . $po->code . ' thành công từ các yêu cầu.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -639,8 +644,10 @@ class PurchaseOrderRequestController extends Controller
             $po->save();
 
             DB::commit();
-            return redirect()->route('purchase-orders.show', $po->id)
-                ->with('success', 'Đã xác nhận tạo Đơn đặt hàng ' . $po->code . ' thành công!');
+            $this->purchaseOrderApprovalNotificationService->notifyApprovers($po);
+
+            return redirect()->route('purchase-orders.index', ['status' => 'pending_approval'])
+                ->with('success', 'Đã xác nhận tạo Đơn đặt hàng ' . $po->code . ' và gửi vào danh sách chờ duyệt.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error confirming Draft PO: ' . $e->getMessage());

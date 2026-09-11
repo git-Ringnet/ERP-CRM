@@ -339,7 +339,7 @@
                             </div>
                             <div id="collab_pic_phone_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    PIC Phone
+                                    PIC Phone <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_phone" id="collaborate_pic_phone"
                                     value="{{ old('collaborate_pic_phone') }}"
@@ -397,12 +397,12 @@
                             <!-- BOM / YCKT Upload -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT) <span class="text-red-500">*</span>
+                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT)
                                 </label>
                                 <div class="space-y-2">
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                    <p class="text-xs text-gray-500">Đính kèm file BOM hoặc YCKT từ khách hàng nếu chưa có BOM (lúc này Hãng sẽ là người cung cấp BOM)</p>
+                                    <p class="text-xs text-gray-500">Không bắt buộc. Có thể đính kèm file BOM/YCKT hoặc nhập trực tiếp danh sách sản phẩm/Part Number. Với dự án Non-FTN, YCKT giúp PM nhờ hãng hỗ trợ BOM.</p>
                                     <textarea name="bom_data" rows="2" placeholder="Hoặc nhập danh sách sản phẩm / Part Numbers..."
                                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('bom_data') }}</textarea>
                                 </div>
@@ -454,9 +454,9 @@
                             <!-- Ghi chú dự án (General Note) -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Note <span class="text-red-500">*</span>
+                                    Note
                                 </label>
-                                <textarea name="note" rows="3" required placeholder="Nhập ghi chú chi tiết cho dự án..."
+                                <textarea name="note" rows="3" placeholder="Nhập ghi chú chi tiết cho dự án..."
                                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note') }}</textarea>
                                 @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>

@@ -150,6 +150,9 @@ class InvoiceRequestController extends Controller
         if (!auth()->user()->hasAnyRole(['super_admin', 'accountant'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện thao tác này.');
         }
+        if ($invoiceRequest->status !== 'sales_confirmed') {
+            return back()->with('error', 'Sales cần xác nhận hóa đơn nháp trước khi Kế toán phát hành hóa đơn chính thức.');
+        }
         $request->validate([
             'invoice_date' => 'required|date',
             'payment_due_date' => 'required|date',
@@ -221,12 +224,13 @@ class InvoiceRequestController extends Controller
         if (auth()->id() !== (int)$invoiceRequest->requester_id && auth()->id() !== (int)($invoiceRequest->sale->user_id ?? 0) && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
             return back()->with('error', 'Bạn không có quyền xác nhận hóa đơn cho yêu cầu này.');
         }
+        if ($invoiceRequest->status !== 'draft_issued') {
+            return back()->with('error', 'Chỉ có thể xác nhận hóa đơn đang ở trạng thái chờ Sales kiểm tra.');
+        }
 
         DB::beginTransaction();
         try {
-            $invoiceRequest->update([
-                'status' => 'official_issued',
-            ]);
+            $invoiceRequest->update(['status' => 'sales_confirmed']);
 
             $currentVersion = (int) $invoiceRequest->revisions()->max('version') ?: 1;
             \App\Models\InvoiceRequestRevision::create([
@@ -235,25 +239,8 @@ class InvoiceRequestController extends Controller
                 'version' => $currentVersion,
                 'action' => 'sales_confirmed',
                 'draft_path' => $invoiceRequest->draft_path,
-                'official_path' => $invoiceRequest->draft_path,
-                'note' => 'Sales đã kiểm tra và xác nhận hóa đơn chính xác.',
+                'note' => 'Sales đã kiểm tra hóa đơn nháp và chuyển Kế toán phát hành chính thức.',
             ]);
-
-            // Update linked export status from pending_invoice to pending (Chờ xử lý / Chờ kho xuất)
-            if ($invoiceRequest->export_id) {
-                $linkedExport = \App\Models\Export::find($invoiceRequest->export_id);
-                if ($linkedExport && $linkedExport->status === 'pending_invoice') {
-                    $linkedExport->update(['status' => 'pending']);
-                }
-            } else {
-                $linkedExports = \App\Models\Export::where('reference_type', 'sale')
-                    ->where('reference_id', $invoiceRequest->sale_id)
-                    ->where('status', 'pending_invoice')
-                    ->get();
-                foreach ($linkedExports as $le) {
-                    $le->update(['status' => 'pending']);
-                }
-            }
 
             // Notify Accountants / Finance
             $accountants = \App\Models\User::whereHas('roles', fn($q) => $q->whereIn('slug', ['accountant', 'super_admin', 'sales_manager']))->get();
@@ -261,9 +248,9 @@ class InvoiceRequestController extends Controller
                 if ($acc->id !== auth()->id()) {
                     \App\Models\Notification::create([
                         'user_id' => $acc->id,
-                        'type' => 'invoice_confirmed',
-                        'title' => 'Hóa đơn đã được Sales xác nhận hoàn tất',
-                        'message' => "Sales (" . auth()->user()->name . ") đã xác nhận hóa đơn cho đơn {$invoiceRequest->sale->code} chính xác.",
+                'type' => 'invoice_draft_confirmed',
+                'title' => 'Sales đã xác nhận hóa đơn nháp',
+                'message' => "Sales (" . auth()->user()->name . ") đã xác nhận hóa đơn nháp cho đơn {$invoiceRequest->sale->code}. Vui lòng phát hành hóa đơn chính thức.",
                         'link' => route('invoice-requests.show', $invoiceRequest->id),
                         'icon' => 'fas fa-check-circle',
                         'color' => 'green',
@@ -272,7 +259,7 @@ class InvoiceRequestController extends Controller
             }
 
             DB::commit();
-            return back()->with('success', 'Đã xác nhận hóa đơn chính xác! Hoàn tất phần xuất hóa đơn.');
+            return back()->with('success', 'Đã xác nhận hóa đơn nháp. Đang chờ Kế toán phát hành hóa đơn chính thức.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());

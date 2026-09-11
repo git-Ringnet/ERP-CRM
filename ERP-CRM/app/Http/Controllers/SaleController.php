@@ -57,7 +57,19 @@ class SaleController extends Controller
 
         // Apply data filtering based on permissions
         $user = auth()->user();
-        if (!$user->can('view_all_sales')) {
+        $isPoTeam = $user->hasAnyRole(['purchase_manager', 'purchase_staff']);
+        if ($isPoTeam && !$user->hasAnyRole(['super_admin', 'admin', 'director'])) {
+            // PO receives a sale only after its purchase request has left the
+            // Sales draft/approval stage.  This keeps quotations and drafts
+            // private while retaining the order information PO must execute.
+            $query->whereHas('orderRequests', function ($requests) {
+                $requests->whereIn('status', [
+                    \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                    \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                    \App\Models\SaleOrderRequest::STATUS_COMPLETED,
+                ]);
+            });
+        } elseif (!$user->can('view_all_sales')) {
             if ($user->can('view_own_sales') || $user->can('view_sales')) {
                 $query->where('user_id', $user->id);
             } else {
@@ -79,10 +91,10 @@ class SaleController extends Controller
             });
         }
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        // The filter uses the business/dashboard status shown to users, not
+        // the raw `sales.status` field. Raw status alone cannot represent P&L,
+        // PO, invoice and export stages, which previously caused empty lists.
+        $dashboardStatusFilter = $request->input('status');
 
         // Filter by type
         if ($request->filled('type')) {
@@ -133,7 +145,29 @@ class SaleController extends Controller
             }
         }
 
-        $sales = $query->with(['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules'])->orderBy('created_at', 'desc')->paginate(10);
+        $relations = ['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules'];
+        $query->with($relations)->orderBy('created_at', 'desc');
+
+        // Some filters are action queues rather than a single dashboard state.
+        // Keep those in SQL via the model scope; comparing dashboard_status would
+        // otherwise make the "waiting for Finance" / "waiting for export" lists
+        // appear empty.
+        if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval'], true)) {
+            $sales = $query->filterByStatus($dashboardStatusFilter)->paginate(10);
+        } elseif ($dashboardStatusFilter) {
+            $allSales = $query->get()->filter(fn (Sale $sale) => $sale->dashboard_status === $dashboardStatusFilter)->values();
+            $page = max(1, (int) $request->input('page', 1));
+            $perPage = 10;
+            $sales = new \Illuminate\Pagination\LengthAwarePaginator(
+                $allSales->forPage($page, $perPage)->values(),
+                $allSales->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        } else {
+            $sales = $query->paginate(10);
+        }
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
         $saleCodes = $sales->pluck('code')->toArray();
@@ -148,7 +182,13 @@ class SaleController extends Controller
             $sale->payment_history = $paymentTransactions->get($sale->code, collect());
         }
 
-        $projects = Project::whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        // Keep the project dropdown aligned with the selected Sales PIC.
+        // Showing every project made the filter misleading and slow to use.
+        $projectOwnerId = $request->input('user_id');
+        $projects = Project::whereIn('status', ['planning', 'in_progress'])
+            ->when($projectOwnerId, fn ($projects) => $projects->where('manager_id', $projectOwnerId))
+            ->orderBy('name')
+            ->get();
         // Optimize: Select only needed columns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();
         
@@ -269,6 +309,7 @@ class SaleController extends Controller
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
+            'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
@@ -280,11 +321,20 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
+            'payment_terms.*.milestone_name' => ['nullable', 'string', 'max:255'],
+            'payment_terms.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'payment_term' => ['nullable', 'string', 'max:1000'],
             'payment_term_type' => ['nullable', 'string', 'max:100'],
+            'has_bank_guarantee' => ['nullable', 'boolean'],
+            'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
+
+        if ($this->hasMultipleProjects($validated['products'], $validated['project_id'] ?? null)
+            && !$request->boolean('multi_project_confirmed')) {
+            return back()->withInput()->with('error', 'Đơn hàng có dòng hàng thuộc nhiều dự án. Vui lòng xác nhận gộp dự án trước khi lưu.');
+        }
 
         DB::beginTransaction();
         try {
@@ -355,6 +405,14 @@ class SaleController extends Controller
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
 
+            if ($paymentTermError = $this->validatePaymentTermPercentages($request->input('payment_terms', []))) {
+                return back()->withInput()->with('error', $paymentTermError);
+            }
+
+            if ($paymentTermError = $this->validateLargeOrderPaymentTerms($request->input('payment_terms', []), $total)) {
+                return back()->withInput()->with('error', $paymentTermError);
+            }
+
             $user = auth()->user();
             $canCustomizePaymentTerms = $user && (
                 $user->hasRole('super_admin') || 
@@ -363,7 +421,7 @@ class SaleController extends Controller
                 $user->hasRole('accountant')
             );
 
-            if (!$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
+            if (false && !$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
                 return back()->withInput()->with('error', 'Tài khoản Sales không có quyền tự tùy chỉnh cấu hình điều khoản thanh toán. Vui lòng chọn điều khoản mẫu cố định.');
             }
 
@@ -404,6 +462,8 @@ class SaleController extends Controller
                 'payment_terms' => $request->input('payment_terms'),
                 'payment_term' => $validated['payment_term'] ?? null,
                 'payment_term_type' => $validated['payment_term_type'] ?? null,
+                'has_bank_guarantee' => $request->boolean('has_bank_guarantee'),
+                'bank_guarantee_note' => $request->boolean('has_bank_guarantee') ? ($validated['bank_guarantee_note'] ?? null) : null,
                 'payment_due_date' => $validated['payment_due_date'] ?? null,
                 'is_payment_exception' => $isPaymentException,
                 'payment_exception_file' => $exceptionFilePath,
@@ -554,6 +614,17 @@ class SaleController extends Controller
             abort(404);
         }
 
+        $user = auth()->user();
+        if ($user->hasAnyRole(['purchase_manager', 'purchase_staff'])
+            && !$user->hasAnyRole(['super_admin', 'admin', 'director'])
+            && !$sale->orderRequests()->whereIn('status', [
+                \App\Models\SaleOrderRequest::STATUS_SUBMITTED,
+                \App\Models\SaleOrderRequest::STATUS_PROCESSING,
+                \App\Models\SaleOrderRequest::STATUS_COMPLETED,
+            ])->exists()) {
+            abort(404);
+        }
+
         // Auto sync database status if completed
         if ($sale->dashboard_status === 'completed' && $sale->status !== 'completed') {
             $sale->update(['status' => 'completed']);
@@ -653,6 +724,7 @@ class SaleController extends Controller
             'products.*.price' => ['required', 'numeric', 'min:0'],
             'products.*.vat' => ['nullable', 'numeric', 'min:-1'],
             'products.*.project_id' => ['nullable', 'exists:projects,id'],
+            'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
@@ -664,11 +736,20 @@ class SaleController extends Controller
             'currency_id' => ['nullable', 'exists:currencies,id'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'payment_terms' => ['nullable', 'array'],
+            'payment_terms.*.milestone_name' => ['nullable', 'string', 'max:255'],
+            'payment_terms.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'payment_term' => ['nullable', 'string', 'max:1000'],
             'payment_term_type' => ['nullable', 'string', 'max:100'],
+            'has_bank_guarantee' => ['nullable', 'boolean'],
+            'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
+
+        if ($this->hasMultipleProjects($validated['products'], $validated['project_id'] ?? null)
+            && !$request->boolean('multi_project_confirmed')) {
+            return back()->withInput()->with('error', 'Đơn hàng có dòng hàng thuộc nhiều dự án. Vui lòng xác nhận gộp dự án trước khi cập nhật.');
+        }
 
         DB::beginTransaction();
         try {
@@ -732,6 +813,14 @@ class SaleController extends Controller
 
             $representativeVat = $allSameVat ? ($firstVat ?? 0) : ($firstVat ?? 0);
 
+            if ($paymentTermError = $this->validatePaymentTermPercentages($request->input('payment_terms', []))) {
+                return back()->withInput()->with('error', $paymentTermError);
+            }
+
+            if ($paymentTermError = $this->validateLargeOrderPaymentTerms($request->input('payment_terms', []), $total)) {
+                return back()->withInput()->with('error', $paymentTermError);
+            }
+
             $user = auth()->user();
             $canCustomizePaymentTerms = $user && (
                 $user->hasRole('super_admin') || 
@@ -740,7 +829,7 @@ class SaleController extends Controller
                 $user->hasRole('accountant')
             );
 
-            if (!$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
+            if (false && !$canCustomizePaymentTerms && (($validated['payment_term_type'] ?? null) === 'custom' || $request->input('milestone_preset') === 'custom')) {
                 return back()->withInput()->with('error', 'Tài khoản Sales không có quyền tự tùy chỉnh cấu hình điều khoản thanh toán. Vui lòng chọn điều khoản mẫu cố định.');
             }
 
@@ -781,6 +870,8 @@ class SaleController extends Controller
                 'payment_terms' => $request->input('payment_terms'),
                 'payment_term' => $validated['payment_term'] ?? null,
                 'payment_term_type' => $validated['payment_term_type'] ?? null,
+                'has_bank_guarantee' => $request->boolean('has_bank_guarantee'),
+                'bank_guarantee_note' => $request->boolean('has_bank_guarantee') ? ($validated['bank_guarantee_note'] ?? null) : null,
                 'payment_due_date' => $validated['payment_due_date'] ?? null,
                 'is_payment_exception' => $isPaymentException,
                 'payment_exception_file' => $exceptionFilePath,
@@ -825,7 +916,7 @@ class SaleController extends Controller
                     'is_service' => $oldItem->is_service,
                 ];
             }
-            
+
             // 3. Map chi phí cũ sang ID chi phí mới
             $oldExpenseTypes = $sale->expenses->pluck('type', 'id')->toArray();
             
@@ -1371,6 +1462,7 @@ class SaleController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'in:pending,approved,shipping,completed,cancelled'],
             'warehouse_id' => ['nullable', 'exists:warehouses,id'],
+            'cancellation_reason' => ['nullable', 'string', 'min:10', 'max:1000'],
         ]);
 
         $oldStatus = $sale->status;
@@ -1387,6 +1479,23 @@ class SaleController extends Controller
 
         if (!in_array($newStatus, $allowedTransitions[$oldStatus] ?? [])) {
             return back()->with('error', 'Không thể chuyển trạng thái từ "' . $sale->status_label . '" sang trạng thái này.');
+        }
+
+        // Once any purchased item has been received, cancellation impacts
+        // inventory and supplier commitments.  It requires a BOD decision and
+        // an auditable reason; Legal/Sales cannot cancel it unilaterally.
+        if ($newStatus === 'cancelled') {
+            $hasGoodsReceived = $sale->all_purchase_orders
+                ->contains(fn ($purchaseOrder) => in_array($purchaseOrder->status, ['partial_received', 'received'], true));
+            if ($hasGoodsReceived) {
+                return back()->with('error', 'Không thể hủy đơn hàng đã có hàng về. Vui lòng thực hiện quy trình trả hàng/điều chỉnh kho để đảm bảo tồn kho và công nợ đúng.');
+            }
+            if ($hasGoodsReceived && !auth()->user()->hasAnyRole(['super_admin', 'admin', 'director'])) {
+                abort(403, 'Đơn hàng đã có hàng về chỉ BOD mới được phép hủy.');
+            }
+            if ($hasGoodsReceived && blank($validated['cancellation_reason'] ?? null)) {
+                return back()->with('error', 'Cần nhập lý do hủy đơn đã có hàng về để lưu vết xử lý.');
+            }
         }
 
         // Logic Check: Prevent Shipping/Completed if Export is not completed
@@ -1415,12 +1524,13 @@ class SaleController extends Controller
         DB::beginTransaction();
         try {
             $sale->status = $newStatus;
-            
-            // Tự động ghi nhận "Ngày xuất hóa đơn" (làm ngày nhận công nợ) khi chuyển sang giao hàng hoặc hoàn thành
-            if (in_array($newStatus, ['shipping', 'completed']) && is_null($sale->invoice_date)) {
-                $sale->invoice_date = now()->format('Y-m-d');
+            if ($newStatus === 'cancelled' && filled($validated['cancellation_reason'] ?? null)) {
+                $sale->note = trim(($sale->note ? $sale->note . "\n" : '') . '[Hủy đơn - ' . auth()->user()->name . ']: ' . $validated['cancellation_reason']);
             }
             
+            // Ngày hóa đơn/công nợ chỉ được Finance ghi khi phát hành hóa đơn
+            // chính thức. Không được suy diễn từ trạng thái giao hay hoàn thành.
+
             $sale->save();
 
             // Notify purchasing department when sale is approved
@@ -2281,6 +2391,13 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
+        $user = auth()->user();
+        $maySubmitPnl = $sale->user_id === $user->id
+            || $user->hasAnyRole(['sales_manager', 'admin', 'super_admin', 'director']);
+        if (!$maySubmitPnl) {
+            abort(403, 'Chỉ Sales phụ trách hoặc quản lý được gửi P&L duyệt.');
+        }
+
         // Allow re-submission if pending (to fix stuck cases) or draft/rejected
         if (!in_array($sale->pl_status, [null, 'draft', 'rejected', 'pending'])) {
             return back()->with('error', 'P&L đã được duyệt.');
@@ -2636,6 +2753,8 @@ class SaleController extends Controller
                 'order_request_items.*.quantity' => 'required|numeric|min:0.01',
                 'order_request_items.*.unit' => 'nullable|string|max:50',
                 'order_request_items.*.serial_number' => 'nullable',
+                'order_request_items.*.serial_expiry_dates' => 'nullable|array',
+                'order_request_items.*.serial_expiry_dates.*' => 'nullable|date',
                 'order_request_items.*.exp_date' => 'nullable|date',
                 'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
                 'order_request_items.*.pos_id' => 'nullable|string|max:255',
@@ -2688,6 +2807,11 @@ class SaleController extends Controller
                 } elseif (is_string($rawSn) && trim($rawSn) !== '') {
                     $snStr = trim($rawSn);
                 }
+                $serialExpiryDates = $this->buildSerialExpiryDates(
+                    $rawSn,
+                    $item['serial_expiry_dates'] ?? [],
+                    $item['exp_date'] ?? null
+                );
                 
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
@@ -2701,6 +2825,7 @@ class SaleController extends Controller
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? null,
                     'serial_number' => $snStr,
+                    'serial_expiry_dates' => $serialExpiryDates,
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'] ?? '',
                     'pos_id' => $item['pos_id'] ?? null,
@@ -2789,8 +2914,10 @@ class SaleController extends Controller
             'order_request_items.*.sale_item_id' => 'nullable|exists:sale_items,id',
             'order_request_items.*.quantity' => 'required|numeric|min:0.01',
             'order_request_items.*.unit' => 'nullable|string|max:50',
-            'order_request_items.*.serial_number' => 'nullable',
-            'order_request_items.*.exp_date' => 'nullable|date',
+                'order_request_items.*.serial_number' => 'nullable',
+                'order_request_items.*.serial_expiry_dates' => 'nullable|array',
+                'order_request_items.*.serial_expiry_dates.*' => 'nullable|date',
+                'order_request_items.*.exp_date' => 'nullable|date',
             'order_request_items.*.si_name' => $isDraft ? 'nullable|string' : 'required|string|max:255',
             'order_request_items.*.pos_id' => 'nullable|string|max:255',
             'order_request_items.*.eu_name' => 'nullable|string|max:255',
@@ -2839,6 +2966,11 @@ class SaleController extends Controller
                 } elseif (is_string($rawSn) && trim($rawSn) !== '') {
                     $snStr = trim($rawSn);
                 }
+                $serialExpiryDates = $this->buildSerialExpiryDates(
+                    $rawSn,
+                    $item['serial_expiry_dates'] ?? [],
+                    $item['exp_date'] ?? null
+                );
 
                 \App\Models\SaleOrderRequestItem::create([
                     'sale_order_request_id' => $orderRequest->id,
@@ -2852,6 +2984,7 @@ class SaleController extends Controller
                     'quantity' => $item['quantity'],
                     'unit' => $item['unit'] ?? null,
                     'serial_number' => $snStr,
+                    'serial_expiry_dates' => $serialExpiryDates,
                     'exp_date' => $item['exp_date'] ?? null,
                     'si_name' => $item['si_name'] ?? '',
                     'pos_id' => $item['pos_id'] ?? null,
@@ -3569,6 +3702,16 @@ class SaleController extends Controller
      */
     public function submitMilestoneProof(Request $request, Sale $sale, $index)
     {
+        $user = auth()->user();
+        $mayUploadProof = $sale->user_id === $user->id
+            || $user->hasRole('sales_manager')
+            || $user->hasRole('admin')
+            || $user->hasRole('super_admin');
+
+        if (!$mayUploadProof) {
+            abort(403, 'Chỉ Sales phụ trách đơn hàng hoặc quản lý Sales được tải UNC/chứng từ.');
+        }
+
         $request->validate([
             'proof_file' => 'required|file|max:20480',
         ]);
@@ -4512,5 +4655,87 @@ class SaleController extends Controller
 
         return $timeline;
     }
-}
 
+    /**
+     * A sales header can point to one project while individual items point to
+     * others.  This is allowed, but must be an explicit user decision because
+     * it affects Partner/EU and downstream PO grouping.
+     */
+    private function hasMultipleProjects(array $products, mixed $headerProjectId): bool
+    {
+        $projectIds = collect($products)
+            ->map(fn (array $product) => $product['project_id'] ?? $headerProjectId)
+            ->filter(fn ($projectId) => filled($projectId))
+            ->map(fn ($projectId) => (int) $projectId)
+            ->unique();
+
+        return $projectIds->count() > 1;
+    }
+
+    /**
+     * Persist an expiry date per serial while retaining the legacy shared
+     * expiry date as a fallback for existing order requests.
+     */
+    private function buildSerialExpiryDates(mixed $serials, mixed $expiryDates, mixed $sharedExpiry): array
+    {
+        $serials = is_array($serials)
+            ? $serials
+            : (blank($serials) ? [] : preg_split('/\s*,\s*/', (string) $serials));
+        $expiryDates = is_array($expiryDates) ? $expiryDates : [];
+        $result = [];
+
+        foreach ($serials as $index => $serial) {
+            $serial = trim((string) $serial);
+            if ($serial === '') {
+                continue;
+            }
+
+            $result[$serial] = filled($expiryDates[$index] ?? null)
+                ? $expiryDates[$index]
+                : $sharedExpiry;
+        }
+
+        return $result;
+    }
+
+    /** Ensure a saved payment schedule always represents the whole order. */
+    private function validatePaymentTermPercentages(array $paymentTerms): ?string
+    {
+        if (empty($paymentTerms)) {
+            return null;
+        }
+
+        $totalPercent = collect($paymentTerms)
+            ->filter(fn ($term) => is_array($term) && filled($term['milestone_name'] ?? null))
+            ->sum(fn ($term) => (float) ($term['percentage'] ?? 0));
+
+        return abs($totalPercent - 100) > 0.01
+            ? 'Tổng tỷ lệ các đợt thanh toán phải bằng 100%.'
+            : null;
+    }
+
+    /**
+     * Orders worth at least one billion VND may not be configured as a single
+     * 100% payment collected only after delivery.  Splitting the schedule or
+     * collecting a pre-order/pre-export milestone remains allowed.
+     */
+    private function validateLargeOrderPaymentTerms(array $paymentTerms, float $total): ?string
+    {
+        if ($total < 1_000_000_000 || empty($paymentTerms)) {
+            return null;
+        }
+
+        $totalPercent = collect($paymentTerms)->sum(fn ($term) => (float) ($term['percentage'] ?? $term['percent'] ?? 0));
+        $allAfterDelivery = collect($paymentTerms)->every(function ($term) {
+            $timing = $term['timing'] ?? null;
+            $requiredBefore = $term['required_before'] ?? null;
+
+            return in_array($timing, ['after_delivery', 'after_invoice'], true)
+                || $requiredBefore === 'after_delivery';
+        });
+
+        return $totalPercent >= 99.99 && $allAfterDelivery
+            ? 'Đơn hàng từ 1 tỷ đồng không được áp dụng thanh toán 100% sau giao hàng. Vui lòng thiết lập ít nhất một đợt thanh toán trước đặt hàng hoặc trước xuất hàng.'
+            : null;
+    }
+}

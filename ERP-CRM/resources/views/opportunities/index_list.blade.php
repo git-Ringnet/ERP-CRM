@@ -121,7 +121,7 @@
                                     <span class="text-gray-600 font-semibold">{{ $opportunity->activity_type_label }}</span>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <div class="text-gray-800">{{ $opportunity->activity_date->format('d/m/Y') }}</div>
+                                    <div class="text-gray-800">{{ $opportunity->activity_date?->format('d/m/Y') ?? 'Chưa xác định' }}</div>
                                     <span class="text-xs text-gray-400">{{ $opportunity->start_time ?: 'N/A' }} - {{ $opportunity->end_time ?: 'N/A' }}</span>
                                 </td>
                                 <td class="px-6 py-4 text-center">

@@ -335,12 +335,20 @@ class ProductController extends Controller
             return response()->json([]);
         }
 
-        $products = Product::search($q)
+        $productsQuery = Product::search($q)
             ->with(['supplierPriceListItems.priceList'])
-            ->select('id', 'code', 'name', 'unit', 'warranty_months', 'description')
-            ->orderBy('code')
-            ->limit(30)
-            ->get();
+            ->select('id', 'code', 'name', 'unit', 'warranty_months', 'description');
+
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = (int) $request->warehouse_id;
+            $productsQuery->whereHas('items', function ($items) use ($warehouseId) {
+                $items->where('warehouse_id', $warehouseId)
+                    ->where('status', ProductItem::STATUS_IN_STOCK)
+                    ->where('quantity', '>', 0);
+            });
+        }
+
+        $products = $productsQuery->orderBy('code')->limit(30)->get();
 
         return response()->json($products->map(function ($product) {
             return [

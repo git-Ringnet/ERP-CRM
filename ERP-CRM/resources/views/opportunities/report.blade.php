@@ -45,6 +45,26 @@
             </div>
         </div>
 
+        <details open class="rounded-xl border border-blue-200 bg-blue-50/70 px-5 py-4 text-sm text-slate-700">
+            <summary class="cursor-pointer font-semibold text-blue-900">
+                <i class="fas fa-circle-info mr-1.5"></i>Mục đích và cách dùng báo cáo này
+            </summary>
+            <div class="mt-3 grid gap-4 md:grid-cols-3">
+                <div>
+                    <p class="font-semibold text-slate-800">Dùng để làm gì?</p>
+                    <p class="mt-1">Theo dõi mức độ Sales/Kỹ thuật tiếp cận khách hàng, phát hiện khách hàng lâu chưa gặp và chủ động lập kế hoạch chăm sóc.</p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Đọc số liệu thế nào?</p>
+                    <p class="mt-1">Các chỉ số và biểu đồ đếm số hoạt động Cơ hội trong khoảng thời gian đã lọc; đây không phải là doanh thu hay số đơn hàng.</p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Hành động gợi ý</p>
+                    <p class="mt-1">Xem danh sách khách hàng/Sales có tần suất thấp hoặc cao, mở chi tiết hoạt động để kiểm tra kết quả, rồi lên lịch gặp hoặc phân bổ lại người phụ trách.</p>
+                </div>
+            </div>
+        </details>
+
         <!-- Filter Form -->
         <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
             <form method="GET" action="{{ route('opportunities.report') }}" id="filterForm" class="space-y-4">
@@ -372,7 +392,7 @@
                         @forelse ($activities as $act)
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td class="px-4 py-3 text-sm text-gray-600">
-                                    {{ $act->activity_date->format('d/m/Y') }}
+                                    {{ $act->activity_date?->format('d/m/Y') ?? 'Chưa xác định' }}
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-900 font-medium">
                                     {{ $act->assignedTo->name ?? '—' }}

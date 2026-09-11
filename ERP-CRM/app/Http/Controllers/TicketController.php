@@ -9,6 +9,7 @@ use App\Models\ProductItem;
 use App\Models\ProductItemBorrowLog;
 use App\Models\User;
 use App\Models\Notification;
+use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,6 +18,15 @@ class TicketController extends Controller
     public function __construct()
     {
         $this->middleware('auth');
+    }
+
+    /**
+     * Borrowing is an operational runrate flow only. Project and license
+     * stock must remain reserved for their original purpose.
+     */
+    private function runrateWarehouseId(): ?int
+    {
+        return Warehouse::where('code', 'WH_RUNRATE')->value('id');
     }
 
     /**
@@ -86,12 +96,28 @@ class TicketController extends Controller
         ]);
 
         if ($request->type === 'borrow') {
+            $runrateWarehouseId = $this->runrateWarehouseId();
+            if (!$runrateWarehouseId) {
+                return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate, không thể tạo yêu cầu mượn hàng.');
+            }
+
             foreach ($request->items as $item) {
+                $hasRunrateStock = ProductItem::where('product_id', $item['product_id'])
+                    ->where('status', ProductItem::STATUS_IN_STOCK)
+                    ->where('warehouse_id', $runrateWarehouseId)
+                    ->exists();
+
+                if (!$hasRunrateStock) {
+                    return back()->withInput()->with('error', 'Chỉ Hàng runrate được phép mượn. Hàng dự án và license không được phép mượn.');
+                }
+
                 if (!empty($item['selected_serial_ids'])) {
-                    $borrowedSerials = ProductItem::whereIn('id', $item['selected_serial_ids'])->get();
+                    $borrowedSerials = ProductItem::with('warehouse')
+                        ->whereIn('id', $item['selected_serial_ids'])
+                        ->get();
                     foreach ($borrowedSerials as $serialItem) {
-                        if ($serialItem->isProjectItem()) {
-                            return back()->withInput()->with('error', "Không thể mượn thiết bị '{$serialItem->sku}' vì đây là Hàng dự án. Hàng dự án không được phép mượn.");
+                        if ((int) $serialItem->warehouse_id !== (int) $runrateWarehouseId) {
+                            return back()->withInput()->with('error', "Không thể mượn thiết bị '{$serialItem->sku}' vì chỉ Hàng runrate được phép mượn. Hàng dự án và license không được phép mượn.");
                         }
                     }
                 }
@@ -242,6 +268,11 @@ class TicketController extends Controller
             $approverName = $user->name;
 
             if ($ticket->type === 'borrow') {
+                $runrateWarehouseId = $this->runrateWarehouseId();
+                if (!$runrateWarehouseId) {
+                    throw new \Exception('Chưa cấu hình Kho runrate, không thể duyệt yêu cầu mượn hàng.');
+                }
+
                 // Perform allocation shifting
                 foreach ($ticket->items as $ticketItem) {
                     $productId = $ticketItem->product_id;
@@ -253,6 +284,7 @@ class TicketController extends Controller
                     if (!empty($ticketItem->allocated_item_ids)) {
                         $itemsToShift = ProductItem::whereIn('id', $ticketItem->allocated_item_ids)
                             ->where('status', ProductItem::STATUS_IN_STOCK)
+                            ->where('warehouse_id', $runrateWarehouseId)
                             ->get();
                     }
 
@@ -262,6 +294,7 @@ class TicketController extends Controller
                             // Find general in-stock items with no borrower
                             $itemsToShift = ProductItem::where('product_id', $productId)
                                 ->where('status', ProductItem::STATUS_IN_STOCK)
+                                ->where('warehouse_id', $runrateWarehouseId)
                                 ->where(function ($q) {
                                     $q->whereNull('borrower')->orWhere('borrower', '');
                                 })
@@ -276,6 +309,7 @@ class TicketController extends Controller
                             $candidates = ProductItem::with(['import.purchaseOrder.sale'])
                                 ->where('product_id', $productId)
                                 ->where('status', ProductItem::STATUS_IN_STOCK)
+                                ->where('warehouse_id', $runrateWarehouseId)
                                 ->get();
 
                             $filtered = $candidates->filter(function ($item) use ($targetName, $ticket) {
@@ -462,17 +496,28 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'warehouses' => [], 'sales' => []]);
         }
 
+        $runrateWarehouseId = $this->runrateWarehouseId();
+        if (!$runrateWarehouseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chưa cấu hình Kho runrate.',
+                'warehouses' => [],
+                'sales' => [],
+            ], 422);
+        }
+
         $items = ProductItem::with([
             'warehouse',
             'import.purchaseOrder.sale.user',
-            'po_item.saleOrderRequestItem'
+            // PO item is an accessor on ProductItem, not an Eloquent relationship.
+            // Load the actual relation through the import's purchase order so
+            // isProjectItem() can determine whether an item is eligible to borrow.
+            'import.purchaseOrder.items.saleOrderRequestItem'
         ])
         ->where('product_id', $productId)
         ->where('status', ProductItem::STATUS_IN_STOCK)
-        ->get()
-        ->filter(function($item) {
-            return !$item->isProjectItem(); // Strictly block project items from borrowing
-        });
+        ->where('warehouse_id', $runrateWarehouseId)
+        ->get();
 
         $warehouseStock = [];
         $salesStock = [];

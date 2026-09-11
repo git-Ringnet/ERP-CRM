@@ -4,6 +4,12 @@
 @section('page-title', 'Quản lý Xuất kho')
 
 @section('content')
+    @php
+        $canAdminApproveExport = auth()->user() && (
+            auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager'])
+            || auth()->user()->can('approve_exports')
+        );
+    @endphp
     <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -257,7 +263,17 @@
                                         class="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200" title="Xuất Excel">
                                         <i class="fas fa-file-excel"></i>
                                     </a>
-                                    @if($export->status === 'pending')
+                                    @if($export->status === 'pending_admin' && $canAdminApproveExport)
+                                        <button
+                                            onclick="confirmApprove('{{ route('exports.admin-approve', $export) }}', 'phiếu đề xuất xuất kho')"
+                                            class="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200" title="Duyệt Admin">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="confirmReject('{{ route('exports.admin-reject', $export) }}', 'phiếu đề xuất xuất kho')"
+                                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200" title="Từ chối">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif($export->status === 'pending')
                                         <a href="{{ route('exports.edit', $export) }}"
                                             class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200"
                                             title="Chỉnh sửa">

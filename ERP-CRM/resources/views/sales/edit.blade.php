@@ -8,6 +8,18 @@
     <form action="{{ route('sales.update', $sale->id) }}" method="POST" id="saleForm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
+
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                <p class="font-semibold">Không thể cập nhật đơn hàng. Vui lòng kiểm tra:</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        <input type="hidden" name="multi_project_confirmed" id="multiProjectConfirmed" value="0">
         
         @php $isLocked = $sale->pl_status === 'approved'; @endphp
         
@@ -224,6 +236,17 @@
                                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off"
                                            value="{{ $item->product?->code }}" {{ $isLocked ? 'readonly' : '' }}>
                                     <input type="hidden" name="products[{{ $index }}][product_id]" required class="product-id-input" value="{{ $item->product_id }}">
+                                    <select name="products[{{ $index }}][project_id]" {{ $isLocked ? 'disabled' : '' }}
+                                            class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 {{ $isLocked ? 'bg-gray-100' : '' }}"
+                                            title="Dự án áp dụng riêng cho dòng hàng này">
+                                        <option value="">-- Dự án theo đơn --</option>
+                                        @foreach($projects as $project)
+                                            <option value="{{ $project->id }}" {{ old("products.{$index}.project_id", $item->project_id ?: $sale->project_id) == $project->id ? 'selected' : '' }}>{{ $project->code }} - {{ $project->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if($isLocked && $item->project_id)
+                                        <input type="hidden" name="products[{{ $index }}][project_id]" value="{{ $item->project_id }}">
+                                    @endif
                                     @if(!$isLocked)
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                     @endif
@@ -374,7 +397,9 @@
                 );
             @endphp
             <script>
-                window.canCustomizePaymentTerms = {{ $canCustomizePaymentTerms ? 'true' : 'false' }};
+                // Sales may tailor milestones for the negotiated contract; the server
+                // still enforces the one-billion post-delivery safeguard.
+                window.canCustomizePaymentTerms = true;
             </script>
             <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
                 <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
@@ -383,6 +408,14 @@
                 </h4>
                 
                 <input type="hidden" name="payment_term_type" id="payment_term_type" value="{{ $sale->payment_term_type }}">
+                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
+                        <input type="checkbox" name="has_bank_guarantee" value="1" {{ old('has_bank_guarantee', $sale->has_bank_guarantee) ? 'checked' : '' }}>
+                        Có bảo lãnh thanh toán (Bank Guarantee)
+                    </label>
+                    <input type="text" name="bank_guarantee_note" value="{{ old('bank_guarantee_note', $sale->bank_guarantee_note) }}" maxlength="1000"
+                           class="mt-2 w-full rounded border border-amber-200 px-3 py-2 text-sm" placeholder="Ghi chú/số bảo lãnh (nếu có)">
+                </div>
                 <div class="grid grid-cols-1 gap-4 mb-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
@@ -430,6 +463,7 @@
                                     <th class="p-2 min-w-[160px] text-sm">Giai đoạn kiểm soát</th>
                                     <th class="p-2 min-w-[140px] text-sm">Chứng từ bắt buộc</th>
                                     <th class="p-2 min-w-[100px] text-sm">Hạn (ngày)</th>
+                                    <th class="p-2 w-12 text-center text-sm">Xóa</th>
                                 </tr>
                             </thead>
                             <tbody id="milestoneList" class="divide-y divide-gray-100">
@@ -439,6 +473,10 @@
                     </div>
                     
                     <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
+                        <button type="button" onclick="addManualPaymentMilestone()"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark">
+                            <i class="fas fa-plus"></i> Thêm đợt thanh toán
+                        </button>
                         <span id="milestonePercentSumIndicator" class="text-sm font-semibold text-gray-700">Tổng tỷ lệ: 0%</span>
                     </div>
                 </div>
@@ -1336,6 +1374,12 @@ function addProductRow() {
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
                     <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
+                    <select name="products[${productIndex}][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng riêng cho dòng hàng này">
+                        <option value="">-- Dự án theo đơn --</option>
+                        @foreach($projects as $project)
+                            <option value="{{ $project->id }}">{{ $project->code }} - {{ $project->name }}</option>
+                        @endforeach
+                    </select>
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                 </div>
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input">
@@ -1394,6 +1438,11 @@ function addProductRow() {
         </div>
     `;
     productList.appendChild(newRow);
+    const itemProjectSelect = newRow.querySelector('.item-project-select');
+    const saleProjectSelect = document.getElementById('projectSelect');
+    if (itemProjectSelect && saleProjectSelect?.value) {
+        itemProjectSelect.value = saleProjectSelect.value;
+    }
     productIndex++;
     
     // Initialize searchable select and money inputs for new row
@@ -1669,6 +1718,17 @@ function validateAndSubmit() {
         errors.push('Cần ít nhất 1 sản phẩm');
     }
     
+    const milestoneRows = document.querySelectorAll('#milestoneList tr');
+    if (milestoneRows.length > 0) {
+        const paymentPercentage = Array.from(milestoneRows).reduce((total, row) => {
+            return total + (parseFloat(row.querySelector('.milestone-percent-input')?.value) || 0);
+        }, 0);
+        if (Math.abs(paymentPercentage - 100) > 0.01) {
+            errors.push(`Tổng tỷ lệ các đợt thanh toán phải bằng 100% (hiện tại ${paymentPercentage.toFixed(2)}%)`);
+            document.getElementById('milestonePercentSumIndicator')?.classList.add('text-red-600');
+        }
+    }
+
     // Show confirmation modal or submit
     if (errors.length > 0) {
         errorList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
@@ -1676,6 +1736,22 @@ function validateAndSubmit() {
         errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
         errorContainer.classList.add('hidden');
+
+        const projectIds = [...document.querySelectorAll('.item-project-select')]
+            .map(select => select.value)
+            .filter(Boolean);
+        const isMultiProject = new Set(projectIds).size > 1;
+        const multiProjectConfirmed = document.getElementById('multiProjectConfirmed');
+
+        if (isMultiProject) {
+            const accepted = window.confirm(
+                'Đơn hàng đang gộp nhiều dự án. Partner/EU và PO có thể được tách theo từng dòng hàng. Bạn xác nhận tiếp tục?'
+            );
+            if (!accepted) return;
+            multiProjectConfirmed.value = '1';
+        } else {
+            multiProjectConfirmed.value = '0';
+        }
         
         Swal.fire({
             title: 'Xác nhận cập nhật đơn hàng?',
@@ -2284,6 +2360,9 @@ function addPaymentMilestone(ms = {}) {
             <input type="hidden" name="payment_terms[${index}][bod_approval_file_path]" value="${ms.bod_approval_file_path || ''}">
             <input type="hidden" name="payment_terms[${index}][delegated_to_id]" value="${ms.delegated_to_id || ''}">
         </td>
+        <td class="p-2 text-center">
+            ${isSalesReadOnly ? '' : `<button type="button" onclick="removePaymentMilestone(${index})" class="rounded p-1.5 text-red-600 hover:bg-red-50" title="Xóa đợt thanh toán"><i class="fas fa-trash"></i></button>`}
+        </td>
     `;
     list.appendChild(row);
     calculateMilestoneAmounts();
@@ -2320,6 +2399,25 @@ function addPaymentMilestone(ms = {}) {
         calculateMilestoneAmounts(true);
         switchMilestonePresetToCustom();
     });
+}
+
+function addManualPaymentMilestone() {
+    const container = document.getElementById('milestonesTableContainer');
+    const currentPercentage = Array.from(document.querySelectorAll('.milestone-percent-input'))
+        .reduce((total, input) => total + (parseFloat(input.value) || 0), 0);
+    const remainingPercentage = Math.max(0, 100 - currentPercentage);
+
+    if (container) container.classList.remove('hidden');
+    addPaymentMilestone({
+        milestone_name: `Đợt ${milestoneIndex + 1}`,
+        percentage: Number(remainingPercentage.toFixed(2)),
+        timing: 'after_contract',
+        required_before: 'after_delivery',
+        required_docs: 'none',
+        due_days: 0,
+        is_blocking: 'no',
+    });
+    switchMilestonePresetToCustom();
 }
 
 function removePaymentMilestone(index) {

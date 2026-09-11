@@ -9,12 +9,14 @@ class OpportunityPolicy extends BasePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->checkPermission($user, 'view_opportunities');
+        return $user->hasAnyRole(['super_admin', 'admin', 'sales_manager']) ||
+            $this->checkPermission($user, 'view_opportunities');
     }
 
     public function view(User $user, Opportunity $opportunity): bool
     {
-        return $this->checkPermission($user, 'view_opportunities');
+        return $user->hasAnyRole(['super_admin', 'admin', 'sales_manager']) ||
+            $this->checkPermission($user, 'view_opportunities');
     }
 
     public function create(User $user): bool

@@ -65,7 +65,10 @@
                 <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Chờ đặt</option>
                 <option value="pending_approval" {{ request('status') == 'pending_approval' ? 'selected' : '' }}>Chờ duyệt</option>
                 <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã đặt</option>
+                <option value="sent" {{ request('status') == 'sent' ? 'selected' : '' }}>Đã gửi hãng</option>
+                <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Hãng xác nhận</option>
                 <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang về</option>
+                <option value="partial_received" {{ request('status') == 'partial_received' ? 'selected' : '' }}>Về một phần</option>
                 <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Đã về – đủ hàng</option>
                 <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
 
@@ -208,7 +211,7 @@
                                         </span>
                                     @elseif($order->status == 'pending_approval')
                                         <span class="text-[10px] font-bold text-yellow-600 uppercase tracking-tighter flex items-center justify-center">
-                                            <i class="fas fa-hourglass-half mr-1"></i>Chờ đặt
+                                            <i class="fas fa-hourglass-half mr-1"></i>Chờ duyệt
                                         </span>
                                     @else
                                         <span class="text-[10px] font-bold {{ $currentIndex == 0 ? 'text-yellow-600' : ($currentIndex == 1 ? 'text-blue-600' : ($currentIndex == 2 ? 'text-purple-600' : 'text-green-600')) }} uppercase tracking-tighter">
@@ -236,6 +239,7 @@
                                         </button>
                                     </form>
                                 @endif
+                                @can('approve', $order)
                                 @if($order->status == 'pending_approval')
                                     <form action="{{ route('purchase-orders.approve', $order) }}" method="POST" class="inline">
                                         @csrf
@@ -244,6 +248,7 @@
                                         </button>
                                     </form>
                                 @endif
+                                @endcan
 
                                 @if($order->status == 'approved')
                                     <form action="{{ route('purchase-orders.ship', $order) }}" method="POST" class="inline">

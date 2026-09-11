@@ -144,7 +144,7 @@ class ExportRequest extends FormRequest
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->where('quantity', '>', 0)
                 ->noSerial()
-                ->count();
+                ->sum('quantity');
 
             $totalStock = $serialItems->count() + $noSkuCount;
             $product = Product::find($productId);

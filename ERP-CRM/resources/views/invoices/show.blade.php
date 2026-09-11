@@ -52,6 +52,12 @@
                 </button>
             @endif
 
+            @if($invoiceRequest->status === 'sales_confirmed' && auth()->user()->hasAnyRole(['super_admin', 'accountant']))
+                <button onclick="openActionModal('official')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-sm shadow-sm flex items-center gap-2">
+                    <i class="fas fa-file-signature"></i> PHÁT HÀNH HÓA ĐƠN CHÍNH THỨC
+                </button>
+            @endif
+
             @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
                 <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-sm flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
                     <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG HÓA ĐƠN
@@ -62,6 +68,11 @@
             @if($invoiceRequest->status === 'official_issued')
                 <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
                     <i class="fas fa-check-double"></i> ĐÃ XÁC NHẬN HOÀN TẤT
+                </span>
+            @endif
+            @if($invoiceRequest->status === 'sales_confirmed')
+                <span class="px-3 py-1.5 bg-violet-100 text-violet-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
+                    <i class="fas fa-clock"></i> CHỜ KẾ TOÁN PHÁT HÀNH
                 </span>
             @endif
         </div>

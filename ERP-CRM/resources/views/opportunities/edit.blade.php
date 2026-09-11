@@ -173,7 +173,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Loại hoạt động <span class="text-red-500">*</span>
                                 </label>
-                                <select name="activity_type" id="activity_type" onchange="toggleActivityTypeOther(); toggleFilesAsterisk();" required
+                                <select name="activity_type" id="activity_type" onchange="toggleActivityTypeOther(); toggleFilesAsterisk(); toggleMarketingCoordination();" required
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
                                     <option value="">-- Chọn loại hoạt động --</option>
                                     @foreach($activityTypes as $key => $label)
@@ -255,10 +255,11 @@
                             </div>
 
                             <!-- Quà tặng / giveaway -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Quà tặng / Giveaway cho khách hàng</label>
-                                <textarea name="giveaway" rows="2" placeholder="VD: Lịch công ty, sổ tay Horizon..."
+                            <div id="marketing_coordination_wrap" class="hidden">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Yêu cầu Marketing chuẩn bị quà tặng</label>
+                                <textarea name="giveaway" id="giveaway" rows="2" placeholder="VD: Bình giữ nhiệt, lịch công ty..."
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">{{ old('giveaway', $opportunity->giveaway) }}</textarea>
+                                <p class="mt-1 text-xs text-purple-700">Chỉ áp dụng cho trình bày giải pháp. Sau khi BOD duyệt, hệ thống tự tạo ticket Marketing liên kết với Cơ hội này.</p>
                             </div>
                         </div>
                     </div>
@@ -292,7 +293,7 @@
                                 <select name="technical_user_id" id="technical_user_id"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
                                     <option value="">-- Chọn kỹ sư phối hợp --</option>
-                                    @foreach($users as $user)
+                                    @foreach($technicalUsers as $user)
                                         <option value="{{ $user->id }}" {{ old('technical_user_id', $opportunity->technical_user_id) == $user->id ? 'selected' : '' }}>
                                             {{ $user->name }} ({{ $user->email }})
                                         </option>
@@ -638,6 +639,16 @@
             }
         }
 
+        function toggleMarketingCoordination() {
+            const isPresentation = ['demo_online', 'demo_offline'].includes(document.getElementById('activity_type').value);
+            const wrap = document.getElementById('marketing_coordination_wrap');
+            const giveaway = document.getElementById('giveaway');
+            if (!wrap || !giveaway) return;
+
+            wrap.classList.toggle('hidden', !isPresentation);
+            giveaway.disabled = !isPresentation;
+        }
+
         // Calculate time duration
         function calculateDuration() {
             const startStr = document.getElementById('start_time').value;
@@ -926,6 +937,7 @@
             toggleActivityTypeOther();
             toggleCancelReason();
             toggleFilesAsterisk();
+            toggleMarketingCoordination();
             
             const currentCustType = "{{ old('customer_type', $opportunity->customer_type) }}";
             toggleCustomerType(currentCustType);

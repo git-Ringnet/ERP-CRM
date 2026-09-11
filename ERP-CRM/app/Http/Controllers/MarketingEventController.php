@@ -8,6 +8,8 @@ use App\Models\ApprovalHistory;
 use App\Services\ApprovalService;
 use App\Models\MarketingSupplierFund;
 use App\Models\MarketingSupplierTransaction;
+use App\Models\MarketingRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -56,6 +58,15 @@ class MarketingEventController extends Controller
 
         $query = MarketingEvent::with(['creator', 'approvalHistories'])->latest();
 
+        $user = $request->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager'])) {
+            $query->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                    ->orWhereHas('requests', fn ($requests) => $requests->where('assigned_to', $user->id))
+                    ->orWhereHas('customers', fn ($customers) => $customers->where('am', $user->id));
+            });
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -64,6 +75,19 @@ class MarketingEventController extends Controller
         }
 
         $events = $query->paginate(15)->withQueryString();
+        $directRequests = collect();
+        $marketingAssignees = collect();
+        if ($request->query('tab') === 'requests') {
+            $directRequests = MarketingRequest::with(['ticket.creator', 'opportunity.customer', 'assignee'])
+                ->whereNotNull('opportunity_id')
+                ->when($request->filled('opportunity_id'), fn ($q) => $q->where('opportunity_id', $request->integer('opportunity_id')))
+                ->latest()
+                ->get();
+            $marketingAssignees = User::where(function ($query) {
+                $query->where('department', 'like', '%Marketing%')
+                    ->orWhereHas('roles', fn ($roles) => $roles->whereIn('slug', ['marketing', 'marketing_manager']));
+            })->orderBy('name')->get(['id', 'name']);
+        }
         
         // Load workflow to check permissions on index
         $mktWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('marketing_budget');
@@ -78,7 +102,7 @@ class MarketingEventController extends Controller
             $transactions = MarketingSupplierTransaction::with(['supplier', 'fund', 'event', 'request', 'creator'])->latest()->get();
         }
 
-        return view('marketing-events.index', compact('events', 'mktWorkflow', 'supplierFunds', 'suppliers', 'transactions'));
+        return view('marketing-events.index', compact('events', 'mktWorkflow', 'supplierFunds', 'suppliers', 'transactions', 'directRequests', 'marketingAssignees'));
     }
 
     public function create()
@@ -116,6 +140,9 @@ class MarketingEventController extends Controller
             'budget_external_note'  => 'nullable|string',
             'funding_source'        => 'nullable|string|max:255',
             'special_notes'         => 'nullable|string',
+            'support_marketing'     => 'nullable|boolean',
+            'support_technical'     => 'nullable|boolean',
+            'support_request_note'  => 'nullable|string|max:2000',
         ]);
 
         if (empty($validated['title'])) {
@@ -142,6 +169,33 @@ class MarketingEventController extends Controller
         $validated['attachments'] = $attachments;
 
         $event = MarketingEvent::create($validated);
+
+        $requestedTeams = array_filter([
+            $request->boolean('support_marketing') ? 'marketing' : null,
+            $request->boolean('support_technical') ? 'technical' : null,
+        ]);
+        if ($requestedTeams) {
+            $ticket = \App\Models\MarketingTicket::create([
+                'marketing_event_id' => $event->id,
+                'type' => 'internal_collaboration',
+                'status' => 'pending',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($requestedTeams as $team) {
+                MarketingRequest::create([
+                    'marketing_ticket_id' => $ticket->id,
+                    'marketing_event_id' => $event->id,
+                    'support_team' => $team,
+                    'pic_type' => 'lead',
+                    'support_content' => $team === 'technical' ? 'technical_support' : 'others',
+                    'support_content_other' => $team === 'marketing' ? 'Chuẩn bị/điều phối Marketing' : null,
+                    'description' => $request->input('support_request_note'),
+                    'deadline' => $event->event_date,
+                    'status' => 'pending_approval',
+                ]);
+            }
+        }
 
         return redirect()->route('marketing-events.show', $event)
             ->with('success', 'Đã tạo chương trình marketing thành công.');
@@ -292,6 +346,7 @@ class MarketingEventController extends Controller
                 'approved_by'      => auth()->id(),
                 'rejection_reason' => null,
             ]);
+            $this->activateEventCollaborationRequests($marketingEvent);
         } else {
             $marketingEvent->update([
                 'status'           => 'pending',
@@ -323,6 +378,7 @@ class MarketingEventController extends Controller
                 'approved_at' => now(),
                 'approved_by' => auth()->id(),
             ]);
+            $this->activateEventCollaborationRequests($marketingEvent);
         }
 
         return back()->with('success', $result['message']);
@@ -518,6 +574,45 @@ class MarketingEventController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Lỗi khi tất toán công nợ: ' . $e->getMessage());
+        }
+    }
+
+    /** Activate assistance requests only after the event budget is approved. */
+    private function activateEventCollaborationRequests(MarketingEvent $event): void
+    {
+        $event->tickets()->where('status', 'pending')->update(['status' => 'in_progress']);
+
+        $requests = $event->requests()
+            ->where('status', 'pending_approval')
+            ->get();
+
+        foreach ($requests as $request) {
+            $request->update(['status' => 'received']);
+
+            $recipients = User::where('status', 'active')
+                ->where(function ($query) use ($request) {
+                    if ($request->support_team === 'technical') {
+                        $query->whereIn('department', ['Technical', 'Tech', 'IT']);
+                    } elseif ($request->support_team === 'marketing') {
+                        $query->where(function ($marketing) {
+                            $marketing->where('department', 'like', '%Marketing%')
+                                ->orWhereHas('roles', fn ($roles) => $roles->whereIn('slug', ['marketing', 'marketing_manager']));
+                        });
+                    }
+                })
+                ->get();
+
+            foreach ($recipients as $recipient) {
+                \App\Models\Notification::create([
+                    'user_id' => $recipient->id,
+                    'type' => 'marketing_event_support',
+                    'title' => 'Yêu cầu phối hợp sự kiện đã được duyệt',
+                    'message' => "Sự kiện {$event->code} cần {$request->support_team} phối hợp.",
+                    'link' => route('marketing-events.show', $event),
+                    'icon' => 'fas fa-calendar-check',
+                    'color' => 'purple',
+                ]);
+            }
         }
     }
 }

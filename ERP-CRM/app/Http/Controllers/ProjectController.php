@@ -279,7 +279,7 @@ class ProjectController extends Controller
             'budget' => ['nullable', 'numeric', 'min:0'],
             'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
-            'note' => ['required', 'string'],
+            'note' => ['nullable', 'string'],
             'marketing_event_id' => ['nullable', 'exists:marketing_events,id'],
             'opportunity_id' => ['nullable', 'exists:opportunities,id'],
             // Distributor
@@ -464,7 +464,13 @@ class ProjectController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'exportStats', 'recentExports', 'activityLogs'));
+        $latestSaleForClosure = $project->sales()
+            ->where('status', '!=', 'cancelled')
+            ->latest('date')
+            ->latest('id')
+            ->first();
+
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
     }
 
     /**
@@ -472,7 +478,7 @@ class ProjectController extends Controller
      */
     public function processIntake(Request $request, Project $project, NotificationService $notificationService)
     {
-        $this->authorize('update', $project);
+        $this->authorize('processIntake', $project);
 
         $validated = $request->validate([
             'intake_status' => ['required', 'in:registered,duplicate,incomplete'],
@@ -744,9 +750,9 @@ class ProjectController extends Controller
             'close_status' => ['required', 'in:closed_won,closed_lost,cancelled,on_hold'],
             'close_reason' => ['required_if:close_status,closed_lost,cancelled', 'nullable', 'string'],
             'close_note' => ['nullable', 'string'],
-            'po_code' => ['required_if:close_status,closed_won', 'nullable', 'string', 'max:100'],
-            'order_value' => ['required_if:close_status,closed_won', 'nullable', 'numeric', 'min:0'],
-            'order_date' => ['required_if:close_status,closed_won', 'nullable', 'date'],
+            'po_code' => ['nullable', 'string', 'max:100'],
+            'order_value' => ['nullable', 'numeric', 'min:0'],
+            'order_date' => ['nullable', 'date'],
         ]);
 
         $closeStatus = $validated['close_status'];
@@ -758,9 +764,21 @@ class ProjectController extends Controller
         ];
 
         if ($closeStatus === 'closed_won') {
-            $updateData['po_code'] = $validated['po_code'];
-            $updateData['order_value'] = $validated['order_value'];
-            $updateData['order_date'] = $validated['order_date'];
+            $latestSale = $project->sales()
+                ->where('status', '!=', 'cancelled')
+                ->latest('date')
+                ->latest('id')
+                ->first();
+
+            $updateData['po_code'] = $validated['po_code'] ?: $latestSale?->code;
+            $updateData['order_value'] = $validated['order_value'] ?? $latestSale?->total;
+            $updateData['order_date'] = $validated['order_date'] ?? $latestSale?->date;
+
+            if (!$updateData['po_code'] || $updateData['order_value'] === null || !$updateData['order_date']) {
+                return back()->withInput()->withErrors([
+                    'po_code' => 'Chưa có đơn hàng bán liên kết. Vui lòng nhập thông tin đóng dự án.',
+                ]);
+            }
         }
 
         $old = $project->getAttributes();
@@ -842,7 +860,7 @@ class ProjectController extends Controller
             'budget' => ['nullable', 'numeric', 'min:0'],
             'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
-            'note' => ['required', 'string'],
+            'note' => ['nullable', 'string'],
             // Distributor
             'vendor_id' => ['required', 'exists:suppliers,id'],
             'distributor_am' => ['required', 'string', 'max:255'],

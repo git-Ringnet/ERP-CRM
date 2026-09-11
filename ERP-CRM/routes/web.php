@@ -58,6 +58,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/bod-filter', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'filter'])->name('dashboard.bod-filter');
     Route::get('/dashboard/bod-drill-down', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'drillDown'])->name('dashboard.bod-drill-down');
+    Route::get('/dashboard/bod-entity-detail', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'entityDetail'])->name('dashboard.bod-entity-detail');
 
     // Business Activity Dashboard
     Route::get('/dashboard/business-activity', [BusinessDashboardController::class, 'index'])->name('dashboard.business-activity');
@@ -177,7 +178,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sales/order-tracking', [SaleController::class, 'orderTracking'])->name('sales.order-tracking');
     Route::resource('sales', SaleController::class);
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
-    Route::get('/sales/{sale}/invoice-excel', [SaleController::class, 'exportInvoiceExcel'])->name('sales.invoice.excel');
     Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
     Route::post('/sales/bulk-email', [SaleController::class, 'sendBulkEmail'])->name('sales.bulkEmail');
     Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment'])->name('sales.payment');

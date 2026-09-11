@@ -8,7 +8,7 @@
 </style>
 @php
     $user = auth()->user();
-    $isSuperOrMktOrOMOrBOD = $user->hasRole('super_admin') || $user->hasRole('marketing') || $user->hasRole('order_management') || $user->hasRole('director') || $user->hasRole('accountant');
+    $isSuperOrMktOrOMOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'marketing', 'marketing_manager', 'order_management', 'director', 'accountant']);
     $currentTab = request('tab', 'events');
 @endphp
 
@@ -24,10 +24,70 @@
            class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'funds' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
             <i class="fas fa-wallet text-base"></i> Quản lý Quỹ Hãng & Công nợ
         </a>
+        <a href="{{ route('marketing-events.index', ['tab' => 'requests']) }}"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'requests' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
+            <i class="fas fa-ticket-alt text-base"></i> Ticket từ Sales
+        </a>
     </div>
     @endif
 
-    @if($currentTab === 'events')
+    @if($currentTab === 'requests')
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800"><i class="fas fa-gift text-purple-500 mr-2"></i>Ticket quà tặng / phối hợp từ Sales</h2>
+                    <p class="text-sm text-gray-500 mt-1">Các yêu cầu được tạo tự động sau khi BOD/Manager duyệt quà tặng cho hoạt động cơ hội.</p>
+                </div>
+                <span class="px-2.5 py-1 text-xs font-bold rounded-full bg-purple-50 text-purple-700">{{ $directRequests->count() }} ticket</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Mã ticket</th>
+                            <th class="px-4 py-3 text-left">Hoạt động / khách hàng</th>
+                            <th class="px-4 py-3 text-left">Nội dung cần xử lý</th>
+                            <th class="px-4 py-3 text-left">Hạn</th>
+                            <th class="px-4 py-3 text-center">Trạng thái</th>
+                            <th class="px-4 py-3 text-left">Người phụ trách</th>
+                            <th class="px-4 py-3 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($directRequests as $marketingRequest)
+                            <tr class="hover:bg-purple-50/30">
+                                <td class="px-4 py-3 font-semibold text-purple-700">{{ $marketingRequest->ticket?->code ?: $marketingRequest->code }}</td>
+                                <td class="px-4 py-3">
+                                    <a class="font-medium text-gray-800 hover:text-purple-700" href="{{ route('opportunities.show', $marketingRequest->opportunity_id) }}">{{ $marketingRequest->opportunity?->name }}</a>
+                                    <div class="text-xs text-gray-500 mt-1">{{ $marketingRequest->opportunity?->customer_display_name ?: '-' }}</div>
+                                </td>
+                                <td class="px-4 py-3 max-w-md whitespace-pre-line text-gray-600">{{ $marketingRequest->description }}</td>
+                                <td class="px-4 py-3 text-gray-600">{{ $marketingRequest->deadline?->format('d/m/Y') ?: '-' }}</td>
+                                <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">{{ $marketingRequest->status_label }}</span></td>
+                                <td class="px-4 py-3 text-gray-600">{{ $marketingRequest->assignee?->name ?: 'Chưa phân công' }}</td>
+                                <td class="px-4 py-3 text-center">
+                                    @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
+                                        <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex justify-center gap-1">
+                                            @csrf
+                                            <select name="assigned_to" class="max-w-[145px] border border-gray-300 rounded px-2 py-1 text-xs" required>
+                                                <option value="">Phân công...</option>
+                                                @foreach($marketingAssignees as $assignee)
+                                                    <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <button class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700" title="Lưu phân công"><i class="fas fa-save"></i></button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7" class="px-4 py-12 text-center text-gray-400">Chưa có ticket Marketing trực tiếp từ Sales.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @elseif($currentTab === 'events')
         {{-- Header for Events --}}
         <div class="bg-white rounded-lg shadow-sm p-4">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

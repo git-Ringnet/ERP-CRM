@@ -41,6 +41,12 @@
                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
                     <i class="fas fa-plus mr-1"></i> Tạo đơn hàng
                 </a>
+                @can('create', \App\Models\Quotation::class)
+                    <a href="{{ route('quotations.create', ['customer_id' => $project->customer_id, 'title' => $project->name]) }}"
+                       class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
+                        <i class="fas fa-file-invoice mr-1"></i> Tạo báo giá
+                    </a>
+                @endcan
                 
                 <!-- Sales Actions -->
                 @if(in_array($project->registration_status, ['update_status', 'vendor_quoted', 'registered']))
@@ -499,10 +505,16 @@
                                     <p class="text-xs text-gray-500">Định dạng: {{ strtoupper($ext) }}</p>
                                 </div>
                             </div>
-                            <a href="{{ Storage::url($file) }}" target="_blank"
-                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap self-stretch sm:self-auto justify-center">
-                                <i class="fas fa-download"></i> Tải file BOM
-                            </a>
+                            <div class="flex gap-2 self-stretch sm:self-auto">
+                                <a href="javascript:void(0)" onclick="openFilePreviewModal('{{ Storage::url($file) }}', '{{ addslashes($displayFilename) }}')"
+                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap justify-center">
+                                    <i class="fas fa-eye"></i> Xem trước
+                                </a>
+                                <a href="{{ Storage::url($file) }}" download
+                                    class="px-4 py-2 bg-white hover:bg-gray-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap justify-center">
+                                    <i class="fas fa-download"></i> Tải xuống
+                                </a>
+                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -798,6 +810,34 @@
                                                     <span class="font-semibold text-gray-950">{{ $log->user_name }}</span>
                                                     {{ $log->description }}
                                                 </p>
+                                                @php
+                                                    $changes = $log->properties['changes'] ?? [];
+                                                    $fieldLabels = [
+                                                        'registration_status' => 'Trạng thái đăng ký',
+                                                        'status' => 'Trạng thái dự án',
+                                                        'vendor_quote_note' => 'Phản hồi/Báo giá hãng',
+                                                        'forecast_stage' => 'Dự báo Sales',
+                                                        'support_request_type' => 'Yêu cầu hỗ trợ',
+                                                        'support_request_note' => 'Nội dung yêu cầu',
+                                                        'close_reason' => 'Lý do đóng',
+                                                        'close_note' => 'Ghi chú đóng',
+                                                        'po_code' => 'Mã đơn hàng',
+                                                        'order_value' => 'Giá trị đơn hàng',
+                                                        'order_date' => 'Ngày đơn hàng',
+                                                    ];
+                                                @endphp
+                                                @if(!empty($changes))
+                                                    <div class="mt-1.5 space-y-1 text-xs text-gray-600">
+                                                        @foreach($changes as $field => $change)
+                                                            <div>
+                                                                <span class="font-semibold text-gray-700">{{ $fieldLabels[$field] ?? Str::headline($field) }}:</span>
+                                                                <span class="line-through text-gray-400">{{ filled($change['old'] ?? null) ? (is_scalar($change['old']) ? $change['old'] : json_encode($change['old'])) : 'Trống' }}</span>
+                                                                <i class="fas fa-arrow-right mx-1 text-[9px] text-gray-400"></i>
+                                                                <span class="font-medium text-indigo-700">{{ filled($change['new'] ?? null) ? (is_scalar($change['new']) ? $change['new'] : json_encode($change['new'])) : 'Trống' }}</span>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
                                             </div>
                                             <div class="text-right text-xs whitespace-nowrap text-gray-400">
                                                 {{ $log->created_at->format('d/m/Y H:i') }}
@@ -1163,15 +1203,15 @@
                     <div id="closed_won_fields" class="hidden space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Số đơn đặt hàng (PO Code) <span class="text-red-500">*</span></label>
-                            <input type="text" name="po_code" id="po_code" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <input type="text" name="po_code" id="po_code" value="{{ old('po_code', $latestSaleForClosure?->code) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Giá trị đơn hàng (VNĐ) <span class="text-red-500">*</span></label>
-                            <input type="number" name="order_value" id="order_value" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <input type="number" name="order_value" id="order_value" value="{{ old('order_value', $latestSaleForClosure?->total) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Ngày đặt hàng <span class="text-red-500">*</span></label>
-                            <input type="date" name="order_date" id="order_date" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <input type="date" name="order_date" id="order_date" value="{{ old('order_date', $latestSaleForClosure?->date?->format('Y-m-d')) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                         </div>
                     </div>
 

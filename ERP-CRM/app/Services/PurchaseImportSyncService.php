@@ -78,6 +78,11 @@ class PurchaseImportSyncService
 
             // Create import items from PO items
             foreach ($purchaseOrder->items as $poItem) {
+                if ($this->isServicePoItem($poItem)) {
+                    Log::info("Skipping service PO item #{$poItem->id} when creating warehouse import");
+                    continue;
+                }
+
                 // Use received_quantity if available, otherwise use ordered quantity
                 $quantity = $poItem->received_quantity ?? $poItem->quantity;
 
@@ -207,6 +212,11 @@ class PurchaseImportSyncService
 
             $batchQty = 0;
             foreach ($purchaseOrder->items as $poItem) {
+                if ($this->isServicePoItem($poItem)) {
+                    Log::info("Skipping service PO item #{$poItem->id} when creating partial warehouse import");
+                    continue;
+                }
+
                 $qty = (float) ($receivedQtys[$poItem->id] ?? 0);
                 if ($qty <= 0) continue;
 
@@ -280,8 +290,25 @@ class PurchaseImportSyncService
         }
     }
 
+    /**
+     * Services are commercial lines, not physical stock. The classification
+     * originates from the quotation/Sale item and is carried through the SOR
+     * linked to the PO item.
+     */
+    protected function isServicePoItem(PurchaseOrderItem $poItem): bool
+    {
+        return (bool) ($poItem->saleOrderRequestItem?->saleItem?->is_service ?? false);
+    }
+
     protected function isLicenseItem(PurchaseOrderItem $poItem): bool
     {
+        // Coterm is always a license entitlement, including legacy PO records
+        // which do not have a Sale Order Request item attached.
+        $productCode = strtoupper(trim((string) ($poItem->product?->code ?: $poItem->product_name)));
+        if (str_starts_with($productCode, 'COTERM')) {
+            return true;
+        }
+
         // 1. Đã chọn Type là License khi tạo Yêu cầu đặt hàng từ Sales/PR
         if ($poItem->saleOrderRequestItem && strtolower(trim((string)$poItem->saleOrderRequestItem->type)) === 'license') {
             return true;
@@ -505,4 +532,3 @@ class PurchaseImportSyncService
         }
     }
 }
-

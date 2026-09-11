@@ -24,6 +24,7 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/business-activity', [\App\Http\Controllers\Api\DashboardApiController::class, 'businessActivity']);
     Route::post('/bod-filter', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'filter']);
     Route::get('/bod-drill-down', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'drillDown']);
+    Route::get('/bod-entity-detail', [\App\Http\Controllers\Api\BODDashboardApiController::class, 'entityDetail']);
 });
 
 

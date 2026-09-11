@@ -21,7 +21,7 @@ class TransferRequest extends FormRequest
         return [
             'date' => 'required|date',
             'employee_id' => 'nullable|exists:users,id',
-            'note' => 'nullable|string|max:1000',
+            'note' => 'required|string|max:1000',
 
             // Items validation - warehouse per item
             'items' => 'required|array|min:1',
@@ -99,6 +99,15 @@ class TransferRequest extends FormRequest
                 continue;
             }
 
+            $licenseWarehouseId = \App\Models\Warehouse::where('code', 'WH_LICENSE')->value('id');
+            if ($licenseWarehouseId && ((int) $warehouseId === (int) $licenseWarehouseId || (int) $toWarehouseId === (int) $licenseWarehouseId)) {
+                $validator->errors()->add(
+                    "items.{$index}.warehouse_id",
+                    'Hàng license không được phép chuyển kho.'
+                );
+                continue;
+            }
+
             // Filter out empty values
             $selectedSerials = array_filter($selectedSerials, fn ($id) => !empty($id));
             $selectedCount = count($selectedSerials);
@@ -116,7 +125,7 @@ class TransferRequest extends FormRequest
                 ->where('status', ProductItem::STATUS_IN_STOCK)
                 ->where('quantity', '>', 0)
                 ->noSerial()
-                ->count();
+                ->sum('quantity');
 
             $totalStock = $serialItems->count() + $noSkuCount;
             $product = Product::find($productId);
@@ -219,6 +228,7 @@ class TransferRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'note.required' => 'Vui lòng ghi rõ lý do chuyển kho.',
             'date.required' => 'Vui lòng chọn ngày chuyển.',
             'items.required' => 'Vui lòng thêm ít nhất một sản phẩm.',
             'items.*.product_id.required' => 'Vui lòng chọn sản phẩm.',

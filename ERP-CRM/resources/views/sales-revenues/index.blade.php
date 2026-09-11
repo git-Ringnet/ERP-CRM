@@ -101,6 +101,9 @@
 
         <!-- Spreadsheet Table -->
         <div class="bg-white rounded-lg shadow-sm">
+            <div id="revenueTopScroll" class="revenue-horizontal-scroll" aria-label="Thanh cuộn ngang bảng tổng doanh số">
+                <div id="revenueTopScrollContent"></div>
+            </div>
             <div class="overflow-x-auto" id="tableWrapper">
                 <table class="w-full text-xs border-collapse min-w-[2400px]" id="revenueTable">
                     <thead>
@@ -296,14 +299,17 @@
                                 {{-- Actions --}}
                                 <td class="px-1 py-1 text-center bg-white">
                                     @can('delete_sales_revenues')
+                                    @if(auth()->user()->hasAnyRole(['super_admin', 'director']))
                                         <form method="POST" action="{{ route('sales-revenues.destroy', $rev) }}" class="inline"
-                                            onsubmit="return confirm('Xóa dòng này?')">
+                                            onsubmit="const reason = prompt('Nhập lý do xóa dòng doanh số (bắt buộc, tối thiểu 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Cần nhập lý do xóa tối thiểu 10 ký tự.'); return false; } this.querySelector('[name=delete_reason]').value = reason.trim(); return confirm('Xóa dòng này? Dữ liệu gốc từ PO vẫn được lưu.');">
                                             @csrf
                                             @method('DELETE')
+                                            <input type="hidden" name="delete_reason" value="">
                                             <button type="submit" class="text-red-400 hover:text-red-600 text-[10px]" title="Xóa">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </form>
+                                    @endif
                                     @endcan
                                 </td>
                             </tr>
@@ -416,12 +422,45 @@
         }
         /* Sticky first column */
         #revenueTable thead th:first-child { z-index: 20; }
+        .revenue-horizontal-scroll {
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: 18px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .revenue-horizontal-scroll > div { height: 1px; }
     </style>
     @endpush
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            const tableWrapper = document.getElementById('tableWrapper');
+            const revenueTable = document.getElementById('revenueTable');
+            const topScroll = document.getElementById('revenueTopScroll');
+            const topScrollContent = document.getElementById('revenueTopScrollContent');
+
+            if (tableWrapper && revenueTable && topScroll && topScrollContent) {
+                const syncTopScrollbarWidth = () => {
+                    topScrollContent.style.width = `${revenueTable.scrollWidth}px`;
+                };
+                let syncing = false;
+                tableWrapper.addEventListener('scroll', () => {
+                    if (syncing) return;
+                    syncing = true;
+                    topScroll.scrollLeft = tableWrapper.scrollLeft;
+                    syncing = false;
+                });
+                topScroll.addEventListener('scroll', () => {
+                    if (syncing) return;
+                    syncing = true;
+                    tableWrapper.scrollLeft = topScroll.scrollLeft;
+                    syncing = false;
+                });
+                syncTopScrollbarWidth();
+                window.addEventListener('resize', syncTopScrollbarWidth);
+            }
 
             // ─── Inline Text Edit ───────────────────────────────────
             document.querySelectorAll('.cell-edit').forEach(cell => {

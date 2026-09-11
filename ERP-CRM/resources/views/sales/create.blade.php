@@ -24,6 +24,7 @@
 
     <form action="{{ route('sales.store') }}" method="POST" id="saleForm" enctype="multipart/form-data">
         @csrf
+        <input type="hidden" name="multi_project_confirmed" id="multiProjectConfirmed" value="0">
         
         <div class="p-4 sm:p-6 space-y-6">
             <!-- Basic Info -->
@@ -219,6 +220,12 @@
                                 <input type="hidden" name="products[0][new_name]" class="new-name-input">
                                 <input type="hidden" name="products[0][new_code]" class="new-code-input">
                                 <input type="hidden" name="products[0][new_unit]" class="new-unit-input" value="Cái">
+                                <select name="products[0][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng cho riêng dòng hàng này">
+                                    <option value="">Dự án của đơn hàng</option>
+                                    @foreach($projects as $project)
+                                        <option value="{{ $project->id }}" {{ old('products.0.project_id', $selectedProject?->id) == $project->id ? 'selected' : '' }}>{{ $project->code }} - {{ $project->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="md:col-span-1">
                                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
@@ -339,7 +346,9 @@
                 );
             @endphp
             <script>
-                window.canCustomizePaymentTerms = {{ $canCustomizePaymentTerms ? 'true' : 'false' }};
+                // Sales may tailor milestones for the negotiated contract; the server
+                // still enforces the one-billion post-delivery safeguard.
+                window.canCustomizePaymentTerms = true;
             </script>
             <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
                 <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
@@ -348,6 +357,14 @@
                 </h4>
                 
                 <input type="hidden" name="payment_term_type" id="payment_term_type" value="">
+                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
+                        <input type="checkbox" name="has_bank_guarantee" value="1" {{ old('has_bank_guarantee') ? 'checked' : '' }}>
+                        Có bảo lãnh thanh toán (Bank Guarantee)
+                    </label>
+                    <input type="text" name="bank_guarantee_note" value="{{ old('bank_guarantee_note') }}" maxlength="1000"
+                           class="mt-2 w-full rounded border border-amber-200 px-3 py-2 text-sm" placeholder="Ghi chú/số bảo lãnh (nếu có)">
+                </div>
                 <div class="grid grid-cols-1 gap-4 mb-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
@@ -1306,6 +1323,12 @@ function addProductRow() {
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input">
                 <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input">
                 <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="Cái">
+                <select name="products[${productIndex}][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng cho riêng dòng hàng này">
+                    <option value="">Dự án của đơn hàng</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}">{{ $project->code }} - {{ $project->name }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
@@ -1359,6 +1382,9 @@ function addProductRow() {
         </div>
     `;
     productList.appendChild(newRow);
+    // Mỗi dòng hàng có thể thuộc một dự án khác; mặc định lấy dự án chính
+    // để thao tác thêm dòng không làm mất ngữ cảnh hiện tại.
+    newRow.querySelector('.item-project-select').value = document.getElementById('projectSelect')?.value || '';
     productIndex++;
     
     // Initialize searchable select and money inputs for new row
@@ -1823,6 +1849,22 @@ function validateAndSubmit() {
         errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
         errorContainer.classList.add('hidden');
+
+        const projectIds = [...document.querySelectorAll('.item-project-select')]
+            .map(select => select.value)
+            .filter(Boolean);
+        const isMultiProject = new Set(projectIds).size > 1;
+        const multiProjectConfirmed = document.getElementById('multiProjectConfirmed');
+
+        if (isMultiProject) {
+            const accepted = window.confirm(
+                'Đơn hàng đang gộp nhiều dự án. Partner/EU và PO có thể được tách theo từng dòng hàng. Bạn xác nhận tiếp tục?'
+            );
+            if (!accepted) return;
+            multiProjectConfirmed.value = '1';
+        } else {
+            multiProjectConfirmed.value = '0';
+        }
         
         Swal.fire({
             title: 'Xác nhận lưu đơn hàng?',

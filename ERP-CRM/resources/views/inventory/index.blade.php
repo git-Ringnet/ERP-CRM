@@ -5,7 +5,7 @@
 
 @section('content')
 @php
-    $activeTab = request('tab', 'runrate');
+    $activeTab = $activeTab ?? request('tab', 'runrate');
 @endphp
 
     <div class="bg-white rounded-lg shadow-sm">
@@ -16,12 +16,20 @@
                 <div class="flex-1">
                     <label class="block text-xs font-medium text-gray-700 mb-1">Tìm kiếm</label>
                     <div class="relative">
-                        <form action="{{ route('inventory.index') }}" method="GET" class="flex">
+                        <form action="{{ route('inventory.index') }}" method="GET" class="flex gap-2">
                             <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm sản phẩm..."
                                 class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             <input type="hidden" name="tab" value="{{ $activeTab }}">
                             <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
+                            <input type="hidden" name="vendor_id" value="{{ request('vendor_id') }}">
+                            <input type="hidden" name="po_code" value="{{ request('po_code') }}">
+                            <input type="hidden" name="sales_id" value="{{ request('sales_id') }}">
+                            <input type="hidden" name="project_id" value="{{ request('project_id') }}">
+                            <input type="hidden" name="auto_switch_tab" value="1">
+                            <button type="submit" class="inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium whitespace-nowrap" title="Tìm kiếm">
+                                <i class="fas fa-search mr-1.5"></i>Tìm
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -42,6 +50,60 @@
                 </div>
             </div>
 
+            <form action="{{ route('inventory.index') }}" method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+                <input type="hidden" name="tab" value="{{ $activeTab }}">
+                <input type="hidden" name="search" value="{{ request('search') }}">
+                <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
+                <input type="hidden" name="auto_switch_tab" value="1">
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Hãng / nhà cung cấp</label>
+                    <select name="vendor_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Tất cả hãng</option>
+                        @foreach($vendors as $vendor)
+                            <option value="{{ $vendor->id }}" @selected((string) request('vendor_id') === (string) $vendor->id)>{{ $vendor->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Số PO</label>
+                    <input name="po_code" value="{{ request('po_code') }}" placeholder="Nhập mã PO..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Sales PIC / người đặt</label>
+                    <select name="sales_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Tất cả Sales</option>
+                        @foreach($salesUsers as $user)
+                            <option value="{{ $user->id }}" @selected((string) request('sales_id') === (string) $user->id)>{{ $user->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Dự án</label>
+                    @php
+                        $selectedProject = $projects->firstWhere('id', (int) request('project_id'));
+                    @endphp
+                    <div class="relative" data-project-filter>
+                        <input type="hidden" name="project_id" value="{{ request('project_id') }}" data-project-filter-value>
+                        <button type="button" data-project-filter-toggle
+                            class="w-full min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                            <span class="flex-1 break-words leading-5">{{ $selectedProject?->name ?: 'Tất cả dự án' }}</span>
+                            <i class="fas fa-chevron-down text-gray-500 shrink-0"></i>
+                        </button>
+                        <div data-project-filter-menu class="hidden absolute z-30 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                            <button type="button" data-project-id="" data-project-name="Tất cả dự án" class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 break-words">Tất cả dự án</button>
+                            @foreach($projects as $project)
+                                <button type="button" data-project-id="{{ $project->id }}" data-project-name="{{ $project->name }}" class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 break-words leading-5">{{ $project->name }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-end gap-2">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium"><i class="fas fa-filter mr-1"></i>Lọc</button>
+                    <a href="{{ route('inventory.index', ['tab' => $activeTab]) }}" class="px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200" title="Xóa bộ lọc"><i class="fas fa-undo"></i></a>
+                </div>
+            </form>
+
             <div class="flex flex-wrap justify-between items-center gap-2 pt-2">
                 <div class="flex gap-2">
                     <a href="{{ route('inventory.export', request()->query()) }}"
@@ -55,24 +117,24 @@
         <!-- Navigation Tabs -->
         <div class="border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center pr-4">
             <nav class="-mb-px flex space-x-6 px-4" aria-label="Tabs">
-                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'project'])) }}" 
+                <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'project'])) }}"
                    class="{{ ($activeTab === 'project') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
                     Hàng dự án
                 </a>
-                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'runrate'])) }}" 
+                <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'runrate'])) }}"
                    class="{{ ($activeTab === 'runrate') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
                     Hàng runrate
                 </a>
-                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'license'])) }}" 
+                <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'license'])) }}"
                    class="{{ ($activeTab === 'license') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
                     Hàng license
                 </a>
-                <a href="{{ route('inventory.index', array_merge(request()->query(), ['tab' => 'rmodel'])) }}" 
+                <a href="{{ route('inventory.index', array_merge(request()->except('auto_switch_tab'), ['tab' => 'rmodel'])) }}"
                    class="{{ ($activeTab === 'rmodel') ? 'border-primary text-primary border-b-2 font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium' }} whitespace-nowrap py-3 px-1 text-sm transition-all">
                     Hàng bảo hành
                 </a>
             </nav>
-            @if(in_array($activeTab, ['project', 'runrate', 'license', 'rmodel']))
+            @if(in_array($activeTab, ['project', 'runrate', 'license', 'rmodel']) && $canManageWarehouse)
                 <div class="px-4 py-2 sm:py-0">
                     <button onclick="addCustomColumn('{{ $activeTab }}')" 
                             class="inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium">
@@ -81,6 +143,21 @@
                 </div>
             @endif
         </div>
+
+        @if($autoSelectedTab)
+            @php
+                $autoSelectedTabLabel = [
+                    'project' => 'Hàng dự án',
+                    'runrate' => 'Hàng runrate',
+                    'license' => 'Hàng license',
+                    'rmodel' => 'Hàng bảo hành',
+                ][$autoSelectedTab];
+            @endphp
+            <div class="mx-4 mt-3 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-800">
+                <i class="fas fa-info-circle mr-1"></i>
+                Không có kết quả ở tab ban đầu; hệ thống đã chuyển sang <strong>{{ $autoSelectedTabLabel }}</strong>, nơi có dữ liệu phù hợp.
+            </div>
+        @endif
 
         <!-- Tab 1 & 2 & 3: Project, Runrate and License detailed lists -->
         @if(in_array($activeTab, ['project', 'runrate', 'license']))
@@ -104,6 +181,7 @@
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Tên thiết bị</th>
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Hãng / NCC</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Số PO</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">
@@ -113,7 +191,7 @@
                                 </span>
                             </th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
                             @if($activeTab === 'runrate')
                                 <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
                             @endif
@@ -134,7 +212,42 @@
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
+                        @php
+                            $lastVendorKey = null;
+                            $lastProjectStockGroupKey = null;
+                            $columnCount = 10 + ($activeTab === 'runrate' ? 1 : 0) + $cols->count();
+                        @endphp
                         @forelse($items as $item)
+                            @php
+                                $vendor = $item->import?->supplier ?: $item->import?->purchaseOrder?->supplier;
+                                $vendorKey = $vendor?->id ?: 'unknown';
+                                $purchaseOrder = $item->purchase_order;
+                                $sale = $purchaseOrder?->sale;
+                                $project = $sale?->project;
+                                $projectStockGroupKey = implode('|', [
+                                    $project?->id ?: ($item->project_name ?: 'unknown-project'),
+                                    $sale?->id ?: 'no-sales-order',
+                                    $purchaseOrder?->id ?: ($item->purchase_order_code ?: 'no-purchase-order'),
+                                ]);
+                            @endphp
+                            @if($activeTab === 'project' && $projectStockGroupKey !== $lastProjectStockGroupKey)
+                                <tr class="bg-indigo-50/80 border-y border-indigo-100">
+                                    <td colspan="{{ $columnCount }}" class="px-3 py-2 text-xs font-bold text-indigo-900">
+                                        <i class="fas fa-folder-open mr-1"></i>
+                                        Dự án: {{ $project?->name ?: ($item->project_name ?: 'Chưa xác định dự án') }}
+                                        <span class="font-normal text-indigo-700">| Đơn Sales: {{ $sale?->code ?: 'Chưa liên kết' }}</span>
+                                        <span class="font-normal text-indigo-700">| PO: {{ $purchaseOrder?->code ?: ($item->purchase_order_code ?: 'Chưa xác định') }}</span>
+                                    </td>
+                                </tr>
+                                @php $lastProjectStockGroupKey = $projectStockGroupKey; @endphp
+                            @elseif($activeTab !== 'project' && $vendorKey !== $lastVendorKey)
+                                <tr class="bg-blue-50/70 border-y border-blue-100">
+                                    <td colspan="{{ $columnCount }}" class="px-3 py-2 text-xs font-bold text-blue-800">
+                                        <i class="fas fa-building mr-1"></i>Hãng / nhà cung cấp: {{ $vendor?->name ?: 'Chưa xác định nguồn hàng' }}
+                                    </td>
+                                </tr>
+                                @php $lastVendorKey = $vendorKey; @endphp
+                            @endif
                             <tr class="hover:bg-gray-50 divide-x divide-gray-100">
                                 <td class="px-3 py-2 text-center text-gray-500">
                                     {{ ($items->currentPage() - 1) * $items->perPage() + $loop->iteration }}
@@ -198,6 +311,9 @@
                                     </span>
                                 </td>
                                 <td class="px-3 py-2 text-gray-700">
+                                    <span class="font-medium">{{ $vendor?->name ?: 'Chưa xác định' }}</span>
+                                </td>
+                                <td class="px-3 py-2 text-gray-700">
                                     {{ $item->order_creator_name ?: '-' }}
                                 </td>
                                 <td class="px-3 py-2 text-gray-700 font-mono text-xs">
@@ -207,18 +323,14 @@
                                     {{ $item->project_name ?: '-' }}
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    <input type="text" value="{{ $item->borrower }}" 
-                                           placeholder="Nhập tên..." 
-                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
-                                           data-item-id="{{ $item->item_ids }}" data-field="borrower"
-                                           onblur="saveItemField(this)">
+                                    @if($item->borrower_display)
+                                        <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
+                                    @else
+                                        <span class="text-sm text-gray-400">Chưa phân bổ</span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    <input type="text" value="{{ $item->comments }}" 
-                                           placeholder="Ghi chú..." 
-                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
-                                           data-item-id="{{ $item->item_ids }}" data-field="comments"
-                                           onblur="saveItemField(this)">
+                                    <span class="text-sm text-gray-600">{{ $item->comments ?: '-' }}</span>
                                 </td>
                                 @if($activeTab === 'runrate')
                                     <td class="px-3 py-2 text-center whitespace-nowrap">
@@ -238,6 +350,7 @@
                                                placeholder="..." 
                                                class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
                                                data-item-id="{{ $item->item_ids }}" data-custom-key="{{ $col->key }}"
+                                               @readonly(!$canManageWarehouse)
                                                onblur="saveItemField(this)">
                                     </td>
                                 @endforeach
@@ -273,7 +386,7 @@
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
                             
                             <!-- Custom columns headers -->
                             @foreach($rmodelColumns as $col)
@@ -358,18 +471,14 @@
                                     {{ $item->r_model_orderer_info ?: '-' }}
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    <input type="text" value="{{ $item->borrower }}" 
-                                           placeholder="Nhập tên..." 
-                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
-                                           data-item-id="{{ $item->item_ids }}" data-field="borrower"
-                                           onblur="saveItemField(this)">
+                                    @if($item->borrower_display)
+                                        <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
+                                    @else
+                                        <span class="text-sm text-gray-400">Chưa phân bổ</span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    <input type="text" value="{{ $item->comments }}" 
-                                           placeholder="Ghi chú..." 
-                                           class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
-                                           data-item-id="{{ $item->item_ids }}" data-field="comments"
-                                           onblur="saveItemField(this)">
+                                    <span class="text-sm text-gray-600">{{ $item->comments ?: '-' }}</span>
                                 </td>
                                 
                                 <!-- Custom columns inputs -->
@@ -382,6 +491,7 @@
                                                placeholder="..." 
                                                class="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary rounded px-2 py-1 text-sm transition-all"
                                                data-item-id="{{ $item->item_ids }}" data-custom-key="{{ $col->key }}"
+                                               @readonly(!$canManageWarehouse)
                                                onblur="saveItemField(this)">
                                     </td>
                                 @endforeach
@@ -409,6 +519,34 @@
 
     <!-- Scripts for Inline Editing & Custom Columns -->
     <script>
+        document.querySelectorAll('[data-project-filter]').forEach((filter) => {
+            const toggle = filter.querySelector('[data-project-filter-toggle]');
+            const menu = filter.querySelector('[data-project-filter-menu]');
+            const valueInput = filter.querySelector('[data-project-filter-value]');
+            const label = toggle.querySelector('span');
+
+            toggle.addEventListener('click', () => {
+                document.querySelectorAll('[data-project-filter-menu]').forEach((otherMenu) => {
+                    if (otherMenu !== menu) otherMenu.classList.add('hidden');
+                });
+                menu.classList.toggle('hidden');
+            });
+
+            menu.querySelectorAll('button[data-project-id]').forEach((option) => {
+                option.addEventListener('click', () => {
+                    valueInput.value = option.dataset.projectId;
+                    label.textContent = option.dataset.projectName;
+                    menu.classList.add('hidden');
+                });
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('[data-project-filter]')) {
+                document.querySelectorAll('[data-project-filter-menu]').forEach((menu) => menu.classList.add('hidden'));
+            }
+        });
+
         // Simple elegant Toast Notification
         function showToast(message, type = 'success') {
             const toast = document.createElement('div');
@@ -428,7 +566,8 @@
             }, 3000);
         }
 
-        // AJAX update for borrower, comments, and custom fields
+        // AJAX update for warehouse-managed custom fields only. Borrower
+        // allocation is handled exclusively by the approved borrow-ticket flow.
         function saveItemField(element) {
             const itemId = element.getAttribute('data-item-id');
             const field = element.getAttribute('data-field');

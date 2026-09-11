@@ -17,7 +17,7 @@ return new class extends Migration
             $table->decimal('purchase_price', 15, 2)->comment('Giá nhập gốc');
             $table->decimal('discount_percent', 5, 2)->default(0)->comment('Chiết khấu NCC (%)');
             $table->decimal('price_after_discount', 15, 2)->comment('Giá sau chiết khấu');
-            $table->decimal('vat_percent', 5, 2)->default(10)->comment('VAT (%)');
+            $table->decimal('vat_percent', 5, 2)->default(8)->comment('VAT (%)');
             $table->decimal('shipping_cost', 15, 2)->default(0)->comment('Chi phí vận chuyển');
             $table->decimal('loading_cost', 15, 2)->default(0)->comment('Chi phí bốc xếp');
             $table->decimal('inspection_cost', 15, 2)->default(0)->comment('Chi phí kiểm tra');

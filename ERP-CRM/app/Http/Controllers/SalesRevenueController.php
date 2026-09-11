@@ -8,6 +8,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Customer;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -201,9 +202,34 @@ class SalesRevenueController extends Controller
     /**
      * Delete a revenue record
      */
-    public function destroy(SalesRevenue $salesRevenue)
+    public function destroy(Request $request, SalesRevenue $salesRevenue)
     {
         $this->authorize('delete', $salesRevenue);
+
+        // Dòng này được đồng bộ từ PO đã duyệt; việc xoá là ngoại lệ và phải
+        // do BOD thực hiện, có lưu vết lý do để kiểm toán.
+        if (!Auth::user()->hasAnyRole(['super_admin', 'director'])) {
+            abort(403, 'Chỉ BOD mới được xóa dòng Tổng doanh số.');
+        }
+
+        $validated = $request->validate([
+            'delete_reason' => 'required|string|min:10|max:1000',
+        ]);
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'user_name' => Auth::user()->name,
+            'action' => 'deleted',
+            'description' => 'BOD xóa dòng Tổng doanh số ' . ($salesRevenue->po_code ?: ('#' . $salesRevenue->id)),
+            'subject_type' => SalesRevenue::class,
+            'subject_id' => $salesRevenue->id,
+            'properties' => [
+                'reason' => $validated['delete_reason'],
+                'record' => $salesRevenue->toArray(),
+            ],
+            'ip_address' => $request->ip(),
+            'user_agent' => (string) $request->userAgent(),
+        ]);
 
         $salesRevenue->delete();
 

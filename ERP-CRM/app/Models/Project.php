@@ -397,11 +397,17 @@ class Project extends Model
      */
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        // Admin, BOD (director), PM, PO see all
-        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-            $user->department === 'PM' || 
-            $user->department === 'PO') {
+        // Admin/BOD and PM manage the full registration portfolio.
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director']) ||
+            in_array($user->department, ['PM', 'PM Team'], true)) {
             return $query;
+        }
+
+        // PO only receives Fortinet registrations; other vendors are handled
+        // by Sales and PM and must not be exposed to the PO team.
+        if ($user->hasAnyRole(['purchase_manager', 'purchase_staff']) ||
+            in_array($user->department, ['PO', 'PO Team'], true)) {
+            return $query->whereHas('vendor', fn ($vendor) => $vendor->where('name', 'like', '%Fortinet%'));
         }
 
         // Sales Manager sees team projects

@@ -82,11 +82,16 @@
                     <option value="">Tất cả trạng thái</option>
                     <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Nháp</option>
                     <option value="pnl_pending" {{ request('status') == 'pnl_pending' ? 'selected' : '' }}>Chờ duyệt PNL</option>
-                    <option value="so_pending" {{ request('status') == 'so_pending' ? 'selected' : '' }}>Chờ duyệt đơn hàng</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ duyệt đơn hàng</option>
                     <option value="pnl_need_revision" {{ request('status') == 'pnl_need_revision' ? 'selected' : '' }}>Cần sửa PNL</option>
                     <option value="pnl_rejected" {{ request('status') == 'pnl_rejected' ? 'selected' : '' }}>PNL bị từ chối</option>
                     <option value="pending_payment" {{ request('status') == 'pending_payment' ? 'selected' : '' }}>Chờ xác nhận TT</option>
-                    <option value="pending_export" {{ request('status') == 'pending_export' ? 'selected' : '' }}>Chờ duyệt xuất kho</option>
+                    <option value="waiting_order" {{ request('status') == 'waiting_order' ? 'selected' : '' }}>Chờ đặt hàng</option>
+                    <option value="ordered" {{ request('status') == 'ordered' ? 'selected' : '' }}>Đã đặt hàng</option>
+                    <option value="in_transit" {{ request('status') == 'in_transit' ? 'selected' : '' }}>Chờ hàng về</option>
+                    <option value="received" {{ request('status') == 'received' ? 'selected' : '' }}>Hàng đã về</option>
+                    <option value="invoicing" {{ request('status') == 'invoicing' ? 'selected' : '' }}>Chờ KT xuất HĐ</option>
+                    <option value="pending_export_approval" {{ request('status') == 'pending_export_approval' ? 'selected' : '' }}>Chờ duyệt xuất kho</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Đã duyệt (Tất cả)</option>
                     <option value="shipping" {{ request('status') == 'shipping' ? 'selected' : '' }}>Đang giao</option>
                     <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
@@ -219,10 +224,11 @@
                                     {{ $sale->code }}
                                 </a>
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap">
+                            <td class="px-4 py-3 max-w-[160px]">
                                 @if($sale->quotation)
                                     <a href="{{ route('quotations.show', $sale->quotation) }}"
-                                        class="font-medium text-blue-600 hover:underline">
+                                        class="block truncate font-medium text-blue-600 hover:underline"
+                                        title="{{ $sale->quotation->code }}">
                                         {{ $sale->quotation->code }}
                                     </a>
                                 @else
@@ -478,14 +484,14 @@
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <a href="{{ route('sales.show', $sale->id) }}"
-                                        class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                                        class="inline-flex items-center gap-1.5 px-2.5 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors text-xs font-semibold"
                                         title="Xem chi tiết">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i><span>Xem</span>
                                     </a>
                                     <a href="{{ route('sales.edit', $sale->id) }}"
-                                        class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
+                                        class="inline-flex items-center gap-1.5 px-2.5 py-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors text-xs font-semibold"
                                         title="Sửa">
-                                        <i class="fas fa-edit"></i>
+                                        <i class="fas fa-edit"></i><span>Sửa</span>
                                     </a>
                                     @if($sale->status === 'pending')
                                     <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
@@ -493,9 +499,9 @@
                                         @method('DELETE')
                                         <button type="button" 
                                             onclick="confirmDelete(this.form, 'đơn hàng {{ $sale->code }}')"
-                                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 text-xs font-semibold"
                                             title="Xóa">
-                                            <i class="fas fa-trash"></i>
+                                            <i class="fas fa-trash"></i><span>Xóa</span>
                                         </button>
                                     </form>
                                     @endif

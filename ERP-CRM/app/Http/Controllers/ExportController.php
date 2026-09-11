@@ -46,6 +46,17 @@ class ExportController extends Controller
     }
 
     /**
+     * The first approval stage must respect the configurable permission
+     * matrix. Role checks are retained for the standard operational roles,
+     * while a user granted approve_exports directly can also act here.
+     */
+    private function canAdminApproveExport(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager'])
+            || $user->can('approve_exports');
+    }
+
+    /**
      * Display a listing of export transactions.
      * Requirements: 2.4 - Display only export transactions
      */
@@ -245,7 +256,7 @@ class ExportController extends Controller
                 'product_id' => $item->product_id,
                 'product_code' => $item->product->code ?? '',
                 'product_name' => $item->product->name ?? '',
-                'warehouse_id' => $export->warehouse_id,
+                'warehouse_id' => $item->warehouse_id ?: ($productItemIds ? ProductItem::whereIn('id', $productItemIds)->value('warehouse_id') : $export->warehouse_id),
                 'quantity' => $item->quantity,
                 'requested_quantity' => $item->requested_quantity,
                 'unit_price' => $item->unit_price,
@@ -297,6 +308,7 @@ class ExportController extends Controller
 
                 $export->items()->create([
                     'product_id' => $itemData['product_id'],
+                    'warehouse_id' => $itemData['warehouse_id'],
                     'quantity' => $itemData['quantity'],
                     'requested_quantity' => $itemData['requested_quantity'] ?? null,
                     'serial_number' => !empty($productItemIds) ? json_encode(array_values($productItemIds)) : null,
@@ -540,7 +552,7 @@ class ExportController extends Controller
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
             ->noSerial()
-            ->count();
+            ->sum('quantity');
 
         // Get avg_cost from inventory
         $inventory = \App\Models\Inventory::where('product_id', $request->product_id)
@@ -673,7 +685,7 @@ class ExportController extends Controller
     public function approveExportByAdmin(Export $export)
     {
         $user = auth()->user();
-        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+        if (!$this->canAdminApproveExport($user)) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện hành động này.'], 403);
         }
 
@@ -784,7 +796,7 @@ class ExportController extends Controller
     public function rejectExportByAdmin(Request $request, Export $export)
     {
         $user = auth()->user();
-        if (!$user->hasRole('admin') && !$user->hasRole('super_admin') && !$user->hasRole('purchase_manager')) {
+        if (!$this->canAdminApproveExport($user)) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện hành động này.'], 403);
         }
 

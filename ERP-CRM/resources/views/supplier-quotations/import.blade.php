@@ -97,7 +97,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">VAT (%)</label>
-                        <input type="number" id="vat_percent" value="10" min="0" max="100"
+                        <input type="number" id="vat_percent" value="8" min="0" max="100"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     </div>
                     <div>

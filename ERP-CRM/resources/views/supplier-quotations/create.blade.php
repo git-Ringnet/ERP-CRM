@@ -250,7 +250,7 @@
                     <div class="flex justify-between items-center text-sm">
                         <div class="flex items-center gap-2">
                             <span class="text-gray-600 font-medium whitespace-nowrap">VAT (%):</span>
-                            <input type="number" name="vat_percent" value="10" min="0"
+                            <input type="number" name="vat_percent" value="8" min="0"
                                 class="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500"
                                 onchange="calculateTotal()">
                         </div>

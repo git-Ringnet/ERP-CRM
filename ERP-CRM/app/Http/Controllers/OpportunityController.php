@@ -8,6 +8,9 @@ use App\Models\Customer;
 use App\Models\User;
 use App\Models\Reminder;
 use App\Models\Notification;
+use App\Models\TechnicalTicket;
+use App\Models\MarketingTicket;
+use App\Models\MarketingRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
@@ -136,6 +139,12 @@ class OpportunityController extends Controller
         $events = [];
 
         foreach ($opportunities as $opp) {
+            // Legacy opportunities may not have an activity date. They can be
+            // listed and corrected, but cannot be rendered as calendar events.
+            if (!$opp->activity_date) {
+                continue;
+            }
+
             $startTime = $opp->start_time ?: '09:00:00';
             $endTime = $opp->end_time ?: '10:00:00';
             $start = $opp->activity_date->format('Y-m-d') . 'T' . $startTime;
@@ -177,6 +186,7 @@ class OpportunityController extends Controller
 
         $customers = Customer::orderBy('name')->get();
         $users = User::orderBy('name')->get();
+        $technicalUsers = $this->technicalAssignees()->get();
         $activityTypes = Opportunity::ACTIVITY_TYPES;
 
         $prefill = [];
@@ -184,14 +194,11 @@ class OpportunityController extends Controller
             $prefill['customer_id'] = $request->get('customer_id');
         }
 
-        $technicalManagerId = User::where(function($q) {
-            $q->where('position', 'like', '%Technical Manager%')
-              ->orWhere('position', 'like', '%Presales Manager%')
-              ->orWhere('position', 'like', '%IT Manager%')
-              ->orWhere('position', 'like', '%System Administrator%');
-        })->first()?->id ?? User::where('email', 'admin@erp.com')->first()?->id ?? null;
+        $technicalManagerId = (clone $this->technicalAssignees())
+            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
+            ->value('id') ?? $technicalUsers->first()?->id;
 
-        return view('opportunities.create', compact('customers', 'users', 'activityTypes', 'prefill', 'technicalManagerId'));
+        return view('opportunities.create', compact('customers', 'users', 'technicalUsers', 'activityTypes', 'prefill', 'technicalManagerId'));
     }
 
     /**
@@ -234,6 +241,17 @@ class OpportunityController extends Controller
         $validated = $request->validate($rules);
         $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
 
+        if ($validated['needs_technical'] && !$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
+            return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+        }
+
+        if (in_array($validated['status'], ['confirmed', 'in_progress', 'completed'], true) &&
+            !auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            return back()->withInput()->withErrors([
+                'status' => 'Hoạt động cần được BOD/Manager xác nhận trước khi triển khai hoặc hoàn thành.'
+            ]);
+        }
+
         // Backend validation: meeting must have attachments
         if (in_array($validated['activity_type'], ['meeting', 'project_meeting'])) {
             if (!$request->hasFile('files') || count($request->file('files')) === 0) {
@@ -270,6 +288,12 @@ class OpportunityController extends Controller
             $validated['cancel_reason'] = null;
         }
 
+        // Marketing preparation is a coordinated workstream only for a
+        // solution-presentation activity. A generic opportunity must not
+        // silently create a Marketing ticket just because a note was entered.
+        if (!$this->isSolutionPresentationActivity($validated['activity_type'])) {
+            $validated['giveaway'] = null;
+        }
         $validated['giveaway_status'] = !empty($validated['giveaway']) ? 'pending' : 'none';
 
         $opportunity = Opportunity::create($validated);
@@ -334,8 +358,14 @@ class OpportunityController extends Controller
             }
         }
 
+        // A Technical-support request must be an actual Technical ticket, not
+        // only a notification that disappears from the team's work queue.
+        if ($opportunity->status === 'confirmed') {
+            $this->createTechnicalTicketForConfirmedOpportunity($opportunity);
+        }
+
         // Notifications
-        if ($opportunity->needs_technical && $opportunity->technical_user_id) {
+        if ($opportunity->status === 'confirmed' && $opportunity->needs_technical && $opportunity->technical_user_id) {
             Notification::create([
                 'user_id' => $opportunity->technical_user_id,
                 'type' => 'opportunity_technical_assigned',
@@ -349,7 +379,7 @@ class OpportunityController extends Controller
 
         // Notify sales managers/admins
         $managers = User::whereHas('roles', function ($q) {
-            $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+            $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin', 'director']);
         })->where('id', '!=', auth()->id())->get();
 
         foreach ($managers as $manager) {
@@ -387,12 +417,21 @@ class OpportunityController extends Controller
         $this->authorize('view', $opportunity);
 
         $opportunity->load(['customer', 'contact', 'assignedTo', 'technicalUser', 'attachments.uploader', 'createdBy']);
+
+        $giveawayMarketingRequest = MarketingRequest::with('ticket')
+            ->where('opportunity_id', $opportunity->id)
+            ->where('support_content', 'giveaway')
+            ->latest('id')
+            ->first();
+        $technicalTicket = TechnicalTicket::where('opportunity_id', $opportunity->id)
+            ->latest('id')
+            ->first();
         
         $users = User::orderBy('name')->get();
         $statuses = Opportunity::STATUSES;
         $ratings = Opportunity::POTENTIAL_RATINGS;
 
-        return view('opportunities.show', compact('opportunity', 'users', 'statuses', 'ratings'));
+        return view('opportunities.show', compact('opportunity', 'users', 'statuses', 'ratings', 'giveawayMarketingRequest', 'technicalTicket'));
     }
 
     /**
@@ -404,16 +443,14 @@ class OpportunityController extends Controller
 
         $customers = Customer::orderBy('name')->get();
         $users = User::orderBy('name')->get();
+        $technicalUsers = $this->technicalAssignees()->get();
         $activityTypes = Opportunity::ACTIVITY_TYPES;
 
-        $technicalManagerId = User::where(function($q) {
-            $q->where('position', 'like', '%Technical Manager%')
-              ->orWhere('position', 'like', '%Presales Manager%')
-              ->orWhere('position', 'like', '%IT Manager%')
-              ->orWhere('position', 'like', '%System Administrator%');
-        })->first()?->id ?? User::where('email', 'admin@erp.com')->first()?->id ?? null;
+        $technicalManagerId = (clone $this->technicalAssignees())
+            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
+            ->value('id') ?? $technicalUsers->first()?->id;
 
-        return view('opportunities.edit', compact('opportunity', 'customers', 'users', 'activityTypes', 'technicalManagerId'));
+        return view('opportunities.edit', compact('opportunity', 'customers', 'users', 'technicalUsers', 'activityTypes', 'technicalManagerId'));
     }
 
     /**
@@ -465,6 +502,10 @@ class OpportunityController extends Controller
         $validated = $request->validate($rules);
         $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
 
+        if ($validated['needs_technical'] && !$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
+            return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+        }
+
         // Backend validation: meeting must have attachments
         if (in_array($validated['activity_type'], ['meeting', 'project_meeting'])) {
             if (!$request->hasFile('files') && $opportunity->attachments()->count() === 0) {
@@ -500,9 +541,14 @@ class OpportunityController extends Controller
             $validated['cancel_reason'] = null;
         }
 
-        // Handle giveaway status changes
-        if ($opportunity->giveaway !== $request->giveaway) {
-            $validated['giveaway_status'] = !empty($request->giveaway) ? 'pending' : 'none';
+        // A Marketing giveaway request is only valid for a solution
+        // presentation. Clearing/changing the activity type also clears the
+        // pending Marketing request instead of leaving it orphaned.
+        if (!$this->isSolutionPresentationActivity($validated['activity_type'])) {
+            $validated['giveaway'] = null;
+            $validated['giveaway_status'] = 'none';
+        } elseif ($opportunity->giveaway !== ($validated['giveaway'] ?? null)) {
+            $validated['giveaway_status'] = !empty($validated['giveaway']) ? 'pending' : 'none';
         } else {
             $validated['giveaway_status'] = $opportunity->giveaway_status ?: 'none';
         }
@@ -527,7 +573,7 @@ class OpportunityController extends Controller
         // Notify managers if giveaway status changed to pending
         if ($giveawayStatusChangedToPending) {
             $managers = User::whereHas('roles', function ($q) {
-                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin', 'director']);
             })->where('id', '!=', auth()->id())->get();
 
             foreach ($managers as $manager) {
@@ -611,6 +657,58 @@ class OpportunityController extends Controller
         ]);
 
         $oldStatus = $opportunity->status;
+        $requestedStatus = $validated['status'];
+        $isApprover = auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']);
+
+        if ($requestedStatus === 'confirmed' && !$isApprover) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ BOD/Manager mới có thể xác nhận hoạt động cơ hội.'
+            ], 403);
+        }
+
+        if ($requestedStatus === 'completed' && !in_array($oldStatus, ['confirmed', 'in_progress'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hoạt động cần được BOD/Manager xác nhận trước khi đánh dấu hoàn thành.'
+            ], 422);
+        }
+
+        if ($requestedStatus === 'completed' && $opportunity->needs_technical) {
+            $technicalTicket = TechnicalTicket::where('opportunity_id', $opportunity->id)->latest('id')->first();
+            if (!$technicalTicket || !in_array($technicalTicket->status, ['completed', 'closed'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chưa thể hoàn thành cơ hội vì ticket Kỹ thuật chưa hoàn thành. Vui lòng chờ Kỹ thuật cập nhật và hoàn tất ticket.'
+                ], 422);
+            }
+        }
+
+        // A solution presentation can have an approved Marketing giveaway
+        // request in addition to Technical support. Both workstreams belong to
+        // the same Opportunity and must be completed before Sales closes it.
+        if ($requestedStatus === 'completed' && $this->isSolutionPresentationActivity($opportunity->activity_type)) {
+            if ($opportunity->giveaway_status === 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chưa thể hoàn thành Cơ hội vì yêu cầu quà tặng/Marketing đang chờ BOD duyệt.'
+                ], 422);
+            }
+
+            if ($opportunity->giveaway_status === 'approved') {
+                $marketingRequest = MarketingRequest::where('opportunity_id', $opportunity->id)
+                    ->where('support_content', 'giveaway')
+                    ->latest('id')
+                    ->first();
+                if (!$marketingRequest || $marketingRequest->status !== 'completed') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Chưa thể hoàn thành Cơ hội vì ticket Marketing chưa hoàn thành. Vui lòng chờ Marketing cập nhật kết quả chuẩn bị quà tặng.'
+                    ], 422);
+                }
+            }
+        }
+
         $updateData = ['status' => $validated['status']];
 
         if ($validated['status'] === 'cancelled') {
@@ -626,6 +724,20 @@ class OpportunityController extends Controller
         }
 
         $opportunity->update($updateData);
+
+        if ($requestedStatus === 'confirmed' && $oldStatus !== 'confirmed' && $opportunity->needs_technical && $opportunity->technical_user_id) {
+            $this->createTechnicalTicketForConfirmedOpportunity($opportunity);
+
+            Notification::create([
+                'user_id' => $opportunity->technical_user_id,
+                'type' => 'opportunity_technical_assigned',
+                'title' => 'Yêu cầu phối hợp kỹ thuật đã được duyệt',
+                'message' => 'Hoạt động "' . $opportunity->name . '" đã được xác nhận. Vui lòng phối hợp vào ngày ' . $opportunity->activity_date->format('d/m/Y') . '.',
+                'link' => route('opportunities.show', $opportunity->id),
+                'icon' => 'fas fa-cogs',
+                'color' => 'blue',
+            ]);
+        }
 
         if ($validated['status'] === 'completed' && $oldStatus !== 'completed') {
             $managers = User::whereHas('roles', function ($q) {
@@ -651,6 +763,70 @@ class OpportunityController extends Controller
             'status_label' => $opportunity->status_label,
             'status_color' => $opportunity->status_color
         ]);
+    }
+
+    /**
+     * Turn the approved Technical coordination request into one traceable
+     * work item.  The existence check makes confirmation idempotent.
+     */
+    private function createTechnicalTicketForConfirmedOpportunity(Opportunity $opportunity): ?TechnicalTicket
+    {
+        if (!$opportunity->needs_technical) {
+            return null;
+        }
+
+        $existing = TechnicalTicket::where('opportunity_id', $opportunity->id)->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        $assignedTo = $opportunity->technical_user_id;
+        $ticket = TechnicalTicket::create([
+            'code' => TechnicalTicket::generateCode(),
+            'title' => 'Phối hợp kỹ thuật: ' . $opportunity->name,
+            'description' => trim(implode("\n\n", array_filter([
+                $opportunity->description,
+                $opportunity->materials_required ? 'Vật tư/yêu cầu: ' . $opportunity->materials_required : null,
+                'Thời gian: ' . optional($opportunity->activity_date)->format('d/m/Y') . ' ' . ($opportunity->start_time ?: ''),
+            ]))),
+            'status' => $assignedTo ? 'assigned' : 'open',
+            'work_type' => 'event',
+            'priority' => 'medium',
+            'project_id' => $opportunity->project_id,
+            'opportunity_id' => $opportunity->id,
+            'customer_id' => $opportunity->customer_id,
+            'assigned_to' => $assignedTo,
+            'created_by' => auth()->id(),
+            'sales_owner_id' => $opportunity->assigned_to,
+            'department' => 'Technical',
+            'project_name' => $opportunity->project?->name,
+            'sla_deadline' => TechnicalTicket::calculateSlaDeadline('medium'),
+        ]);
+
+        if ($assignedTo) {
+            $ticket->assignedEngineers()->syncWithoutDetaching([$assignedTo]);
+        }
+
+        return $ticket;
+    }
+
+    /** Users eligible to receive an opportunity's Technical coordination ticket. */
+    private function technicalAssignees()
+    {
+        return User::query()
+            ->where(function ($query) {
+                $query->whereIn('department', ['Technical', 'Tech', 'Kỹ thuật'])
+                    ->orWhereHas('roles', function ($roles) {
+                        $roles->whereIn('slug', ['technical_engineer', 'technical_lead']);
+                    });
+            })
+            ->orderBy('name');
+    }
+
+    /** Marketing and Technical coordination share an Opportunity only for demos. */
+    private function isSolutionPresentationActivity(?string $activityType): bool
+    {
+        return in_array($activityType, ['demo_online', 'demo_offline'], true);
     }
 
     /**
@@ -737,11 +913,16 @@ class OpportunityController extends Controller
     public function approveGiveaway(Opportunity $opportunity)
     {
         $user = auth()->user();
-        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director'])) {
             abort(403, 'Unauthorized action.');
         }
 
+        if (!$this->isSolutionPresentationActivity($opportunity->activity_type) || blank($opportunity->giveaway)) {
+            return back()->with('error', 'Chỉ hoạt động trình bày giải pháp có yêu cầu quà tặng mới được tạo ticket Marketing.');
+        }
+
         $opportunity->update(['giveaway_status' => 'approved']);
+        $marketingRequest = $this->createMarketingTicketForApprovedGiveaway($opportunity);
 
         // Notify the assigned sales rep
         if ($opportunity->assigned_to) {
@@ -756,7 +937,75 @@ class OpportunityController extends Controller
             ]);
         }
 
+        // Marketing receives a concrete queue item, not merely a notification
+        // that can disappear from the bell after it is read.
+        $marketingUsers = User::whereHas('roles', function ($query) {
+            $query->whereIn('slug', ['marketing', 'marketing_manager', 'super_admin', 'admin']);
+        })->where('id', '!=', auth()->id())->get();
+
+        foreach ($marketingUsers as $marketingUser) {
+            Notification::create([
+                'user_id' => $marketingUser->id,
+                'type' => 'marketing_giveaway_ticket',
+                'title' => 'Ticket Marketing: chuẩn bị quà tặng',
+                'message' => 'Quà tặng cho hoạt động "' . $opportunity->name . '" đã được duyệt và cần Marketing xử lý.',
+                'link' => route('marketing-events.index', ['tab' => 'requests', 'opportunity_id' => $opportunity->id]),
+                'icon' => 'fas fa-gift',
+                'color' => 'purple',
+            ]);
+        }
+
         return back()->with('success', 'Đã duyệt yêu cầu quà tặng/budget.');
+    }
+
+    /** Create one traceable Marketing work request for an approved giveaway. */
+    private function createMarketingTicketForApprovedGiveaway(Opportunity $opportunity): ?MarketingRequest
+    {
+        if (!$this->isSolutionPresentationActivity($opportunity->activity_type) || blank($opportunity->giveaway)) {
+            return null;
+        }
+
+        $existing = MarketingRequest::where('opportunity_id', $opportunity->id)
+            ->where('support_content', 'giveaway')
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        $ticket = MarketingTicket::create([
+            'opportunity_id' => $opportunity->id,
+            'type' => 'others',
+            'status' => 'in_progress',
+            'created_by' => auth()->id(),
+        ]);
+
+        $technicalTicket = TechnicalTicket::where('opportunity_id', $opportunity->id)
+            ->latest('id')
+            ->first();
+
+        return MarketingRequest::create([
+            'marketing_ticket_id' => $ticket->id,
+            'opportunity_id' => $opportunity->id,
+            'support_team' => 'marketing',
+            'pic_type' => 'all',
+            'support_content' => 'giveaway',
+            'support_content_other' => 'Chuẩn bị quà tặng đã duyệt',
+            'description' => trim(implode("\n\n", array_filter([
+                'Hoạt động: ' . $opportunity->name,
+                'Khách hàng: ' . $opportunity->customer_display_name,
+                'Quà tặng/Budget: ' . $opportunity->giveaway,
+                $opportunity->activity_date ? 'Ngày hoạt động: ' . $opportunity->activity_date->format('d/m/Y') : null,
+                $opportunity->materials_required ? 'Yêu cầu chuẩn bị chung: ' . $opportunity->materials_required : null,
+                $opportunity->needs_technical
+                    ? 'Kỹ thuật phối hợp: ' . ($technicalTicket
+                        ? $technicalTicket->code . ' (' . $technicalTicket->status_label . ')'
+                        : ($opportunity->technicalUser?->name ?: 'Đang chờ tạo ticket Kỹ thuật'))
+                    : null,
+                $opportunity->notes,
+            ]))),
+            'deadline' => $opportunity->activity_date,
+            'status' => 'received',
+        ]);
     }
 
     /**
@@ -765,7 +1014,7 @@ class OpportunityController extends Controller
     public function rejectGiveaway(Opportunity $opportunity)
     {
         $user = auth()->user();
-        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director'])) {
             abort(403, 'Unauthorized action.');
         }
 

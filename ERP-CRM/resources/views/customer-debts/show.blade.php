@@ -197,11 +197,10 @@
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($sale->debt_amount > 0)
-                                        <button
-                                            onclick="openPaymentModal({{ $sale->id }}, '{{ $sale->code }}', {{ $sale->debt_amount }})"
+                                        <a href="{{ route('sales.show', $sale) }}"
                                             class="text-green-600 hover:text-green-800" title="Ghi nhận thanh toán">
                                             <i class="fas fa-money-bill-wave"></i>
-                                        </button>
+                                        </a>
                                     @endif
                                     <a href="{{ route('sales.show', $sale) }}" class="text-primary hover:text-primary/80 ml-2"
                                         title="Xem đơn">

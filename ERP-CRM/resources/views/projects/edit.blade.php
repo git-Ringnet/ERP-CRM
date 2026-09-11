@@ -282,7 +282,7 @@
                                 @error('collaborate_pic_title') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_phone_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Phone</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Phone <span class="text-red-500">*</span></label>
                                 <input type="text" name="collaborate_pic_phone" id="collaborate_pic_phone"
                                     value="{{ old('collaborate_pic_phone', $project->collaborate_pic_phone) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_phone') border-red-500 @enderror">
@@ -371,9 +371,9 @@
                             <!-- Ghi chú dự án (General Note) -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Note <span class="text-red-500">*</span>
+                                    Note
                                 </label>
-                                <textarea name="note" rows="3" required placeholder="Nhập ghi chú chi tiết cho dự án..."
+                                <textarea name="note" rows="3" placeholder="Nhập ghi chú chi tiết cho dự án..."
                                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note', $project->note) }}</textarea>
                                 @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>

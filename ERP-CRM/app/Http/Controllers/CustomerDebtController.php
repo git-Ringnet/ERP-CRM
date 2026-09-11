@@ -162,6 +162,13 @@ class CustomerDebtController extends Controller
     {
         $this->authorize('recordPayment', CustomerDebt::class);
 
+        // This legacy endpoint must not post a payment directly. The sale
+        // payment workflow requires UNC evidence and Finance approval.
+        return redirect()->route('sales.show', $sale)->with(
+            'warning',
+            'Vui lòng gửi UNC tại chi tiết đơn hàng để Finance xác nhận thanh toán. Công nợ chỉ được cập nhật sau khi duyệt.'
+        );
+
         $request->validate([
             'amount' => 'required|numeric|min:0.01|max:' . $sale->debt_amount,
             'payment_method' => 'required|in:cash,bank_transfer,card,other',
@@ -187,7 +194,9 @@ class CustomerDebtController extends Controller
                 'reference_number' => $request->reference_number,
                 'payment_date' => $request->payment_date,
                 'note' => $request->note,
-                'created_by' => 'Admin', // TODO: Replace with auth user
+                // Keep an auditable actor instead of assigning every payment
+                // to "Admin" regardless of who actually recorded it.
+                'created_by' => auth()->user()?->name,
             ]);
 
             // Update sale payment info
@@ -516,4 +525,3 @@ class CustomerDebtController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
-

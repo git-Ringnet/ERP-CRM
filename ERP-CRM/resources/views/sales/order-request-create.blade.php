@@ -173,6 +173,7 @@
                                 $savedUnit = $orItem ? $orItem->unit : ($saleItem->product->unit ?? '');
                                 $savedSn = $orItem ? $orItem->serial_number : ($saleItem->serial_number ?? '');
                                 $savedExpDate = $orItem && $orItem->exp_date ? $orItem->exp_date->format('Y-m-d') : '';
+                                $savedSerialExpiryDates = $orItem?->serial_expiry_dates ?? [];
                                 $savedSiName = $orItem ? $orItem->si_name : '';
                                 $savedPosId = $orItem ? $orItem->pos_id : '';
                                 $savedNeedsCq = $orItem ? $orItem->needs_cq : false;
@@ -241,10 +242,16 @@
                                             $existingSerials = !empty($savedSn) ? array_map('trim', explode(',', $savedSn)) : [];
                                         @endphp
                                         @for($sIdx = 0; $sIdx < $qtyCount; $sIdx++)
-                                            <input type="text" name="order_request_items[{{ $idx }}][serial_number][]" 
-                                                value="{{ $existingSerials[$sIdx] ?? '' }}"
-                                                placeholder="{{ $qtyCount > 1 ? 'SN ' . ($sIdx + 1) : 'SN' }}"
-                                                class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                            @php $serialValue = $existingSerials[$sIdx] ?? ''; @endphp
+                                            <div class="flex gap-1">
+                                                <input type="text" name="order_request_items[{{ $idx }}][serial_number][]"
+                                                    value="{{ $serialValue }}"
+                                                    placeholder="{{ $qtyCount > 1 ? 'SN ' . ($sIdx + 1) : 'SN' }}"
+                                                    class="sn-input w-3/5 border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                                                <input type="date" name="order_request_items[{{ $idx }}][serial_expiry_dates][]"
+                                                    value="{{ $savedSerialExpiryDates[$serialValue] ?? $savedExpDate }}"
+                                                    class="sn-expiry-input w-2/5 border border-gray-300 rounded px-1 py-1 text-xs" title="Hạn dùng của S/N này">
+                                            </div>
                                         @endfor
                                     </div>
                                 </td>
@@ -663,8 +670,12 @@
             </td>
             <td class="px-1 py-1 min-w-[130px]">
                 <div class="sn-inputs-container space-y-1" data-name-pattern="order_request_items[${rowIdx}][serial_number][]">
-                    <input type="text" name="order_request_items[${rowIdx}][serial_number][]" placeholder="SN"
-                        class="sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                    <div class="flex gap-1">
+                        <input type="text" name="order_request_items[${rowIdx}][serial_number][]" placeholder="SN"
+                            class="sn-input w-3/5 border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400" autocomplete="off">
+                        <input type="date" name="order_request_items[${rowIdx}][serial_expiry_dates][]"
+                            class="sn-expiry-input w-2/5 border border-gray-300 rounded px-1 py-1 text-xs" title="Hạn dùng của S/N này">
+                    </div>
                 </div>
             </td>
             <td class="px-1 py-1">
@@ -714,6 +725,7 @@
         
         const existingInputs = container.querySelectorAll('.sn-input');
         const currentValues = Array.from(existingInputs).map(inp => inp.value);
+        const currentExpiryDates = Array.from(container.querySelectorAll('.sn-expiry-input')).map(inp => inp.value);
 
         let namePattern = container.dataset.namePattern;
         if (!namePattern) {
@@ -727,14 +739,23 @@
 
         container.innerHTML = '';
         for (let i = 0; i < targetCount; i++) {
+            const pair = document.createElement('div');
+            pair.className = 'flex gap-1 mt-1 first:mt-0';
             const input = document.createElement('input');
             input.type = 'text';
             input.name = namePattern;
             input.placeholder = targetCount > 1 ? `SN ${i + 1}` : 'SN';
-            input.className = 'sn-input w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 mt-1 first:mt-0';
+            input.className = 'sn-input w-3/5 border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400';
             input.autocomplete = 'off';
             input.value = currentValues[i] || '';
-            container.appendChild(input);
+            const expiry = document.createElement('input');
+            expiry.type = 'date';
+            expiry.name = namePattern.replace('[serial_number][]', '[serial_expiry_dates][]');
+            expiry.className = 'sn-expiry-input w-2/5 border border-gray-300 rounded px-1 py-1 text-xs';
+            expiry.title = 'Hạn dùng của S/N này';
+            expiry.value = currentExpiryDates[i] || '';
+            pair.append(input, expiry);
+            container.appendChild(pair);
         }
     }
 

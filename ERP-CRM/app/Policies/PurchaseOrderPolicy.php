@@ -34,6 +34,13 @@ class PurchaseOrderPolicy extends BasePolicy
             return true;
         }
 
+        // A user who is allowed to approve must be able to open the PO that
+        // appears in their approval queue, even when that permission was
+        // granted directly instead of through a role with view-all access.
+        if ($this->checkPermission($user, 'approve_purchase_orders')) {
+            return true;
+        }
+
         if ($this->checkPermission($user, 'view_own_purchase_orders') || $this->checkPermission($user, 'view_purchase_orders')) {
             if ($purchaseOrder->created_by === $user->id) {
                 return true;

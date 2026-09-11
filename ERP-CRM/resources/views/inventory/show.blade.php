@@ -7,7 +7,7 @@
 <div class="bg-white rounded-lg shadow-sm">
         <div class="p-4 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-800">{{ $inventory->product->name }}</h2>
-            <a href="{{ route('inventory.index') }}" 
+            <a href="{{ $backUrl }}"
                class="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left mr-1"></i>Quay lại
             </a>
@@ -111,6 +111,82 @@
                         <label class="text-xs text-gray-400">Ngày tạo</label>
                         <p>{{ $inventory->created_at->format('d/m/Y H:i') }}</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Operational trace: procurement and sales allocation -->
+            <div class="mt-6 pt-5 border-t border-gray-200">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-800">Nguồn hàng & truy vết sử dụng</h3>
+                        <p class="text-xs text-gray-500 mt-1">Theo dõi PO nhập hàng, nhà cung cấp, Sales/đơn bán và dự án liên quan.</p>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-500">{{ $traceItems->count() }} lô/serial</span>
+                </div>
+
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Serial / lô</th>
+                                <th class="px-3 py-2 text-center">SL</th>
+                                <th class="px-3 py-2 text-left">Nguồn nhập</th>
+                                <th class="px-3 py-2 text-left">PO & nhà cung cấp</th>
+                                <th class="px-3 py-2 text-left">Sales / đơn bán / dự án</th>
+                                <th class="px-3 py-2 text-left">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            @forelse($traceItems as $item)
+                                @php
+                                    $po = $item->import?->purchaseOrder;
+                                    $sale = $po?->sale ?: $item->export?->sale;
+                                    $project = $sale?->project ?: $item->export?->project;
+                                @endphp
+                                <tr class="hover:bg-gray-50 align-top">
+                                    <td class="px-3 py-2">
+                                        <div class="font-mono text-xs text-gray-800">{{ $item->sku ?: 'Không serial' }}</div>
+                                        <div class="text-xs text-gray-500 mt-0.5">Cập nhật: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</div>
+                                    </td>
+                                    <td class="px-3 py-2 text-center font-semibold">{{ number_format($item->quantity) }}</td>
+                                    <td class="px-3 py-2">
+                                        @if($item->import)
+                                            <div class="font-medium text-gray-800">{{ $item->import->code }}</div>
+                                            <div class="text-xs text-gray-500">{{ optional($item->import->date)->format('d/m/Y') ?: '-' }}</div>
+                                        @else
+                                            <span class="text-gray-400">Chưa có phiếu nhập</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        @if($po)
+                                            <a href="{{ route('purchase-orders.show', $po) }}" class="font-medium text-primary hover:underline">{{ $po->code }}</a>
+                                            <div class="text-xs text-gray-500">{{ $po->supplier?->name ?: $item->import?->supplier?->name ?: '-' }}</div>
+                                        @else
+                                            <span class="text-gray-400">Không liên kết PO</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        @if($sale)
+                                            <a href="{{ route('sales.show', $sale) }}" class="font-medium text-primary hover:underline">{{ $sale->code }}</a>
+                                            <div class="text-xs text-gray-600">Sales: {{ $sale->user?->name ?: '-' }}</div>
+                                        @endif
+                                        @if($project)
+                                            <div class="text-xs text-gray-500 mt-0.5">Dự án: {{ $project->code }}{{ $project->name ? ' - ' . $project->name : '' }}</div>
+                                        @elseif(!$sale)
+                                            <span class="text-gray-400">Chưa gán đơn bán/dự án</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold {{ $item->status === 'in_stock' ? 'bg-green-100 text-green-800' : ($item->status === 'sold' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700') }}">
+                                            {{ \App\Models\ProductItem::getStatuses()[$item->status] ?? $item->status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="px-3 py-8 text-center text-gray-500">Chưa có lịch sử lô/serial cho sản phẩm này.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

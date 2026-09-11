@@ -16,6 +16,17 @@
     
     <form action="{{ route('transfers.store') }}" method="POST" class="p-4" id="transferForm" onsubmit="return validateForm()">
         @csrf
+
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                <div class="mb-1 font-semibold"><i class="fas fa-exclamation-circle mr-1"></i>Không thể tạo phiếu chuyển</div>
+                <ul class="list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
@@ -33,7 +44,7 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nhân viên</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Người lập/đầu mối phiếu</label>
                 <select name="employee_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Chọn nhân viên --</option>
                     @foreach($employees as $employee)
@@ -42,11 +53,14 @@
                         </option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-gray-500">Dùng để xác định người chịu trách nhiệm lập phiếu, không phải người sở hữu hàng.</p>
             </div>
 
             <div class="md:col-span-3">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea name="note" rows="2" 
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Ghi chú <span class="text-red-500">*</span>
+                </label>
+                <textarea name="note" rows="2" required placeholder="Nêu rõ lý do chuyển kho..."
                           class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note') }}</textarea>
             </div>
         </div>
@@ -102,8 +116,8 @@ function addItem(existingData = null) {
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
-            <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm *</label>
+            <div class="md:col-span-3 order-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
                 <div class="searchable-select product-searchable" data-index="${itemIndex}">
                     <input type="text" class="searchable-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
@@ -112,17 +126,18 @@ function addItem(existingData = null) {
                     </div>
                 </div>
             </div>
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Kho nguồn *</label>
+            <div class="md:col-span-2 order-1">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Kho nguồn <span class="text-red-500">*</span></label>
                 <select name="items[${itemIndex}][warehouse_id]" required 
                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded warehouse-from-select"
-                        onchange="loadStockInfo(${itemIndex}); validateWarehouses(${itemIndex})">
+                        onchange="onSourceWarehouseChanged(${itemIndex}); loadStockInfo(${itemIndex}); validateWarehouses(${itemIndex})">
                     <option value="">-- Chọn kho --</option>
                     ${warehouseOptions}
                 </select>
+                <p class="text-xs text-gray-400 mt-1">Chọn kho nguồn trước để chỉ tìm các model đang có trong kho.</p>
             </div>
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Kho đích *</label>
+            <div class="md:col-span-2 order-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Kho đích <span class="text-red-500">*</span></label>
                 <select name="items[${itemIndex}][to_warehouse_id]" required 
                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded warehouse-to-select"
                         onchange="validateWarehouses(${itemIndex})">
@@ -133,13 +148,13 @@ function addItem(existingData = null) {
                     <i class="fas fa-exclamation-triangle mr-1"></i>Kho nguồn và kho đích không được trùng nhau!
                 </p>
             </div>
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng *</label>
+            <div class="md:col-span-2 order-4">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Số lượng <span class="text-red-500">*</span></label>
                 <input type="number" name="items[${itemIndex}][quantity]" value="${existingData ? existingData.quantity : '1'}" 
                        required min="1" step="1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" 
                        placeholder="1" onchange="onQuantityChange(${itemIndex})">
             </div>
-            <div class="md:col-span-3">
+            <div class="md:col-span-3 order-5">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
                 <input type="text" name="items[${itemIndex}][comments]" value="${existingData ? existingData.comments || '' : ''}"
                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder="Ghi chú...">
@@ -179,7 +194,17 @@ function addItem(existingData = null) {
 
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
-    if (item) item.remove();
+    if (item) {
+        item.remove();
+        renumberItems();
+    }
+}
+
+function renumberItems() {
+    document.querySelectorAll('#itemsContainer .item-card').forEach((item, index) => {
+        const heading = item.querySelector('h4');
+        if (heading) heading.textContent = `Sản phẩm #${index + 1}`;
+    });
 }
 
 function validateWarehouses(itemIdx) {
@@ -207,6 +232,15 @@ function validateWarehouses(itemIdx) {
         warningEl.classList.add('hidden');
         warehouseToSelect.classList.remove('border-red-500');
     }
+}
+
+function onSourceWarehouseChanged(itemIdx) {
+    const productInput = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const searchInput = document.querySelector(`[data-index="${itemIdx}"] .searchable-input`);
+    const serialContainer = document.getElementById(`serialContainer_${itemIdx}`);
+    if (productInput) productInput.value = '';
+    if (searchInput) searchInput.value = '';
+    if (serialContainer) serialContainer.innerHTML = '';
 }
 
 async function loadStockInfo(itemIdx) {
@@ -252,12 +286,6 @@ async function loadStockInfo(itemIdx) {
         if (noSkuCount > 0) summaryHtml += serialItems.length > 0 ? `, ` : ` (`;
         if (noSkuCount > 0) summaryHtml += `<span class="text-gray-600">${noSkuCount} không serial</span>`;
         if (serialItems.length > 0 || noSkuCount > 0) summaryHtml += `)`;
-        
-        // Show avg_cost
-        const avgCost = data.avg_cost || 0;
-        if (avgCost > 0) {
-            summaryHtml += ` · <span class="text-amber-700 font-semibold">Đơn giá: ${Number(avgCost).toLocaleString('en-US')} đ</span>`;
-        }
         
         stockSummary.innerHTML = summaryHtml;
         
@@ -454,6 +482,12 @@ function validateForm() {
     const items = document.querySelectorAll('.item-card');
     let hasError = false;
     let errorMessages = [];
+
+    const note = document.querySelector('[name="note"]');
+    if (!note || !note.value.trim()) {
+        hasError = true;
+        errorMessages.push('Vui lòng ghi rõ lý do chuyển kho.');
+    }
     
     items.forEach((item, idx) => {
         const itemIndex = item.dataset.index;
@@ -469,12 +503,22 @@ function validateForm() {
         const productId = productSelect.value;
         const qty = parseInt(qtyInput.value) || 0;
         
-        if (!warehouseId || !toWarehouseId || !productId || qty <= 0) return;
+        const productName = item.querySelector('.searchable-input')?.value?.trim() || `Sản phẩm #${idx + 1}`;
+        const missingFields = [];
+        if (!warehouseId) missingFields.push('kho nguồn');
+        if (!productId) missingFields.push('sản phẩm');
+        if (!toWarehouseId) missingFields.push('kho đích');
+        if (qty <= 0) missingFields.push('số lượng hợp lệ');
+
+        if (missingFields.length > 0) {
+            hasError = true;
+            errorMessages.push(`Dòng ${idx + 1}: thiếu ${missingFields.join(', ')}.`);
+            return;
+        }
         
         // Check same warehouse
         if (warehouseId === toWarehouseId) {
             hasError = true;
-            const productName = productSelect.options[productSelect.selectedIndex].text;
             errorMessages.push(`Sản phẩm "${productName}": Kho nguồn và kho đích phải khác nhau`);
             return;
         }
@@ -491,12 +535,10 @@ function validateForm() {
         
         if (qty > totalStock) {
             hasError = true;
-            const productName = productSelect.options[productSelect.selectedIndex].text;
             errorMessages.push(`Sản phẩm "${productName}": Số lượng (${qty}) vượt quá tồn kho (${totalStock})`);
         }
         else if (remainingQty > noSkuCount && serialItems.length > 0) {
             hasError = true;
-            const productName = productSelect.options[productSelect.selectedIndex].text;
             const needSerials = remainingQty - noSkuCount;
             errorMessages.push(`Sản phẩm "${productName}": Cần chọn thêm ${needSerials} serial (chỉ có ${noSkuCount} sản phẩm không serial)`);
         }
@@ -539,7 +581,12 @@ function initSearchableSelect(container) {
         
         searchTimers[itemIdx] = setTimeout(async () => {
             try {
-                const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                const warehouseId = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`)?.value;
+                if (!warehouseId) {
+                    dropdown.innerHTML = '<div class="px-3 py-2 text-amber-700 text-sm">Vui lòng chọn kho nguồn trước.</div>';
+                    return;
+                }
+                const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}&warehouse_id=${encodeURIComponent(warehouseId)}`);
                 const results = await response.json();
                 
                 // Get already-selected product IDs
@@ -558,11 +605,10 @@ function initSearchableSelect(container) {
                         const opt = document.createElement('div');
                         opt.className = 'searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm';
                         opt.dataset.value = p.id;
-                        opt.dataset.text = `${p.code} - ${p.name}`;
-                        const displayName = p.name.length > 60 ? p.name.substring(0, 57) + '...' : p.name;
-                        opt.textContent = `${p.code} - ${displayName}`;
+                        opt.dataset.text = p.code;
+                        opt.textContent = p.code;
                         opt.addEventListener('click', () => {
-                            input.value = `${p.code} - ${p.name}`;
+                            input.value = p.code;
                             hiddenInput.value = p.id;
                             dropdown.classList.add('hidden');
                             loadStockInfo(itemIdx);
@@ -636,7 +682,7 @@ addItem = function(existingData = null) {
                 // If editing existing data, set the display value
                 if (existingData && existingData.product_code) {
                     const input = searchable.querySelector('.searchable-input');
-                    input.value = `${existingData.product_code} - ${existingData.product_name}`;
+                    input.value = existingData.product_code;
                 }
             }
         }

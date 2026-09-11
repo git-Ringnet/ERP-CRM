@@ -32,7 +32,7 @@
         <!-- Filters -->
         <div class="p-4 border-b border-gray-200 bg-gray-50">
             <form action="{{ route('imports.index') }}" method="GET">
-                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-3 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-8 gap-x-4 gap-y-3 items-end">
                     <!-- Search -->
                     <div class="flex flex-col">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Tìm kiếm</label>
@@ -55,6 +55,32 @@
                             @foreach($warehouses as $warehouse)
                                 <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
                                     {{ $warehouse->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Supplier -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Hãng / nhà cung cấp</label>
+                        <select name="supplier_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                            <option value="">-- Tất cả NCC --</option>
+                            @foreach($suppliers as $supplier)
+                                <option value="{{ $supplier->id }}" {{ request('supplier_id') == $supplier->id ? 'selected' : '' }}>
+                                    {{ $supplier->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Employee -->
+                    <div class="flex flex-col">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Nhân viên nhập</label>
+                        <select name="employee_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer">
+                            <option value="">-- Tất cả nhân viên --</option>
+                            @foreach($employees as $employee)
+                                <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }}>
+                                    {{ $employee->name }}
                                 </option>
                             @endforeach
                         </select>

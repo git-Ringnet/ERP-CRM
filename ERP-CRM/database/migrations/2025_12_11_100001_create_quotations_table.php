@@ -19,7 +19,7 @@ return new class extends Migration
             $table->date('valid_until');
             $table->decimal('subtotal', 15, 2)->default(0);
             $table->decimal('discount', 5, 2)->default(0);
-            $table->decimal('vat', 5, 2)->default(10);
+            $table->decimal('vat', 5, 2)->default(8);
             $table->decimal('total', 15, 2)->default(0);
             $table->text('payment_terms')->nullable();
             $table->string('delivery_time')->nullable();

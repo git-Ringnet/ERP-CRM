@@ -50,6 +50,8 @@ class Sale extends Model
         'payment_terms',
         'payment_term',
         'payment_term_type',
+        'has_bank_guarantee',
+        'bank_guarantee_note',
         'is_payment_exception',
         'payment_exception_file',
         'payment_exception_delegated_to',
@@ -76,6 +78,7 @@ class Sale extends Model
         'debt_amount_foreign' => 'decimal:4',
         'pl_approved_at' => 'datetime',
         'is_payment_exception' => 'boolean',
+        'has_bank_guarantee' => 'boolean',
     ];
 
     protected static function booted()
@@ -493,7 +496,7 @@ class Sale extends Model
             });
         }
 
-        if ($status === 'pending_export') {
+        if (in_array($status, ['pending_export', 'pending_export_approval'], true)) {
             return $query->whereIn('id', function($subQuery) {
                 $subQuery->select('reference_id')
                     ->from('exports')

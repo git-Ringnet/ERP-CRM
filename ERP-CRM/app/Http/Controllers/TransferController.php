@@ -110,11 +110,15 @@ class TransferController extends Controller
             $transfer = $this->transactionService->processTransfer($data);
 
             // Tạo thông báo cho tất cả users (trừ người tạo)
-            $recipientIds = User::where('id', '!=', $transfer->employee_id)
-                ->pluck('id')
-                ->toArray();
-            if (!empty($recipientIds)) {
-                $this->notificationService->notifyTransferCreated($transfer, $recipientIds);
+            try {
+                $recipientIds = User::where('id', '!=', $transfer->employee_id)
+                    ->pluck('id')
+                    ->toArray();
+                if (!empty($recipientIds)) {
+                    $this->notificationService->notifyTransferCreated($transfer, $recipientIds);
+                }
+            } catch (\Throwable $notificationException) {
+                Log::warning('Unable to send transfer notification for ' . $transfer->code . ': ' . $notificationException->getMessage());
             }
 
             // Ghi nhật ký kế toán (Lịch sử: Tạo mới)
@@ -396,7 +400,7 @@ class TransferController extends Controller
             ->where('warehouse_id', $request->warehouse_id)
             ->where('status', ProductItem::STATUS_IN_STOCK)
             ->noSerial()
-            ->count();
+            ->sum('quantity');
 
         // Get avg_cost from inventory
         $inventory = \App\Models\Inventory::where('product_id', $request->product_id)

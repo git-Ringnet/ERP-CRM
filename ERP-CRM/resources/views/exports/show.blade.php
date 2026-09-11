@@ -28,7 +28,10 @@
 
             @php
                 $user = auth()->user();
-                $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('purchase_manager'));
+                $isAdmin = $user && (
+                    $user->hasAnyRole(['super_admin', 'admin', 'purchase_manager'])
+                    || $user->can('approve_exports')
+                );
                 $isAccountant = $user && $user->hasRole('accountant');
             @endphp
 
@@ -261,18 +264,19 @@
                 $itemsByWarehouse = collect();
                 
                 foreach($export->items as $item) {
-                    // Get warehouse from first serial or use transaction warehouse as fallback
-                    $warehouseId = $export->warehouse_id;
-                    $warehouseName = $export->warehouse->name ?? 'N/A';
+                    // New vouchers retain their source warehouse per line.
+                    // Legacy vouchers derive it from the selected serial.
+                    $warehouseId = $item->warehouse_id ?: $export->warehouse_id;
+                    $warehouseName = \App\Models\Warehouse::find($warehouseId)?->name ?? ($export->warehouse->name ?? 'N/A');
                     
                     // Try to get warehouse from serials
-                    if ($export->status === 'completed') {
+                    if (!$item->warehouse_id && $export->status === 'completed') {
                         $firstSerial = ($exportedItems[$item->product_id] ?? collect())->first();
                         if ($firstSerial) {
                             $warehouseId = $firstSerial->warehouse_id;
                             $warehouseName = $firstSerial->warehouse->name ?? $warehouseName;
                         }
-                    } else {
+                    } elseif (!$item->warehouse_id) {
                         // For pending, get from serial_number JSON
                         if (!empty($item->serial_number)) {
                             $productItemIds = json_decode($item->serial_number, true);

@@ -157,6 +157,7 @@ class SaleExportSyncService
                 ExportItem::create([
                     'export_id' => $export->id,
                     'product_id' => $saleItem->product_id,
+                    'warehouse_id' => $warehouseId,
                     'quantity' => $saleItem->quantity,
                     'is_liquidation' => $saleItem->is_liquidation,
                     'unit' => null,
@@ -377,9 +378,14 @@ class SaleExportSyncService
 
                 // Update exportItem serial_number if changed
                 $serialJson = !empty($allocatedIds) ? json_encode(array_values($allocatedIds)) : null;
-                if ($exportItem->serial_number !== $serialJson) {
+                $allocatedWarehouseId = !empty($allocatedIds)
+                    ? \App\Models\ProductItem::whereIn('id', $allocatedIds)->value('warehouse_id')
+                    : $warehouseId;
+
+                if ($exportItem->serial_number !== $serialJson || (int) $exportItem->warehouse_id !== (int) $allocatedWarehouseId) {
                     $exportItem->update([
-                        'serial_number' => $serialJson
+                        'serial_number' => $serialJson,
+                        'warehouse_id' => $allocatedWarehouseId,
                     ]);
                 }
             }

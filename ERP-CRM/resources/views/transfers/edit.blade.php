@@ -40,7 +40,7 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nhân viên</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Người lập/đầu mối phiếu</label>
                 <select name="employee_id" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
                     <option value="">-- Chọn nhân viên --</option>
                     @foreach($employees as $employee)
@@ -49,11 +49,12 @@
                         </option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-gray-500">Dùng để xác định người chịu trách nhiệm lập phiếu, không phải người sở hữu hàng.</p>
             </div>
 
             <div class="md:col-span-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea name="note" rows="2" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $transfer->note) }}</textarea>
+                <textarea name="note" rows="2" required placeholder="Nêu rõ lý do chuyển kho..." class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg">{{ old('note', $transfer->note) }}</textarea>
             </div>
         </div>
 
@@ -109,8 +110,8 @@ function addItem(existingData = null) {
     ).join('');
     
     // Pre-fill product text if existing
-    const productText = existingData && existingData.product_code 
-        ? `${existingData.product_code} - ${existingData.product_name}` 
+    const productText = existingData && existingData.product_code
+        ? existingData.product_code
         : '';
     
     itemDiv.innerHTML = `
@@ -137,7 +138,7 @@ function addItem(existingData = null) {
                 <label class="block text-xs font-medium text-gray-600 mb-1">Kho nguồn *</label>
                 <select name="items[${itemIndex}][warehouse_id]" required 
                         class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded warehouse-from-select"
-                        onchange="loadStockInfo(${itemIndex}); validateWarehouses(${itemIndex})">
+                        onchange="onSourceWarehouseChanged(${itemIndex}); loadStockInfo(${itemIndex}); validateWarehouses(${itemIndex})">
                     <option value="">-- Chọn kho --</option>
                     ${warehouseOptions}
                 </select>
@@ -236,7 +237,17 @@ function addItem(existingData = null) {
 
 function removeItem(index) {
     const item = document.querySelector(`[data-index="${index}"]`);
-    if (item) item.remove();
+    if (item) {
+        item.remove();
+        renumberItems();
+    }
+}
+
+function renumberItems() {
+    document.querySelectorAll('#itemsContainer .item-card').forEach((item, index) => {
+        const heading = item.querySelector('h4');
+        if (heading) heading.textContent = `Sản phẩm #${index + 1}`;
+    });
 }
 
 function validateWarehouses(itemIdx) {
@@ -264,6 +275,15 @@ function validateWarehouses(itemIdx) {
         warningEl.classList.add('hidden');
         warehouseToSelect.classList.remove('border-red-500');
     }
+}
+
+function onSourceWarehouseChanged(itemIdx) {
+    const productInput = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const searchInput = document.querySelector(`[data-index="${itemIdx}"] .searchable-input`);
+    const serialContainer = document.getElementById(`serialContainer_${itemIdx}`);
+    if (productInput) productInput.value = '';
+    if (searchInput) searchInput.value = '';
+    if (serialContainer) serialContainer.innerHTML = '';
 }
 
 async function loadStockInfo(itemIdx) {
@@ -636,7 +656,12 @@ function initSearchableSelect(container) {
         
         searchTimers[itemIdx] = setTimeout(async () => {
             try {
-                const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                const warehouseId = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`)?.value;
+                if (!warehouseId) {
+                    dropdown.innerHTML = '<div class="px-3 py-2 text-amber-700 text-sm">Vui lòng chọn kho nguồn trước.</div>';
+                    return;
+                }
+                const response = await fetch(`${PRODUCT_SEARCH_URL}?q=${encodeURIComponent(query)}&warehouse_id=${encodeURIComponent(warehouseId)}`);
                 const results = await response.json();
                 
                 // Get already-selected product IDs
@@ -655,11 +680,10 @@ function initSearchableSelect(container) {
                         const opt = document.createElement('div');
                         opt.className = 'searchable-option px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm';
                         opt.dataset.value = p.id;
-                        opt.dataset.text = `${p.code} - ${p.name}`;
-                        const displayName = p.name.length > 60 ? p.name.substring(0, 57) + '...' : p.name;
-                        opt.textContent = `${p.code} - ${displayName}`;
+                        opt.dataset.text = p.code;
+                        opt.textContent = p.code;
                         opt.addEventListener('click', () => {
-                            input.value = `${p.code} - ${p.name}`;
+                            input.value = p.code;
                             hiddenInput.value = p.id;
                             dropdown.classList.add('hidden');
                             loadStockInfo(itemIdx);

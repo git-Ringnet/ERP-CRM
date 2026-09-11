@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Inventory;
-use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\ProductItem;
 use App\Models\InventoryCustomColumn;
@@ -26,32 +25,78 @@ class InventoryController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', Inventory::class);
+        $currentUser = $request->user();
+        $canManageWarehouse = $currentUser && (
+            $currentUser->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff']) ||
+            $currentUser->department === 'Warehouse'
+        );
 
         // --- 1. Query Detail Lists for the 3 new tabs (Stocking, Project, R & NFR) ---
         $itemsBaseQuery = ProductItem::with([
             'product', 
             'warehouse', 
+            'import.supplier',
+            'import.purchaseOrder.supplier',
             'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.creator', 
             'import.purchaseOrder.sale.project'
         ])
+        ->leftJoin('imports as inventory_imports', 'product_items.import_id', '=', 'inventory_imports.id')
         ->select(
-            'product_id',
-            'import_id',
-            'warehouse_id',
-            'borrower',
-            'comments',
-            'custom_fields',
-            DB::raw('SUM(quantity) as quantity'),
-            DB::raw('GROUP_CONCAT(sku ORDER BY sku SEPARATOR ", ") as sku'),
-            DB::raw('GROUP_CONCAT(id) as item_ids'),
-            DB::raw('MAX(updated_at) as updated_at')
+            'product_items.product_id',
+            // Several inbound batches belonging to the same PO are one
+            // operational stock row.  Keep one representative import only
+            // for loading the PO/vendor relations shown by the table.
+            DB::raw('MAX(product_items.import_id) as import_id'),
+            'product_items.warehouse_id',
+            DB::raw('SUM(product_items.quantity) as quantity'),
+            DB::raw('GROUP_CONCAT(product_items.sku ORDER BY product_items.sku SEPARATOR ", ") as sku'),
+            DB::raw('GROUP_CONCAT(product_items.id) as item_ids'),
+            // One operational row per product / inbound lot / warehouse. The
+            // borrower is deliberately aggregated instead of becoming part of
+            // the grouping key, otherwise one PO is fragmented into many rows.
+            DB::raw("GROUP_CONCAT(CONCAT(COALESCE(NULLIF(product_items.borrower, ''), '__unallocated__'), '||', product_items.quantity) SEPARATOR ',') as borrower_allocations"),
+            DB::raw('MAX(product_items.comments) as comments'),
+            DB::raw('MAX(product_items.custom_fields) as custom_fields'),
+            DB::raw('MAX(product_items.updated_at) as updated_at')
         )
-        ->where('status', ProductItem::STATUS_IN_STOCK)
-        ->groupBy('product_id', 'import_id', 'warehouse_id', 'borrower', 'comments', 'custom_fields');
+        ->where('product_items.status', ProductItem::STATUS_IN_STOCK)
+        ->groupBy(
+            'product_items.product_id',
+            'product_items.warehouse_id',
+            DB::raw("CASE WHEN inventory_imports.reference_type = 'purchase_order' THEN inventory_imports.reference_id ELSE -product_items.import_id END")
+        );
 
         // Filter by warehouse for detail lists
         if ($request->filled('warehouse_id')) {
-            $itemsBaseQuery->where('warehouse_id', $request->warehouse_id);
+            $itemsBaseQuery->where('product_items.warehouse_id', $request->warehouse_id);
+        }
+
+        // Operational filters: allow warehouse staff to narrow stock by the
+        // commercial source of the item, not only by product name.
+        if ($request->filled('vendor_id')) {
+            $vendorId = $request->vendor_id;
+            $itemsBaseQuery->whereHas('import', function ($query) use ($vendorId) {
+                $query->where('supplier_id', $vendorId)
+                    ->orWhereHas('purchaseOrder', fn ($po) => $po->where('supplier_id', $vendorId));
+            });
+        }
+
+        if ($request->filled('po_code')) {
+            $poCode = $request->po_code;
+            $itemsBaseQuery->whereHas('import.purchaseOrder', fn ($query) => $query->where('code', 'like', "%{$poCode}%"));
+        }
+
+        if ($request->filled('sales_id')) {
+            $salesId = $request->sales_id;
+            $itemsBaseQuery->where(function ($query) use ($salesId) {
+                $query->whereHas('import.purchaseOrder.sale', fn ($sale) => $sale->where('user_id', $salesId))
+                    ->orWhereHas('import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest', fn ($requestQuery) => $requestQuery->where('created_by', $salesId));
+            });
+        }
+
+        if ($request->filled('project_id')) {
+            $projectId = $request->project_id;
+            $itemsBaseQuery->whereHas('import.purchaseOrder.sale', fn ($sale) => $sale->where('project_id', $projectId));
         }
 
         // Filter by search for detail lists (searches across all visible attributes)
@@ -93,12 +138,53 @@ class InventoryController extends Controller
         $rmodelWarehouseId = Warehouse::where('code', 'WH_WARRANTY')->value('id');
 
         // Clone queries for separate lists
-        $projectQuery = (clone $itemsBaseQuery)->where('warehouse_id', $projectWarehouseId);
-        $runrateQuery = (clone $itemsBaseQuery)->where('warehouse_id', $runrateWarehouseId);
-        $licenseQuery = (clone $itemsBaseQuery)->where('warehouse_id', $licenseWarehouseId);
-        $rmodelQuery = (clone $itemsBaseQuery)->where('warehouse_id', $rmodelWarehouseId);
+        $projectQuery = (clone $itemsBaseQuery)->where('product_items.warehouse_id', $projectWarehouseId);
+        $runrateQuery = (clone $itemsBaseQuery)->where('product_items.warehouse_id', $runrateWarehouseId);
+        $licenseQuery = (clone $itemsBaseQuery)->where('product_items.warehouse_id', $licenseWarehouseId);
+        $rmodelQuery = (clone $itemsBaseQuery)->where('product_items.warehouse_id', $rmodelWarehouseId);
 
         $activeTab = $request->get('tab', 'runrate');
+
+        // A stock search can match a different warehouse category from the
+        // one the user happened to be viewing.  Keep the selected tab when it
+        // has data, but switch to the first matching category when it does
+        // not, so a valid result is never presented as an empty list.
+        $autoSelectedTab = null;
+        $shouldAutoSelectTab = $request->boolean('auto_switch_tab');
+
+        $tabQueries = [
+            'project' => $projectQuery,
+            'runrate' => $runrateQuery,
+            'license' => $licenseQuery,
+            'rmodel' => $rmodelQuery,
+        ];
+
+        if ($shouldAutoSelectTab && isset($tabQueries[$activeTab])) {
+            $currentTabHasResults = (clone $tabQueries[$activeTab])->limit(1)->get()->isNotEmpty();
+
+            if (!$currentTabHasResults) {
+                foreach (['project', 'runrate', 'license', 'rmodel'] as $tab) {
+                    if ((clone $tabQueries[$tab])->limit(1)->get()->isNotEmpty()) {
+                        $autoSelectedTab = $tab;
+                        $activeTab = $tab;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ($autoSelectedTab) {
+            $query = $request->query();
+            $query['tab'] = $activeTab;
+            unset($query['auto_switch_tab']);
+            unset($query['page_project'], $query['page_runrate'], $query['page_license'], $query['page_rmodel']);
+
+            return redirect()
+                ->route('inventory.index', $query)
+                ->with('inventory_auto_selected_tab', $autoSelectedTab);
+        }
+
+        $autoSelectedTab = session('inventory_auto_selected_tab');
 
         // Paginate separate lists
         $projectItems = $activeTab === 'project' 
@@ -117,6 +203,46 @@ class InventoryController extends Controller
             ? $rmodelQuery->orderBy('updated_at', 'desc')->paginate(20, ['*'], 'page_rmodel')
             : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => 'page_rmodel']);
 
+        // Keep each visible page scannable. Project stock is arranged by its
+        // commercial chain (project / Sales Order / PO); the other stock tabs
+        // remain arranged by vendor.
+        foreach ([$projectItems, $runrateItems, $licenseItems, $rmodelItems] as $paginator) {
+            $paginator->setCollection(
+                $paginator->getCollection()
+                    ->map(function ($item) {
+                        $allocations = [];
+                        foreach (array_filter(explode(',', (string) $item->borrower_allocations)) as $entry) {
+                            [$borrower, $quantity] = array_pad(explode('||', $entry, 2), 2, 0);
+                            $label = $borrower === '__unallocated__' ? 'Chưa phân bổ' : $borrower;
+                            $allocations[$label] = ($allocations[$label] ?? 0) + (int) $quantity;
+                        }
+
+                        $item->borrower_display = collect($allocations)
+                            ->map(fn ($quantity, $label) => "{$label} ({$quantity})")
+                            ->implode(', ');
+
+                        return $item;
+                    })
+                    ->sortBy(function ($item) use ($activeTab) {
+                        if ($activeTab === 'project') {
+                            $purchaseOrder = $item->import?->purchaseOrder;
+                            $sale = $purchaseOrder?->sale;
+                            $project = $sale?->project;
+
+                            return strtolower(implode('|', [
+                                $project?->name ?: ($item->project_name ?: 'zzz'),
+                                $sale?->code ?: 'no-sales-order',
+                                $purchaseOrder?->code ?: 'no-purchase-order',
+                                $item->product?->name ?: '',
+                            ]));
+                        }
+
+                        return strtolower($item->import?->supplier?->name ?: $item->import?->purchaseOrder?->supplier?->name ?: 'zzz');
+                    })
+                    ->values()
+            );
+        }
+
         // Load custom columns definitions
         $projectColumns = InventoryCustomColumn::where('tab', 'project')->get();
         $runrateColumns = InventoryCustomColumn::where('tab', 'runrate')->get();
@@ -125,7 +251,9 @@ class InventoryController extends Controller
 
         // Get filter options
         $warehouses = Warehouse::active()->get();
-        $products = Product::orderBy('name')->get();
+        $vendors = \App\Models\Supplier::orderBy('name')->get(['id', 'name', 'code']);
+        $salesUsers = \App\Models\User::where('status', 'active')->orderBy('name')->get(['id', 'name', 'employee_code']);
+        $projects = \App\Models\Project::orderByDesc('updated_at')->limit(300)->get(['id', 'code', 'name']);
 
         return view('inventory.index', compact(
             'projectItems', 
@@ -137,20 +265,58 @@ class InventoryController extends Controller
             'licenseColumns', 
             'rmodelColumns', 
             'warehouses', 
-            'products'
+            'vendors',
+            'salesUsers',
+            'projects',
+            'canManageWarehouse',
+            'autoSelectedTab',
+            'activeTab'
         ));
     }
 
     /**
      * Display the specified inventory.
      */
-    public function show(Inventory $inventory)
+    public function show(Request $request, Inventory $inventory)
     {
         $this->authorize('view', $inventory);
 
         $inventory->load(['product', 'warehouse']);
 
-        return view('inventory.show', compact('inventory'));
+        // Inventory is the aggregate balance. Product items provide the
+        // operational trace: which import/PO brought it in and which sale or
+        // project it is assigned or exported to.
+        $traceItems = ProductItem::query()
+            ->with([
+                'import.supplier:id,name,code',
+                'import.purchaseOrder:id,code,supplier_id,sale_id,created_by',
+                'import.purchaseOrder.supplier:id,name,code',
+                'import.purchaseOrder.creator:id,name',
+                'import.purchaseOrder.sale:id,code,user_id,project_id,customer_id',
+                'import.purchaseOrder.sale.user:id,name',
+                'import.purchaseOrder.sale.project:id,code,name',
+                'export:id,code,reference_type,reference_id,project_id,customer_id,employee_id,date,status',
+                'export.sale:id,code,user_id,project_id,customer_id',
+                'export.sale.user:id,name',
+                'export.project:id,code,name',
+                'export.customer:id,name',
+            ])
+            ->where('product_id', $inventory->product_id)
+            ->where('warehouse_id', $inventory->warehouse_id)
+            ->latest('updated_at')
+            ->limit(100)
+            ->get();
+
+        $backUrl = route('inventory.index');
+        if ($request->boolean('from_warehouse') && (int) $request->input('warehouse_context') === (int) $inventory->warehouse_id) {
+            $backUrl = route('warehouses.show', array_filter([
+                'warehouse' => $inventory->warehouse_id,
+                'search' => $request->input('return_search'),
+                'stock_status' => $request->input('return_stock_status'),
+            ], fn ($value) => $value !== null && $value !== ''));
+        }
+
+        return view('inventory.show', compact('inventory', 'traceItems', 'backUrl'));
     }
 
     /**
@@ -269,10 +435,25 @@ class InventoryController extends Controller
     }
 
     /**
-     * Update a product item (borrower, comments, or custom fields).
+     * Update warehouse-managed custom fields only.
+     * Borrower allocation must always go through the borrow-ticket workflow,
+     * which records approval, notification and an audit trail.
      */
     public function updateItem(Request $request, $id)
     {
+        $user = $request->user();
+        $canManageWarehouse = $user && (
+            $user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff']) ||
+            $user->department === 'Warehouse'
+        );
+
+        if (!$canManageWarehouse) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ nhân sự kho được cập nhật thông tin vận hành kho.'
+            ], 403);
+        }
+
         $ids = explode(',', $id);
         $items = ProductItem::whereIn('id', $ids)->get();
 
@@ -284,20 +465,10 @@ class InventoryController extends Controller
         }
 
         $validated = $request->validate([
-            'borrower' => ['nullable', 'string', 'max:255'],
-            'comments' => ['nullable', 'string', 'max:2000'],
             'custom_fields' => ['nullable', 'array'],
         ]);
 
         foreach ($items as $item) {
-            if (array_key_exists('borrower', $validated)) {
-                $item->borrower = $validated['borrower'];
-            }
-
-            if (array_key_exists('comments', $validated)) {
-                $item->comments = $validated['comments'];
-            }
-
             if (isset($validated['custom_fields'])) {
                 $currentFields = $item->custom_fields ?: [];
                 // Merge custom fields

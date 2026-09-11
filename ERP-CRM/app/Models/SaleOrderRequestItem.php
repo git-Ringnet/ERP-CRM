@@ -19,6 +19,7 @@ class SaleOrderRequestItem extends Model
         'quantity',
         'unit',
         'serial_number',
+        'serial_expiry_dates',
         'exp_date',
         'si_name',
         'pos_id',
@@ -30,6 +31,7 @@ class SaleOrderRequestItem extends Model
 
     protected $casts = [
         'exp_date' => 'date',
+        'serial_expiry_dates' => 'array',
         'is_cancelled' => 'boolean',
         'needs_cq' => 'boolean',
     ];

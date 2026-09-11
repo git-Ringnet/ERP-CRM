@@ -228,7 +228,7 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-center">
-                            <a href="{{ route('inventory.show', $inventory->id) }}" 
+                            <a href="{{ route('inventory.show', ['inventory' => $inventory->id, 'from_warehouse' => 1, 'warehouse_context' => $warehouse->id, 'return_search' => request('search'), 'return_stock_status' => request('stock_status')]) }}"
                                class="inline-block p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors" 
                                title="Xem chi tiết">
                                 <i class="fas fa-eye"></i>
@@ -275,7 +275,7 @@
                     <div><i class="fas fa-dollar-sign w-4"></i> {{ number_format($inventory->avg_cost) }} đ</div>
                 </div>
                 <div class="flex gap-2">
-                    <a href="{{ route('inventory.show', $inventory->id) }}" 
+                    <a href="{{ route('inventory.show', ['inventory' => $inventory->id, 'from_warehouse' => 1, 'warehouse_context' => $warehouse->id, 'return_search' => request('search'), 'return_stock_status' => request('stock_status')]) }}"
                        class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
                         <i class="fas fa-eye mr-1"></i>Xem
                     </a>

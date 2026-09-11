@@ -233,7 +233,14 @@
                     </form>
                 @endif
                 
-                @if(in_array($sale->status, ['pending', 'approved']))
+                @php
+                    // A received PO has already affected inventory. It must be
+                    // returned/adjusted through the warehouse workflow instead of
+                    // cancelling the sales order.
+                    $hasGoodsReceived = $sale->all_purchase_orders
+                        ->contains(fn ($purchaseOrder) => in_array($purchaseOrder->status, ['partial_received', 'received'], true));
+                @endphp
+                @if(in_array($sale->status, ['pending', 'approved']) && !$hasGoodsReceived)
                     <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="cancelled">
@@ -566,6 +573,11 @@
                         <button onclick="openDeliveryModal()" class="px-3 py-1 bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold rounded-full flex items-center gap-1 shadow-sm transition-colors">
                             <i class="fas fa-calendar-alt"></i> Cập nhật ngày giao hàng
                         </button>
+                    @endif
+                    @if($sale->has_bank_guarantee)
+                        <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full">
+                            <i class="fas fa-university mr-1"></i> Có bảo lãnh thanh toán
+                        </span>
                     @endif
                     @if($sale->payment_term_type)
                         <span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">

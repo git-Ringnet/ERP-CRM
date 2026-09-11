@@ -28,7 +28,7 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
                     <input type="date" name="date_from" value="{{ $dateFrom }}"
@@ -76,6 +76,39 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Hãng / Vendor</label>
+                    <select name="vendor_id"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Tất cả hãng</option>
+                        @foreach($vendors as $vendor)
+                            <option value="{{ $vendor->id }}" {{ ($vendorId ?? '') == $vendor->id ? 'selected' : '' }}>
+                                {{ $vendor->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Thanh toán</label>
+                    <select name="payment_state" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Tất cả</option>
+                        <option value="unpaid" {{ $paymentState === 'unpaid' ? 'selected' : '' }}>Chưa thanh toán</option>
+                        <option value="partial" {{ $paymentState === 'partial' ? 'selected' : '' }}>Thanh toán một phần</option>
+                        <option value="paid" {{ $paymentState === 'paid' ? 'selected' : '' }}>Đã thanh toán</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ lệ TT từ (%)</label>
+                    <input type="number" name="payment_percent_min" min="0" max="100" step="0.01"
+                        value="{{ $paymentPercentMin }}" placeholder="0"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tỷ lệ TT đến (%)</label>
+                    <input type="number" name="payment_percent_max" min="0" max="100" step="0.01"
+                        value="{{ $paymentPercentMax }}" placeholder="100"
+                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">
                 </div>
                 <div class="flex items-end">
                     <button type="submit"
@@ -275,9 +308,9 @@
                                         </a>
                                     </td>
                                     <td class="px-2 py-2 text-center border border-gray-200">{{ $row['invoice_date'] }}</td>
-                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
-                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
-                                    <td class="px-2 py-2 text-center border border-gray-200 text-gray-400 italic"></td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">{{ $row['brand'] ?: '-' }}</td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">{{ $row['license'] ?: '-' }}</td>
+                                    <td class="px-2 py-2 text-center border border-gray-200">{{ $row['product_type'] ?: '-' }}</td>
                                     <td class="px-2 py-2 text-center border border-gray-200 font-mono text-xs">{{ $row['main_product_code'] }}</td>
                                     <td class="px-2 py-2 text-right border border-gray-200 font-semibold {{ $row['margin'] >= 0 ? 'text-green-700' : 'text-red-700' }}">
                                         {{ number_format($row['margin']) }}

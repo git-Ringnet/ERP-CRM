@@ -186,7 +186,7 @@
                         </div>
                         <div class="col-span-1">
                             <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
-                            <input type="number" name="items[{{ $index }}][vat_percent]" value="10" min="0" step="0.1" 
+                            <input type="number" name="items[{{ $index }}][vat_percent]" value="8" min="0" step="0.1"
                                 class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
                         </div>
                         <div class="col-span-2">
@@ -232,7 +232,7 @@
                     </div>
                     <div class="col-span-1">
                         <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
-                        <input type="number" name="items[0][vat_percent]" value="10" min="0" step="0.1" 
+                        <input type="number" name="items[0][vat_percent]" value="8" min="0" step="0.1"
                             class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
                     </div>
                     <div class="col-span-2">
@@ -739,7 +739,7 @@ document.getElementById('addItem').addEventListener('click', function() {
         </div>
         <div class="col-span-1">
             <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
-            <input type="number" name="items[${itemIndex}][vat_percent]" value="10" min="0" step="0.1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
+            <input type="number" name="items[${itemIndex}][vat_percent]" value="8" min="0" step="0.1" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
         </div>
         <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Thành tiền</label>
@@ -916,7 +916,7 @@ function addItemsToOrder(items) {
             </div>
             <div class="col-span-1">
                 <label class="block text-xs font-medium text-gray-600 mb-1">VAT %</label>
-                <input type="number" name="items[${itemIndex}][vat_percent]" value="10" min="0" step="0.1" 
+                <input type="number" name="items[${itemIndex}][vat_percent]" value="8" min="0" step="0.1"
                     class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded item-vat" onchange="calculateRow(this)">
             </div>
             <div class="col-span-2">

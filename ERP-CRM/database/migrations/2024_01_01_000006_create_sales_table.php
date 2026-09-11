@@ -21,7 +21,7 @@ return new class extends Migration
             $table->text('delivery_address')->nullable();
             $table->decimal('subtotal', 15, 2)->default(0);
             $table->decimal('discount', 5, 2)->default(0);
-            $table->decimal('vat', 5, 2)->default(10);
+            $table->decimal('vat', 5, 2)->default(8);
             $table->decimal('total', 15, 2)->default(0);
             $table->decimal('margin', 15, 2)->default(0);
             $table->enum('status', ['pending', 'approved', 'shipping', 'completed', 'cancelled'])->default('pending');

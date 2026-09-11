@@ -19,7 +19,7 @@
                     </div>
                     <div class="text-sm text-gray-600 flex flex-wrap gap-y-2 gap-x-6 items-center">
                         <span class="flex items-center gap-1.5"><i class="fas fa-building text-gray-400"></i><strong>{{ $opportunity->customer_display_name }}</strong></span>
-                        <span class="flex items-center gap-1.5"><i class="far fa-calendar-alt text-gray-400"></i>{{ $opportunity->activity_date->format('d/m/Y') }}</span>
+                        <span class="flex items-center gap-1.5"><i class="far fa-calendar-alt text-gray-400"></i>{{ $opportunity->activity_date?->format('d/m/Y') ?? 'Chưa xác định' }}</span>
                         <span class="flex items-center gap-1.5"><i class="far fa-clock text-gray-400"></i>{{ $opportunity->start_time ?: 'N/A' }} - {{ $opportunity->end_time ?: 'N/A' }} ({{ $opportunity->duration_minutes }} phút)</span>
                     </div>
                 </div>
@@ -169,24 +169,28 @@
                                         </span>
                                     </div>
                                     
-                                    @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager']))
+                                    @if($giveawayMarketingRequest)
+                                        <a href="{{ route('marketing-events.index', ['tab' => 'requests', 'opportunity_id' => $opportunity->id]) }}"
+                                           class="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100">
+                                            <i class="fas fa-ticket-alt"></i>
+                                            Ticket Marketing: {{ $giveawayMarketingRequest->ticket?->code ?? $giveawayMarketingRequest->code }} ({{ $giveawayMarketingRequest->status_label }})
+                                        </a>
+                                    @endif
+
+                                    @if($opportunity->giveaway_status === 'pending' && auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']))
                                         <div class="flex gap-2">
-                                            @if($opportunity->giveaway_status !== 'approved')
-                                                <form action="{{ route('opportunities.approve-giveaway', $opportunity->id) }}" method="POST" class="m-0">
-                                                    @csrf
-                                                    <button type="submit" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-colors">
-                                                        <i class="fas fa-check"></i> Duyệt quà tặng
-                                                    </button>
-                                                </form>
-                                            @endif
-                                            @if($opportunity->giveaway_status !== 'rejected')
-                                                <form action="{{ route('opportunities.reject-giveaway', $opportunity->id) }}" method="POST" class="m-0">
-                                                    @csrf
-                                                    <button type="submit" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
-                                                        <i class="fas fa-times"></i> Từ chối
-                                                    </button>
-                                                </form>
-                                            @endif
+                                            <form action="{{ route('opportunities.approve-giveaway', $opportunity->id) }}" method="POST" class="m-0">
+                                                @csrf
+                                                <button type="submit" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-colors">
+                                                    <i class="fas fa-check"></i> Duyệt quà tặng
+                                                </button>
+                                            </form>
+                                            <form action="{{ route('opportunities.reject-giveaway', $opportunity->id) }}" method="POST" class="m-0">
+                                                @csrf
+                                                <button type="submit" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
+                                                    <i class="fas fa-times"></i> Từ chối
+                                                </button>
+                                            </form>
                                         </div>
                                     @endif
                                 </div>
@@ -220,9 +224,23 @@
                                     <strong class="text-indigo-900 text-base">{{ $opportunity->technicalUser->name }}</strong>
                                     <span class="text-indigo-700 text-xs block mt-0.5"><i class="far fa-envelope mr-1"></i>{{ $opportunity->technicalUser->email }}</span>
                                 </div>
+                                @if($technicalTicket)
+                                    <a href="{{ route('technical-tickets.show', $technicalTicket) }}"
+                                       class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                                        <i class="fas fa-ticket-alt"></i>
+                                        Ticket: {{ $technicalTicket->code }} ({{ $technicalTicket->status_label }})
+                                    </a>
+                                @endif
                             </div>
                         @endif
                     </div>
+
+                    @if(in_array($opportunity->activity_type, ['demo_online', 'demo_offline'], true) && ($opportunity->needs_technical || $opportunity->giveaway))
+                        <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+                            <i class="fas fa-link mr-1.5"></i>
+                            Đây là hoạt động trình bày giải pháp. Ticket Kỹ thuật và Marketing (nếu có) cùng liên kết với Cơ hội này; Cơ hội chỉ được hoàn thành khi các ticket hỗ trợ đã hoàn tất.
+                        </div>
+                    @endif
                 </div>
 
                 <!-- Attachments Card -->
@@ -302,7 +320,7 @@
                             <input type="hidden" name="name" value="{{ $opportunity->name }}">
                             <input type="hidden" name="activity_type" value="{{ $opportunity->activity_type }}">
                             <input type="hidden" name="activity_type_other" value="{{ $opportunity->activity_type_other }}">
-                            <input type="hidden" name="activity_date" value="{{ $opportunity->activity_date->format('Y-m-d') }}">
+                            <input type="hidden" name="activity_date" value="{{ $opportunity->activity_date?->format('Y-m-d') }}">
                             <input type="hidden" name="start_time" value="{{ $opportunity->start_time }}">
                             <input type="hidden" name="end_time" value="{{ $opportunity->end_time }}">
                             <input type="hidden" name="description" value="{{ $opportunity->description }}">

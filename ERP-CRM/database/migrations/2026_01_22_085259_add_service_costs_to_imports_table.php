@@ -18,7 +18,7 @@ return new class extends Migration
             $table->decimal('other_cost', 15, 2)->default(0)->after('inspection_cost')->comment('Chi phí khác');
             $table->decimal('total_service_cost', 15, 2)->default(0)->after('other_cost')->comment('Tổng chi phí phục vụ');
             $table->decimal('discount_percent', 5, 2)->default(0)->after('total_service_cost')->comment('Chiết khấu (%)');
-            $table->decimal('vat_percent', 5, 2)->default(10)->after('discount_percent')->comment('VAT (%)');
+            $table->decimal('vat_percent', 5, 2)->default(8)->after('discount_percent')->comment('VAT (%)');
         });
     }
 

@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('discount_amount', 18, 2)->default(0);
             $table->decimal('shipping_cost', 18, 2)->default(0);
             $table->decimal('other_cost', 18, 2)->default(0);
-            $table->decimal('vat_percent', 5, 2)->default(10);
+            $table->decimal('vat_percent', 5, 2)->default(8);
             $table->decimal('vat_amount', 18, 2)->default(0);
             $table->decimal('total', 18, 2)->default(0);
             $table->enum('payment_terms', ['immediate', 'cod', 'net15', 'net30', 'net45', 'net60'])->default('net30');

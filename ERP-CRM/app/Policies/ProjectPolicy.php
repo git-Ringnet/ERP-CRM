@@ -18,10 +18,14 @@ class ProjectPolicy extends BasePolicy
 
     public function view(User $user, Project $project): bool
     {
-        // Admin, PM, PO, BOD (director) see all
-        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager', 'purchase_staff']) || 
-            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director']) ||
+            in_array($user->department, ['PM', 'PM Team'], true)) {
             return true;
+        }
+
+        if ($user->hasAnyRole(['purchase_manager', 'purchase_staff']) ||
+            in_array($user->department, ['PO', 'PO Team'], true)) {
+            return str_contains(strtolower((string) $project->vendor?->name), 'fortinet');
         }
 
         // Sales Manager see team projects
@@ -61,14 +65,25 @@ class ProjectPolicy extends BasePolicy
             return false;
         }
 
-        // Admin, PM, PO can update
-        if ($user->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || 
-            in_array($user->department, ['PM', 'PO', 'PM Team', 'PO Team'])) {
+        // Admin and PM can update. PO only processes the dedicated intake
+        // decision and cannot alter project information or status.
+        if ($user->hasAnyRole(['super_admin', 'admin']) ||
+            in_array($user->department, ['PM', 'PM Team'], true)) {
             return true;
         }
 
         // Sales owner can update
         return $user->id === $project->manager_id;
+    }
+
+    public function processIntake(User $user, Project $project): bool
+    {
+        if ($user->hasAnyRole(['super_admin', 'admin']) || in_array($user->department, ['PM', 'PM Team'], true)) {
+            return true;
+        }
+
+        return ($user->hasAnyRole(['purchase_manager', 'purchase_staff']) || in_array($user->department, ['PO', 'PO Team'], true)) &&
+            str_contains(strtolower((string) $project->vendor?->name), 'fortinet');
     }
 
     public function delete(User $user, Project $project): bool

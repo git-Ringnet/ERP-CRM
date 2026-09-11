@@ -18,6 +18,7 @@ use App\Exports\SinglePurchaseOrderExport;
 use App\Exports\FortinetPurchaseOrderExport;
 use App\Exports\SaleContractPurchaseOrderExport;
 use App\Services\PurchaseImportSyncService;
+use App\Services\PurchaseOrderApprovalNotificationService;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,11 +31,13 @@ class PurchaseOrderController extends Controller
 {
     protected PurchaseImportSyncService $purchaseImportSyncService;
     protected CurrencyService $currencyService;
+    protected PurchaseOrderApprovalNotificationService $purchaseOrderApprovalNotificationService;
 
-    public function __construct(PurchaseImportSyncService $purchaseImportSyncService, CurrencyService $currencyService)
+    public function __construct(PurchaseImportSyncService $purchaseImportSyncService, CurrencyService $currencyService, PurchaseOrderApprovalNotificationService $purchaseOrderApprovalNotificationService)
     {
         $this->purchaseImportSyncService = $purchaseImportSyncService;
         $this->currencyService = $currencyService;
+        $this->purchaseOrderApprovalNotificationService = $purchaseOrderApprovalNotificationService;
     }
     public function index(Request $request)
     {
@@ -44,7 +47,7 @@ class PurchaseOrderController extends Controller
 
         // Apply data filtering based on permissions
         $user = auth()->user();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales')) {
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales') && !$user->can('approve_purchase_orders')) {
             $query->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
                   ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
@@ -76,7 +79,7 @@ class PurchaseOrderController extends Controller
 
         // Thống kê - apply same filtering
         $statsQuery = PurchaseOrder::query();
-        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales')) {
+        if (!$user->can('view_all_purchase_orders') && !$user->can('view_all_sales') && !$user->can('approve_purchase_orders')) {
             $statsQuery->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
                   ->orWhereHas('sale', fn($sQ) => $sQ->where('user_id', $user->id))
@@ -91,7 +94,7 @@ class PurchaseOrderController extends Controller
 
         $stats = [
             'pending' => (clone $statsQuery)->whereIn('status', ['draft', 'pending_approval'])->count(),
-            'sent' => (clone $statsQuery)->whereIn('status', ['approved', 'shipping'])->count(),
+            'sent' => (clone $statsQuery)->whereIn('status', ['approved', 'sent', 'confirmed', 'shipping', 'partial_received'])->count(),
             'received' => (clone $statsQuery)->where('status', 'received')->count(),
             'total_value' => $totalValue,
         ];
@@ -171,7 +174,10 @@ class PurchaseOrderController extends Controller
                 'note' => $request->note,
                 'currency_id' => $request->currency_id ?? Currency::getBaseCurrencyId(),
                 'exchange_rate' => $request->exchange_rate ?? 1,
-                'status' => 'draft',
+                // The create form has a "Lưu và gửi duyệt" action.  Previously
+                // it was silently saved as draft, so PO appeared to vanish from
+                // the approval queue.  Persist the workflow state requested.
+                'status' => $request->boolean('submit_approval') ? 'pending_approval' : 'draft',
                 'created_by' => auth()->id(),
             ]);
 
@@ -221,8 +227,14 @@ class PurchaseOrderController extends Controller
                 $this->notifySalesUser($order, 'Đơn mua hàng đã được tạo', "Đơn mua hàng {$order->code} đã được tạo cho đơn bán hàng của bạn.");
             }
 
-            return redirect()->route('purchase-orders.index')
-                ->with('success', 'Đã tạo đơn mua hàng thành công!');
+            if ($order->status === 'pending_approval') {
+                $this->purchaseOrderApprovalNotificationService->notifyApprovers($order);
+            }
+
+            return redirect()->route('purchase-orders.index', $order->status === 'pending_approval' ? ['status' => 'pending_approval'] : [])
+                ->with('success', $order->status === 'pending_approval'
+                    ? 'Đã tạo PO và gửi vào danh sách chờ duyệt.'
+                    : 'Đã tạo đơn mua hàng thành công!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage())->withInput();
@@ -356,7 +368,10 @@ class PurchaseOrderController extends Controller
         }
 
         $purchaseOrder->update(['status' => 'pending_approval']);
-        return back()->with('success', 'Đã gửi đơn hàng để duyệt!');
+        $this->purchaseOrderApprovalNotificationService->notifyApprovers($purchaseOrder);
+
+        return redirect()->route('purchase-orders.index', ['status' => 'pending_approval'])
+            ->with('success', 'Đã gửi đơn hàng vào danh sách chờ duyệt. Người có quyền duyệt đã nhận được thông báo.');
     }
 
     public function approve(PurchaseOrder $purchaseOrder)
@@ -384,6 +399,13 @@ class PurchaseOrderController extends Controller
         if ($purchaseOrder->sale_id) {
             $this->notifySalesUser($purchaseOrder, 'Đơn mua hàng đã được duyệt', "Đơn mua hàng {$purchaseOrder->code} đã được duyệt và chuyển sang trạng thái 'Đã đặt' - Chờ hàng về.");
         }
+
+        $this->purchaseOrderApprovalNotificationService->notifyCreator(
+            $purchaseOrder,
+            'PO đã được duyệt',
+            "PO {$purchaseOrder->code} đã được duyệt và sẵn sàng để gửi hãng/theo dõi hàng về.",
+            'green'
+        );
 
         return back()->with('success', 'Đã duyệt đơn mua hàng!');
     }
@@ -426,6 +448,13 @@ class PurchaseOrderController extends Controller
             'status' => 'draft',
             'note' => $purchaseOrder->note . "\n[Từ chối]: " . $request->reason,
         ]);
+
+        $this->purchaseOrderApprovalNotificationService->notifyCreator(
+            $purchaseOrder,
+            'PO bị từ chối',
+            "PO {$purchaseOrder->code} đã bị từ chối. Vui lòng chỉnh sửa và gửi duyệt lại." . ($request->reason ? " Lý do: {$request->reason}" : ''),
+            'red'
+        );
 
         return back()->with('success', 'Đã từ chối đơn mua hàng!');
     }
