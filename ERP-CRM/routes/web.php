@@ -431,9 +431,19 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/opportunities/{opportunity}/attachments', [\App\Http\Controllers\OpportunityController::class, 'uploadAttachment'])->name('opportunities.upload-attachment');
     Route::delete('/opportunity-attachments/{attachment}', [\App\Http\Controllers\OpportunityController::class, 'deleteAttachment'])->name('opportunities.delete-attachment');
     Route::post('/opportunities/{opportunity}/update-status', [\App\Http\Controllers\OpportunityController::class, 'updateStatus'])->name('opportunities.update-status');
+    Route::post('/opportunities/{opportunity}/approve-presentation', [\App\Http\Controllers\OpportunityController::class, 'approvePresentation'])->name('opportunities.approve-presentation');
     Route::post('/opportunities/{opportunity}/approve-giveaway', [\App\Http\Controllers\OpportunityController::class, 'approveGiveaway'])->name('opportunities.approve-giveaway');
     Route::post('/opportunities/{opportunity}/reject-giveaway', [\App\Http\Controllers\OpportunityController::class, 'rejectGiveaway'])->name('opportunities.reject-giveaway');
     Route::resource('opportunities', \App\Http\Controllers\OpportunityController::class);
+
+    // Marketing Items & Inventory
+    Route::get('/marketing-items', [\App\Http\Controllers\MarketingItemController::class, 'index'])->name('marketing-items.index');
+    Route::post('/marketing-items', [\App\Http\Controllers\MarketingItemController::class, 'store'])->name('marketing-items.store');
+    Route::put('/marketing-items/{marketingItem}', [\App\Http\Controllers\MarketingItemController::class, 'update'])->name('marketing-items.update');
+    Route::delete('/marketing-items/{marketingItem}', [\App\Http\Controllers\MarketingItemController::class, 'destroy'])->name('marketing-items.destroy');
+    Route::post('/marketing-items/import', [\App\Http\Controllers\MarketingItemController::class, 'importStock'])->name('marketing-items.import');
+    Route::post('/marketing-items/export', [\App\Http\Controllers\MarketingItemController::class, 'exportStock'])->name('marketing-items.export');
+    Route::get('/marketing-items/{marketingItem}/transactions', [\App\Http\Controllers\MarketingItemController::class, 'transactions'])->name('marketing-items.transactions');
 
     // Activities (Tasks/CRM)
     Route::resource('activities', \App\Http\Controllers\ActivityController::class);

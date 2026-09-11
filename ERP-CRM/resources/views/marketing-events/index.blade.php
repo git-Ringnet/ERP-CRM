@@ -28,6 +28,10 @@
            class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'requests' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
             <i class="fas fa-ticket-alt text-base"></i> Ticket từ Sales
         </a>
+        <a href="{{ route('marketing-items.index') }}"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all text-gray-500 hover:text-purple-600 hover:bg-gray-50">
+            <i class="fas fa-boxes text-base"></i> Kho vật phẩm & Quà tặng
+        </a>
     </div>
     @endif
 
@@ -56,28 +60,87 @@
                     <tbody class="divide-y divide-gray-100">
                         @forelse($directRequests as $marketingRequest)
                             <tr class="hover:bg-purple-50/30">
-                                <td class="px-4 py-3 font-semibold text-purple-700">{{ $marketingRequest->ticket?->code ?: $marketingRequest->code }}</td>
+                                <td class="px-4 py-3 font-semibold text-purple-700">
+                                    {{ $marketingRequest->ticket?->code ?: $marketingRequest->code }}
+                                </td>
                                 <td class="px-4 py-3">
                                     <a class="font-medium text-gray-800 hover:text-purple-700" href="{{ route('opportunities.show', $marketingRequest->opportunity_id) }}">{{ $marketingRequest->opportunity?->name }}</a>
-                                    <div class="text-xs text-gray-500 mt-1">{{ $marketingRequest->opportunity?->customer_display_name ?: '-' }}</div>
+                                    <div class="text-xs text-gray-500 mt-1"><i class="fas fa-building text-gray-400 mr-1"></i>{{ $marketingRequest->opportunity?->customer_display_name ?: '-' }}</div>
                                 </td>
-                                <td class="px-4 py-3 max-w-md whitespace-pre-line text-gray-600">{{ $marketingRequest->description }}</td>
-                                <td class="px-4 py-3 text-gray-600">{{ $marketingRequest->deadline?->format('d/m/Y') ?: '-' }}</td>
-                                <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">{{ $marketingRequest->status_label }}</span></td>
-                                <td class="px-4 py-3 text-gray-600">{{ $marketingRequest->assignee?->name ?: 'Chưa phân công' }}</td>
-                                <td class="px-4 py-3 text-center">
-                                    @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
-                                        <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex justify-center gap-1">
-                                            @csrf
-                                            <select name="assigned_to" class="max-w-[145px] border border-gray-300 rounded px-2 py-1 text-xs" required>
-                                                <option value="">Phân công...</option>
-                                                @foreach($marketingAssignees as $assignee)
-                                                    <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
-                                                @endforeach
-                                            </select>
-                                            <button class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700" title="Lưu phân công"><i class="fas fa-save"></i></button>
-                                        </form>
+                                <td class="px-4 py-3 max-w-md whitespace-pre-line text-gray-600">
+                                    <div class="font-medium text-gray-800 mb-1"><i class="fas fa-gift text-purple-500 mr-1"></i>Quà tặng / Vật phẩm:</div>
+                                    <div class="bg-gray-50 p-2 rounded text-xs border border-gray-100">{{ $marketingRequest->description }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                    {{ $marketingRequest->deadline?->format('d/m/Y') ?: '-' }}
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    @if($marketingRequest->status === 'completed')
+                                        <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                                            <i class="fas fa-check-circle mr-1"></i>Đã bàn giao quà
+                                        </span>
+                                    @elseif($marketingRequest->status === 'in_progress')
+                                        <span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+                                            <i class="fas fa-spinner fa-spin mr-1"></i>Đang chuẩn bị quà
+                                        </span>
+                                    @else
+                                        <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
+                                            <i class="fas fa-clock mr-1"></i>Chờ xử lý
+                                        </span>
                                     @endif
+                                </td>
+                                <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                    @if($marketingRequest->assignee)
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">
+                                                {{ substr($marketingRequest->assignee->name, 0, 1) }}
+                                            </div>
+                                            <span class="font-medium text-gray-800">{{ $marketingRequest->assignee->name }}</span>
+                                        </div>
+                                    @else
+                                        <span class="text-xs text-red-500 italic"><i class="fas fa-exclamation-triangle mr-1"></i>Chưa phân công</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <div class="flex items-center justify-center gap-2">
+                                        @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
+                                            <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex items-center gap-1">
+                                                @csrf
+                                                <select name="assigned_to" class="max-w-[130px] border border-gray-300 rounded px-2 py-1 text-xs" required title="Chọn người phụ trách">
+                                                    <option value="">Phân công...</option>
+                                                    @foreach($marketingAssignees as $assignee)
+                                                        <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <button type="submit" class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 shadow-sm" title="Lưu phân công"><i class="fas fa-save"></i></button>
+                                            </form>
+                                        @endif
+
+                                        @if($marketingRequest->status !== 'completed')
+                                            @if($marketingRequest->status === 'received')
+                                                <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="status" value="in_progress">
+                                                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors shadow-sm" title="Bắt đầu chuẩn bị quà">
+                                                        <i class="fas fa-play mr-1"></i>Nhận việc
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="status" value="completed">
+                                                    <input type="hidden" name="comment" value="Đã chuẩn bị và bàn giao quà tặng đầy đủ cho Sales.">
+                                                    <button type="submit" onclick="return confirm('Xác nhận đã đóng gói và bàn giao quà cho Sales?')" class="px-2.5 py-1 text-xs font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Bàn giao quà cho Sales">
+                                                        <i class="fas fa-check mr-1"></i>Bàn giao xong
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @else
+                                            <span class="inline-flex items-center text-xs text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
+                                                <i class="fas fa-check-double mr-1"></i>Hoàn tất
+                                            </span>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty

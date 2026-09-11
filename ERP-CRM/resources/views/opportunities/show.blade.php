@@ -3,7 +3,23 @@
 @section('title', 'Chi tiết hoạt động cơ hội: ' . $opportunity->name)
 
 @section('content')
-    <div class="max-w-8xl space-y-6">
+@php
+    $user = auth()->user();
+    $isApprover = $user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']);
+    $isSolutionDemo = in_array($opportunity->activity_type, ['demo_online', 'demo_offline']);
+    $isCoordinationRequired = $isSolutionDemo || $opportunity->needs_technical || !empty($opportunity->giveaway);
+    $isPendingBODApproval = $isCoordinationRequired && in_array($opportunity->status, ['draft', 'planned']);
+@endphp
+
+    <div class="max-w-8xl space-y-6" x-data="{
+        selectedMarketingItems: [],
+        addItem() {
+            this.selectedMarketingItems.push({ item_id: '', quantity: 1 });
+        },
+        removeItem(index) {
+            this.selectedMarketingItems.splice(index, 1);
+        }
+    }">
         <!-- Header Card -->
         <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -12,6 +28,15 @@
                         <span class="px-3 py-1 rounded-full text-xs font-bold {{ $opportunity->status_color }}" id="status_badge">
                             {{ $opportunity->status_label }}
                         </span>
+                        @if($isPendingBODApproval)
+                            <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+                                <i class="fas fa-hourglass-half mr-1"></i>Chờ BOD duyệt đợt trình bày
+                            </span>
+                        @elseif($isCoordinationRequired && in_array($opportunity->status, ['confirmed', 'in_progress', 'completed']))
+                            <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200">
+                                <i class="fas fa-check-circle mr-1"></i>BOD đã duyệt đợt trình bày
+                            </span>
+                        @endif
                         <span class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
                             <i class="fas fa-tag mr-1 text-gray-500"></i>{{ $opportunity->activity_type_label }}
                         </span>
@@ -62,21 +87,172 @@
             </div>
         </div>
 
+        {{-- CẢNH BÁO / FORM PHÊ DUYỆT ĐỢT TRÌNH BÀY DÀNH CHO BOD --}}
+        @if($isCoordinationRequired)
+            @if($isPendingBODApproval)
+                @if($isApprover)
+                    <div class="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border-2 border-indigo-200 p-6 shadow-md">
+                        <div class="flex items-center justify-between pb-4 border-b border-indigo-100 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                                    <i class="fas fa-user-shield text-indigo-600"></i> Phê duyệt đợt trình bày & Điều phối nhân sự / quà tặng (BOD)
+                                </h2>
+                                <p class="text-xs text-indigo-700 mt-0.5">Vui lòng chỉ định Kỹ sư kỹ thuật và duyệt xuất vật phẩm quà tặng từ Kho Marketing cho buổi làm việc.</p>
+                            </div>
+                            <span class="px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                                Thẩm quyền BOD
+                            </span>
+                        </div>
+
+                        <form action="{{ route('opportunities.approve-presentation', $opportunity->id) }}" method="POST" class="space-y-5">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                {{-- 1. Chỉ định Kỹ sư Kỹ thuật --}}
+                                <div class="bg-white rounded-xl p-4 border border-indigo-100 shadow-sm space-y-3">
+                                    <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                        <i class="fas fa-cogs text-blue-600"></i> Phân công Kỹ sư kỹ thuật (Technical Engineer)
+                                    </h3>
+                                    <p class="text-xs text-gray-500">Kỹ sư được chọn sẽ tự động nhận Ticket Kỹ thuật và tham gia hỗ trợ demo giải pháp.</p>
+                                    
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Chọn Kỹ sư tham gia:</label>
+                                        <select name="technical_user_id" class="w-full text-xs rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-gray-50 font-semibold text-gray-800">
+                                            <option value="">-- Chọn Kỹ sư Kỹ thuật --</option>
+                                            @foreach($technicalEngineers as $tech)
+                                                <option value="{{ $tech->id }}" {{ old('technical_user_id', $opportunity->technical_user_id) == $tech->id ? 'selected' : '' }}>
+                                                    {{ $tech->name }} ({{ $tech->email }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {{-- 2. Quản lý Quà tặng & Kho vật phẩm Marketing --}}
+                                <div class="bg-white rounded-xl p-4 border border-indigo-100 shadow-sm space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                            <i class="fas fa-gift text-purple-600"></i> Xuất quà tặng từ Kho Marketing
+                                        </h3>
+                                        <button type="button" @click="addItem()" class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-bold transition-colors">
+                                            <i class="fas fa-plus mr-1"></i>Chọn vật phẩm
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-500">Yêu cầu từ Sales: <strong class="text-gray-800">{{ $opportunity->giveaway ?: 'Không ghi cụ thể' }}</strong></p>
+
+                                    <div class="space-y-2">
+                                        <template x-for="(itemRow, idx) in selectedMarketingItems" :key="idx">
+                                            <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                                <div class="flex-1">
+                                                    <select :name="'items[' + idx + '][item_id]'" x-model="itemRow.item_id" required class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-2 py-1.5 bg-white">
+                                                        <option value="">-- Chọn quà từ Kho --</option>
+                                                        @foreach($marketingItems as $mItem)
+                                                            <option value="{{ $mItem->id }}">
+                                                                {{ $mItem->name }} (Tồn: {{ $mItem->stock_quantity }} {{ $mItem->unit }})
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div class="w-24">
+                                                    <input type="number" :name="'items[' + idx + '][quantity]'" x-model="itemRow.quantity" min="1" required placeholder="SL" class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-2 py-1.5 bg-white text-center font-bold">
+                                                </div>
+                                                <button type="button" @click="removeItem(idx)" class="w-7 h-7 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center text-xs">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </template>
+
+                                        <div x-show="selectedMarketingItems.length === 0" class="text-center py-2 text-xs text-gray-400 italic">
+                                            Chưa chọn vật phẩm nào từ kho. Bấm nút "+ Chọn vật phẩm" ở trên để chọn quà tặng trừ trực tiếp tồn kho.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end gap-3 pt-3 border-t border-indigo-100">
+                                <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+                                    <i class="fas fa-check-double"></i> Phê duyệt đợt trình bày & Điều phối
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                @else
+                    {{-- Dành cho Sales Staff xem --}}
+                    <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 shadow-sm flex items-start gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg flex-shrink-0 mt-0.5 font-bold">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                        <div class="space-y-1 text-sm">
+                            <h3 class="font-bold text-amber-900 text-base">Đợt trình bày giải pháp đang chờ Ban Giám Đốc (BOD) phê duyệt</h3>
+                            <p class="text-amber-800 text-xs leading-relaxed">
+                                Hoạt động này cần có sự phê duyệt của BOD để điều phối <strong>Kỹ sư kỹ thuật</strong> và duyệt xuất <strong>Quà tặng / Vật phẩm Marketing</strong>.
+                                Trạng thái hoạt động đang được khóa để đảm bảo quy trình chuẩn liên phòng ban.
+                            </p>
+                        </div>
+                    </div>
+                @endif
+            @else
+                {{-- Đã được duyệt --}}
+                <div class="bg-green-50 border border-green-200 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-green-900 text-sm flex items-center gap-2">
+                            <i class="fas fa-check-circle text-green-600 text-base"></i> Hoạt động đã được BOD phê duyệt & điều phối
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            @if($technicalTicket)
+                                <a href="{{ route('technical-tickets.show', $technicalTicket) }}"
+                                   class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 shadow-2xs">
+                                    <i class="fas fa-cogs"></i> Ticket Kỹ thuật: {{ $technicalTicket->code }} ({{ $technicalTicket->status_label }})
+                                </a>
+                            @endif
+                            @if($giveawayMarketingRequest)
+                                <a href="{{ route('marketing-events.index', ['tab' => 'requests', 'opportunity_id' => $opportunity->id]) }}"
+                                   class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-white border border-purple-200 text-purple-700 text-xs font-bold hover:bg-purple-50 shadow-2xs">
+                                    <i class="fas fa-ticket-alt text-purple-500"></i> Ticket Marketing: {{ $giveawayMarketingRequest->ticket?->code ?? $giveawayMarketingRequest->code }} ({{ $giveawayMarketingRequest->status_label }})
+                                </a>
+                            @endif
+                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800 border border-green-300">
+                                Đã xác nhận
+                            </span>
+                        </div>
+                    </div>
+
+                    @if($marketingTransactions->count() > 0)
+                        <div class="pt-2 border-t border-green-200">
+                            <span class="text-xs font-bold text-green-900 uppercase block mb-1.5"><i class="fas fa-box-open mr-1"></i>Vật phẩm quà tặng đã xuất từ Kho Marketing:</span>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach($marketingTransactions as $mTx)
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-green-300 text-xs font-bold text-gray-800 shadow-2xs">
+                                        <i class="fas fa-gift text-purple-600"></i> {{ $mTx->marketingItem?->name }}: <strong class="text-purple-700">{{ $mTx->quantity }} {{ $mTx->marketingItem?->unit }}</strong>
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
+        @endif
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Cột trái: Thông tin khách hàng, chi tiết hoạt động, tệp đính kèm, form báo cáo -->
             <div class="lg:col-span-2 space-y-6">
                 
                 <!-- Customer Info Card -->
                 <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                    <h2 class="text-lg font-semibold text-gray-805 mb-4 pb-2 border-b border-gray-150 flex items-center">
-                        <i class="fas fa-building mr-2 text-blue-600"></i>Thông tin Khách hàng ({{ $opportunity->customer_type === 'si' ? 'SI' : 'EU' }})
+                    <h2 class="text-lg font-semibold text-gray-800 mb-5 pb-2 border-b border-gray-100 flex items-center justify-between">
+                        <span class="flex items-center"><i class="fas fa-building mr-2 text-blue-600"></i>Thông tin Khách hàng ({{ strtoupper($opportunity->customer_type) }})</span>
+                        @if($opportunity->customer_id)
+                            <a href="{{ route('customers.show', $opportunity->customer_id) }}" class="text-xs font-semibold text-blue-600 hover:underline">
+                                Xem chi tiết KH <i class="fas fa-arrow-right ml-0.5"></i>
+                            </a>
+                        @endif
                     </h2>
 
                     @if($opportunity->customer_type === 'si' && $opportunity->customer)
+                        <!-- SI Mode Info Display -->
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                             <!-- Company -->
                             <div class="space-y-1.5">
-                                <span class="text-gray-400 text-xs font-semibold uppercase tracking-wider block">Tên công ty SI:</span>
+                                <span class="text-gray-400 text-xs font-semibold uppercase tracking-wider block">Tên Công ty SI:</span>
                                 <a href="{{ route('customers.show', $opportunity->customer_id) }}" class="font-bold text-blue-600 hover:underline block text-base leading-tight">
                                     {{ $opportunity->customer->name }}
                                 </a>
@@ -176,23 +352,6 @@
                                             Ticket Marketing: {{ $giveawayMarketingRequest->ticket?->code ?? $giveawayMarketingRequest->code }} ({{ $giveawayMarketingRequest->status_label }})
                                         </a>
                                     @endif
-
-                                    @if($opportunity->giveaway_status === 'pending' && auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']))
-                                        <div class="flex gap-2">
-                                            <form action="{{ route('opportunities.approve-giveaway', $opportunity->id) }}" method="POST" class="m-0">
-                                                @csrf
-                                                <button type="submit" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-colors">
-                                                    <i class="fas fa-check"></i> Duyệt quà tặng
-                                                </button>
-                                            </form>
-                                            <form action="{{ route('opportunities.reject-giveaway', $opportunity->id) }}" method="POST" class="m-0">
-                                                @csrf
-                                                <button type="submit" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
-                                                    <i class="fas fa-times"></i> Từ chối
-                                                </button>
-                                            </form>
-                                        </div>
-                                    @endif
                                 </div>
                             @endif
                         </div>
@@ -220,7 +379,7 @@
                                     {{ substr($opportunity->technicalUser->name, 0, 1) }}
                                 </div>
                                 <div>
-                                    <span class="text-gray-400 text-xs block font-semibold uppercase tracking-wider">Kỹ sư phối hợp (Technical Manager)</span>
+                                    <span class="text-gray-400 text-xs block font-semibold uppercase tracking-wider">Kỹ sư phối hợp (Technical Engineer)</span>
                                     <strong class="text-indigo-900 text-base">{{ $opportunity->technicalUser->name }}</strong>
                                     <span class="text-indigo-700 text-xs block mt-0.5"><i class="far fa-envelope mr-1"></i>{{ $opportunity->technicalUser->email }}</span>
                                 </div>
@@ -234,13 +393,6 @@
                             </div>
                         @endif
                     </div>
-
-                    @if(in_array($opportunity->activity_type, ['demo_online', 'demo_offline'], true) && ($opportunity->needs_technical || $opportunity->giveaway))
-                        <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-                            <i class="fas fa-link mr-1.5"></i>
-                            Đây là hoạt động trình bày giải pháp. Ticket Kỹ thuật và Marketing (nếu có) cùng liên kết với Cơ hội này; Cơ hội chỉ được hoàn thành khi các ticket hỗ trợ đã hoàn tất.
-                        </div>
-                    @endif
                 </div>
 
                 <!-- Attachments Card -->
@@ -265,9 +417,6 @@
                                         <span class="text-gray-400 text-xs block mt-0.5">
                                             {{ $attachment->file_size_formatted }} • {{ $attachment->uploader?->name ?: 'N/A' }}
                                         </span>
-                                        @if($attachment->note)
-                                            <span class="text-gray-500 text-xs block italic truncate mt-0.5" title="{{ $attachment->note }}">{{ $attachment->note }}</span>
-                                        @endif
                                     </div>
                                 </div>
                                 <button type="button" onclick="deleteAttachment({{ $attachment->id }})"
@@ -379,54 +528,26 @@
 
                                     <!-- Pain points -->
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Pain Points (Nỗi đau của khách hàng)</label>
-                                        <textarea name="pain_points" rows="3" placeholder="Hệ thống cũ chậm, hay bị tấn công DDOS, chi phí cao..."
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Vấn đề của khách hàng (Pain Points)</label>
+                                        <textarea name="pain_points" rows="3" placeholder="Khách hàng đang gặp khó khăn gì với hệ thống cũ..."
                                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">{{ old('pain_points', $opportunity->pain_points) }}</textarea>
                                     </div>
 
                                     <!-- Next action -->
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Next Action / Giai đoạn tiếp theo <span class="text-red-500">*</span></label>
-                                        <textarea name="next_action" rows="3" required placeholder="VD: Gửi báo giá trước ngày X, Setup buổi POC tiếp theo..."
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Hành động tiếp theo (Next Action) <span class="text-red-500">*</span></label>
+                                        <textarea name="next_action" rows="3" required placeholder="Gửi báo giá, hẹn gặp lại, gửi tài liệu bổ sung..."
                                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">{{ old('next_action', $opportunity->next_action) }}</textarea>
                                         @error('next_action') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                     </div>
                                 </div>
 
-                                <!-- Drag & Drop File Upload -->
-                                <div class="pt-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Tài liệu đính kèm báo cáo / Hình ảnh thực tế
-                                        @if(in_array($opportunity->activity_type, ['meeting', 'project_meeting']))
-                                            <span class="text-red-500 font-bold">* (Bắt buộc đính kèm hình ảnh/tài liệu khi hoàn thành báo cáo cuộc họp)</span>
-                                        @endif
-                                    </label>
-                                    
-                                    <div id="dropzone" class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50/50 hover:border-primary transition-colors cursor-pointer relative">
-                                        <input type="file" name="files[]" id="file_input" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-sm font-semibold text-gray-700">Kéo thả file vào đây hoặc nhấp để chọn</p>
-                                        <p class="text-xs text-gray-500 mt-1">Hỗ trợ PDF, Excel, Word, Hình ảnh (JPG, PNG) tối đa 10MB/file</p>
-                                    </div>
-                                    @error('files') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-
-                                    <!-- Preview files selected to be uploaded -->
-                                    <div id="file_list_preview" class="space-y-2 mt-3 hidden">
-                                        <h4 class="text-xs font-semibold text-gray-500 uppercase">Tập tin chuẩn bị tải lên:</h4>
-                                        <div id="preview_items" class="space-y-1.5"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Change Status to Completed toggle -->
-                                <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
-                                    <div>
-                                        <span class="text-sm font-semibold text-gray-850 font-bold">Đánh dấu Hoàn thành hoạt động này?</span>
-                                        <p class="text-xs text-gray-500">Chuyển trạng thái sang "Đã hoàn thành" và ghi nhận báo cáo vào hệ thống.</p>
-                                    </div>
-                                    <select name="status" id="form_status_select" onchange="checkMeetingAttachmentRequired()"
-                                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                                        <option value="in_progress" {{ $opportunity->status == 'in_progress' ? 'selected' : '' }}>Đang thực hiện (Lưu nháp báo cáo)</option>
-                                        <option value="completed" {{ $opportunity->status == 'completed' ? 'selected' : '' }}>Đã hoàn thành (Ghi nhận chính thức)</option>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Chuyển trạng thái hoạt động</label>
+                                    <select name="status" id="form_status_select"
+                                        class="w-full sm:w-1/2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="in_progress" {{ old('status', $opportunity->status) === 'in_progress' ? 'selected' : '' }}>Đang thực hiện (In Progress)</option>
+                                        <option value="completed" {{ old('status', $opportunity->status) === 'completed' ? 'selected' : '' }}>Đã hoàn thành (Completed)</option>
                                     </select>
                                 </div>
 
@@ -446,13 +567,19 @@
             <div class="space-y-6">
                 <!-- Sidebar Trạng thái hoạt động Select Box -->
                 <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-                    <h3 class="text-sm font-bold text-gray-800 pb-2 border-b border-gray-100 flex items-center">
-                        <i class="fas fa-tasks mr-2 text-blue-600"></i>Trạng thái hoạt động <span class="text-red-500 ml-1">*</span>
+                    <h3 class="text-sm font-bold text-gray-800 pb-2 border-b border-gray-100 flex items-center justify-between">
+                        <span class="flex items-center"><i class="fas fa-tasks mr-2 text-blue-600"></i>Trạng thái hoạt động</span>
+                        @if($isPendingBODApproval)
+                            <span class="text-2xs font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                                🔒 Đang khóa chờ BOD
+                            </span>
+                        @endif
                     </h3>
                     
                     <div>
                         <select id="sidebar_status_select" 
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white font-medium">
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white font-medium {{ ($isPendingBODApproval && !$isApprover) ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}"
+                            {{ ($isPendingBODApproval && !$isApprover) ? 'disabled' : '' }}>
                             <option value="draft" {{ $opportunity->status === 'draft' ? 'selected' : '' }}>Nháp (Draft)</option>
                             <option value="planned" {{ $opportunity->status === 'planned' ? 'selected' : '' }}>Đã lên lịch (Planned)</option>
                             <option value="confirmed" {{ $opportunity->status === 'confirmed' ? 'selected' : '' }}>Đã xác nhận (Confirmed)</option>
@@ -463,6 +590,12 @@
                         </select>
                     </div>
 
+                    @if($isPendingBODApproval && !$isApprover)
+                        <p class="text-2xs text-amber-700 italic">
+                            * Chỉ BOD/Manager mới có thể duyệt xác nhận và mở khóa trạng thái hoạt động này.
+                        </p>
+                    @endif
+
                     <!-- Cancel Reason field (only visible when Cancelled is selected) -->
                     <div id="sidebar_cancel_reason_box" class="hidden">
                         <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Lý do hủy <span class="text-red-500">*</span></label>
@@ -471,10 +604,12 @@
                             placeholder="Nhập lý do hủy...">{{ $opportunity->cancel_reason }}</textarea>
                     </div>
 
-                    <button type="button" onclick="updateSidebarStatus()" 
-                        class="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-1.5">
-                        <i class="fas fa-sync-alt"></i> Cập nhật trạng thái
-                    </button>
+                    @if(!($isPendingBODApproval && !$isApprover))
+                        <button type="button" onclick="updateSidebarStatus()" 
+                            class="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-all font-semibold text-sm shadow-sm flex items-center justify-center gap-1.5">
+                            <i class="fas fa-sync-alt"></i> Cập nhật trạng thái
+                        </button>
+                    @endif
                 </div>
 
                 <!-- Assignment & Tracking info -->
@@ -515,10 +650,10 @@
             const box = document.getElementById('sidebar_cancel_reason_box');
             const input = document.getElementById('sidebar_cancel_reason');
 
-            if (select.value === 'cancelled') {
+            if (select && select.value === 'cancelled') {
                 box.classList.remove('hidden');
                 input.setAttribute('required', 'required');
-            } else {
+            } else if (box && input) {
                 box.classList.add('hidden');
                 input.removeAttribute('required');
             }
@@ -537,8 +672,10 @@
         function updateSidebarStatus() {
             const select = document.getElementById('sidebar_status_select');
             const reasonInput = document.getElementById('sidebar_cancel_reason');
+            if (!select) return;
+
             const status = select.value;
-            const cancel_reason = reasonInput.value.trim();
+            const cancel_reason = reasonInput ? reasonInput.value.trim() : '';
 
             if (status === 'cancelled' && !cancel_reason) {
                 if (typeof Swal !== 'undefined') {
@@ -581,7 +718,16 @@
                         window.location.reload();
                     }
                 } else {
-                    alert(result.message || 'Lỗi khi cập nhật trạng thái.');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Không thể chuyển trạng thái',
+                            text: result.message || 'Lỗi khi cập nhật trạng thái.',
+                            confirmButtonColor: '#3B82F6'
+                        });
+                    } else {
+                        alert(result.message || 'Lỗi khi cập nhật trạng thái.');
+                    }
                 }
             })
             .catch(() => alert('Lỗi kết nối khi cập nhật trạng thái.'));
@@ -612,44 +758,6 @@
                 } else {
                     previewDiv.classList.add('hidden');
                 }
-                
-                checkMeetingAttachmentRequired();
-            });
-        }
-
-        // Validate meeting attachment requirement on submit
-        const reportForm = document.getElementById('report_form');
-        const activityType = @json($opportunity->activity_type);
-        let initialAttachmentCount = @json($opportunity->attachments->count());
-
-        function checkMeetingAttachmentRequired() {
-            const statusSelect = document.getElementById('form_status_select');
-            const files = fileInput ? fileInput.files : [];
-            
-            if (['meeting', 'project_meeting'].includes(activityType) && statusSelect && statusSelect.value === 'completed') {
-                if (initialAttachmentCount === 0 && files.length === 0) {
-                    return false; // missing
-                }
-            }
-            return true;
-        }
-
-        if (reportForm) {
-            reportForm.addEventListener('submit', function(e) {
-                const isValid = checkMeetingAttachmentRequired();
-                if (!isValid) {
-                    e.preventDefault();
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Thiếu hình ảnh/tài liệu đính kèm!',
-                            text: 'Đối với hoạt động "Họp / Meeting", bạn bắt buộc phải đăng tải hình ảnh hoặc tài liệu chứng minh khi báo cáo hoàn thành hoạt động.',
-                            confirmButtonColor: '#3B82F6',
-                        });
-                    } else {
-                        alert('Đối với hoạt động "Họp / Meeting", bạn bắt buộc phải đăng tải hình ảnh hoặc tài liệu chứng minh khi báo cáo hoàn thành hoạt động.');
-                    }
-                }
             });
         }
 
@@ -669,21 +777,22 @@
                 if (result.success) {
                     const row = document.getElementById(`attachment_row_${id}`);
                     if (row) row.remove();
-                    initialAttachmentCount--;
 
                     // Update count
                     const countEl = document.getElementById('attachment_count');
-                    let currentCount = parseInt(countEl.textContent);
-                    countEl.textContent = currentCount - 1;
+                    if (countEl) {
+                        let currentCount = parseInt(countEl.textContent);
+                        countEl.textContent = currentCount - 1;
 
-                    if (currentCount - 1 === 0) {
-                        const list = document.getElementById('attachment_list');
-                        list.innerHTML = `
-                            <div class="text-center py-8 text-gray-400 md:col-span-2" id="no_attachments_msg">
-                                <i class="far fa-folder-open text-3xl mb-1 text-gray-300"></i>
-                                <p class="text-xs">Chưa có tập tin nào.</p>
-                            </div>
-                        `;
+                        if (currentCount - 1 === 0) {
+                            const list = document.getElementById('attachment_list');
+                            list.innerHTML = `
+                                <div class="text-center py-8 text-gray-400 md:col-span-2" id="no_attachments_msg">
+                                    <i class="far fa-folder-open text-3xl mb-1 text-gray-300"></i>
+                                    <p class="text-xs">Chưa có tập tin nào.</p>
+                                </div>
+                            `;
+                        }
                     }
 
                     if (typeof Swal !== 'undefined') {
@@ -722,11 +831,9 @@
                 status.classList.add('hidden');
                 input.value = '';
                 if (result.success) {
-                    // Remove no attachments message if exists
                     const noMsg = document.getElementById('no_attachments_msg');
                     if (noMsg) noMsg.remove();
 
-                    // Append to list
                     const list = document.getElementById('attachment_list');
                     const newRow = document.createElement('div');
                     newRow.className = 'flex items-start justify-between gap-3 p-3 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-gray-50 transition-colors text-sm';
@@ -750,11 +857,9 @@
                         </button>
                     `;
                     list.appendChild(newRow);
-                    initialAttachmentCount++;
 
-                    // Update count
                     const countEl = document.getElementById('attachment_count');
-                    countEl.textContent = parseInt(countEl.textContent) + 1;
+                    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
 
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({ icon: 'success', title: 'Tải lên thành công!', timer: 1500, showConfirmButton: false });

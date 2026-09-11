@@ -11,8 +11,11 @@ use App\Models\Notification;
 use App\Models\TechnicalTicket;
 use App\Models\MarketingTicket;
 use App\Models\MarketingRequest;
+use App\Models\MarketingItem;
+use App\Models\MarketingItemTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class OpportunityController extends Controller
@@ -428,10 +431,26 @@ class OpportunityController extends Controller
             ->first();
         
         $users = User::orderBy('name')->get();
+        $technicalEngineers = $this->technicalAssignees()->get();
+        $marketingItems = MarketingItem::where('status', 'active')->orderBy('name')->get();
+        $marketingTransactions = MarketingItemTransaction::with(['marketingItem', 'creator'])
+            ->where('opportunity_id', $opportunity->id)
+            ->latest('id')
+            ->get();
         $statuses = Opportunity::STATUSES;
         $ratings = Opportunity::POTENTIAL_RATINGS;
 
-        return view('opportunities.show', compact('opportunity', 'users', 'statuses', 'ratings', 'giveawayMarketingRequest', 'technicalTicket'));
+        return view('opportunities.show', compact(
+            'opportunity',
+            'users',
+            'technicalEngineers',
+            'marketingItems',
+            'marketingTransactions',
+            'statuses',
+            'ratings',
+            'giveawayMarketingRequest',
+            'technicalTicket'
+        ));
     }
 
     /**
@@ -659,11 +678,22 @@ class OpportunityController extends Controller
         $oldStatus = $opportunity->status;
         $requestedStatus = $validated['status'];
         $isApprover = auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director']);
+        $isCoordinationRequired = $this->isSolutionPresentationActivity($opportunity->activity_type) || $opportunity->needs_technical || !empty($opportunity->giveaway);
+
+        // 1. Chặn nếu chưa có BOD xác nhận / duyệt đợt trình bày
+        if ($isCoordinationRequired && in_array($oldStatus, ['draft', 'planned'], true)) {
+            if (in_array($requestedStatus, ['in_progress', 'completed'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Đợt trình bày/hoạt động phối hợp cần được BOD/Manager phê duyệt và điều phối nhân sự/quà tặng trước khi thực hiện.'
+                ], 422);
+            }
+        }
 
         if ($requestedStatus === 'confirmed' && !$isApprover) {
             return response()->json([
                 'success' => false,
-                'message' => 'Chỉ BOD/Manager mới có thể xác nhận hoạt động cơ hội.'
+                'message' => 'Chỉ BOD/Manager mới có quyền phê duyệt & xác nhận hoạt động cơ hội này.'
             ], 403);
         }
 
@@ -700,7 +730,7 @@ class OpportunityController extends Controller
                     ->where('support_content', 'giveaway')
                     ->latest('id')
                     ->first();
-                if (!$marketingRequest || $marketingRequest->status !== 'completed') {
+                if ($marketingRequest && $marketingRequest->status !== 'completed') {
                     return response()->json([
                         'success' => false,
                         'message' => 'Chưa thể hoàn thành Cơ hội vì ticket Marketing chưa hoàn thành. Vui lòng chờ Marketing cập nhật kết quả chuẩn bị quà tặng.'
@@ -741,7 +771,7 @@ class OpportunityController extends Controller
 
         if ($validated['status'] === 'completed' && $oldStatus !== 'completed') {
             $managers = User::whereHas('roles', function ($q) {
-                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin']);
+                $q->whereIn('slug', ['sales_manager', 'super_admin', 'admin', 'director']);
             })->where('id', '!=', auth()->id())->get();
 
             foreach ($managers as $manager) {
@@ -763,6 +793,98 @@ class OpportunityController extends Controller
             'status_label' => $opportunity->status_label,
             'status_color' => $opportunity->status_color
         ]);
+    }
+
+    /**
+     * BOD Phê duyệt đợt trình bày & Điều phối nhân sự / vật phẩm Marketing
+     */
+    public function approvePresentation(Request $request, Opportunity $opportunity)
+    {
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'director'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $validated = $request->validate([
+            'technical_user_id' => 'nullable|exists:users,id',
+            'items' => 'nullable|array',
+            'items.*.item_id' => 'required_with:items|exists:marketing_items,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
+            'giveaway_status' => 'nullable|in:approved,rejected,none',
+            'note' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($request, $opportunity, $user, $validated) {
+            // 1. Phối hợp Kỹ thuật
+            if ($request->filled('technical_user_id')) {
+                $opportunity->technical_user_id = $request->technical_user_id;
+                $opportunity->needs_technical = true;
+            }
+
+            if ($opportunity->needs_technical) {
+                $this->createTechnicalTicketForConfirmedOpportunity($opportunity);
+            }
+
+            // 2. Xuất kho vật phẩm Marketing
+            $exportedItemsSummary = [];
+            if (!empty($validated['items'])) {
+                foreach ($validated['items'] as $itemData) {
+                    $item = MarketingItem::lockForUpdate()->find($itemData['item_id']);
+                    if ($item && $item->stock_quantity >= $itemData['quantity']) {
+                        $newStock = $item->stock_quantity - $itemData['quantity'];
+                        $item->update(['stock_quantity' => $newStock]);
+
+                        MarketingItemTransaction::create([
+                            'marketing_item_id' => $item->id,
+                            'type' => 'export',
+                            'quantity' => $itemData['quantity'],
+                            'remaining_stock' => $newStock,
+                            'opportunity_id' => $opportunity->id,
+                            'created_by' => $user->id,
+                            'reference_code' => 'EXP-OPP-' . $opportunity->id,
+                            'note' => 'Xuất quà tặng cho Cơ hội: ' . $opportunity->name . ' (Duyệt bởi ' . $user->name . ')',
+                        ]);
+
+                        $exportedItemsSummary[] = "{$item->name} (x{$itemData['quantity']} {$item->unit})";
+                    }
+                }
+            }
+
+            if (!empty($exportedItemsSummary)) {
+                $opportunity->giveaway_status = 'approved';
+                $summaryText = implode(', ', $exportedItemsSummary);
+                if (empty($opportunity->giveaway)) {
+                    $opportunity->giveaway = $summaryText;
+                } else {
+                    $opportunity->giveaway .= " [Đã xuất kho: " . $summaryText . "]";
+                }
+                $this->createMarketingTicketForApprovedGiveaway($opportunity);
+            } elseif ($request->giveaway_status === 'approved' || ($opportunity->giveaway && $opportunity->giveaway_status === 'pending')) {
+                $opportunity->giveaway_status = 'approved';
+                $this->createMarketingTicketForApprovedGiveaway($opportunity);
+            } elseif ($request->giveaway_status === 'rejected') {
+                $opportunity->giveaway_status = 'rejected';
+            }
+
+            // 3. Phê duyệt trạng thái sang Confirmed
+            $opportunity->status = 'confirmed';
+            $opportunity->save();
+
+            // 4. Gửi thông báo cho Sales phụ trách
+            if ($opportunity->assigned_to) {
+                Notification::create([
+                    'user_id' => $opportunity->assigned_to,
+                    'type' => 'opportunity_approved',
+                    'title' => 'Đợt trình bày đã được BOD phê duyệt',
+                    'message' => "BOD ({$user->name}) đã phê duyệt đợt trình bày giải pháp cho hoạt động: \"{$opportunity->name}\".",
+                    'link' => route('opportunities.show', $opportunity->id),
+                    'icon' => 'fas fa-check-double',
+                    'color' => 'green',
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Đã phê duyệt đợt trình bày và hoàn tất điều phối nhân sự / vật phẩm quà tặng.');
     }
 
     /**
@@ -917,8 +1039,8 @@ class OpportunityController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        if (!$this->isSolutionPresentationActivity($opportunity->activity_type) || blank($opportunity->giveaway)) {
-            return back()->with('error', 'Chỉ hoạt động trình bày giải pháp có yêu cầu quà tặng mới được tạo ticket Marketing.');
+        if (blank($opportunity->giveaway)) {
+            return back()->with('error', 'Hoạt động này chưa có thông tin quà tặng để duyệt.');
         }
 
         $opportunity->update(['giveaway_status' => 'approved']);
@@ -961,7 +1083,7 @@ class OpportunityController extends Controller
     /** Create one traceable Marketing work request for an approved giveaway. */
     private function createMarketingTicketForApprovedGiveaway(Opportunity $opportunity): ?MarketingRequest
     {
-        if (!$this->isSolutionPresentationActivity($opportunity->activity_type) || blank($opportunity->giveaway)) {
+        if (blank($opportunity->giveaway)) {
             return null;
         }
 

@@ -444,7 +444,12 @@
                                 <a href="{{ route('marketing-events.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-events.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-calendar-alt w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Marketing Events</span>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Sự kiện Marketing</span>
+                                </a>
+                                <a href="{{ route('marketing-items.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('marketing-items.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-boxes w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Kho vật phẩm MKT</span>
                                 </a>
                             @endcan
 

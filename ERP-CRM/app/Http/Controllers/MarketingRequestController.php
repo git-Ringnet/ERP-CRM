@@ -409,7 +409,33 @@ class MarketingRequestController extends Controller
 
         } else {
             // Yêu cầu phối hợp hoặc yêu cầu khác (Internal Collaboration & Others)
-            $isMarketingOrAdmin = $user->hasRole('super_admin') || $user->hasRole('marketing');
+            $isMarketingOrAdmin = $user->hasRole('super_admin') || $user->hasRole('admin') || $user->hasRole('marketing') || $user->hasRole('marketing_manager') || $user->hasRole('director');
+
+            // Xử lý riêng cho Ticket Quà tặng / Phối hợp trực tiếp từ Cơ hội
+            if ($marketingRequest->opportunity_id || strtolower($marketingRequest->support_team) === 'marketing') {
+                if (!$isMarketingOrAdmin && $marketingRequest->assigned_to !== $user->id) {
+                    return back()->with('error', 'Bạn không có quyền cập nhật trạng thái cho yêu cầu quà tặng này.');
+                }
+
+                $marketingRequest->update([
+                    'status' => $targetStatus,
+                    'completed_at' => $targetStatus === 'completed' ? now() : null,
+                ]);
+
+                MarketingRequestComment::create([
+                    'marketing_request_id' => $marketingRequest->id,
+                    'user_id' => $user->id,
+                    'comment' => $targetStatus === 'completed'
+                        ? ("Marketing đã xác nhận hoàn thành bàn giao vật phẩm / quà tặng cho Sales. " . ($request->comment ? "Ghi chú: " . $request->comment : ''))
+                        : ("Đã cập nhật trạng thái ticket sang: " . $marketingRequest->status_label . ". " . ($request->comment ? "Ghi chú: " . $request->comment : '')),
+                ]);
+
+                if ($marketingRequest->ticket) {
+                    $marketingRequest->ticket->update(['status' => $targetStatus]);
+                }
+
+                return back()->with('success', 'Đã cập nhật trạng thái ticket quà tặng thành công.');
+            }
 
             if ($marketingRequest->status === 'pending_approval') {
                 // Trạng thái đang chờ duyệt, chỉ Marketing/Admin mới được duyệt/từ chối
