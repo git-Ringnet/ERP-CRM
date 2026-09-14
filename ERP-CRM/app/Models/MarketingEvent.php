@@ -14,18 +14,19 @@ class MarketingEvent extends Model
         'title', 'description', 'event_date', 'location',
         'budget', 'actual_cost', 'status', 'current_approval_level',
         'created_by', 'rejection_reason', 'approved_at', 'approved_by',
-        'code', 'scope', 'vendor_id', 'vendor_other_note', 'partner_cooperation',
+        'code', 'scope', 'is_public_to_sales', 'vendor_id', 'vendor_other_note', 'partner_cooperation',
         'partner_info', 'organize_type', 'organize_type_other', 'start_time', 'end_time',
         'target_audience_count', 'target_audience_note', 'budget_external_note', 'funding_source',
         'special_notes', 'attachments',
     ];
 
     protected $casts = [
-        'event_date'  => 'date',
-        'approved_at' => 'datetime',
-        'budget'      => 'decimal:2',
-        'actual_cost' => 'decimal:2',
-        'attachments' => 'array',
+        'event_date'         => 'date',
+        'approved_at'        => 'datetime',
+        'budget'             => 'decimal:2',
+        'actual_cost'        => 'decimal:2',
+        'is_public_to_sales' => 'boolean',
+        'attachments'        => 'array',
     ];
 
     protected static function boot()
@@ -133,6 +134,17 @@ class MarketingEvent extends Model
             'rejected'  => 'bg-red-100 text-red-700',
             'cancelled' => 'bg-gray-200 text-gray-500',
             default     => 'bg-gray-100 text-gray-700',
+        };
+    }
+
+    public function getOrganizeTypeLabelAttribute(): string
+    {
+        return match ($this->organize_type) {
+            'workshop'          => 'Workshop',
+            'networking_dinner' => 'Networking Dinner',
+            'exhibition'        => 'Exhibition',
+            'other'             => $this->organize_type_other ?: 'Other',
+            default             => $this->organize_type ? ucwords(str_replace('_', ' ', $this->organize_type)) : '—',
         };
     }
 

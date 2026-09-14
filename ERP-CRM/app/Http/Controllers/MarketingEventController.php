@@ -59,11 +59,12 @@ class MarketingEventController extends Controller
         $query = MarketingEvent::with(['creator', 'approvalHistories'])->latest();
 
         $user = $request->user();
-        if (!$user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager'])) {
+        if (!$user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager', 'sales_manager'])) {
             $query->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
+                    ->orWhere('is_public_to_sales', 1)
                     ->orWhereHas('requests', fn ($requests) => $requests->where('assigned_to', $user->id))
-                    ->orWhereHas('customers', fn ($customers) => $customers->where('am', $user->id));
+                    ->orWhereHas('customers', fn ($customers) => $customers->where('am', $user->id)->orWhere('am', 'like', '%' . $user->name . '%'));
             });
         }
 
@@ -127,6 +128,7 @@ class MarketingEventController extends Controller
             'budget'                => 'required|numeric|min:0',
             'actual_cost'           => 'nullable|numeric|min:0',
             'scope'                 => 'required|in:internal,external',
+            'is_public_to_sales'    => 'nullable|boolean',
             'vendor_id'             => 'nullable|exists:suppliers,id',
             'vendor_other_note'     => 'nullable|string',
             'partner_cooperation'   => 'required|in:yes,no,other',
@@ -144,6 +146,8 @@ class MarketingEventController extends Controller
             'support_technical'     => 'nullable|boolean',
             'support_request_note'  => 'nullable|string|max:2000',
         ]);
+
+        $validated['is_public_to_sales'] = $request->boolean('is_public_to_sales');
 
         if (empty($validated['title'])) {
             $validated['title'] = 'Chương trình Marketing ' . MarketingEvent::generateCode();
@@ -258,6 +262,7 @@ class MarketingEventController extends Controller
             'budget'                => 'required|numeric|min:0',
             'actual_cost'           => 'nullable|numeric|min:0',
             'scope'                 => 'required|in:internal,external',
+            'is_public_to_sales'    => 'nullable|boolean',
             'vendor_id'             => 'nullable|exists:suppliers,id',
             'vendor_other_note'     => 'nullable|string',
             'partner_cooperation'   => 'required|in:yes,no,other',
@@ -272,6 +277,8 @@ class MarketingEventController extends Controller
             'funding_source'        => 'nullable|string|max:255',
             'special_notes'         => 'nullable|string',
         ]);
+
+        $validated['is_public_to_sales'] = $request->boolean('is_public_to_sales');
 
         if (empty($validated['title'])) {
             $validated['title'] = 'Chương trình Marketing ' . ($marketingEvent->code ?: MarketingEvent::generateCode());

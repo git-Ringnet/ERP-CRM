@@ -26,6 +26,39 @@
     </div>
     @endif
 
+    <div class="bg-white rounded-xl shadow-sm border border-amber-200/80 p-5 overflow-hidden">
+        <form action="{{ route('settings.payment-templates.update-threshold') }}" method="POST" class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            @csrf
+            <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-sm">
+                        <i class="fas fa-shield-alt"></i>
+                    </span>
+                    <h3 class="text-sm font-bold text-gray-900">Quy tắc Đơn hàng lớn — Bắt buộc thanh toán trước</h3>
+                </div>
+                <p class="text-xs text-gray-500 pl-10">
+                    Đơn hàng bán có tổng giá trị từ hạn mức này trở lên sẽ <strong>không được phép</strong> cấu hình thanh toán 100% sau khi giao hàng (bắt buộc có ít nhất 1 đợt cọc/thanh toán trước khi đặt hàng hoặc xuất hàng).
+                </p>
+            </div>
+            
+            <div class="flex items-center gap-3 pl-10 md:pl-0">
+                <div class="relative min-w-[200px] max-w-[240px]">
+                    <input type="text" 
+                           inputmode="numeric"
+                           name="large_order_post_delivery_threshold" 
+                           value="{{ number_format($largeOrderThreshold, 0, ',', '.') }}"
+                           oninput="let v = this.value.replace(/\D/g, ''); this.value = v ? parseInt(v, 10).toLocaleString('vi-VN') : '0';"
+                           class="w-full border border-gray-300 rounded-lg pl-3 pr-12 py-2 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50/30 text-right">
+                    <span class="absolute right-3 top-2.5 text-xs font-semibold text-gray-500">VNĐ</span>
+                </div>
+                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors shadow-xs whitespace-nowrap flex items-center gap-1.5">
+                    <i class="fas fa-save"></i>
+                    <span>Lưu hạn mức</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="p-5 border-b border-gray-100 bg-gray-50/50">
             <h3 class="text-base font-bold text-gray-900">Danh sách Mẫu Điều khoản</h3>

@@ -304,8 +304,15 @@ class PurchaseImportSyncService
     {
         // Coterm is always a license entitlement, including legacy PO records
         // which do not have a Sale Order Request item attached.
-        $productCode = strtoupper(trim((string) ($poItem->product?->code ?: $poItem->product_name)));
-        if (str_starts_with($productCode, 'COTERM')) {
+        $productCode = strtoupper(trim((string) ($poItem->product?->code ?: '')));
+        $productName = strtoupper(trim((string) ($poItem->product?->name ?: $poItem->product_name)));
+        $category = strtoupper(trim((string) ($poItem->product?->category ?: '')));
+
+        if (str_contains($productCode, 'COTERM') || str_contains($productName, 'COTERM') || str_contains($productName, 'CO-TERM') || str_contains($productName, 'GIA HẠN')) {
+            return true;
+        }
+
+        if (str_contains($productCode, 'LIC') || str_starts_with($productCode, 'FC-') || str_contains($category, 'LICENSE')) {
             return true;
         }
 

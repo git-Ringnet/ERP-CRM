@@ -197,9 +197,7 @@ class OpportunityController extends Controller
             $prefill['customer_id'] = $request->get('customer_id');
         }
 
-        $technicalManagerId = (clone $this->technicalAssignees())
-            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
-            ->value('id') ?? $technicalUsers->first()?->id;
+        $technicalManagerId = $this->resolveTechnicalLead()?->id;
 
         return view('opportunities.create', compact('customers', 'users', 'technicalUsers', 'activityTypes', 'prefill', 'technicalManagerId'));
     }
@@ -235,7 +233,7 @@ class OpportunityController extends Controller
             'materials_required' => 'nullable|string',
             'giveaway' => 'nullable|string',
             'needs_technical' => 'nullable|boolean',
-            'technical_user_id' => 'required_if:needs_technical,1|nullable|exists:users,id',
+            'technical_user_id' => 'nullable|exists:users,id',
             'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
             'cancel_reason' => 'required_if:status,cancelled|nullable|string',
             'assigned_to' => 'required|exists:users,id',
@@ -244,8 +242,14 @@ class OpportunityController extends Controller
         $validated = $request->validate($rules);
         $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
 
-        if ($validated['needs_technical'] && !$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
-            return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+        if ($validated['needs_technical']) {
+            if (empty($validated['technical_user_id'])) {
+                $validated['technical_user_id'] = $this->resolveTechnicalLead()?->id;
+            } elseif (!$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
+                return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+            }
+        } else {
+            $validated['technical_user_id'] = null;
         }
 
         if (in_array($validated['status'], ['confirmed', 'in_progress', 'completed'], true) &&
@@ -465,9 +469,7 @@ class OpportunityController extends Controller
         $technicalUsers = $this->technicalAssignees()->get();
         $activityTypes = Opportunity::ACTIVITY_TYPES;
 
-        $technicalManagerId = (clone $this->technicalAssignees())
-            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
-            ->value('id') ?? $technicalUsers->first()?->id;
+        $technicalManagerId = $this->resolveTechnicalLead()?->id;
 
         return view('opportunities.edit', compact('opportunity', 'customers', 'users', 'technicalUsers', 'activityTypes', 'technicalManagerId'));
     }
@@ -499,7 +501,7 @@ class OpportunityController extends Controller
             'materials_required' => 'nullable|string',
             'giveaway' => 'nullable|string',
             'needs_technical' => 'nullable|boolean',
-            'technical_user_id' => 'required_if:needs_technical,1|nullable|exists:users,id',
+            'technical_user_id' => 'nullable|exists:users,id',
             'status' => 'required|in:draft,planned,confirmed,in_progress,completed,cancelled,postponed',
             'cancel_reason' => 'required_if:status,cancelled|nullable|string',
             'assigned_to' => 'required|exists:users,id',
@@ -521,8 +523,14 @@ class OpportunityController extends Controller
         $validated = $request->validate($rules);
         $validated['needs_technical'] = $request->has('needs_technical') ? true : false;
 
-        if ($validated['needs_technical'] && !$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
-            return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+        if ($validated['needs_technical']) {
+            if (empty($validated['technical_user_id'])) {
+                $validated['technical_user_id'] = $opportunity->technical_user_id ?: $this->resolveTechnicalLead()?->id;
+            } elseif (!$this->technicalAssignees()->whereKey($validated['technical_user_id'])->exists()) {
+                return back()->withInput()->withErrors(['technical_user_id' => 'Người phối hợp phải thuộc nhóm Kỹ thuật.']);
+            }
+        } else {
+            $validated['technical_user_id'] = null;
         }
 
         // Backend validation: meeting must have attachments
@@ -902,7 +910,9 @@ class OpportunityController extends Controller
             return $existing;
         }
 
-        $assignedTo = $opportunity->technical_user_id;
+        $leadTech = $this->resolveTechnicalLead();
+        $assignedTo = $opportunity->technical_user_id ?: $leadTech?->id;
+
         $ticket = TechnicalTicket::create([
             'code' => TechnicalTicket::generateCode(),
             'title' => 'Phối hợp kỹ thuật: ' . $opportunity->name,
@@ -918,7 +928,8 @@ class OpportunityController extends Controller
             'opportunity_id' => $opportunity->id,
             'customer_id' => $opportunity->customer_id,
             'assigned_to' => $assignedTo,
-            'created_by' => auth()->id(),
+            'team_lead_id' => $leadTech?->id ?: $assignedTo,
+            'created_by' => auth()->id() ?: $opportunity->assigned_to,
             'sales_owner_id' => $opportunity->assigned_to,
             'department' => 'Technical',
             'project_name' => $opportunity->project?->name,
@@ -929,7 +940,42 @@ class OpportunityController extends Controller
             $ticket->assignedEngineers()->syncWithoutDetaching([$assignedTo]);
         }
 
+        // Notify Lead Techs of new coordination request
+        $leadTechRecipients = User::where('status', 'active')
+            ->whereHas('roles', function($q) {
+                $q->where('slug', 'technical_lead');
+            })->get();
+
+        if ($leadTechRecipients->isEmpty() && $leadTech) {
+            $leadTechRecipients = collect([$leadTech]);
+        }
+
+        foreach ($leadTechRecipients as $lead) {
+            Notification::create([
+                'user_id' => $lead->id,
+                'type' => 'opportunity_technical_assigned',
+                'title' => 'Yêu cầu phối hợp kỹ thuật mới',
+                'message' => 'Cơ hội "' . $opportunity->name . '" cần phối hợp kỹ thuật vào ngày ' . optional($opportunity->activity_date)->format('d/m/Y') . '. Vui lòng kiểm tra và phân công kỹ sư.',
+                'link' => route('technical-tickets.show', $ticket->id),
+                'icon' => 'fas fa-cogs',
+                'color' => 'blue',
+            ]);
+        }
+
         return $ticket;
+    }
+
+    /** Resolve the Technical Lead user for routing and assignment. */
+    private function resolveTechnicalLead(): ?User
+    {
+        return User::whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))->first()
+            ?: (clone $this->technicalAssignees())
+                ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
+                ->first()
+            ?: User::whereIn('department', ['Technical', 'Tech', 'Kỹ thuật'])
+                ->whereHas('roles', fn ($q) => $q->where('slug', 'like', '%lead%')->orWhere('slug', 'like', '%manager%'))
+                ->first()
+            ?: $this->technicalAssignees()->first();
     }
 
     /** Users eligible to receive an opportunity's Technical coordination ticket. */

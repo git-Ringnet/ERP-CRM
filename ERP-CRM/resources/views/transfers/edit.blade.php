@@ -315,25 +315,74 @@ async function loadStockInfo(itemIdx) {
     
     const data = stockCache[cacheKey];
     const serialItems = data.items || [];
+    const noSkuItems = data.noSkuItems || [];
     const noSkuCount = data.noSkuCount || 0;
     const totalStock = serialItems.length + noSkuCount;
     
     stockInfoDiv.classList.remove('hidden');
     
     if (totalStock === 0) {
-        stockSummary.innerHTML = `<span class="text-red-600">Hết hàng</span>`;
+        stockSummary.innerHTML = `<span class="text-red-600 font-bold"><i class="fas fa-times-circle mr-1"></i>Hết hàng trong kho nguồn</span>`;
         serialSection.classList.add('hidden');
     } else {
-        let summaryHtml = `<span class="text-green-600">${totalStock} sản phẩm</span>`;
-        if (serialItems.length > 0) summaryHtml += ` (<span class="text-blue-600">${serialItems.length} có serial</span>`;
+        let summaryHtml = `<div class="flex items-center justify-between"><div><span class="text-emerald-600 font-bold">${totalStock} sản phẩm khả dụng</span>`;
+        if (serialItems.length > 0) summaryHtml += ` (<span class="text-blue-600 font-semibold">${serialItems.length} có serial</span>`;
         if (noSkuCount > 0) summaryHtml += serialItems.length > 0 ? `, ` : ` (`;
         if (noSkuCount > 0) summaryHtml += `<span class="text-gray-600">${noSkuCount} không serial</span>`;
         if (serialItems.length > 0 || noSkuCount > 0) summaryHtml += `)`;
+        summaryHtml += `</div></div>`;
+
+        // Add detailed trace table of available items
+        const allItems = [...serialItems, ...noSkuItems];
+        if (allItems.length > 0) {
+            summaryHtml += `
+                <div class="mt-2 text-xs border border-purple-200 rounded-lg overflow-hidden bg-white">
+                    <div class="bg-purple-50 px-3 py-1.5 font-bold text-purple-900 flex justify-between items-center border-b border-purple-200">
+                        <span><i class="fas fa-boxes text-purple-600 mr-1.5"></i>Danh sách thiết bị / lô hàng có sẵn trong kho nguồn:</span>
+                        <span class="text-[11px] text-purple-700 font-normal">Truy vết theo PO, Đơn hàng & Sales</span>
+                    </div>
+                    <div class="max-h-44 overflow-y-auto">
+                        <table class="min-w-full text-xs divide-y divide-gray-100">
+                            <thead class="bg-gray-50 text-[10px] uppercase text-gray-500 font-bold border-b">
+                                <tr>
+                                    <th class="px-2.5 py-1 text-left">Serial / Lô</th>
+                                    <th class="px-2.5 py-1 text-left">Số PO & Nhà cung cấp</th>
+                                    <th class="px-2.5 py-1 text-left">Đơn hàng SO & Dự án</th>
+                                    <th class="px-2.5 py-1 text-left">Sales đặt hàng</th>
+                                    <th class="px-2.5 py-1 text-left">Ghi chú</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                ${allItems.map(it => `
+                                    <tr class="hover:bg-purple-50/60 transition-colors">
+                                        <td class="px-2.5 py-1.5 font-mono ${it.is_no_sku ? 'text-gray-500 italic' : 'text-blue-600 font-bold'}">
+                                            ${it.sku} ${it.quantity > 1 ? `<span class="text-purple-700 font-sans font-bold">(SL: ${it.quantity})</span>` : ''}
+                                        </td>
+                                        <td class="px-2.5 py-1.5 text-gray-800">
+                                            <span class="font-semibold text-gray-900">${it.po_code}</span>
+                                            ${it.supplier_name && it.supplier_name !== '-' ? `<span class="text-gray-400 text-[10px] block">${it.supplier_name}</span>` : ''}
+                                        </td>
+                                        <td class="px-2.5 py-1.5">
+                                            <span class="text-purple-700 font-bold">${it.sale_code}</span>
+                                            ${it.project_name && it.project_name !== '-' ? `<span class="text-gray-500 text-[10px] block">${it.project_name}</span>` : ''}
+                                        </td>
+                                        <td class="px-2.5 py-1.5">
+                                            <span class="text-gray-800 font-medium ${it.sales_name !== '-' ? 'bg-gray-100 px-1.5 py-0.5 rounded' : ''}">${it.sales_name}</span>
+                                        </td>
+                                        <td class="px-2.5 py-1.5 text-gray-400 text-[11px] max-w-[150px] truncate" title="${it.comments}">${it.comments}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
         stockSummary.innerHTML = summaryHtml;
         
         if (serialItems.length > 0) {
             serialSection.classList.remove('hidden');
-            serialContainer.innerHTML = '';
         } else {
             serialSection.classList.add('hidden');
         }
@@ -342,11 +391,51 @@ async function loadStockInfo(itemIdx) {
     validateQuantity(itemIdx);
 }
 
+function formatSerialLabel(item) {
+    const parts = [];
+    if (item.po_code && item.po_code !== '-') parts.push('PO: ' + item.po_code);
+    if (item.sale_code && item.sale_code !== '-') parts.push('SO: ' + item.sale_code);
+    if (item.sales_name && item.sales_name !== '-') parts.push('Sales: ' + item.sales_name);
+    const traceStr = parts.length > 0 ? ' [' + parts.join(' | ') + ']' : '';
+    return `${item.sku}${traceStr}`;
+}
+
+function updateSerialBadge(selectEl, itemIdx) {
+    const parent = selectEl.closest('.serial-select-wrapper');
+    if (!parent) return;
+    let badge = parent.querySelector('.serial-trace-badge');
+    
+    const warehouseSelect = document.querySelector(`[name="items[${itemIdx}][warehouse_id]"]`);
+    const productSelect = document.querySelector(`[name="items[${itemIdx}][product_id]"]`);
+    const cacheKey = `${productSelect?.value}_${warehouseSelect?.value}`;
+    const data = stockCache[cacheKey] || { items: [] };
+    const selectedItem = (data.items || []).find(it => it.id.toString() === selectEl.value);
+    
+    if (!selectedItem) {
+        if (badge) badge.remove();
+        return;
+    }
+    
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'serial-trace-badge text-[11px] text-gray-700 bg-purple-50 border border-purple-200 rounded px-2 py-1 mt-1';
+        parent.appendChild(badge);
+    }
+    badge.innerHTML = `
+        <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+            <span><strong class="text-purple-800">PO:</strong> ${selectedItem.po_code} ${selectedItem.supplier_name !== '-' ? '(' + selectedItem.supplier_name + ')' : ''}</span>
+            <span><strong class="text-purple-800">SO:</strong> ${selectedItem.sale_code}</span>
+            <span><strong class="text-purple-800">Sales:</strong> ${selectedItem.sales_name}</span>
+            ${selectedItem.project_name !== '-' ? `<span><strong class="text-gray-500">Dự án:</strong> ${selectedItem.project_name}</span>` : ''}
+        </div>
+    `;
+}
+
 function onQuantityChange(itemIdx) {
     const qtyInput = document.querySelector(`[name="items[${itemIdx}][quantity]"]`);
     const container = document.getElementById(`serialContainer_${itemIdx}`);
     const qty = parseInt(qtyInput.value) || 1;
-    const selects = container.querySelectorAll('.serial-select');
+    const selects = container.querySelectorAll('.serial-select-wrapper');
     
     while (selects.length > qty) {
         selects[selects.length - 1].remove();
@@ -366,7 +455,7 @@ function addSerialSelect(itemIdx) {
     
     if (!warehouseId || !productId) return;
     
-    const currentSelects = container.querySelectorAll('.serial-select').length;
+    const currentSelects = container.querySelectorAll('.serial-select-wrapper').length;
     if (currentSelects >= qty) {
         alert(`Số lượng là ${qty}, chỉ được chọn tối đa ${qty} serial!`);
         return;
@@ -386,23 +475,25 @@ function addSerialSelect(itemIdx) {
         return;
     }
     
-    const selectCount = container.querySelectorAll('.serial-select').length;
+    const selectCount = container.querySelectorAll('.serial-select-wrapper').length;
     const selectDiv = document.createElement('div');
-    selectDiv.className = 'serial-select flex gap-1';
+    selectDiv.className = 'serial-select-wrapper p-1 bg-white rounded border border-gray-200';
     
-    const options = availableSerials.map(item => `<option value="${item.id}">${item.sku}</option>`).join('');
+    const options = availableSerials.map(item => `<option value="${item.id}">${formatSerialLabel(item)}</option>`).join('');
     
     selectDiv.innerHTML = `
-        <select name="items[${itemIdx}][product_item_ids][]" 
-                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
-                onchange="onSerialChange(${itemIdx})">
-            <option value="">-- Chọn serial #${selectCount + 1} --</option>
-            ${options}
-        </select>
-        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
-                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-            <i class="fas fa-times"></i>
-        </button>
+        <div class="flex gap-1">
+            <select name="items[${itemIdx}][product_item_ids][]" 
+                    class="serial-select-input flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono"
+                    onchange="onSerialChange(${itemIdx}); updateSerialBadge(this, ${itemIdx});">
+                <option value="">-- Chọn serial #${selectCount + 1} --</option>
+                ${options}
+            </select>
+            <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
+                    class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     `;
     container.appendChild(selectDiv);
     validateQuantity(itemIdx);
@@ -423,9 +514,9 @@ function addSerialSelectWithValue(itemIdx, selectedItemId) {
     
     if (serialItems.length === 0) return;
     
-    const selectCount = container.querySelectorAll('.serial-select').length;
+    const selectCount = container.querySelectorAll('.serial-select-wrapper').length;
     const selectDiv = document.createElement('div');
-    selectDiv.className = 'serial-select flex gap-1';
+    selectDiv.className = 'serial-select-wrapper p-1 bg-white rounded border border-gray-200';
     
     const selectedSerials = getSelectedSerials(itemIdx);
     const availableSerials = serialItems.filter(item => 
@@ -433,22 +524,25 @@ function addSerialSelectWithValue(itemIdx, selectedItemId) {
     );
     
     const options = availableSerials.map(item => 
-        `<option value="${item.id}" ${item.id == selectedItemId ? 'selected' : ''}>${item.sku}</option>`
+        `<option value="${item.id}" ${item.id == selectedItemId ? 'selected' : ''}>${formatSerialLabel(item)}</option>`
     ).join('');
     
     selectDiv.innerHTML = `
-        <select name="items[${itemIdx}][product_item_ids][]" 
-                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded font-mono"
-                onchange="onSerialChange(${itemIdx})">
-            <option value="">-- Chọn serial #${selectCount + 1} --</option>
-            ${options}
-        </select>
-        <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
-                class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-            <i class="fas fa-times"></i>
-        </button>
+        <div class="flex gap-1">
+            <select name="items[${itemIdx}][product_item_ids][]" 
+                    class="serial-select-input flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono"
+                    onchange="onSerialChange(${itemIdx}); updateSerialBadge(this, ${itemIdx});">
+                <option value="">-- Chọn serial #${selectCount + 1} --</option>
+                ${options}
+            </select>
+            <button type="button" onclick="removeSerialSelect(this, ${itemIdx})" 
+                    class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     `;
     container.appendChild(selectDiv);
+    updateSerialBadge(selectDiv.querySelector('select'), itemIdx);
     updateSerialOptions(itemIdx);
     validateQuantity(itemIdx);
 }
@@ -475,7 +569,7 @@ function updateSerialOptions(itemIdx) {
     const serialItems = data.items || [];
     
     const selectedSerials = getSelectedSerials(itemIdx);
-    const selects = container.querySelectorAll('select');
+    const selects = container.querySelectorAll('.serial-select-input');
     
     selects.forEach(select => {
         const currentValue = select.value;
@@ -487,22 +581,22 @@ function updateSerialOptions(itemIdx) {
             const isSelected = item.id.toString() === currentValue;
             const isUsed = otherSelected.includes(item.id.toString());
             if (!isUsed || isSelected) {
-                optionsHtml += `<option value="${item.id}" ${isSelected ? 'selected' : ''}>${item.sku}</option>`;
+                optionsHtml += `<option value="${item.id}" ${isSelected ? 'selected' : ''}>${formatSerialLabel(item)}</option>`;
             }
         });
         select.innerHTML = optionsHtml;
+        updateSerialBadge(select, itemIdx);
     });
 }
 
 function removeSerialSelect(btn, itemIdx) {
-    btn.parentElement.remove();
-    updateSerialOptions(itemIdx);
+    btn.closest('.serial-select-wrapper').remove();
     validateQuantity(itemIdx);
 }
 
 function getSelectedSerials(itemIdx) {
     const container = document.getElementById(`serialContainer_${itemIdx}`);
-    const selects = container.querySelectorAll('select');
+    const selects = container.querySelectorAll('.serial-select-input');
     const selected = [];
     selects.forEach(select => { if (select.value) selected.push(select.value); });
     return selected;

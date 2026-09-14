@@ -128,28 +128,51 @@
                     <table class="min-w-full text-sm">
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                             <tr>
-                                <th class="px-3 py-2 text-left">Serial / lô</th>
+                                <th class="px-3 py-2 text-left">Serial / Lô</th>
                                 <th class="px-3 py-2 text-center">SL</th>
                                 <th class="px-3 py-2 text-left">Nguồn nhập</th>
-                                <th class="px-3 py-2 text-left">PO & nhà cung cấp</th>
-                                <th class="px-3 py-2 text-left">Sales / đơn bán / dự án</th>
+                                <th class="px-3 py-2 text-left">PO & Nhà cung cấp</th>
+                                <th class="px-3 py-2 text-left">Sales / Đơn bán & Dự án</th>
                                 <th class="px-3 py-2 text-left">Trạng thái</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">
                             @forelse($traceItems as $item)
                                 @php
-                                    $po = $item->import?->purchaseOrder;
-                                    $sale = $po?->sale ?: $item->export?->sale;
-                                    $project = $sale?->project ?: $item->export?->project;
+                                    $po = $item->import?->purchaseOrder ?: $item->purchase_order;
+                                    $poItem = $item->po_item;
+                                    $sorItem = $poItem?->saleOrderRequestItem;
+                                    $sor = $sorItem?->saleOrderRequest;
+                                    
+                                    $sale = $po?->sale ?: ($item->export?->sale ?: ($sor?->sale ?: null));
+                                    
+                                    // Salesperson: check Sale user -> PR creator -> Item order creator -> PO creator
+                                    $salesName = $sale?->user?->name 
+                                        ?: ($sor?->creator?->name 
+                                        ?: ($item->order_creator_name 
+                                        ?: ($po?->creator?->name ?: null)));
+                                        
+                                    $project = $sale?->project ?: ($item->export?->project ?: null);
+                                    $projectName = $project ? ($project->code ? "{$project->code} - {$project->name}" : $project->name) : $item->project_name;
+                                    
+                                    $partnerOrEu = $sorItem?->eu_name_mst 
+                                        ?: ($sorItem?->si_name 
+                                        ?: ($sale?->customer?->abv_name ?: ($sale?->customer?->name ?: null)));
                                 @endphp
                                 <tr class="hover:bg-gray-50 align-top">
-                                    <td class="px-3 py-2">
-                                        <div class="font-mono text-xs text-gray-800">{{ $item->sku ?: 'Không serial' }}</div>
-                                        <div class="text-xs text-gray-500 mt-0.5">Cập nhật: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</div>
+                                    <td class="px-3 py-2.5">
+                                        <div class="font-mono text-xs font-semibold text-gray-900">{{ $item->sku ?: 'Không serial' }}</div>
+                                        <div class="text-xs text-gray-400 mt-0.5">Cập nhật: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</div>
+                                        @if($item->borrower)
+                                            <div class="mt-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                    <i class="fas fa-hand-holding mr-1 text-amber-600"></i>Giữ/Mượn: {{ $item->borrower }}
+                                                </span>
+                                            </div>
+                                        @endif
                                     </td>
-                                    <td class="px-3 py-2 text-center font-semibold">{{ number_format($item->quantity) }}</td>
-                                    <td class="px-3 py-2">
+                                    <td class="px-3 py-2.5 text-center font-bold text-gray-800">{{ number_format($item->quantity) }}</td>
+                                    <td class="px-3 py-2.5">
                                         @if($item->import)
                                             <div class="font-medium text-gray-800">{{ $item->import->code }}</div>
                                             <div class="text-xs text-gray-500">{{ optional($item->import->date)->format('d/m/Y') ?: '-' }}</div>
@@ -157,27 +180,57 @@
                                             <span class="text-gray-400">Chưa có phiếu nhập</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2">
+                                    <td class="px-3 py-2.5">
                                         @if($po)
-                                            <a href="{{ route('purchase-orders.show', $po) }}" class="font-medium text-primary hover:underline">{{ $po->code }}</a>
-                                            <div class="text-xs text-gray-500">{{ $po->supplier?->name ?: $item->import?->supplier?->name ?: '-' }}</div>
+                                            <div>
+                                                <a href="{{ route('purchase-orders.show', $po) }}" class="font-bold text-primary hover:underline inline-flex items-center gap-1">
+                                                    <i class="fas fa-file-contract text-xs text-primary"></i>{{ $po->code }}
+                                                </a>
+                                            </div>
+                                            <div class="text-xs text-gray-700 font-medium mt-0.5">{{ $po->supplier?->name ?: ($item->import?->supplier?->name ?: '-') }}</div>
+                                            @if($po->order_date)
+                                                <div class="text-[11px] text-gray-400">Ngày đặt: {{ $po->order_date->format('d/m/Y') }}</div>
+                                            @endif
                                         @else
                                             <span class="text-gray-400">Không liên kết PO</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2">
-                                        @if($sale)
-                                            <a href="{{ route('sales.show', $sale) }}" class="font-medium text-primary hover:underline">{{ $sale->code }}</a>
-                                            <div class="text-xs text-gray-600">Sales: {{ $sale->user?->name ?: '-' }}</div>
+                                    <td class="px-3 py-2.5">
+                                        @if($salesName)
+                                            <div class="font-semibold text-gray-900 flex items-center gap-1.5">
+                                                <i class="fas fa-user-tag text-blue-600 text-xs"></i>
+                                                <span>Sales: <span class="text-blue-700">{{ $salesName }}</span></span>
+                                            </div>
                                         @endif
-                                        @if($project)
-                                            <div class="text-xs text-gray-500 mt-0.5">Dự án: {{ $project->code }}{{ $project->name ? ' - ' . $project->name : '' }}</div>
-                                        @elseif(!$sale)
-                                            <span class="text-gray-400">Chưa gán đơn bán/dự án</span>
+                                        @if($sale)
+                                            <div class="text-xs mt-0.5">
+                                                <a href="{{ route('sales.show', $sale) }}" class="font-semibold text-indigo-600 hover:underline inline-flex items-center gap-1">
+                                                    <i class="fas fa-file-invoice text-xs"></i>{{ $sale->code }}
+                                                </a>
+                                            </div>
+                                        @elseif($sor)
+                                            <div class="text-xs text-gray-600 mt-0.5">
+                                                <i class="fas fa-clipboard-list text-xs mr-1 text-amber-600"></i>Yêu cầu: {{ $sor->code }}
+                                            </div>
+                                        @endif
+                                        @if($projectName)
+                                            <div class="text-xs text-slate-700 mt-0.5">
+                                                <i class="fas fa-folder text-xs mr-1 text-sky-600"></i>Dự án: {{ $projectName }}
+                                            </div>
+                                        @endif
+                                        @if($partnerOrEu)
+                                            <div class="text-[11px] text-slate-500 mt-0.5">
+                                                Khách/EU: {{ $partnerOrEu }}
+                                            </div>
+                                        @endif
+                                        @if(!$salesName && !$sale && !$sor && !$projectName)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                                                Hàng lưu kho chung
+                                            </span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2">
-                                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold {{ $item->status === 'in_stock' ? 'bg-green-100 text-green-800' : ($item->status === 'sold' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700') }}">
+                                    <td class="px-3 py-2.5">
+                                        <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold {{ $item->status === 'in_stock' ? 'bg-emerald-100 text-emerald-800' : ($item->status === 'sold' ? 'bg-blue-100 text-blue-800' : ($item->status === 'damaged' ? 'bg-rose-100 text-rose-800' : 'bg-gray-100 text-gray-700')) }}">
                                             {{ \App\Models\ProductItem::getStatuses()[$item->status] ?? $item->status }}
                                         </span>
                                     </td>

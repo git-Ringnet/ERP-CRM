@@ -387,20 +387,46 @@ class TransferController extends Controller
             'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        // Get items with real serial (not NOSKU/NOSERIAL)
-        $itemsWithSerial = ProductItem::where('product_id', $request->product_id)
-            ->where('warehouse_id', $request->warehouse_id)
-            ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->hasSerial()
-            ->select('id', 'sku', 'cost_usd', 'price_tiers')
-            ->get();
+        $productItems = ProductItem::with([
+            'import.purchaseOrder.supplier',
+            'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.user',
+            'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.project',
+            'import.purchaseOrder.sale.user',
+            'import.purchaseOrder.sale.project',
+        ])
+        ->where('product_id', $request->product_id)
+        ->where('warehouse_id', $request->warehouse_id)
+        ->where('status', ProductItem::STATUS_IN_STOCK)
+        ->get();
 
-        // Count items without serial (NOSKU/NOSERIAL)
-        $noSkuCount = ProductItem::where('product_id', $request->product_id)
-            ->where('warehouse_id', $request->warehouse_id)
-            ->where('status', ProductItem::STATUS_IN_STOCK)
-            ->noSerial()
-            ->sum('quantity');
+        $itemsWithSerial = [];
+        $noSkuItems = [];
+
+        foreach ($productItems as $item) {
+            $trace = $item->trace_info;
+
+            $itemData = [
+                'id' => $item->id,
+                'sku' => $item->sku,
+                'is_no_sku' => $item->isNoSku(),
+                'po_code' => $trace['po_code'],
+                'supplier_name' => $trace['supplier_name'],
+                'sale_code' => $trace['sale_code'],
+                'sales_name' => $trace['sales_name'],
+                'project_name' => $trace['project_name'],
+                'comments' => $trace['comments'],
+                'cost_usd' => $item->cost_usd,
+                'quantity' => $item->quantity ?? 1,
+            ];
+
+            if ($item->isNoSku()) {
+                $noSkuItems[] = $itemData;
+            } else {
+                $itemsWithSerial[] = $itemData;
+            }
+        }
+
+        $noSkuCount = collect($noSkuItems)->sum('quantity');
 
         // Get avg_cost from inventory
         $inventory = \App\Models\Inventory::where('product_id', $request->product_id)
@@ -409,6 +435,7 @@ class TransferController extends Controller
 
         return response()->json([
             'items' => $itemsWithSerial,
+            'noSkuItems' => $noSkuItems,
             'noSkuCount' => $noSkuCount,
             'avg_cost' => $inventory ? $inventory->avg_cost : 0,
         ]);

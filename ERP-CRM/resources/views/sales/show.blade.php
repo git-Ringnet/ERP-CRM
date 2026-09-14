@@ -17,47 +17,88 @@
             </button>
         </div>
     @endif
-<div class="space-y-4 overflow-auto">
+<div class="space-y-4">
     <!-- Actions -->
-    <div class="flex flex-wrap gap-2">
-        <a href="{{ url()->previous() }}" 
-           class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
-            <i class="fas fa-arrow-left mr-2"></i> Quay lại
-        </a>
-        <a href="{{ route('sales.edit', $sale->id) }}" 
-           class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
-            <i class="fas fa-edit mr-2"></i> Sửa
-        </a>
-        @if($sale->dashboard_step >= 4)
-        <a href="{{ route('sales.pdf', $sale->id) }}" target="_blank"
-           class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-            <i class="fas fa-file-pdf mr-2"></i> Hóa đơn (In)
-        </a>
-        @endif
-        <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline" id="emailForm">
-            @csrf
-            <button type="button" onclick="confirmSendEmail()"
-                    class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                <i class="fas fa-envelope mr-2"></i> Gửi Email
-            </button>
-        </form>
-        @php
-            $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
-        @endphp
-        @if($sale->pl_status === 'approved')
-        <a href="{{ route('sales.order-request.create', $sale->id) }}" 
-                class="inline-flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
-            <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
-            @if($sale->orderRequests && $sale->orderRequests->count() > 0)
-                <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ url()->previous() }}" 
+               class="inline-flex items-center px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors shadow-xs">
+                <i class="fas fa-arrow-left mr-2 text-gray-500"></i> Quay lại
+            </a>
+            <a href="{{ route('sales.edit', $sale->id) }}" 
+               class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
+                <i class="fas fa-edit mr-2"></i> Sửa
+            </a>
+
+            <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline" id="emailForm">
+                @csrf
+                <button type="button" onclick="confirmSendEmail()"
+                        class="inline-flex items-center px-3.5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors shadow-xs">
+                    <i class="fas fa-envelope mr-2"></i> Gửi Email
+                </button>
+            </form>
+        </div>
+        <div>
+            @php
+                $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
+            @endphp
+            @if($sale->pl_status === 'approved')
+            <a href="{{ route('sales.order-request.create', $sale->id) }}" 
+                    class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-xs">
+                <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng
+                @if($sale->orderRequests && $sale->orderRequests->count() > 0)
+                    <span class="ml-1.5 bg-white/30 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $sale->orderRequests->count() }}</span>
+                @endif
+            </a>
             @endif
-        </a>
-        @endif
+        </div>
     </div>
     
+    {{-- Project Closure Sync Banner --}}
+    @php
+        $linkedProject = $sale->project ?? $sale->items->map(fn($it) => $it->project)->filter()->first();
+        $isProjectOpen = $linkedProject && !in_array($linkedProject->registration_status, ['closed_won', 'closed_lost', 'cancelled']);
+    @endphp
+    @if($isProjectOpen)
+    <div class="bg-gradient-to-r from-purple-50 via-indigo-50/60 to-white border border-purple-200/80 rounded-xl p-4 shadow-xs">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200">
+                            <i class="fas fa-project-diagram mr-1"></i> Đăng ký Dự án
+                        </span>
+                        <a href="{{ route('projects.show', $linkedProject->id) }}" class="text-sm font-bold text-gray-900 hover:text-purple-600 hover:underline">
+                            {{ $linkedProject->code }} - {{ $linkedProject->name }}
+                        </a>
+                        <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold {{ $linkedProject->registration_status_badge['class'] ?? 'bg-gray-100 text-gray-700' }}">
+                            {{ $linkedProject->registration_status_label }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-1.5 leading-relaxed">
+                        Đơn hàng <strong class="text-gray-900">#{{ $sale->code }}</strong> (<span class="text-purple-700 font-bold">{{ number_format($sale->total, 0, ',', '.') }} đ</span>) liên kết với dự án này. Khi hoàn tất xuất hóa đơn hoặc giao hàng, bạn có thể bấm xác nhận để tự động đóng dự án (Closed Won) và đồng bộ BOM cùng đơn giá chốt thực tế.
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0 self-end md:self-center">
+                <button type="button" onclick="openSaleCloseProjectModal('{{ $linkedProject->id }}', '{{ $linkedProject->code }}', '{{ addslashes($linkedProject->name) }}', '{{ $sale->id }}', '{{ $sale->code }}', '{{ number_format($sale->total, 0, ',', '.') }} đ')"
+                        class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold rounded-lg hover:from-purple-700 hover:to-indigo-700 shadow-sm transition-all hover:shadow">
+                    <i class="fas fa-check-circle mr-1.5"></i> Xác nhận Đóng dự án & Đồng bộ
+                </button>
+                <a href="{{ route('projects.show', $linkedProject->id) }}" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors shadow-xs">
+                    <i class="fas fa-external-link-alt mr-1"></i> Xem DA
+                </a>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- System Alert for Auto-created POs --}}
     @if($sale->purchaseOrders && $sale->purchaseOrders->count() > 0)
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center">
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center shadow-xs">
         <div class="flex-shrink-0">
             <i class="fas fa-info-circle text-blue-500 text-lg"></i>
         </div>
@@ -74,11 +115,11 @@
 
     {{-- Order Requests Status Summary --}}
     @if($sale->orderRequests && $sale->orderRequests->count() > 0)
-    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 shadow-xs">
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
                 <i class="fas fa-cart-arrow-down text-emerald-600 text-base"></i>
-                <span class="text-xs font-bold text-emerald-900 uppercase">Yêu cầu đặt hàng ({{ $sale->orderRequests->count() }})</span>
+                <span class="text-xs font-bold text-emerald-900 uppercase tracking-wider">Yêu cầu đặt hàng ({{ $sale->orderRequests->count() }})</span>
             </div>
             <a href="{{ route('purchase-requests.index', ['my_requests' => 1]) }}" class="text-xs text-emerald-700 hover:text-emerald-900 font-semibold underline flex items-center gap-1">
                 Xem ở Yêu cầu đặt hàng <i class="fas fa-arrow-right text-[10px]"></i>
@@ -86,7 +127,7 @@
         </div>
         <div class="space-y-1.5 text-xs">
             @foreach($sale->orderRequests as $req)
-                <div class="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded border border-emerald-100 gap-2">
+                <div class="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-emerald-100 gap-2">
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-emerald-800">#{{ $req->code }}</span>
                         <span class="text-gray-500">({{ $req->items->count() }} sản phẩm)</span>
@@ -132,41 +173,39 @@
     @endphp
 
     @if($pnlWorkflow || $sale->status !== 'cancelled')
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+    <div class="bg-white rounded-xl shadow-xs overflow-hidden border border-gray-200">
         {{-- P&L Workflow Header --}}
-        <div class="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 {{ $sale->pl_status === 'approved' ? 'bg-green-50/50' : ($sale->pl_status === 'rejected' ? 'bg-red-50/50' : ($sale->pl_status === 'need_revision' ? 'bg-amber-50/50' : 'bg-blue-50/50')) }}">
-            <div class="flex items-center gap-4">
-                <div class="flex flex-col">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quy trình duyệt P&L</span>
-                    <div class="flex items-center gap-2 mt-0.5">
-                        <span class="px-2 py-0.5 rounded text-[11px] font-bold {{ $sale->pl_status_color }}">
-                            {{ $sale->pl_status_label }}
-                        </span>
-                        <i class="fas fa-chevron-right text-gray-300 text-[10px]"></i>
-                        <span class="text-sm text-gray-700">
-                            @if($sale->pl_status === 'pending' && $pendingHist)
-                                Đang chờ: <span class="font-bold text-blue-600">{{ $pendingHist->level_name }}</span>
-                            @elseif($sale->pl_status === 'approved')
-                                <span class="text-green-600 font-bold">Đã duyệt hoàn tất</span>
-                            @elseif($sale->pl_status === 'rejected')
-                                <span class="text-red-600 font-bold">Bị từ chối - Chờ Sales sửa</span>
-                            @elseif($sale->pl_status === 'need_revision')
-                                <span class="text-amber-600 font-bold">Yêu cầu chỉnh sửa - Chờ Sales sửa</span>
-                            @else
-                                <span class="text-gray-400 italic">Bản nháp</span>
-                            @endif
-                        </span>
-                    </div>
+        <div class="px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 {{ $sale->pl_status === 'approved' ? 'bg-emerald-50/50' : ($sale->pl_status === 'rejected' ? 'bg-red-50/50' : ($sale->pl_status === 'need_revision' ? 'bg-amber-50/50' : 'bg-slate-50')) }}">
+            <div class="flex items-center gap-3">
+                <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Quy trình duyệt P&L:</span>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {{ $sale->pl_status_color }}">
+                        {{ $sale->pl_status_label }}
+                    </span>
+                    <i class="fas fa-chevron-right text-gray-300 text-[10px]"></i>
+                    <span class="text-xs text-gray-700 font-medium">
+                        @if($sale->pl_status === 'pending' && $pendingHist)
+                            Đang chờ: <span class="font-bold text-blue-600">{{ $pendingHist->level_name }}</span>
+                        @elseif($sale->pl_status === 'approved')
+                            <span class="text-emerald-700 font-bold"><i class="fas fa-check-circle mr-1"></i>Đã duyệt hoàn tất</span>
+                        @elseif($sale->pl_status === 'rejected')
+                            <span class="text-red-600 font-bold"><i class="fas fa-times-circle mr-1"></i>Bị từ chối - Chờ Sales sửa</span>
+                        @elseif($sale->pl_status === 'need_revision')
+                            <span class="text-amber-600 font-bold"><i class="fas fa-exclamation-circle mr-1"></i>Yêu cầu chỉnh sửa - Chờ Sales sửa</span>
+                        @else
+                            <span class="text-gray-400 italic">Bản nháp</span>
+                        @endif
+                    </span>
                 </div>
             </div>
 
             @if(in_array($sale->pl_status, ['rejected', 'need_revision']) && $latestReject)
-            <div class="flex-1 max-w-xl bg-white/60 p-2 rounded border {{ $sale->pl_status === 'rejected' ? 'border-red-100' : 'border-amber-100' }} flex items-start gap-2">
-                <i class="fas fa-{{ $sale->pl_status === 'rejected' ? 'exclamation-circle text-red-500' : 'pen text-amber-500' }} mt-1"></i>
+            <div class="bg-white/80 px-3 py-1.5 rounded-lg border {{ $sale->pl_status === 'rejected' ? 'border-red-200' : 'border-amber-200' }} flex items-start gap-2 max-w-xl">
+                <i class="fas fa-{{ $sale->pl_status === 'rejected' ? 'exclamation-circle text-red-500' : 'pen text-amber-500' }} mt-0.5 text-xs"></i>
                 <div class="text-xs">
-                    <span class="font-bold {{ $sale->pl_status === 'rejected' ? 'text-red-700' : 'text-amber-700' }}">{{ $sale->pl_status === 'rejected' ? 'Lý do từ chối:' : 'Nội dung cần chỉnh sửa:' }}</span>
+                    <span class="font-bold {{ $sale->pl_status === 'rejected' ? 'text-red-700' : 'text-amber-700' }}">{{ $sale->pl_status === 'rejected' ? 'Lý do:' : 'Cần sửa:' }}</span>
                     <span class="{{ $sale->pl_status === 'rejected' ? 'text-red-600' : 'text-amber-600' }}">"{{ $latestReject->comment }}"</span>
-                    <span class="text-[10px] {{ $sale->pl_status === 'rejected' ? 'text-red-400' : 'text-amber-400' }} ml-1">({{ $latestReject->approver_name }})</span>
+                    <span class="text-[10px] text-gray-400 ml-1">({{ $latestReject->approver_name }})</span>
                 </div>
             </div>
             @endif
@@ -175,8 +214,8 @@
         {{-- Order Status & Quick Actions --}}
         <div class="px-5 py-3 bg-white border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Trạng thái đơn:</span>
-                <div class="flex items-center text-[10px] sm:text-[11px] overflow-x-auto pb-1 no-scrollbar">
+                <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0">Trạng thái đơn:</span>
+                <div class="flex items-center text-xs overflow-x-auto pb-1 no-scrollbar gap-1">
                     @php
                         $currentStep = $sale->dashboard_step;
                         $dashStatus = $sale->dashboard_status;
@@ -211,42 +250,40 @@
                     @endphp
 
                     @foreach($steps as $index => $step)
-                        <span class="px-2 py-1 rounded whitespace-nowrap {{ $currentStep === $index ? "bg-{$step['color']}-100 text-{$step['color']}-800 font-bold ring-1 ring-{$step['color']}-300" : ($currentStep > $index ? "text-{$step['color']}-600" : 'bg-gray-50 text-gray-400') }}">
+                        <span class="px-2.5 py-1 rounded-md whitespace-nowrap text-xs font-semibold {{ $currentStep === $index ? "bg-{$step['color']}-100 text-{$step['color']}-800 ring-1 ring-{$step['color']}-400 font-bold" : ($currentStep > $index ? "text-{$step['color']}-700 font-medium" : 'bg-gray-50 text-gray-400') }}">
                             {{ $step['label'] }}
                         </span>
                         @if(!$loop->last)
-                            <i class="fas fa-chevron-right mx-1.5 {{ $currentStep > $index ? "text-{$step['color']}-300" : 'text-gray-200' }}"></i>
+                            <i class="fas fa-chevron-right text-[10px] mx-1 {{ $currentStep > $index ? "text-{$step['color']}-400" : 'text-gray-200' }}"></i>
                         @endif
                     @endforeach
                 </div>
             </div>
 
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Thao tác:</span>
+            <div class="flex items-center gap-2 shrink-0">
+                <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mr-1">Thao tác:</span>
                 @if($sale->status === 'pending' && $sale->pl_status === 'approved')
                     <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="approved">
-                        <button type="submit" class="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded shadow-sm hover:bg-blue-700 transition-all">
+                        <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-xs hover:bg-blue-700 transition-all">
                             <i class="fas fa-check mr-1"></i> DUYỆT ĐƠN
                         </button>
                     </form>
                 @endif
                 
                 @php
-                    // A received PO has already affected inventory. It must be
-                    // returned/adjusted through the warehouse workflow instead of
-                    // cancelling the sales order.
                     $hasGoodsReceived = $sale->all_purchase_orders
                         ->contains(fn ($purchaseOrder) => in_array($purchaseOrder->status, ['partial_received', 'received'], true));
+                    $hasPayment = $sale->hasPayment();
                 @endphp
-                @if(in_array($sale->status, ['pending', 'approved']) && !$hasGoodsReceived)
+                @if(in_array($sale->status, ['pending', 'approved']) && !$hasGoodsReceived && !$hasPayment)
                     <form action="{{ route('sales.updateStatus', $sale->id) }}" method="POST" class="inline">
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="cancelled">
                         <button type="button" 
                                 onclick="confirmAction(this.closest('form'), 'Xác nhận hủy đơn?', 'Bạn có chắc chắn muốn hủy đơn hàng này không?', 'warning', 'Đồng ý hủy', '#d33')"
-                                class="px-3 py-1 bg-white border border-red-200 text-red-600 text-xs font-bold rounded hover:bg-red-50 transition-all">
+                                class="px-3 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold rounded-lg hover:bg-red-50 transition-all shadow-xs">
                             <i class="fas fa-times mr-1"></i> HỦY ĐƠN
                         </button>
                     </form>
@@ -268,12 +305,12 @@
         @php
             $linkedExportsSummary = \App\Models\Export::where('reference_type', 'sale')->where('reference_id', $sale->id)->get();
         @endphp
-        <div class="px-5 py-2.5 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="px-5 py-2.5 bg-gray-50/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div class="flex items-center gap-3">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Kho & Giao nhận:</span>
+                <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Kho & Giao nhận:</span>
                 @if($linkedExportsSummary->isNotEmpty())
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-medium text-gray-700">
+                        <span class="text-xs font-medium text-gray-700">
                             Có {{ $linkedExportsSummary->count() }} yêu cầu xuất kho:
                         </span>
                         <a href="javascript:void(0)" @click="activeTab = 'warehouse'" class="text-xs font-bold text-teal-600 hover:underline">
@@ -281,8 +318,8 @@
                         </a>
                     </div>
                 @else
-                    <span class="text-xs text-red-500 font-medium">
-                        <i class="fas fa-times-circle mr-1"></i>Chưa có phiếu xuất kho. Vui lòng tạo ở tab Kho & Giao nhận.
+                    <span class="text-xs text-red-500 font-medium flex items-center gap-1">
+                        <i class="fas fa-exclamation-circle text-red-400"></i> Chưa có phiếu xuất kho. Vui lòng tạo ở tab Kho & Giao nhận.
                     </span>
                 @endif
             </div>
@@ -2165,6 +2202,79 @@
     </div>
 </div>
 
+@if(isset($linkedProject) && $linkedProject)
+<!-- Sale Project Closure Modal -->
+<div id="saleCloseProjectModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeSaleCloseProjectModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-trophy text-amber-500"></i> Xác nhận Đóng dự án (Closed Won)
+                </h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeSaleCloseProjectModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="saleCloseProjectForm" action="{{ route('projects.close', $linkedProject->id) }}" method="POST">
+                @csrf
+                <input type="hidden" name="close_status" value="closed_won">
+                <input type="hidden" name="source_mode" value="sync_sale">
+                <input type="hidden" name="sale_id" value="{{ $sale->id }}">
+
+                <div class="mt-4 space-y-4">
+                    <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Dự án:</span>
+                            <span class="font-bold text-indigo-900" id="sale_close_modal_project_title">{{ $linkedProject->code }} - {{ $linkedProject->name }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Đơn hàng đồng bộ:</span>
+                            <span class="font-bold text-gray-900">#{{ $sale->code }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Ngày đơn hàng:</span>
+                            <span class="font-medium text-gray-900">{{ $sale->date ? $sale->date->format('d/m/Y') : '-' }}</span>
+                        </div>
+                        <div class="flex justify-between pt-1 border-t border-indigo-100">
+                            <span class="font-bold text-gray-900">Tổng giá trị đơn:</span>
+                            <span class="font-bold text-indigo-700 text-sm">{{ number_format($sale->total, 0, ',', '.') }} đ</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" name="sync_bom" value="1" checked class="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            <div>
+                                <span class="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                                    <i class="fas fa-sync-alt text-emerald-600"></i> Tự động đồng bộ BOM & Đơn giá bán thực tế
+                                </span>
+                                <p class="text-[11px] text-emerald-700 mt-0.5">Hệ thống sẽ cập nhật {{ $sale->items->count() }} mặt hàng và mức giá chốt vào hồ sơ dự án.</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Ghi chú đóng dự án (Tùy chọn)</label>
+                        <textarea name="close_note" rows="2" class="block w-full rounded-lg border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập ghi chú thêm nếu có..."></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-5 sm:mt-6 flex justify-end gap-3">
+                    <button type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" onclick="closeSaleCloseProjectModal()">Hủy</button>
+                    <button type="submit" class="inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700">
+                        <i class="fas fa-check mr-1.5"></i> Xác nhận & Đồng bộ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+@endsection
+
 @push('scripts')
 <script>
 function openDeliveryModal() {
@@ -2575,5 +2685,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script src="{{ asset('js/order-request.js') }}"></script>
+@if(isset($linkedProject) && $linkedProject)
+<script>
+function openSaleCloseProjectModal(projectId, projectCode, projectName, saleId, saleCode, saleTotal) {
+    const modal = document.getElementById('saleCloseProjectModal');
+    const form = document.getElementById('saleCloseProjectForm');
+    const title = document.getElementById('sale_close_modal_project_title');
+    if (form && projectId) {
+        form.action = "{{ url('/projects') }}/" + projectId + "/close";
+    }
+    if (title && projectCode) {
+        title.textContent = projectCode + " - " + projectName;
+    }
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeSaleCloseProjectModal() {
+    const modal = document.getElementById('saleCloseProjectModal');
+    if (modal) modal.classList.add('hidden');
+}
+</script>
+@endif
 @endpush
-@endsection

@@ -118,6 +118,27 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\EmployeeAssetAssignment::class, 'user_id');
     }
 
+    /**
+     * Check if user is allowed to view sales commercial prices (selling price, quotation totals, margins).
+     * Project Registration / PM / PO team members cannot view sales prices unless they are Admin, BOD, or Sales.
+     */
+    public function canViewCommercialPrice(?int $creatorId = null): bool
+    {
+        if ($this->hasAnyRole(['super_admin', 'admin', 'director', 'accountant', 'sales_manager', 'sales_staff'])) {
+            return true;
+        }
+
+        if ($creatorId && $this->id === $creatorId) {
+            return true;
+        }
+
+        if (in_array($this->department, ['PM', 'PO', 'PM Team', 'PO Team']) || $this->hasAnyRole(['purchase_manager', 'purchase_staff'])) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function activeAssets(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\EmployeeAssetAssignment::class, 'user_id')

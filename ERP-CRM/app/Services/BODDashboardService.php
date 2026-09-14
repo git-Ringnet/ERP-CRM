@@ -214,6 +214,9 @@ class BODDashboardService
         $nearingExpiryCount = Project::query()
             ->when($filters['team'], fn($q) => $q->where('assigned_team', $filters['team']))
             ->when($filters['sales_id'], fn($q) => $q->where('manager_id', $filters['sales_id']))
+            ->when($filters['customer_id'], fn($q) => $q->where('customer_id', $filters['customer_id']))
+            ->when($filters['vendor_id'], fn($q) => $q->where('vendor_id', $filters['vendor_id']))
+            ->when($filters['deal_type'], fn($q) => $q->where('deal_type', $filters['deal_type']))
             ->whereNotIn('registration_status', ['closed_won', 'closed_lost', 'cancelled'])
             ->where('updated_at', '<', $now->copy()->subDays(60))
             ->count();
@@ -235,9 +238,6 @@ class BODDashboardService
     public function getPipelineMetrics(array $filters): array
     {
         $query = Project::query()
-            ->when($filters['date_from'] && $filters['date_to'], function ($q) use ($filters) {
-                $q->whereBetween('created_at', [$filters['date_from'], $filters['date_to']]);
-            })
             ->when($filters['team'], fn($q, $t) => $q->where('assigned_team', $t))
             ->when($filters['sales_id'], fn($q, $s) => $q->where('manager_id', $s))
             ->when($filters['customer_id'], fn($q, $c) => $q->where('customer_id', $c))
@@ -324,10 +324,7 @@ class BODDashboardService
             ->when($filters['sales_id'], fn($q, $s) => $q->where('manager_id', $s))
             ->when($filters['customer_id'], fn($q, $c) => $q->where('customer_id', $c))
             ->when($filters['vendor_id'], fn($q, $v) => $q->where('vendor_id', $v))
-            ->when($filters['deal_type'], fn($q, $d) => $q->where('deal_type', $d))
-            ->when($filters['period_type'] !== 'all' && $filters['date_from'] && $filters['date_to'], function ($q) use ($filters) {
-                $q->whereBetween('created_at', [$filters['date_from'], $filters['date_to']]);
-            });
+            ->when($filters['deal_type'], fn($q, $d) => $q->where('deal_type', $d));
 
         $deals = $query->latest('updated_at')->limit(150)->get();
 

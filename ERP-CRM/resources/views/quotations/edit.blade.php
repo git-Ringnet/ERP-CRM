@@ -52,18 +52,69 @@
             </div>
         @endif
 
+        <!-- If selected project banner -->
+        @php
+            $currentProject = $selectedProject ?? $quotation->project;
+        @endphp
+        @if($currentProject)
+            <div id="project-banner" class="mx-6 mt-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 shadow-xs">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-purple-600">Báo giá theo Dự án đã đăng ký</span>
+                            <h3 class="text-base font-bold text-gray-900" id="project-banner-title">{{ $currentProject->code }} - {{ $currentProject->name }}</h3>
+                            <p class="text-xs text-gray-600">
+                                Partner/SI: <strong class="text-gray-800" id="project-banner-partner">{{ $currentProject->customer?->name ?? $currentProject->partner_name ?? 'Chưa rõ' }}</strong> | 
+                                End-User: <strong class="text-gray-800" id="project-banner-enduser">{{ $currentProject->end_user_name ?? 'N/A' }}</strong>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                            <i class="fas fa-shield-alt mr-1.5 text-purple-600"></i> Dự án liên kết
+                        </span>
+                        <a href="{{ route('projects.show', $currentProject->id) }}" target="_blank" class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-white text-purple-700 border border-purple-200 hover:bg-purple-50 transition-colors shadow-xs">
+                            <i class="fas fa-external-link-alt mr-1 text-purple-600"></i> Xem DA
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <form action="{{ route('quotations.update', $quotation) }}" method="POST" id="quotationForm">
             @csrf
             @method('PUT')
             <div class="p-6 border-b border-gray-200">
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Mã báo giá <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="code" value="{{ old('code', $quotation->code) }}" required
                             class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 @error('code') border-red-500 @enderror">
                         @error('code')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-project-diagram text-purple-500 mr-1"></i> Dự án liên kết
+                        </label>
+                        <select name="project_id" id="project_id"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">-- Không chọn / Báo giá độc lập --</option>
+                            @if(isset($projects))
+                                @foreach($projects as $p)
+                                    <option value="{{ $p->id }}" 
+                                        data-customer-id="{{ $p->customer_id }}"
+                                        data-name="{{ $p->name }}"
+                                        {{ (old('project_id', $quotation->project_id) == $p->id) ? 'selected' : '' }}>
+                                        {{ $p->code }} - {{ $p->name }}
+                                    </option>
+                                @endforeach
+                            @endif
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng <span
@@ -338,7 +389,7 @@
                                                 onchange="calculateRowTotal({{ $index }})"
                                                 class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                         </td>
-                                    @elseif($colName === 'price')
+                                        @elseif($colName === 'price')
                                         <td class="px-3 py-2 align-top">
                                             <input type="text" name="products[{{ $index }}][price]"
                                                 value="{{ is_numeric($item->price) ? number_format($item->price, $decimals, '.', ',') : $item->price }}" required
@@ -352,12 +403,18 @@
                                         </td>
                                     @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                         @php
-                                            $plPrice = null;
-                                            if ($item instanceof \App\Models\QuotationItem) {
-                                                $plPrice = $item->pricelist_price;
+                                            $plPrice = 0;
+                                            if (isset($item->custom_fields['pricelist']) && $item->custom_fields['pricelist'] !== '' && $item->custom_fields['pricelist'] !== null) {
+                                                $val = str_replace(['$', ','], '', (string)$item->custom_fields['pricelist']);
+                                                $plPrice = is_numeric($val) ? (float)$val : 0;
+                                            } elseif (isset($item['custom_fields']['pricelist']) && $item['custom_fields']['pricelist'] !== '' && $item['custom_fields']['pricelist'] !== null) {
+                                                $val = str_replace(['$', ','], '', (string)$item['custom_fields']['pricelist']);
+                                                $plPrice = is_numeric($val) ? (float)$val : 0;
+                                            } elseif ($item instanceof \App\Models\QuotationItem) {
+                                                $plPrice = $item->pricelist_price ?? 0;
                                             } else {
                                                 // Handle old inputs arrays/objects
-                                                $oldProductId = $item->product_id ?? null;
+                                                $oldProductId = $item['product_id'] ?? null;
                                                 if ($oldProductId) {
                                                     $oldSku = null;
                                                     if (str_starts_with($oldProductId, 'p-')) {
@@ -393,9 +450,10 @@
                                             }
                                         @endphp
                                         <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                                            <input type="text" readonly 
-                                                   class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                                                   value="{{ $plPrice ? '$' . number_format($plPrice, 2) : 'N/A' }}">
+                                            <input type="number" step="any" min="0" name="products[{{ $index }}][custom_fields][pricelist]" 
+                                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                   value="{{ $plPrice !== null ? (float)$plPrice : 0 }}"
+                                                   placeholder="0">
                                         </td>
                                     @elseif($colName === 'vat')
                                         <td class="px-3 py-2 align-top">
@@ -1021,7 +1079,7 @@
 
                 if (isManual) {
                     row.find('.base-price-reference').text('');
-                    row.find('.pricelist-display').val('N/A');
+                    row.find('.pricelist-display').val(0);
                 } else {
                     if (data.price) {
                         const basePriceVnd = parseFloat(data.price);
@@ -1032,9 +1090,9 @@
                     }
                     if (data.pricelist_price) {
                         const plPrice = parseFloat(data.pricelist_price);
-                        row.find('.pricelist-display').val('$' + plPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                        row.find('.pricelist-display').val(plPrice > 0 ? plPrice : 0);
                     } else {
-                        row.find('.pricelist-display').val('N/A');
+                        row.find('.pricelist-display').val(0);
                     }
                 }
                 const qtyInput = row.find('.quantity-input');
@@ -1043,7 +1101,7 @@
             }).on('select2:clear', function(e) {
                 row.find('.description-input').val('');
                 row.find('.base-price-reference').text('');
-                row.find('.pricelist-display').val('N/A');
+                row.find('.pricelist-display').val(0);
                 const qtyInput = row.find('.quantity-input');
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
                 calculateRowTotal(idxRef);
@@ -1161,7 +1219,7 @@
                 productSelect.val(null).trigger('change');
                 descInput.val('');
                 row.find('.base-price-reference').text('');
-                row.find('.pricelist-display').val('N/A');
+                row.find('.pricelist-display').val(0);
             }
         }
 
@@ -1402,9 +1460,9 @@
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                        <input type="text" readonly 
-                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                               value="N/A">
+                        <input type="number" step="any" min="0" name="products[${rowIndex}][custom_fields][pricelist]" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               value="0" placeholder="0">
                     </td>
                 `,
                 vat: `
@@ -1538,9 +1596,9 @@
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                        <input type="text" readonly 
-                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                               value="N/A">
+                        <input type="number" step="any" min="0" name="products[${rowIndex}][custom_fields][pricelist]" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               value="0" placeholder="0">
                     </td>
                 `,
                 vat: `

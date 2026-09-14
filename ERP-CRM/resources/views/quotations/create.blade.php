@@ -53,8 +53,32 @@
             @endif
 
             <div class="p-4 sm:p-6 space-y-6">
+                <!-- If selected project banner -->
+                @if(isset($selectedProject))
+                    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 shadow-xs">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                                    <i class="fas fa-project-diagram"></i>
+                                </div>
+                                <div>
+                                    <span class="text-xs font-semibold uppercase tracking-wider text-purple-600">Báo giá theo Dự án đã đăng ký</span>
+                                    <h3 class="text-base font-bold text-gray-900">{{ $selectedProject->code }} - {{ $selectedProject->name }}</h3>
+                                    <p class="text-xs text-gray-600">
+                                        Partner/SI: <strong class="text-gray-800">{{ $selectedProject->customer?->name ?? $selectedProject->partner_name ?? 'Chưa rõ' }}</strong> | 
+                                        End-User: <strong class="text-gray-800">{{ $selectedProject->end_user_name ?? 'N/A' }}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                <i class="fas fa-shield-alt mr-1.5 text-purple-600"></i> Bảo mật giá Sales (PM/PO không thấy giá chào)
+                            </span>
+                        </div>
+                    </div>
+                @endif
+
                 <!-- Basic Info -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Mã báo giá <span class="text-red-500">*</span>
@@ -64,6 +88,26 @@
                         @error('code')
                             <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                         @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-project-diagram text-purple-500 mr-1"></i> Dự án liên kết
+                        </label>
+                        <select name="project_id" id="project_id"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">-- Không chọn / Báo giá độc lập --</option>
+                            @if(isset($projects))
+                                @foreach($projects as $p)
+                                    <option value="{{ $p->id }}" 
+                                        data-customer-id="{{ $p->customer_id }}"
+                                        data-name="{{ $p->name }}"
+                                        {{ (old('project_id', $selectedProject?->id ?? ($selectedProjectId ?? '')) == $p->id) ? 'selected' : '' }}>
+                                        {{ $p->code }} - {{ $p->name }}
+                                    </option>
+                                @endforeach
+                            @endif
+                        </select>
                     </div>
 
                     <div>
@@ -79,7 +123,7 @@
                                     data-payment-terms="{{ json_encode($customer->payment_terms) }}"
                                     data-tax-code="{{ $customer->tax_code }}"
                                     data-abv-name="{{ $customer->abv_name }}"
-                                    {{ (isset($prefill['customer_id']) && $prefill['customer_id'] == $customer->id) || old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                    {{ (isset($prefill['customer_id']) && $prefill['customer_id'] == $customer->id) || old('customer_id') == $customer->id || (isset($selectedProject) && $selectedProject->customer_id == $customer->id) ? 'selected' : '' }}>
                                     {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                                 </option>
                             @endforeach
@@ -188,6 +232,16 @@
 
                 <!-- Products Section -->
                 <div class="border-t pt-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h4 class="text-lg font-medium text-gray-900">Chi tiết sản phẩm / Dịch vụ</h4>
+                            <p class="text-xs text-gray-500">Đơn giá báo giá do Sales tự quyết định và được bảo mật với Team PM/PO.</p>
+                        </div>
+                        <button type="button" id="btnOpenBomModal" class="inline-flex items-center px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:text-indigo-800 transition-colors shadow-xs cursor-pointer">
+                            <i class="fas fa-file-excel text-emerald-600 mr-1.5 text-sm"></i> Nhập nhanh BOM / Dán từ Excel
+                        </button>
+                    </div>
+
                     @php
                         $allColumns = old('custom_columns', ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total']);
                         if (!is_array($allColumns)) {
@@ -288,8 +342,14 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200" id="tableBody">
-                            @if(old('products'))
-                                @foreach(old('products') as $index => $item)
+                            @php
+                                $initialProducts = old('products');
+                                if (!$initialProducts && !empty($prefilledProducts)) {
+                                    $initialProducts = $prefilledProducts;
+                                }
+                            @endphp
+                            @if(!empty($initialProducts))
+                                @foreach($initialProducts as $index => $item)
                                 @php
                                     $isManual = empty($item['product_id']) || (isset($item['product_id']) && !str_starts_with($item['product_id'], 'p-') && !str_starts_with($item['product_id'], 'c-') && !is_numeric($item['product_id']));
                                 @endphp
@@ -349,35 +409,40 @@
                                             </td>
                                         @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                             @php
-                                                $oldProductId = $item['product_id'] ?? null;
-                                                $oldPricelistPrice = null;
-                                                if ($oldProductId) {
-                                                    $oldSku = null;
-                                                    if (str_starts_with($oldProductId, 'p-')) {
-                                                        $oldP = \App\Models\Product::find(substr($oldProductId, 2));
-                                                        if ($oldP) $oldSku = $oldP->code;
-                                                    } elseif (str_starts_with($oldProductId, 'c-')) {
-                                                        $oldC = \App\Models\SupplierPriceListItem::find(substr($oldProductId, 2));
-                                                        if ($oldC) $oldSku = $oldC->sku;
-                                                    }
-                                                    if ($oldSku) {
-                                                        $priceItem = \App\Models\SupplierPriceListItem::where('sku', trim($oldSku))
-                                                            ->whereHas('priceList', function($q) { $q->where('is_active', true); })
-                                                            ->join('supplier_price_lists', 'supplier_price_list_items.supplier_price_list_id', '=', 'supplier_price_lists.id')
-                                                            ->select('supplier_price_list_items.*')
-                                                            ->orderBy('supplier_price_lists.effective_date', 'desc')
-                                                            ->orderBy('supplier_price_list_items.id', 'desc')
-                                                            ->first();
-                                                        if ($priceItem) {
-                                                            $pl = $priceItem->priceList;
-                                                            $rawPrice = $pl->getPrimaryPriceForItem($priceItem);
-                                                            if ($rawPrice !== null) {
-                                                                $plCurrency = strtoupper(trim($pl->currency ?? 'USD'));
-                                                                if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
-                                                                    $exchangeRate = floatval($pl->exchange_rate ?: 24000);
-                                                                    $oldPricelistPrice = $exchangeRate > 0 ? ($rawPrice / $exchangeRate) : $rawPrice;
-                                                                } else {
-                                                                    $oldPricelistPrice = $rawPrice;
+                                                $oldPricelistVal = $item['custom_fields']['pricelist'] ?? null;
+                                                $oldPricelistPrice = 0;
+                                                if ($oldPricelistVal !== null && $oldPricelistVal !== '') {
+                                                    $oldPricelistPrice = (float) str_replace(['$', ','], '', (string)$oldPricelistVal);
+                                                } else {
+                                                    $oldProductId = $item['product_id'] ?? null;
+                                                    if ($oldProductId) {
+                                                        $oldSku = null;
+                                                        if (str_starts_with($oldProductId, 'p-')) {
+                                                            $oldP = \App\Models\Product::find(substr($oldProductId, 2));
+                                                            if ($oldP) $oldSku = $oldP->code;
+                                                        } elseif (str_starts_with($oldProductId, 'c-')) {
+                                                            $oldC = \App\Models\SupplierPriceListItem::find(substr($oldProductId, 2));
+                                                            if ($oldC) $oldSku = $oldC->sku;
+                                                        }
+                                                        if ($oldSku) {
+                                                            $priceItem = \App\Models\SupplierPriceListItem::where('sku', trim($oldSku))
+                                                                ->whereHas('priceList', function($q) { $q->where('is_active', true); })
+                                                                ->join('supplier_price_lists', 'supplier_price_list_items.supplier_price_list_id', '=', 'supplier_price_lists.id')
+                                                                ->select('supplier_price_list_items.*')
+                                                                ->orderBy('supplier_price_lists.effective_date', 'desc')
+                                                                ->orderBy('supplier_price_list_items.id', 'desc')
+                                                                ->first();
+                                                            if ($priceItem) {
+                                                                $pl = $priceItem->priceList;
+                                                                $rawPrice = $pl->getPrimaryPriceForItem($priceItem);
+                                                                if ($rawPrice !== null) {
+                                                                    $plCurrency = strtoupper(trim($pl->currency ?? 'USD'));
+                                                                    if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
+                                                                        $exchangeRate = floatval($pl->exchange_rate ?: 24000);
+                                                                        $oldPricelistPrice = $exchangeRate > 0 ? ($rawPrice / $exchangeRate) : $rawPrice;
+                                                                    } else {
+                                                                        $oldPricelistPrice = $rawPrice;
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -385,9 +450,10 @@
                                                 }
                                             @endphp
                                             <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                                                <input type="text" readonly 
-                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                                                       value="{{ $oldPricelistPrice ? '$' . number_format($oldPricelistPrice, 2) : 'N/A' }}">
+                                                <input type="number" step="any" min="0" name="products[{{ $index }}][custom_fields][pricelist]" 
+                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       value="{{ $oldPricelistPrice !== null ? (float)$oldPricelistPrice : 0 }}"
+                                                       placeholder="0">
                                             </td>
                                         @elseif($colName === 'vat')
                                             <td class="px-3 py-2 align-top">
@@ -482,9 +548,9 @@
                                             </td>
                                         @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                             <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                                                <input type="text" readonly 
-                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                                                       value="N/A">
+                                                <input type="number" step="any" min="0" name="products[0][custom_fields][pricelist]" 
+                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       value="0" placeholder="0">
                                             </td>
                                         @elseif($colName === 'vat')
                                             <td class="px-3 py-2 align-top">
@@ -900,6 +966,123 @@
         </div>
     </div>
 </div>
+
+<!-- Quick BOM Import Modal -->
+<div id="bomImportModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="bomModalOverlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <i class="fas fa-file-excel text-xl text-emerald-300"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-lg font-bold">Nhập nhanh BOM / Dán từ Excel</h3>
+                        <p class="text-xs text-blue-100">Dán bảng danh sách sản phẩm từ Excel, email hoặc báo giá dự án</p>
+                    </div>
+                </div>
+                <button type="button" id="closeBomModal" class="text-white/80 hover:text-white text-xl p-1 cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-lightbulb text-amber-500 text-base flex-shrink-0"></i>
+                        <div>
+                            <strong>Hướng dẫn:</strong> Copy trực tiếp các cột từ Excel (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá) hoặc dán danh sách theo dòng. Toàn bộ đơn giá do Sales quyết định độc lập.
+                        </div>
+                    </div>
+                </div>
+
+                @if(isset($projects) && $projects->count() > 0)
+                <div class="flex items-center space-x-3">
+                    <label class="text-xs font-semibold text-gray-700 whitespace-nowrap">Gán cho dự án:</label>
+                    <select id="bomModalProjectSelect" class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary w-full max-w-xs">
+                        <option value="">-- Mặc định theo dự án liên kết --</option>
+                        @foreach($projects as $p)
+                            <option value="{{ $p->id }}" {{ (isset($selectedProject) && $selectedProject->id == $p->id) ? 'selected' : '' }}>{{ $p->code }} - {{ $p->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nội dung BOM / Dữ liệu Excel</label>
+                    <textarea id="bomInputText" rows="6" 
+                        class="w-full font-mono text-xs border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner"
+                        placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex space-x-2">
+                        <button type="button" id="btnParseBom" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                            <i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu
+                        </button>
+                        <button type="button" id="btnClearBomText" class="inline-flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors cursor-pointer">
+                            <i class="fas fa-eraser mr-1.5"></i> Xóa
+                        </button>
+                    </div>
+                    <div id="bomParseStatus" class="text-xs text-gray-500"></div>
+                </div>
+
+                <!-- Preview Table Area -->
+                <div id="bomPreviewArea" class="hidden border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                    <div class="bg-gray-100 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                        <div class="text-xs font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fas fa-list-check text-indigo-600"></i>
+                            <span>Kết quả nhận diện (<span id="bomParsedCount">0</span> dòng)</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                                <i class="fas fa-check mr-1"></i> Khớp kho: <span id="bomMatchedCount" class="ml-1 font-bold">0</span>
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                                <i class="fas fa-plus mr-1"></i> Hàng ngoài: <span id="bomNewCount" class="ml-1 font-bold">0</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 font-semibold sticky top-0 border-b border-gray-200">
+                                <tr>
+                                    <th class="p-2 text-center w-10">STT</th>
+                                    <th class="p-2">Part Number / Mã</th>
+                                    <th class="p-2">Tên sản phẩm / Model</th>
+                                    <th class="p-2 text-center w-16">SL</th>
+                                    <th class="p-2 text-right w-28">Đơn giá</th>
+                                    <th class="p-2 text-center w-28">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bomPreviewTableBody" class="divide-y divide-gray-200 bg-white">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-500">
+                    * Giá chào trong báo giá là quyền quyết định của Sales.
+                </div>
+                <div class="flex space-x-2">
+                    <button type="button" id="btnApplyBomAppend" class="hidden inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm nối tiếp vào bảng
+                    </button>
+                    <button type="button" id="btnApplyBomReplace" class="hidden inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                        <i class="fas fa-sync-alt mr-1.5"></i> Ghi đè bảng sản phẩm
+                    </button>
+                    <button type="button" id="btnCloseBomModalFooter" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 cursor-pointer">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -909,7 +1092,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        let productIndex = {{ old('products') ? count(old('products')) : 1 }};
+        let productIndex = {{ old('products') ? count(old('products')) : (!empty($prefilledProducts) ? count($prefilledProducts) : 1) }};
         window.customColumns = @json($legacyCustomColumns);
 
         function matchCustomer(params, data) {
@@ -1083,7 +1266,7 @@
 
                 if (isManual) {
                     row.find('.base-price-reference').text('');
-                    row.find('.pricelist-display').val('N/A');
+                    row.find('.pricelist-display').val(0);
                 } else {
                     if (data.price) {
                         const basePriceVnd = parseFloat(data.price);
@@ -1094,9 +1277,9 @@
                     }
                     if (data.pricelist_price) {
                         const plPrice = parseFloat(data.pricelist_price);
-                        row.find('.pricelist-display').val('$' + plPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                        row.find('.pricelist-display').val(plPrice > 0 ? plPrice : 0);
                     } else {
-                        row.find('.pricelist-display').val('N/A');
+                        row.find('.pricelist-display').val(0);
                     }
                 }
                 const qtyInput = row.find('.quantity-input');
@@ -1105,7 +1288,7 @@
             }).on('select2:clear', function(e) {
                 row.find('.description-input').val('');
                 row.find('.base-price-reference').text('');
-                row.find('.pricelist-display').val('N/A');
+                row.find('.pricelist-display').val(0);
                 const qtyInput = row.find('.quantity-input');
                 const idxRef = qtyInput.attr('name').match(/products\[(\d+)\]/)[1];
                 calculateRowTotal(idxRef);
@@ -1221,7 +1404,7 @@
                 productSelect.val(null).trigger('change');
                 descInput.val('');
                 row.find('.base-price-reference').text('');
-                row.find('.pricelist-display').val('N/A');
+                row.find('.pricelist-display').val(0);
             }
         }
 
@@ -1462,9 +1645,9 @@
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                        <input type="text" readonly 
-                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                               value="N/A">
+                        <input type="number" step="any" min="0" name="products[${productIndex}][custom_fields][pricelist]" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               value="0" placeholder="0">
                     </td>
                 `,
                 vat: `
@@ -1597,9 +1780,9 @@
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
-                        <input type="text" readonly 
-                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none" 
-                               value="N/A">
+                        <input type="number" step="any" min="0" name="products[${productIndex}][custom_fields][pricelist]" 
+                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               value="0" placeholder="0">
                     </td>
                 `,
                 vat: `
@@ -2351,5 +2534,227 @@
                 item.querySelector('.note-number').textContent = '(' + (index + 1) + ')';
             });
         }
+
+        // ==========================================
+        // Project Selector Synchronize Handler
+        // ==========================================
+        function onProjectChange(select) {
+            const selectedOpt = select.options[select.selectedIndex];
+            if (!selectedOpt || !selectedOpt.value) return;
+
+            const customerId = selectedOpt.getAttribute('data-customer-id');
+            const projectName = selectedOpt.getAttribute('data-name');
+
+            if (customerId) {
+                $('select[name="customer_id"]').val(customerId).trigger('change');
+            }
+
+            const titleInput = $('input[name="title"]');
+            if (projectName && (!titleInput.val() || titleInput.val().startsWith('Báo giá cho '))) {
+                titleInput.val('Báo giá cho ' + projectName);
+            }
+        }
+
+        // ==========================================
+        // BOM Import Modal & Quick Paste Logic
+        // ==========================================
+        const bomModal = document.getElementById('bomImportModal');
+        const btnOpenBomModal = document.getElementById('btnOpenBomModal');
+        const closeBomModal = document.getElementById('closeBomModal');
+        const closeBomModalFooter = document.getElementById('btnCloseBomModalFooter');
+        const bomModalOverlay = document.getElementById('bomModalOverlay');
+        const btnParseBom = document.getElementById('btnParseBom');
+        const btnClearBomText = document.getElementById('btnClearBomText');
+        const bomInputText = document.getElementById('bomInputText');
+        const bomPreviewArea = document.getElementById('bomPreviewArea');
+        const bomPreviewTableBody = document.getElementById('bomPreviewTableBody');
+        const btnApplyBomAppend = document.getElementById('btnApplyBomAppend');
+        const btnApplyBomReplace = document.getElementById('btnApplyBomReplace');
+        const bomParseStatus = document.getElementById('bomParseStatus');
+
+        let parsedBomItems = [];
+
+        function openBomModal() {
+            if (bomModal) bomModal.classList.remove('hidden');
+        }
+
+        function hideBomModal() {
+            if (bomModal) bomModal.classList.add('hidden');
+        }
+
+        if (btnOpenBomModal) btnOpenBomModal.addEventListener('click', openBomModal);
+        if (closeBomModal) closeBomModal.addEventListener('click', hideBomModal);
+        if (closeBomModalFooter) closeBomModalFooter.addEventListener('click', hideBomModal);
+        if (bomModalOverlay) bomModalOverlay.addEventListener('click', hideBomModal);
+
+        if (btnClearBomText) {
+            btnClearBomText.addEventListener('click', () => {
+                bomInputText.value = '';
+                bomPreviewArea.classList.add('hidden');
+                btnApplyBomAppend.classList.add('hidden');
+                btnApplyBomReplace.classList.add('hidden');
+                bomParseStatus.textContent = '';
+                parsedBomItems = [];
+            });
+        }
+
+        if (btnParseBom) {
+            btnParseBom.addEventListener('click', async () => {
+                const text = bomInputText.value.trim();
+                if (!text) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Thông báo',
+                        text: 'Vui lòng dán hoặc nhập nội dung BOM cần phân tích.',
+                    });
+                    return;
+                }
+
+                const projectSelect = document.getElementById('bomModalProjectSelect');
+                const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('project_id')?.value || '');
+
+                btnParseBom.disabled = true;
+                btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
+                bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang tra cứu cơ sở dữ liệu sản phẩm...</span>';
+
+                try {
+                    const res = await fetch('{{ route("sales.parse-bom") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            bom_data: text,
+                            project_id: selectedProjId
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (data.success && data.items && data.items.length > 0) {
+                        parsedBomItems = data.items;
+                        renderBomPreview(data.items);
+                        btnApplyBomAppend.classList.remove('hidden');
+                        btnApplyBomReplace.classList.remove('hidden');
+                        bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã phân tích thành công ${data.items.length} dòng hàng</span>`;
+                    } else {
+                        bomPreviewArea.classList.add('hidden');
+                        btnApplyBomAppend.classList.add('hidden');
+                        btnApplyBomReplace.classList.add('hidden');
+                        bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong nội dung đã nhập.</span>';
+                    }
+                } catch (err) {
+                    console.error(err);
+                    bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
+                } finally {
+                    btnParseBom.disabled = false;
+                    btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
+                }
+            });
+        }
+
+        function renderBomPreview(items) {
+            let matchedCount = 0;
+            let newCount = 0;
+            let html = '';
+
+            items.forEach((it, idx) => {
+                if (it.is_matched) matchedCount++;
+                else newCount++;
+
+                const statusBadge = it.is_matched 
+                    ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800"><i class="fas fa-check mr-1"></i> Khớp kho</span>'
+                    : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800"><i class="fas fa-plus mr-1"></i> Hàng ngoài</span>';
+
+                html += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2 text-center text-gray-500">${idx + 1}</td>
+                        <td class="p-2 font-mono font-semibold text-gray-800">${escapeHtml(it.code || '')}</td>
+                        <td class="p-2 text-gray-700">${escapeHtml(it.name || '')}</td>
+                        <td class="p-2 text-center font-bold text-gray-900">${it.quantity}</td>
+                        <td class="p-2 text-right font-medium text-gray-800">${formatMoney(it.price || 0)}</td>
+                        <td class="p-2 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('bomParsedCount').textContent = items.length;
+            document.getElementById('bomMatchedCount').textContent = matchedCount;
+            document.getElementById('bomNewCount').textContent = newCount;
+            bomPreviewTableBody.innerHTML = html;
+            bomPreviewArea.classList.remove('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function applyBomItems(isAppend) {
+            if (!parsedBomItems || parsedBomItems.length === 0) return;
+
+            const tableBody = document.getElementById('tableBody');
+            if (!isAppend) {
+                tableBody.innerHTML = '';
+                productIndex = 0;
+            } else {
+                // If there's only 1 row and it's completely empty, remove it
+                const existingRows = tableBody.querySelectorAll('.product-item');
+                if (existingRows.length === 1) {
+                    const firstRowSelect = existingRows[0].querySelector('.product-select')?.value;
+                    const firstRowManual = existingRows[0].querySelector('.manual-name-input')?.value;
+                    if (!firstRowSelect && !firstRowManual) {
+                        existingRows[0].remove();
+                        productIndex = 0;
+                    }
+                }
+            }
+
+            parsedBomItems.forEach(item => {
+                addProductRow();
+                const row = $('#tableBody .product-item').last();
+                const currentIdx = row.attr('data-index');
+
+                if (item.is_matched && item.product_id) {
+                    const displayText = '[' + (item.code || '') + '] ' + (item.name || '');
+                    const newOpt = new Option(displayText, 'p-' + item.product_id, true, true);
+                    const sel = row.find('.product-select');
+                    sel.append(newOpt).trigger('change');
+
+                    row.find('.description-input').val(item.description || item.name || '');
+                    row.find('.quantity-input').val(item.quantity || 1);
+                    row.find('.price-input').val(formatMoney(item.price || 0));
+                    if (item.cost_price) {
+                        row.find('.pricelist-display').val(item.cost_price);
+                    }
+                } else {
+                    // Switch to manual row
+                    const toggleBtn = row.find('.toggle-mode-btn');
+                    if (!row.find('.select2-wrapper').hasClass('hidden')) {
+                        toggleRowMode(toggleBtn[0]);
+                    }
+                    row.find('.manual-name-input').val(item.name || item.code || '');
+                    row.find('.description-input').val(item.description || item.name || '');
+                    row.find('.quantity-input').val(item.quantity || 1);
+                    row.find('.price-input').val(formatMoney(item.price || 0));
+                }
+
+                calculateRowTotal(currentIdx);
+                productIndex++;
+            });
+
+            calculateTotal();
+            hideBomModal();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Đã nạp danh sách BOM',
+                text: `Đã nạp ${parsedBomItems.length} sản phẩm vào bảng báo giá thành công.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+
+        if (btnApplyBomAppend) btnApplyBomAppend.addEventListener('click', () => applyBomItems(true));
+        if (btnApplyBomReplace) btnApplyBomReplace.addEventListener('click', () => applyBomItems(false));
     </script>
 @endpush

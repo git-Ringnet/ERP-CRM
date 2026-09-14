@@ -402,9 +402,9 @@
                                 <div class="space-y-2">
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                    <p class="text-xs text-gray-500">Không bắt buộc. Có thể đính kèm file BOM/YCKT hoặc nhập trực tiếp danh sách sản phẩm/Part Number. Với dự án Non-FTN, YCKT giúp PM nhờ hãng hỗ trợ BOM.</p>
-                                    <textarea name="bom_data" rows="2" placeholder="Hoặc nhập danh sách sản phẩm / Part Numbers..."
-                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('bom_data') }}</textarea>
+                                    <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới (hệ thống sẽ tự động điền danh sách sản phẩm khi tạo Đơn hàng từ dự án này).</p>
+                                    <textarea name="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
+                                        class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('bom_data') }}</textarea>
                                 </div>
                             </div>
 

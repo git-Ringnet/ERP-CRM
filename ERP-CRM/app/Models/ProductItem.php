@@ -328,4 +328,33 @@ class ProductItem extends Model
         }
         return $this->order_creator_name ?: 'N/A';
     }
+
+    /**
+     * Get unified trace info (PO, supplier, SO, sales, project, comments)
+     */
+    public function getTraceInfoAttribute(): array
+    {
+        $po = $this->import?->purchaseOrder ?: $this->purchase_order;
+        $poItem = $this->po_item;
+        $sorItem = $poItem?->saleOrderRequestItem;
+        $sor = $sorItem?->saleOrderRequest;
+        $sale = $po?->sale ?: ($this->export?->sale ?: ($sor?->sale ?: null));
+
+        $salesName = $sale?->user?->name 
+            ?: ($sor?->creator?->name 
+            ?: ($this->order_creator_name 
+            ?: ($po?->creator?->name ?: null)));
+
+        $project = $sale?->project ?: ($this->export?->project ?: null);
+        $projectName = $project ? ($project->code ? "{$project->code} - {$project->name}" : $project->name) : $this->project_name;
+
+        return [
+            'po_code' => $po?->code ?: '-',
+            'supplier_name' => $po?->supplier?->name ?: '-',
+            'sale_code' => $sale?->code ?: '-',
+            'sales_name' => $salesName ?: '-',
+            'project_name' => $projectName ?: '-',
+            'comments' => $this->comments ?: '-',
+        ];
+    }
 }

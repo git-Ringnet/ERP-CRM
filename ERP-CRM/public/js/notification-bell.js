@@ -41,11 +41,12 @@ function notificationBell() {
                         'Accept': 'application/json'
                     }
                 });
+                if (!response.ok) return;
                 const data = await response.json();
-                this.notifications = data.notifications;
-                this.unreadCount = data.unreadCount;
+                this.notifications = data.notifications || [];
+                this.unreadCount = data.unreadCount || 0;
             } catch (error) {
-                console.error('Error fetching notifications:', error);
+                // Ignore network errors or aborted fetches gracefully
             }
         },
 

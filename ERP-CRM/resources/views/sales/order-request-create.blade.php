@@ -45,6 +45,26 @@
             </div>
 
             {{-- Global SI/EU inputs (only need to fill once) --}}
+            @php
+                $firstOrItem = isset($orderRequest) ? $orderRequest->items->first() : null;
+                $savedGlobalSiName = $firstOrItem ? $firstOrItem->si_name : '';
+                $savedGlobalPosId = $firstOrItem ? $firstOrItem->pos_id : '';
+                $savedGlobalEuName = '';
+                $savedGlobalMst = '';
+                if ($firstOrItem && $firstOrItem->eu_name_mst) {
+                    $parts = explode(' - ', $firstOrItem->eu_name_mst, 2);
+                    $savedGlobalEuName = $parts[0] ?? '';
+                    $savedGlobalMst = $parts[1] ?? '';
+                }
+                $savedGlobalAddress = $firstOrItem ? $firstOrItem->address : '';
+
+                // Lấy thông tin Project liên kết với đơn hàng hoặc các item
+                $project = $sale->project ?: ($sale->items->first(fn($i) => $i->project)?->project ?: null);
+                $defaultEuName = $project ? ($project->eu_name_en ?: ($project->eu_name_vi ?: ($project->eu_name_abbr ?: ''))) : '';
+                $defaultMst = $project ? ($project->eu_tax_code ?: '') : '';
+                $defaultAddress = $project ? ($project->address ?: ($project->eu_province ?: '')) : '';
+                $defaultSiName = $project && $project->collaborate_company ? $project->collaborate_company : ($sale->customer_name ?: ($sale->customer->name ?? ''));
+            @endphp
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">SI Name <span class="text-red-500">*</span></label>
@@ -52,7 +72,7 @@
                         <input type="text" id="global_si_name" name="global_si_name" required
                             class="searchable-input w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-white"
                             placeholder="Gõ để tìm khách hàng..." autocomplete="off"
-                            value="{{ old('global_si_name', $sale->customer_name ?: ($sale->customer->name ?? '')) }}">
+                            value="{{ old('global_si_name', $savedGlobalSiName ?: $defaultSiName) }}">
                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg">
                             @foreach($customers as $customer)
                                 <div class="searchable-option px-3 py-2 hover:bg-emerald-50 cursor-pointer text-sm"
@@ -68,21 +88,25 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Reseller POS ID</label>
                     <input type="text" id="global_pos_id" name="global_pos_id"
+                        value="{{ old('global_pos_id', $savedGlobalPosId) }}"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">EU Name</label>
                     <input type="text" id="global_eu_name" name="global_eu_name"
+                        value="{{ old('global_eu_name', $savedGlobalEuName ?: $defaultEuName) }}"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">MST</label>
                     <input type="text" id="global_mst" name="global_mst"
+                        value="{{ old('global_mst', $savedGlobalMst ?: $defaultMst) }}"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
                     <input type="text" id="global_address" name="global_address"
+                        value="{{ old('global_address', $savedGlobalAddress ?: $defaultAddress) }}"
                         class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400 bg-gray-50">
                 </div>
             </div>
@@ -164,20 +188,45 @@
                             @foreach($sale->items as $idx => $saleItem)
                             @php
                                 $partNumber = $saleItem->product ? $saleItem->product->code : $saleItem->product_name;
+                                $pnUpper = strtoupper((string) ($partNumber ?? ''));
+                                $pNameUpper = strtoupper((string) ($saleItem->product?->name ?? $saleItem->product_name ?? ''));
+                                $pCatUpper = strtoupper((string) ($saleItem->product?->category?->name ?? ''));
+                                $isLicenseDetected = str_contains($pnUpper, 'COTERM')
+                                    || str_contains($pnUpper, 'CO-TERM')
+                                    || str_contains($pNameUpper, 'COTERM')
+                                    || str_contains($pNameUpper, 'CO-TERM')
+                                    || str_contains($pNameUpper, 'LICENSE')
+                                    || str_contains($pNameUpper, 'BẢN QUYỀN')
+                                    || str_contains($pNameUpper, 'GIA HẠN')
+                                    || str_starts_with($pnUpper, 'FC-')
+                                    || str_starts_with($pnUpper, 'LIC-')
+                                    || str_contains($pCatUpper, 'LICENSE')
+                                    || ($saleItem->product?->type ?? '') === 'service'
+                                    || ($saleItem->product?->type ?? '') === 'license';
+
+                                $defaultType = $isLicenseDetected ? 'License' : 'HW';
+
                                 // Use saved order request item data if editing
                                 $orItem = $orItemsMap[$saleItem->id] ?? null;
-                                $savedVendorId = $orItem ? $orItem->vendor_id : $saleItem->vendor_id;
-                                $savedType = $orItem ? $orItem->type : $saleItem->type;
+                                $savedVendorId = $orItem ? $orItem->vendor_id : ($saleItem->supplier_id ?: ($saleItem->product?->supplier_id ?? ''));
+                                $savedType = $orItem ? $orItem->type : ($saleItem->type ?? $defaultType);
                                 $savedPartNumber = $orItem ? $orItem->part_number : $partNumber;
                                 $savedQty = $orItem ? $orItem->quantity : $saleItem->quantity;
                                 $savedUnit = $orItem ? $orItem->unit : ($saleItem->product->unit ?? '');
                                 $savedSn = $orItem ? $orItem->serial_number : ($saleItem->serial_number ?? '');
                                 $savedExpDate = $orItem && $orItem->exp_date ? $orItem->exp_date->format('Y-m-d') : '';
                                 $savedSerialExpiryDates = $orItem?->serial_expiry_dates ?? [];
-                                $savedSiName = $orItem ? $orItem->si_name : '';
+                                // Item specific default if row has item-level project
+                                $itemProject = $saleItem->project ?: $project;
+                                $itemDefaultEuName = $itemProject ? ($itemProject->eu_name_en ?: ($itemProject->eu_name_vi ?: ($itemProject->eu_name_abbr ?: ''))) : $defaultEuName;
+                                $itemDefaultMst = $itemProject ? ($itemProject->eu_tax_code ?: '') : $defaultMst;
+                                $itemDefaultAddress = $itemProject ? ($itemProject->address ?: ($itemProject->eu_province ?: '')) : $defaultAddress;
+                                $itemDefaultSiName = $itemProject && $itemProject->collaborate_company ? $itemProject->collaborate_company : $defaultSiName;
+
+                                $savedSiName = $orItem ? $orItem->si_name : $itemDefaultSiName;
                                 $savedPosId = $orItem ? $orItem->pos_id : '';
                                 $savedNeedsCq = $orItem ? $orItem->needs_cq : false;
-                                $savedAddress = $orItem ? $orItem->address : '';
+                                $savedAddress = $orItem ? $orItem->address : ($itemDefaultAddress ?: '');
                                 // Split eu_name_mst back into eu_name and mst
                                 $savedEuName = '';
                                 $savedMst = '';
@@ -185,6 +234,9 @@
                                     $parts = explode(' - ', $orItem->eu_name_mst, 2);
                                     $savedEuName = $parts[0] ?? '';
                                     $savedMst = $parts[1] ?? '';
+                                } else {
+                                    $savedEuName = $itemDefaultEuName ?: '';
+                                    $savedMst = $itemDefaultMst ?: '';
                                 }
                             @endphp
                             <tr class="item-row border-b border-gray-100 hover:bg-gray-50" data-index="{{ $idx }}">

@@ -124,6 +124,16 @@ function addOrderRequestRow(data = null) {
         if (typeEl) selectedType = typeEl.value;
     }
 
+    let defaultItemType = 'HW';
+    if (data && data.type) {
+        defaultItemType = data.type;
+    } else if (data && (data.part_number || data.product_name)) {
+        const text = ((data.part_number || '') + ' ' + (data.product_name || '')).toUpperCase();
+        if (text.includes('COTERM') || text.includes('CO-TERM') || text.includes('LICENSE') || text.includes('GIA HẠN') || text.startsWith('FC-') || text.startsWith('LIC-')) {
+            defaultItemType = 'License';
+        }
+    }
+
     const tr = document.createElement('tr');
     tr.className = 'order-request-row border-b border-gray-100 hover:bg-gray-50';
     tr.dataset.index = i;
@@ -137,7 +147,7 @@ function addOrderRequestRow(data = null) {
         <td class="px-1 py-1.5">
             <select name="order_request_items[${i}][type]" required class="type-select w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-400 focus:border-teal-400" onchange="handleVendorTypeChange(this.closest('.order-request-row'))">
                 <option value="">-- Chọn --</option>
-                ${types.map(t => `<option value="${t}" ${data ? (data.type == t ? 'selected' : '') : (selectedType ? (selectedType == t ? 'selected' : '') : (t === 'Hardware' ? 'selected' : ''))}>${t}</option>`).join('')}
+                ${types.map(t => `<option value="${t}" ${data ? (data.type == t ? 'selected' : (defaultItemType == t ? 'selected' : '')) : (selectedType ? (selectedType == t ? 'selected' : '') : (t === defaultItemType ? 'selected' : ''))}>${t}</option>`).join('')}
             </select>
         </td>
         <td class="px-1 py-1.5 text-center cq-checkbox-cell">
@@ -224,13 +234,27 @@ function importFromItems() {
         orderRequestRowIndex = 0;
         
         items.forEach(item => {
+            const text = ((item.part_number || '') + ' ' + (item.product_name || item.name || '') + ' ' + (item.category || '')).toUpperCase();
+            let detectedType = 'HW';
+            if (
+                text.includes('COTERM') || text.includes('CO-TERM') ||
+                text.includes('LICENSE') || text.includes('BẢN QUYỀN') ||
+                text.includes('GIA HẠN') ||
+                text.startsWith('FC-') || text.startsWith('LIC-') ||
+                item.type === 'License' || item.type === 'license' ||
+                item.is_service
+            ) {
+                detectedType = 'License';
+            }
+
             addOrderRequestRow({
                 product_id: item.product_id,
                 part_number: item.part_number,
+                product_name: item.product_name || item.name,
                 quantity: item.quantity,
                 unit: item.unit,
                 vendor_id: item.vendor_id,
-                type: 'Hardware'
+                type: item.type || detectedType
             });
         });
     }

@@ -19,7 +19,11 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
 
     public function array(): array
     {
-        $query = Project::with(['customer', 'manager', 'vendor', 'initialProcessedBy', 'notes', 'saleItems.product'])->orderBy('created_at', 'desc');
+        $query = Project::with([
+            'customer', 'manager', 'vendor', 'initialProcessedBy', 
+            'notes.user', 'statusUpdates.user', 'vendorQuoteVersions.creator', 
+            'saleItems.product'
+        ])->orderBy('created_at', 'desc');
 
         if (!empty($this->filters['project_id'])) {
             $query->where('id', $this->filters['project_id']);
@@ -140,7 +144,7 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
                     'total_price' => $bomItem['total_price'] ? (is_numeric($bomItem['total_price']) ? number_format($bomItem['total_price'], 0, ',', '.') : $bomItem['total_price']) : '',
                     'date_deal_reg' => $isFirst ? ($project->created_at ? $project->created_at->format('Y-m-d') : '') : '',
                     'date_expect' => $isFirst ? ($project->end_date ? $project->end_date->format('Y-m-d') : '') : '',
-                    'last_update' => $isFirst ? ($project->notes->last()?->content ?? $project->note ?? '') : '',
+                    'last_update' => $isFirst ? $project->getFormattedUpdatesSummary(true) : '',
                     'note_by_pm' => $isFirst ? ($project->intake_note ?? $project->vendor_quote_note ?? '') : '',
                 ];
             }
@@ -153,48 +157,19 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
 
     public static function parseBomData($bomData)
     {
-        $lines = explode("\n", $bomData);
+        $service = app(\App\Services\BomParserService::class);
+        $rawItems = $service->extractRawLines($bomData);
         $items = [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
 
-            $qty = 1;
-            $pn = '';
-            $model = $line;
-            $unitPrice = null;
-            $totalPrice = null;
-
-            // Attempt to parse Qty
-            if (preg_match('/^(\d+)\s*(?:x|pcs|pc|cái|chiếc)?\s+(.+)$/i', $line, $matches)) {
-                $qty = (int)$matches[1];
-                $model = trim($matches[2]);
-            }
-            elseif (preg_match('/^(.+?)\s+(\d+)\s*(?:pcs|pc|cái|chiếc|x)$/i', $line, $matches)) {
-                $model = trim($matches[1]);
-                $qty = (int)$matches[2];
-            }
-            elseif (preg_match('/(?:qty|quantity|số lượng|sl)[:\-\s]+(\d+)/i', $line, $matches)) {
-                $qty = (int)$matches[1];
-                $model = preg_replace('/\(?\s*(?:qty|quantity|số lượng|sl)[:\-\s]+\d+\s*\)?/i', '', $line);
-            }
-
-            // Attempt to parse Price
-            if (preg_match('/(?:price|đơn giá|giá|@|usd|vnd)[:\-\s]*([0-9.,]+)/i', $line, $matches)) {
-                $priceStr = str_replace([',', ' '], '', $matches[1]);
-                $unitPrice = floatval($priceStr);
-                $totalPrice = $unitPrice * $qty;
-                $model = preg_replace('/\(?\s*(?:price|đơn giá|giá|@|usd|vnd)[:\-\s]*[0-9.,]+\s*\)?/i', '', $model);
-            }
-
-            $model = trim($model, " -:|()");
-
+        foreach ($rawItems as $raw) {
+            $unitPrice = $raw['price'] > 0 ? $raw['price'] : null;
+            $qty = $raw['qty'] ?? 1;
             $items[] = [
-                'pn' => $pn,
-                'model' => $model,
+                'pn' => $raw['pn'] ?? '',
+                'model' => $raw['model'] ?? '',
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
-                'total_price' => $totalPrice,
+                'total_price' => $unitPrice ? ($unitPrice * $qty) : null,
             ];
         }
 
@@ -224,6 +199,20 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
 
     public function styles(Worksheet $sheet)
     {
+        $highestRow = $sheet->getHighestRow();
+
+        $sheet->getStyle('A1:O' . $highestRow)
+            ->getAlignment()
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        $sheet->getStyle('N1:N' . $highestRow)
+            ->getAlignment()
+            ->setWrapText(true);
+
+        $sheet->getStyle('O1:O' . $highestRow)
+            ->getAlignment()
+            ->setWrapText(true);
+
         return [
             1 => [
                 'font' => [

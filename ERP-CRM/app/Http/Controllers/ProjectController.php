@@ -7,6 +7,7 @@ use App\Models\ProjectVendorQuote;
 use App\Models\ProjectRegistrationNote;
 use App\Models\ProjectStatusUpdate;
 use App\Models\Customer;
+use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\NotificationService;
@@ -403,6 +404,7 @@ class ProjectController extends Controller
         }
 
         $project = Project::create($validated);
+        $project->findOrCreateCustomerFromProject();
 
         app(\App\Services\ActivityLogService::class)->logCreated($project);
 
@@ -433,17 +435,20 @@ class ProjectController extends Controller
             'notes.user', 'statusUpdates.user', 'sales.items'
         ]);
 
+        $salesQuery = Sale::where('project_id', $project->id)
+            ->orWhereHas('items', fn($q) => $q->where('project_id', $project->id));
+
         $salesStats = [
-            'total_orders' => $project->sales()->count(),
-            'total_revenue' => $project->total_revenue,
-            'total_cost' => $project->total_cost,
-            'profit' => $project->profit,
-            'profit_percent' => $project->profit_percent,
-            'total_debt' => $project->total_debt,
+            'total_orders' => (clone $salesQuery)->count(),
+            'total_revenue' => (clone $salesQuery)->sum('total'),
+            'total_cost' => (clone $salesQuery)->sum('cost'),
+            'profit' => (clone $salesQuery)->sum('margin'),
+            'profit_percent' => (clone $salesQuery)->sum('total') > 0 ? ((clone $salesQuery)->sum('margin') / (clone $salesQuery)->sum('total')) * 100 : 0,
+            'total_debt' => (clone $salesQuery)->sum('debt_amount'),
         ];
 
-        $recentSales = $project->sales()
-            ->with('items')
+        $recentSales = (clone $salesQuery)
+            ->with(['customer', 'items.product'])
             ->orderBy('date', 'desc')
             ->limit(10)
             ->get();
@@ -459,18 +464,25 @@ class ProjectController extends Controller
             ->limit(10)
             ->get();
 
-        $activityLogs = \App\Models\ActivityLog::where('subject_type', Project::class)
+        $activityLogs = \App\Models\ActivityLog::with('user.roles')
+            ->where('subject_type', Project::class)
             ->where('subject_id', $project->id)
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $latestSaleForClosure = $project->sales()
+        $quotations = \App\Models\Quotation::where('project_id', $project->id)
+            ->with(['customer', 'creator', 'currency'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $latestSaleForClosure = (clone $salesQuery)
             ->where('status', '!=', 'cancelled')
             ->latest('date')
             ->latest('id')
+            ->with('items.product')
             ->first();
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
     }
 
     /**
@@ -750,6 +762,9 @@ class ProjectController extends Controller
             'close_status' => ['required', 'in:closed_won,closed_lost,cancelled,on_hold'],
             'close_reason' => ['required_if:close_status,closed_lost,cancelled', 'nullable', 'string'],
             'close_note' => ['nullable', 'string'],
+            'source_mode' => ['nullable', 'in:sync_sale,manual'],
+            'sale_id' => ['nullable', 'exists:sales,id'],
+            'sync_bom' => ['nullable', 'boolean'],
             'po_code' => ['nullable', 'string', 'max:100'],
             'order_value' => ['nullable', 'numeric', 'min:0'],
             'order_date' => ['nullable', 'date'],
@@ -764,19 +779,58 @@ class ProjectController extends Controller
         ];
 
         if ($closeStatus === 'closed_won') {
-            $latestSale = $project->sales()
-                ->where('status', '!=', 'cancelled')
-                ->latest('date')
-                ->latest('id')
-                ->first();
+            $sourceMode = $validated['source_mode'] ?? ($request->filled('sale_id') ? 'sync_sale' : 'manual');
+            $selectedSale = null;
 
-            $updateData['po_code'] = $validated['po_code'] ?: $latestSale?->code;
-            $updateData['order_value'] = $validated['order_value'] ?? $latestSale?->total;
-            $updateData['order_date'] = $validated['order_date'] ?? $latestSale?->date;
+            if ($sourceMode === 'sync_sale') {
+                if ($request->filled('sale_id')) {
+                    $selectedSale = Sale::with('items.product')->find($validated['sale_id']);
+                } else {
+                    $selectedSale = Sale::where(function ($q) use ($project) {
+                            $q->where('project_id', $project->id)
+                              ->orWhereHas('items', fn($iq) => $iq->where('project_id', $project->id));
+                        })
+                        ->where('status', '!=', 'cancelled')
+                        ->latest('date')
+                        ->latest('id')
+                        ->with('items.product')
+                        ->first();
+                }
+
+                if ($selectedSale) {
+                    $updateData['po_code'] = $selectedSale->code;
+                    $updateData['order_value'] = $selectedSale->total;
+                    $updateData['order_date'] = $selectedSale->date ? $selectedSale->date->format('Y-m-d') : now()->format('Y-m-d');
+
+                    // Đồng bộ danh mục BOM & Đơn giá bán thực tế nếu được kích hoạt
+                    if ($request->boolean('sync_bom', true) && $selectedSale->items->isNotEmpty()) {
+                        $bomLines = ["STT\tMã SP (P/N)\tTên hàng hóa / Mô tả\tSố lượng\tĐơn giá\tThành tiền"];
+                        foreach ($selectedSale->items as $idx => $item) {
+                            $pn = $item->product ? $item->product->code : ($item->sku ?? '');
+                            $name = $item->product ? $item->product->name : ($item->item_name ?? '');
+                            $qty = (float) $item->quantity;
+                            $price = number_format((float)$item->price, 0, ',', '.');
+                            $lineTotal = number_format((float)$item->total, 0, ',', '.');
+                            $bomLines[] = ($idx + 1) . "\t" . $pn . "\t" . $name . "\t" . $qty . "\t" . $price . "\t" . $lineTotal;
+                        }
+                        $updateData['bom_data'] = implode("\n", $bomLines);
+                    }
+                } else {
+                    // Fallback to manual inputs if no sale order exists
+                    $updateData['po_code'] = $validated['po_code'] ?? null;
+                    $updateData['order_value'] = $validated['order_value'] ?? null;
+                    $updateData['order_date'] = $validated['order_date'] ?? null;
+                }
+            } else {
+                // Nhập thủ công (trường hợp gộp nhiều hãng / nhiều đơn dự án đăng ký)
+                $updateData['po_code'] = $validated['po_code'] ?? null;
+                $updateData['order_value'] = $validated['order_value'] ?? null;
+                $updateData['order_date'] = $validated['order_date'] ?? null;
+            }
 
             if (!$updateData['po_code'] || $updateData['order_value'] === null || !$updateData['order_date']) {
                 return back()->withInput()->withErrors([
-                    'po_code' => 'Chưa có đơn hàng bán liên kết. Vui lòng nhập thông tin đóng dự án.',
+                    'po_code' => 'Vui lòng cung cấp số đơn đặt hàng (PO Code), giá trị và ngày đặt hàng.',
                 ]);
             }
         }
@@ -785,8 +839,8 @@ class ProjectController extends Controller
         $project->update($updateData);
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
-        return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Đã cập nhật đóng dự án thành công.');
+        return redirect()->back()
+            ->with('success', 'Đã cập nhật đóng dự án và đồng bộ dữ liệu thành công.');
     }
 
     /**
@@ -942,6 +996,7 @@ class ProjectController extends Controller
         }
 
         $project->update($validated);
+        $project->findOrCreateCustomerFromProject();
         app(\App\Services\ActivityLogService::class)->logUpdated($project, $old, $project->fresh()->getAttributes());
 
         if ($resubmit) {

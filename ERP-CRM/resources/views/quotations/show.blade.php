@@ -56,6 +56,14 @@
                         <span class="text-red-500 ml-2 font-medium">Chưa chọn P.I.C</span>
                     @endif
                 </div>
+                @if($quotation->project)
+                <div class="col-span-2">
+                    <span class="text-gray-500">Dự án liên kết:</span>
+                    <a href="{{ route('projects.show', $quotation->project_id) }}" class="font-bold text-purple-700 hover:text-purple-900 hover:underline ml-2">
+                        <i class="fas fa-project-diagram mr-1"></i>{{ $quotation->project->code }} - {{ $quotation->project->name }}
+                    </a>
+                </div>
+                @endif
                 <div class="col-span-2">
                     <span class="text-gray-500">Tiêu đề:</span>
                     <span class="font-medium ml-2">{{ $quotation->title }}</span>
@@ -68,17 +76,26 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Chi tiết sản phẩm</h3>
             
         @php
-            $allColumns = $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'vat', 'row_total'];
+            $allColumns = $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'];
             if (!is_array($allColumns)) {
                 $allColumns = [];
             }
             if (!in_array('product_id', $allColumns)) {
-                $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $allColumns);
+                $allColumns = array_merge(['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'], $allColumns);
             } else {
+                if (!in_array('pricelist', $allColumns)) {
+                    $priceIdx = array_search('price', $allColumns);
+                    if ($priceIdx !== false) {
+                        array_splice($allColumns, $priceIdx + 1, 0, ['pricelist']);
+                    } else {
+                        $allColumns[] = 'pricelist';
+                    }
+                }
                 if (!in_array('row_total', $allColumns)) {
                     $allColumns[] = 'row_total';
                 }
             }
+            $customColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'])));
         @endphp
         <!-- Desktop Table -->
         <div class="hidden md:block overflow-x-auto">
@@ -93,6 +110,7 @@
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
                             @elseif($colName === 'price')
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Đơn giá</th>
+                            @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Pricelist ($)</th>
                             @elseif($colName === 'vat')
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">VAT (%)</th>
@@ -135,12 +153,9 @@
                                         {{ number_format($item->price) }} đ
                                     @endif
                                 </td>
+                            @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                 <td class="px-4 py-3 text-right text-sm">
-                                    @if($item->pricelist_price)
-                                        <span class="font-semibold text-blue-600">${{ number_format($item->pricelist_price, 2) }}</span>
-                                    @else
-                                        <span class="text-gray-400">N/A</span>
-                                    @endif
+                                    <span class="font-semibold text-blue-600">${{ number_format($item->pricelist_price ?? 0, 2) }}</span>
                                 </td>
                             @elseif($colName === 'vat')
                                 <td class="px-4 py-3 text-center">{{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</td>
@@ -197,9 +212,7 @@
                         @else
                             SL: {{ $item->quantity }} x {{ number_format($item->price) }} đ
                         @endif
-                        @if($item->pricelist_price)
-                            <span class="text-xs text-gray-400 block mt-0.5">Pricelist: ${{ number_format($item->pricelist_price, 2) }}</span>
-                        @endif
+                        <span class="text-xs text-gray-400 block mt-0.5">Pricelist: ${{ number_format($item->pricelist_price ?? 0, 2) }}</span>
                     </span>
                     <span class="text-blue-600">VAT: {{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</span>
                 </div>

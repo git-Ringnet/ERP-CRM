@@ -928,6 +928,25 @@
             return;
         }
 
+        // Kiểm tra xem tất cả các sản phẩm trong P&L đã chọn Vendor chưa
+        let missingVendor = false;
+        document.querySelectorAll('tr[x-data]').forEach(row => {
+            const rd = getAlpineData(row);
+            if (rd && typeof rd.vendor_value !== 'undefined' && !rd.vendor_value) {
+                missingVendor = true;
+            }
+        });
+        if (missingVendor) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Chưa chọn Hãng (Vendor)',
+                text: 'Vui lòng chọn Hãng (Vendor) cho tất cả các sản phẩm trong bảng P&L trước khi gửi duyệt.',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'Đóng'
+            });
+            return;
+        }
+
         // Kiểm tra xem tổng tỷ lệ các đợt có bằng 100% không
         const milestones = {!! json_encode($sale->payment_terms ?? []) !!};
         let percentSum = 0;
@@ -985,11 +1004,90 @@
         });
     }
 
+    function applyGlobalVendorPnL() {
+        const globalVal = document.getElementById('pnl_global_vendor')?.value;
+        if (!globalVal) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Chưa chọn Hãng',
+                    text: 'Vui lòng chọn Hãng (Vendor) trước khi nhấn áp dụng.',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'Đóng'
+                });
+            } else {
+                alert('Vui lòng chọn Hãng (Vendor) trước khi nhấn áp dụng.');
+            }
+            return;
+        }
+
+        let count = 0;
+        document.querySelectorAll('tr[x-data]').forEach(row => {
+            try {
+                const rd = getAlpineData(row);
+                if (rd && typeof rd.vendor_value !== 'undefined') {
+                    rd.vendor_value = globalVal;
+                    if (globalVal === 'service') {
+                        rd.is_service = true;
+                        rd.supplier_id = null;
+                    } else {
+                        rd.is_service = false;
+                        rd.supplier_id = parseInt(globalVal);
+                    }
+                    count++;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        // Update DOM select elements directly
+        document.querySelectorAll('table.table-pnl-editor select[x-model="vendor_value"]').forEach(sel => {
+            sel.value = globalVal;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const vendorSelect = document.getElementById('pnl_global_vendor');
+        const vendorName = vendorSelect ? vendorSelect.options[vendorSelect.selectedIndex].text : '';
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Đã áp dụng thành công',
+                text: `Đã áp dụng hãng "${vendorName}" cho ${count} sản phẩm trong bảng P&L.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => { 
         initExtraExpenseMoneyInputs(); 
         const pnlForm = document.getElementById('pnlForm');
         if (pnlForm) {
-            pnlForm.addEventListener('submit', function() {
+            pnlForm.addEventListener('submit', function(e) {
+                let missingVendor = false;
+                document.querySelectorAll('tr[x-data]').forEach(row => {
+                    const rd = getAlpineData(row);
+                    if (rd && typeof rd.vendor_value !== 'undefined' && !rd.vendor_value) {
+                        missingVendor = true;
+                    }
+                });
+                if (missingVendor) {
+                    e.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Chưa chọn Hãng (Vendor)',
+                            text: 'Vui lòng chọn Hãng (Vendor) cho tất cả các sản phẩm trong bảng P&L.',
+                            confirmButtonColor: '#3085d6',
+                            confirmButtonText: 'Đóng'
+                        });
+                    } else {
+                        alert('Vui lòng chọn Hãng (Vendor) cho tất cả các sản phẩm trong bảng P&L.');
+                    }
+                    return false;
+                }
+
                 document.querySelectorAll('.extra-expense-money').forEach((input) => {
                     input.value = (input.value || '').toString().replace(/,/g, '');
                 });
@@ -1020,6 +1118,29 @@
         </div>
     </div>
 
+    @if($sale->isPlEditable())
+    <div class="px-4 py-2.5 bg-cyan-50/60 border-b border-cyan-100 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                <i class="fas fa-industry text-cyan-600 mr-1"></i> Chọn Hãng (Chung):
+            </span>
+            <select id="pnl_global_vendor" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 bg-white min-w-[220px]">
+                <option value="">-- Chọn Hãng / Vendor --</option>
+                <option value="service">Service (Dịch vụ)</option>
+                @foreach($suppliers as $supplier)
+                    <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                @endforeach
+            </select>
+            <button type="button" onclick="applyGlobalVendorPnL()"
+                    class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-check-double"></i> Áp dụng cho tất cả sản phẩm
+            </button>
+        </div>
+        <div class="text-[11px] text-gray-500 italic">
+            * Chọn hãng ở trên và nhấn "Áp dụng" để tự động gán cho tất cả dòng sản phẩm trong bảng P&L.
+        </div>
+    </div>
+    @endif
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST" enctype="multipart/form-data">
         @csrf
@@ -1410,6 +1531,7 @@
                             <td class="px-2 py-2 text-center border border-gray-400 text-xs">
                                 <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
                                 <select x-model="vendor_value"
+                                        required
                                         class="w-full text-[10px] p-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500 text-gray-700 {{ !$sale->isPlEditable() ? 'bg-gray-100' : 'bg-white' }}"
                                         {{ !$sale->isPlEditable() ? 'disabled' : '' }}>
                                     <option value="">-- Chọn Vendor --</option>

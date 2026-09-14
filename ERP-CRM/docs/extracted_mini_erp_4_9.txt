@@ -1,0 +1,366 @@
+Dashboard
+Phần
+Lỗi/ điểm cần thay đổi 
+Đề xuất (nếu có)
+Phân loại
+Dash board 1 - BOD
+Chưa xem được các thông tin chi tiết 
+Toàn bộ thông tin Dashboard đang xem đều dưới dạng số liệu tổng chứ không thể xem thông tin chi tiết
+Xem được đầy đủ thông tin chi tiết trên dashboard dành cho cấp BOD và Manager để không phải bấm vào từng deal hay đơn hàng bán của sales mà theo dõi, toàn bộ hiển thị chi tiết hết trên dashboard 
+Đề xuất
+Kho hàng
+Phần
+Lỗi/ điểm cần thay đổi 
+Đề xuất (nếu có)
+Phân loại
+Quản lý kho
+Quản lý kho 1 - kho
+Chưa hiểu cách sử dụng module quản lý kho
+Cho phép thấy toàn bộ hàng hết hàng => không cần thiết 
+Khi bấm vào con mắt cũng không thấy các thông tin cần thiết, không biết xuất phát từ PO nào, sales nào đặt hàng 
+Hoàn toàn không có thông tin gì phục vụ cho việc quản lý đơn hàng, đồng thời sẽ dẫn đến muc “Tồn kho” và khi thoát ra thì lại ra trang tồn kho chứ không quay lại quản lý kho 
+Xem xét lại module này có cần thiết không và phục vụ cho việc gì 
+Thay đổi các mục hiển thị khi yêu cầu quay lại thì phải trở lại đúng trang chủ ban đầu vào xem và thao tác chứ không nhảy qua trang mới
+Trường hợp này là đang ở quản lý kho thì khi bấm quay lại phải tiếp tục quản lý kho chứ không qua phần tồn kho 
+Lỗi logic
+Tồn kho
+Tồn kho 1 - Kho
+Hiện đang hiển thị toàn bị thiết bị không chia theo hãng 
+Đồng thời hiển thị bộ lọc cho từng đầu mục của cột tương tự như yêu cầu ở các phần khác
+Chia theo hãng để dễ dàng theo dõi
+Bổ sung đầy đủ bộ lọc
+Bổ sung hiển thị
+Tồn kho 2 - Kho
+Phần người mượn thiết bị này đang điền tay thì sẽ không thông báo được với người mượn, chỉ phục vụ việc note thông tin để kho theo dõi nhưng không phục vụ việc đồng bộ thông tin
+Hiện Sales có thể note thông tin vào mà không cần kho duyệt => gây nhiễu thông tin, có thể bị xoá các thông tin quan trọng vô tình hoặc note mà các bên đều không nắm được thông tin 
+Nên cho chọn nhân sự trong công ty chứ không note thông tin không như vậy vì không thông báo đồng bộ thông tin được với nhân sự và BOD không kiểm soát được
+Đối với những hàng hoá có nhiều số lượng thì cho phép điền nhiều lần hoặc làm đúng quy trình mượn hàng hóa 
+Không cho phép Sales tự tiện note như vậy mà phải thông qua quy tình mượn thiết bị thông thường
+Lỗi logic
+Tồn kho 3- Kho
+Hàng dự án không cho nhân sự mượn thiết bị được => điều này đã làm rõ từ đề xuất lần trước nhưng vẫn còn
+Hàng license cũng không được mượn 
+Đổi lại logic không cho mượn hàng dự án/ license, chỉ cho mượn hàng runrate thôi
+Lỗi logic
+Tồn kho 4 - Kho
+Cùng 1 model thiết bị cùng 1 PO mà chia ra nhiều hàng như vậy rất khó theo dõi
+chỉ cần 1 hàng nhưng note thông tin ai mượn kèm số lượng là được
+Lỗi hiển thị
+Tổn kho 5 - Kho
+Coterm cũng là license hiện đang để ở kho runrate 
+Update lại để nằm đúng kho license, khi đặt hàng đã lựa chọn license rồi nhưng vẫn bị sai kho 
+Lỗi Logic 
+Tồn kho 6 - Kho 
+Hiện không thể lọc theo số PO => Phục vụ cho việc kiểm kê đơn hàng 
+Bổ sung thêm mục lọc số PO 
+Trùng yêu cầu bên trên, cho phép lọc toàn bộ đầu mục sẽ giải quyết được các yêu cầu này
+Lỗi hiển thị
+Tồn kho 7 - Kho 
+Hiện đang hiển thị tách ra từng thiết bị riêng dù chung 1 dự án/ 1 số SO/ 1 số PO => khó cho việc theo dõi 
+Bổ sung việc hiển thị theo đơn hàng của sales, bên trong đơn hàng, dự án list theo model và số lượng, sales phụ trách 
+Bổ sung
+Nhập kho
+Nhập kho 1 - Kho
+Hiển thị hiện tại không cho phép lọc theo hãng => khó theo dõi
+Toàn bộ đầu mục đều cho phép lọc hết từ mã phiếu, nhà cung cấp , kho nhập, ngày nhập, trạng thái, nhân viên
+Bổ sung bộ lọc
+LƯU Ý ĐỒNG BỘ VỚI CÁC PHẦN KHÁC ĐỀU NHƯ VẬY, MỖI ĐẦU MỤC ĐỀU CHO PHÉP LỌC HẾT ĐẺ THUẬN TIỆN CHO VIỆC TRA CỨU THÔNG TIN (TƯƠNG TỰ NHƯ FILE EXCEL) 
+Bổ sung
+Xuất kho
+Xuất kho 1 - Kho
+Tương tự về việc bổ sung bộ lọc
+Hiện tại đang bị lỗi không duyệt phiếu xuất kho được
+Báo không đủ sản phẩm dù bên tồn kho vẫn có => check lại
+Lỗi logic
+Chuyển kho
+Chuyển kho 1 - kho
+Trong kho vẫn có hàng nhưng chọn chuyển kho thì không hiện ra
+Hiện tại luồng thông tin đang khó kiểm soát, phải chọn model trước rồi mới chọn đến kho => trường hợp model đó ko có trong kho chọn thì mất thời gian thao tác, mục đích chuyển kho là chọn từ kho này qua kho khác thì nên cho chọn kho trước và khi chọn kho rồi sẽ hiển thị chính xác các model có trong kho đã chọn thôi. 
+Điều chỉnh thứ tự lựa chọn 
+Chọn kho nguồn trước  
+Chọn model 
+Chọn muốn chuyển (đối với licesne thì không có chuyện chuyển kho)
+Chọn số lượng 
+Ghi chú lý do (bắt buộc phải ghi)
+Chuyển kho 2 - Kho
+Mục đích của việc chọn nhân viên trong thông tin phiếu chuyển là gì?
+Giải đáp thắc mắc
+Chuyển kho 3 - kho
+Danh sách chuyển khi xoá 1 sản phẩm và thêm lại sản phẩm mới thì đánh số thứ tự không bắt đầu lại từ đầu
+Lỗi logic
+Chuyển kho 4 - kho
+Khi tạo phiếu chuyển thì bên trong phiếu không hiển thị đầy đủ thiết bị đó xuất phát từ đơn hàng nào, sales nào đặt, số PO bao nhiêu (không có các thông tin cần thiết) => khó kiểm soát 
+Nên hiển thị toàn bộ thông tin cần thiết và logic lúc nào cũng nên như vậy để bấm vào sẽ nắm bắt được hàng hoá này có hợp lý để chuyển kho hay không 
+Bán hàng
+Phần
+Lỗi/ điểm cần thay đổi 
+Đề xuất (nếu có)
+Phân loại
+Cơ hội
+Cơ hội 1 - Sales
+Hiện phần quà tặng khi chọn vào nhằm thông báo team Marketing hỗ trợ phần này sau khi cơ hội được duyệt nhưng marketing không nhận được thông tin để hỗ trợ 
+Phần “Quà tặng” cần liên kết với marketing sau khi BOD duyệt để Marketing chuẩn bị quà
+=> Marketing có thể nhận được toàn bộ thông tin về buổi gặp mặt nếu có yêu cầu về quà tặng đi kèm, còn không thì chỉ là report của Sales không cần các team khác biết nếu không có chọn. 
+Lưu ý: hoạt động này sẽ chuyển sang tương tự như 1 ticket quà tặng bên Marketing 
+Đề xuất
+Cơ hội 2 - Admin
+Không xem được danh sách cơ hội => không duyệt được được để thao tác test tiếp 
+Lỗi
+Cơ hội 3 - Sales
+BOD chưa duyệt đợt trình bày nhưng mà Sales vẫn có thể update được trạng thái hoàn thành
+Chỉnh sửa logic 
+Đối với các cơ hội cần các team khác hỗ trợ như là Marketing (hỗ trợ qùa tặng), Kỹ thuật (hỗ trợ trình bày) thì sẽ cần có BOD duyệt để điều phối người thực hiện và xuất kho vật phẩm 
+=> đề xuất thêm mục kho vật phẩm cho Marketing để dễ theo dõi
+Lỗi đồng bộ
+Cơ hội 4 - Sales vs kỹ thuật
+Có mục nhờ kỹ thuật phối hợp nhưng lại không hiện ticket bên kỹ thuật dù đã tạo cơ hội => Lỗi tương tự với bên Marketing
+Đồng bộ với bên mục ticket của kỹ thuật
+Kỹ thuật sẽ nhận được yêu cầu sau khi BOD duyệt cơ hội, nhưng có thể cho phép trao đổi thảo luận về ngày thực hiện và chốt ngày sau khi đã trao đổi (=> nhờ team hỗ trợ đề xuất cách hiển thị phần này) 
+Lỗi đồng bộ
+BC Tần suất gặp
+BC Tần suất gặp
+Logic sử dụng mục này là ntn?
+Hỗ trợ sử dụng module này
+Marketing Event
+Marketing event 1 - Sales
+Sales có thể thấy toàn bộ event của marketing
+Đối với những even/ meeting nào liên quan đến sales nào thì sales đó mới được thấy, còn lại không được giao việc thì không được thấy
+Hoặc sẽ thầy các event hãng lớn cần mời khách hàng => gợi ý để hiển thị phần này 
+Đề xuất 
+Marketing event 2 - Sales
+Sales có thể tạo event trình bảy giải pháp nhưng không có tính năng tạo ticket nhờ marketing chuẩn bị quà hay nhờ technical phối hợp. Mặc dù cái này có ticket phía bên technical nhma nếu vậy thì tại sao Sales lại được tạo event, có đồng bộ 2 bên được với nhau không?
+Có thể tạo event trình bày giải pháp kể cả phần marketing và ticket kỹ thuât => tuy nhiên 2 phần này phải đồng bộ với nhau (với kỹ thuật thì phải là trình bày mới đồng bộ với bên marketing được). 
+Báo giá
+Đơn hàng bán
+Đơn hàng bán 1 - Sales 
+Logic “Tạo đơn hàng không có chọn sản phẩm chưa có pricelist trong khi tạo từ báo giá thì được 
+Đề xuất
+Đơn hàng bán 2 - PO Team
+PO Team hiện đang có thể xem toàn bộ đơn hàng của các sales ngay cả đơn hàng nháp chưa gửi thông tin => không đúng logic 
+Quá nhiều đơn hàng được hiển thị nhưng không đúng luồng giải quyết của PO Team 
+Không bảo mật thông tin của Sales 
+Logic hiển thị
+Đơn hàng bán 3 - Sales 
+Đã đặt hàng về mà còn cho phép huỷ đơn hàng 
+Đề xuất không cho phép huỷ đơn hàng khi hàng đã về hoặc ở giai đoạn này nếu muốn huỷ thì cần có sự đồng ý từ BOD nhưng hàng vẫn sẽ để tên người đó và họ phải có trách nhiệm xử lý đơn hàng 
+Đơn hàng bán 4 - Sales
+Không cho chỉnh điều khoản thanh toán: cụ thể là ở tỷ lệ thanh toán 
+Có nhiều loại tỷ lệ và đôi khi có thể chia thành 3 đợt thanh toán 
+Vẫn giữ những trường hợp thanh toán điển hình để dễ chọn ví dụ như thanh toán 100% sau khi giao hàng, thanh toán 100% trước khi đặt hàng. 30-70, và cho phép điều chỉnh, thêm hàng đợt thanh toán 
+Lưu ý cài để những đơn có giá trị từ 1 tỷ trở lên sẽ không thể thanh toán 100% sau khi giao hàng 
+Đơn hàng bán 5 - Sales 
+Pricelist không cho chỉnh sửa vậy trường hợp pricelist thay đổi thì sao
+Tự đồng đồng bộ pricelist nhưng cũng cần được thay đổi chỉnh sửa mục này 
+Bổ sung
+Đơn hàng bán 6 - Sales
+Cho phép chọn nhiều đơn hàng cùng 1 lúc để tạo hoá đơn nhưng khi thực hiện lại báo là Sales không có quyền thực hiện tính năng này => Phần này được thao tác và thực hiện như thế nào. 
+Hỗ trợ phản hồi 
+Đơn hàng bán 7 - Sales
+Mục hoá đơn in này đang bị dư, vì như đã trao đổi hoá đơn là do kế toán cung cấp, và sales cũng sẽ không tự mình in hoá đơn
+Bỏ phần module này
+Lỗi logic
+Đơn hàng bán 8 - Sales
+Phần hiển thị này mã báo giá đang chiếm quá nhiều chỗ, cần thu gọn lại để không phải kéo sang phải mới thấy được toàn bộ 1 hàng 
+Thu gọn lại, thiết kế phần hiẻn thị gọn gẽ hơn 
+Đề xuất
+Đơn hàng bán 9 - Sales
+Phần thao tác này chỉ có icon, đối với người thực hiện sẽ không biết nó dùng để làm gì, dễ quên mục đích lựa chọn 
+Bấm vào con mắt thì thấy đầy đủ hơn và vẫn chỉnh sửa được 
+Bấm vào icon vàng cây bút thì chỉ chỉnh sửa được theo dạng model sản phẩm và giá thôi
+=> hơi dư
+có thể gộp lại giữ 1 con mắt và note chi tiết vào (VD chinh sửa chi tiết)
+Đề xuất
+Đơn hàng bán 10 - Finance/ BOD
+Trạng thái đơn hàng để lọc hiện không đồng bộ 
+Bên phải có đơn hàng trạng thái đang là “Chờ thanh toán” nhưng lọc lại không có.
+Đồng bộ lại trạng thái đơn hàng hiển thị với trạng thái lọc 
+Đồng bộ ở các mục khác luôn không gặp lại lỗi này nữa
+Lỗi đồng bộ
+Đơn hàng bán 11 - Finance/ BOD
+Khi lọc thông tin thì các phần lọc khác cũng cần toàn bộ 
+Hiện đang lọc sales “Ngan Nguyen”, phần dự án hiển thị rất nhiều nhưng chỉ có duy nhất 1 dự án thuộc sales này => tốn thời gian trong việc gạn lọc 
+Đồng bộ với thông tin lọc
+Lỗi Logic
+Đơn hàng bán 12 - Finance/ BOD
+Lọc theo “Trạng thái đơn hàng” đang bị lỗi
+Có 1 đơn hàng trong trạng thái là “Chờ duyệt PNL” nhưng khi bấm vào lọc thì không ra đơn hàng đó 
+Đồng bộ với thông tin lọc 
+List trạng thái đơn hàng cần có:
+Nháp (chỉ có Sales nào soạn đơn nháp thì mới thấy, các bộ phận khác không cần tiết thấy)
+Chờ duyệt PNL (Legal team, Finance Team (Kế toán, BOD có thể thấy) 
+Bao gồm cả gửi PNL rồi mà chưa được duyệt hoặc bị trả lại (cần sửa PNL)
+Chờ Đặt hàng (xuất hiện khi đơn hàng đã duyệt xong PNL từ cấp Legal hoặc BOD), sẽ biến mất khi Sales hoàn tất công việc đặt hàng và chuyển sang giải đoạn tiếp theo)
+Chờ Hàng về (PO Team chuyển trạng thái đơn hàng là đặt hàng thành công thì sẽ hiển thị thông tin này cho đến khi PO Team xác nhận hàng về và bên kho báo nhập kho thì chuyển sang giai đoạn tiếp theo) 
+Hàng đã về (Chưa xuất kho, hiển thị để biết mà hối thúc sales xuất kho)
+Xuất hoá đơn (đang trong giai đoạn đợi xuất hoá đơn, kết thúc khi Sales đồng ý với hoá đơn nháp) 
+Xuất hàng (sau khi xong giai đoạn xuất hoá đơn sẽ chuyển đến giai đoạn xuất hàng, kết thúc khi Kho xác nhận hàng đã xuất)
+Hoàn thành (khi 1 đơn hàng hoàn tất tất cả các khâu)
+Hoặc càng chi tiết càng tốt, nhưng phải nhảy chính xác, update và đồng bộ thông tin liên tục 
+Lỗi logic
+Đơn hàng bán 13 - Legal Team
+Hiện Legal team có thể gửi duyệt PNL => không đúng 
+Đơn hàng bán 14 - Sales
+Chọn Vendor: không chọn vẫn được 
+Bắt buộc chọn để được đồng bộ với bên đặt hàng 
+Đơn hàng bán 15 - Sale
+Đơn hàng mã đơn SO-20260721-0002 bên ngoài đang hiện là giao hàng nhưng bên trong lại báo là đã xuất kho và hoàn thành rồi
+Báo là chờ duyệt phiếu xuất kho nhưng khi vào xuất kho search mã đơn hàng lại không ra  
+Đồng bộ toàn bộ đơn hàng 
+Lỗi đồng bộ
+Đơn hàng bán 16 - Finance
+Phần thanh toán đang khó theo dõi Payment Term 
+Bộ phận kế toán đề xuất có thể thấy được rõ payment term của đơn này từ đầu 
+VD:  30% Advance + 70% Net 30 with Bank Guarantee (trường hợp có bảo lãnh thanh toán) 
+=> ở phía sales nếu deal có bảo lãnh thanh toán (Bank Guarantee) thì phải có 1 nút riêng tick vào trước khi báo duyệt PNL để kế toán theo dõi
+100% advance 
+100% net 30
+ Bổ sung
+Đặt hàng 1 - Sales
+Đã nhập hãng từ PNL trước đó rồi thì nên được đồng bộ đến khúc đặt hàng luôn 
+Đồng bộ thông tin hãng đã chọn từ PNL với lúc đặt hàng 
+Lỗi đồng bộ 
+Đặt hàng 2 - Sales
+Đã điền thông tin EU từ lúc đkda rồi nhưng tới đây vẫn phải điền lại
+Đồng bộ thông tin EU đã đăng ký dự án, đồng bộ với tên EU bằng tiếng anh
+Còn đối với các đơn hàng tạo từ báo giá không có thông tin thì thôi 
+Lỗi đồng bộ 
+Đặt hàng 3 - Sales
+Ngày exp date sẽ đủ số hàng tương tự với S/N vì có trường hợp 2 S/N khác thời hạn 
+Bổ sung mỗi số S/N cho phép nhập ngày exp khác nhau tuy nhiên vẫn có nút lựa chọn là đồng bộ hết ngày exp date (có trường hợp đây là cùng 1 dự án lơn nên ngày exp có thể giống nhau)
+Bổ sung
+Xuất kho 1 - kho
+Đã duyệt xuất kho những vẫn hiện trạng thái như vầy 
+Đã nhập đủ số lượng nhưng khi xuất thì lại không được 
+Thắc mắc 
+XHĐ 1 - Sales
+Tính năng báo sai hoá đơn nháp bị lỗi, không gửi được 
+Lỗi
+ĐKDA
+ĐKDA
+1 - Sales
+BOM không phải lúc nào cũng đính kèm file mà có thể nhập vào luôn. Hiện tại đang yêu cầu gửi file 
+Điều chỉnh phần BOM thành nhập văn bản và sẽ đỉnh kèm file gọi là “Yêu cầu kỹ thuật” vì có trường hợp các sản phẩm Non FTN sẽ cần hãng chạy BOM đính kèm như vậy thì PM có thể dễ dàng nhờ hãng hỗ trợ cung cấp BOM cho Sales.
+Bổ sung
+ĐKDA 2 - Sales
+Tại sao sđt bắt buộc điền mà lại không có dấu sao 
+Hiển thị dấu sao
+Lỗi hiển thị
+ĐKDA 3 - PO Team
+PO team có thể update dự án FTN => không đúng logic 
+Theo yêu cầu ban đầu thì Sales mới là người update dự án. 
+Đề xuất thêm là các dự án non-FTN thì cả sales và PM đều có thể update dự án, nhưng không có trường hợp nào PO Team được update status mà chỉ được trả thông tin về cho sales là có trùng dự án hay không và đã đăng ký chưa 
+Bổ sung
+ĐKDA 4 - All
+Lịch sử đơn hàng này cũng đang hiển thị rất vô nghĩa vì không thể biết được hoạt động chi tiết làm là gì, chỉ thấy hiển thị ai đó cập nhật và không biết cập nhật gì 
+Hiển thị thông tin cập nhật chi tiết hơn:
+Ai là người update? PM, Sales (hiển thị rõ cá nhân 1 sales)
+Update nội dung nào? => ai là người cần phản hồi tiếp theo (VD: PM gửi giá hãng => Sales update thông tin dự án) => mục này có thể thể hiện dự báo hành động tiếp theo theo logic ban đầu đề xuất thôi, nhưng vẫn có khả năng hoạt động tiếp theo không theo trình tự như thế. 
+Bổ sung
+ĐKDA 5 - PO/ PM Team
+Hiện PO Team có thể thấy hết các dự án đăng ký các hãng khác => không đúng logic làm việc hiện tại của công t, PO Team quản lý dự án FTN thì chỉ thấy dự án FTN thôi  
+Đề xuất chỉ để PO Team hiển thị các dự án FTN 
+PM Team có thể thấy toàn bộ dự án (FTN và non - FTN) 
+Bổ sung
+ĐKDA 6 - Sales
+Hiện chỉ co update thông tin 1 lần 
+Update thông tin không bên nào thấy hết 
+Chỉ có PM mới được đóng dự án => sai logic 
+Sales có quyền đóng dự án 
+Đề xuất được update dự án nhiều lần, và phải thấy đầy đủ các lịch sử update, yêu cầu hỗ trợ và thông tin được hỗ trợ
+Cả Sales và PM Team đều có quyền đóng dự án
+Lỗi logic
+ĐKDA 7 - Sales 
+Cho chọn nhiều dự án đã đăng ký để tạo 1 đơn hàng
+Vì 1 đơn hàng có thể có nhiều hãng khác nhau 
+Đề xuất tính năng chọn nhiều dự án để tạo thành 1 đơn hàng, đơn hàng được chọn từ nhiều dự án đó nếu: 
+Trùng Partner và EU thì giữ nguyên
+Không trùng Partner và EU thì hiện lên báo thông tin không trùng có muốn tiếp tục tạo đơn hàng không. Nếu muốn thì tạo đơn hàng mới hoàn toàn không có thông tin SI, EU mà sales phải tự nhập, dự án đang đăng ký vẫn giữ nguyên nhưng hiển thị thông tin đã tạo đơn hàng với mã số bao nhiêu 
+Đề xuất
+ĐKDA 8 - Sales
+Đã đkda và tạo danh sách khách hàng nhưng khi qua tạo đơn hàng thì lại không hiển thị
+Lấy thông tin khách hàng từ bên ĐKDA để sales không phải nhập lại, nhưng đồng thời vẫn có thể thay đổi 
+Lỗi logic
+ĐKDA 9 - Sales
+Hiện đang phải nhập tay lại toàn bộ BOM - sẽ khó khăn với các đơn hàng có quá nhiều BOM
+Đề xuất Điều chỉnh mục ĐKDA sao cho khi chọn qua tạo đơn hàng thì sẽ tự nhảy mã sản phẩm, nhưng từ khúc đkda thì không phải nhập từng hàng mà chỉ cần copy note 1 đoạn mà thôi => có được không 
+Đề xuất - Mức độ ưu tiên không cao
+ĐKDA 10 - Sales 
+Phần note hiện đang bắt buộc điền => không đúng logic làm việc hiện tại 
+Thay đổi thành không bắt buộc điền
+Đề xuất
+ĐKDA 11 - Sales
+Tạo báo giá
+ĐKDA xong không có chỗ cho sales tạo báo giá từ dự án đó luôn mà phải qua tạo báo giá mới rồi sau này lại tạo đơn hàng từ báo giá đó hay từ dự án đã đăng ký 
+Đề xuất tạo đơn báo giá từ dự án đã đăng ký, nhưng không cần cho Team đăng ký dự án thấy giá mà Sales đã chào, đó hoàn toàn là dựa vào quyết định của Sales 
+Bổ sung
+ĐKDA 12 - Sales 
+Hiện muốn Chọn đóng dự án thì phải tự nhập số đơn đặt hàng và tổng giá trị đơn hàng trong khi cái này hoàn toàn có thể đồng bộ thông tin 
+Đồng bộ thông tin với đơn đặt hàng cuối cùng 
+Hoặc khi hàng về Sales xuất hoá đơn xong thì hiển thị mục xác nhận đóng dự án, Sales chọn xác nhận thì sẽ đồng bộ với BOM và mức giá tiền cuối cùng đã bán 
+Trường hợp gộp từ nhiều hãng, nhiều đơn dự án đăng ký  thì cho sales tự nhập 
+Lỗi đồng bộ thông tin và đề xuất mới 
+ĐKDA 13 - Sales vs PM Team
+Form Dự án gửi hãng phần Update dự án đang cố định lấy từ file đkda ban đầu, không tự động update theo thời gian
+Cập nhật thông tin dự án update thông qua quá trình sales và PM update, ưu tiên thể hiện như vầy:  
+[20:30 2.9.2027] Sales: Đã bào giá dự toán
+Bổ sung
+ĐKDA 14 - Sales vs PM Team
+File hiện chỉ cho phép tải xuống
+File cho phép mở ra xem preview và có thể tải xuống
+Yêu cầu đồng bộ toàn bộ quy trình đều được xem trước file
+Bổ sung 
+Công nợ khách hàng
+Công nợ khách hàng 1 - Sales
+Phân ghi nhận thanh toán thiếu bước upload UNC để kế toán check
+Bổ sung chỗ upload UNC và gửi đến kế toán duyệt => tức là kế toán có thể duyệt từ đơn hàng bán và cả công nợ khách hàng 
+Công nợ khách hàng 2 - Sales
+Phần công nợ khách hàng đang để technical team update điêu chỉnh => Sai logic
+Sửa logic thành Sales có thể update 
+Lỗi logic
+Báo cáo bán hàng
+Báo cáo bán hàng 1 
+Đã gửi file báo cáo bán hàng nhưng thực hiện không đầy đủ cột
+Xem lại file gửi ngày 16/3
+Bổ sung đầy đủ cột
+Lỗi 
+Báo cáo bán hàng 2 
+Hiện báo cáo bán hàng đang không lọc được theo hãng
+Mục theo sản phẩm không lọc được theo hãng => khó khăn trong việc theo dõi
+Hỗ trợ điều chỉnh lọc được theo hãng như đề xuất ban đầu 
+Lỗi
+Báo cáo bán hàng 2
+Mặc dù hiển thị là nhân viên kinh doanh nhưng đang thể hiện thông tin toàn bộ Nhân sự công ty 
+Đổi thành chỉ hiển thị nhân viên kinh doanh 
+Lỗi logic
+Báo cáo bán hàng 3
+Hiện tại các cột trong báo cáo đang chưa cho phép lọc đầy đủ 
+Ví dụ như muốn lọc tỷ lệ khách hàng thanh toán thì không lọc được
+Đề xuất từ kế toán sẽ cho phép lọc tất cả các cột khi cần 
+Báo cáo bán hàng 4 - Sales
+Báo cáo bán hàng đang hiển thị toàn bộ đơn hàng cho 1 sales xem 
+Sales chỉ được xem toàn bộ dự án, đơn hàng của mình, không được xem của các sles khác 
+Lỗi logic
+11. Tổng doanh số
+Tổng doanh số - Finance
+Thanh trượt ngang hiện đnag set up nằm ở cuối cùng mỗi lần cần trượt qua bên phải hoặc trái thì phải kéo xuống cuối rất khó cho việc theo dõi 
+Đề xuất thanh trượt luôn có vị trí dễ thao tác dù có trượt lên xuống giữa các hàng khác nhau thì vẫn thao tác dễ dàng 
+Lỗi hiển thị
+Tổng doanh số
+Hiện cho phép random xoá 1 dòng mà ko có sự duyệt của BOD hay chèn lý do xoá, đồng thời cũng không lưu lại thông tin nên trường hợp xoá sai thì sẽ không theo dõi được nữa 
+Điều chỉnh lại phần này 
+Mua hàng
+Phần
+Lỗi/ điểm cần thay đổi 
+Đề xuất (nếu có)
+Phân loại
+Bảng giá
+Bảng giá
+Chưa thực hiện test được phần import bảng giá 
+Rà soát điều chỉnh lại toàn bộ VAT mặc định 8% và cho phép điều chỉnh khi cần 
+Đặt hàng với hãng
+Đặt hàng với hãng 1 - PO Team
+Phần VAT vẫn đang để mặc định 10% trong khi đã yêu cầu điều chỉnh toàn bộ VAT hiển thị 8% và cho phép chỉnh sửa khi cần 
+Rà soát điều chỉnh lại toàn bộ VAT mặc định 8% và cho phép điều chỉnh khi cần 
+Đặt hàng với hãng 2 - PO Team
+Khi PO Team tạo 1 đơn đặt hàng và bấm gửi duyệt thi không thấy hiển thị ở bất kỳ đâu => logic hiển thị đơn hàng này sẽ ở đâu và xử lý tiếp ntn
+Giải đáp thắc mắc

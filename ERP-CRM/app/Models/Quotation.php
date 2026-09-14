@@ -14,6 +14,7 @@ class Quotation extends Model
     protected $fillable = [
         'code',
         'customer_id',
+        'project_id',
         'contact_id',
         'customer_name',
         'title',
@@ -141,6 +142,11 @@ class Quotation extends Model
     public function convertedSale()
     {
         return $this->belongsTo(Sale::class, 'converted_to_sale_id');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function approvalHistories()

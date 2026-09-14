@@ -27,6 +27,49 @@
         <input type="hidden" name="multi_project_confirmed" id="multiProjectConfirmed" value="0">
         
         <div class="p-4 sm:p-6 space-y-6">
+            @if(isset($selectedProjects) && $selectedProjects->count() > 1)
+                <!-- Multi-Project Creation Banner -->
+                <div class="bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-2 border-indigo-200 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between flex-wrap gap-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-indigo-600 text-white font-bold text-lg shadow-md">
+                                <i class="fas fa-layer-group"></i>
+                            </span>
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-900">
+                                    Đang tạo đơn hàng tổng hợp từ {{ $selectedProjects->count() }} dự án
+                                </h3>
+                                <p class="text-xs text-gray-600 mt-0.5">
+                                    Mỗi dòng hàng trong bảng sản phẩm có thể gắn cho từng dự án tương ứng.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($selectedProjects as $sp)
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-indigo-200 text-indigo-800 shadow-xs">
+                                    <i class="fas fa-project-diagram mr-1 text-indigo-500"></i> {{ $sp->code }} - {{ $sp->name }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                    @if(!empty($clearPartnerEu))
+                        <div class="bg-amber-100/80 border border-amber-300 rounded-xl p-3 text-xs text-amber-900 flex items-start space-x-2">
+                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+                            <div>
+                                <strong>Lưu ý:</strong> Thông tin Partner (SI) hoặc End-User (EU) giữa các dự án đã chọn không trùng khớp nên hệ thống để trống thông tin Khách hàng (Partner/SI). Vui lòng chọn Khách hàng và thông tin liên quan phù hợp cho đơn hàng này.
+                            </div>
+                        </div>
+                    @else
+                        <div class="bg-emerald-100/80 border border-emerald-300 rounded-xl p-2.5 text-xs text-emerald-900 flex items-center space-x-2">
+                            <i class="fas fa-check-circle text-emerald-600"></i>
+                            <div>
+                                Thông tin Partner (SI) và End-User (EU) giữa các dự án trùng khớp và được giữ nguyên.
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             <!-- Basic Info -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -49,23 +92,23 @@
                     </label>
                     <select name="type" id="saleType" required onchange="toggleProjectSelect()"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="retail" {{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
-                        <option value="project" {{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
+                        <option value="retail" {{ old('type', (isset($selectedProject) || (isset($selectedProjects) && $selectedProjects->count() > 0)) ? 'project' : 'retail') == 'retail' ? 'selected' : '' }}>Bán lẻ</option>
+                        <option value="project" {{ old('type', (isset($selectedProject) || (isset($selectedProjects) && $selectedProjects->count() > 0)) ? 'project' : 'retail') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                     </select>
                 </div>
             </div>
 
             <!-- Project Selection (shown when type = project) -->
-            <div id="projectSelectWrapper" class="{{ old('type', isset($selectedProject) ? 'project' : 'retail') == 'project' ? '' : 'hidden' }}">
+            <div id="projectSelectWrapper" class="{{ old('type', (isset($selectedProject) || (isset($selectedProjects) && $selectedProjects->count() > 0)) ? 'project' : 'retail') == 'project' ? '' : 'hidden' }}">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             <i class="fas fa-project-diagram text-purple-500 mr-1"></i>
-                            Dự án
+                            Dự án chính
                         </label>
                         <select name="project_id" id="projectSelect" onchange="handleProjectSelection()"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            <option value="">-- Chọn dự án --</option>
+                            <option value="">-- Chọn dự án chính --</option>
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" 
                                     data-customer-id="{{ $project->customer_id }}"
@@ -87,10 +130,10 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Khách hàng <span class="text-red-500">*</span>
+                        Khách hàng (Partner/SI) <span class="text-red-500">*</span>
                     </label>
                     @php
-                        $oldCustomerId = old('customer_id', $prefill['customer_id'] ?? '');
+                        $oldCustomerId = old('customer_id', $selectedCustomerId ?? ($prefill['customer_id'] ?? ''));
                     @endphp
                     <select name="customer_id" id="customer_id" required
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('customer_id') border-red-500 @enderror">
@@ -191,7 +234,12 @@
 
             <!-- Products Section -->
             <div class="border-t pt-4">
-                <h4 class="text-lg font-medium text-gray-900 mb-4">Chi tiết sản phẩm</h4>
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h4 class="text-lg font-medium text-gray-900">Chi tiết sản phẩm</h4>
+                    <button type="button" id="btnOpenBomModal" class="inline-flex items-center px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:text-indigo-800 transition-colors shadow-xs cursor-pointer">
+                        <i class="fas fa-file-excel text-emerald-600 mr-1.5 text-sm"></i> Nhập nhanh BOM / Dán từ Excel
+                    </button>
+                </div>
                 
                 <!-- Product List Header (Desktop) -->
                 <div class="hidden md:grid grid-cols-12 gap-3 px-4 py-2 bg-gray-100 border border-gray-200 rounded-t-lg font-bold text-gray-700">
@@ -205,79 +253,126 @@
                     <div class="md:col-span-1 text-center"><i class="fas fa-cog"></i></div>
                 </div>
 
+                @php
+                    $initialProducts = old('products');
+                    if (!$initialProducts && !empty($prefilledProducts)) {
+                        $initialProducts = $prefilledProducts;
+                    }
+                    if (empty($initialProducts)) {
+                        $initialProducts = [
+                            [
+                                'product_id' => '',
+                                'quantity' => 1,
+                                'price' => '',
+                                'vat' => 8,
+                                'warranty_months' => '',
+                                'contractor_tax_enabled' => 0,
+                                'project_id' => $selectedProject?->id ?? '',
+                                'new_name' => '',
+                                'new_code' => '',
+                                'new_unit' => 'Cái',
+                                'display_text' => '',
+                            ]
+                        ];
+                    }
+                @endphp
+
                 <div id="productList" class="space-y-0 border-x border-b border-gray-200 rounded-b-lg">
-                    <div class="product-item bg-white p-4 border-b last:border-b-0 border-gray-100">
-                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div class="md:col-span-3 product-name-col">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
-                                <div class="searchable-select product-searchable" data-index="0" data-ajax-url="{{ route('api.products.search') }}">
-                                    <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
-                                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
-                                    <input type="hidden" name="products[0][product_id]" required class="product-id-input">
-                                    <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
-                                    <input type="hidden" name="products[0][is_liquidation]" value="0" class="is-liquidation-input">
+                    @foreach($initialProducts as $idx => $prod)
+                        @php
+                            $pid = is_array($prod) ? ($prod['product_id'] ?? '') : ($prod->product_id ?? '');
+                            $pname = is_array($prod) ? ($prod['new_name'] ?? ($prod['name'] ?? '')) : '';
+                            $pcode = is_array($prod) ? ($prod['new_code'] ?? ($prod['code'] ?? '')) : '';
+                            $punit = is_array($prod) ? ($prod['new_unit'] ?? ($prod['unit'] ?? 'Cái')) : 'Cái';
+                            $pqty = is_array($prod) ? ($prod['quantity'] ?? 1) : 1;
+                            $pprice = is_array($prod) ? ($prod['price'] ?? '') : '';
+                            $pvat = is_array($prod) ? ($prod['vat'] ?? 8) : 8;
+                            $pwarranty = is_array($prod) ? ($prod['warranty_months'] ?? '') : '';
+                            $pitemProj = is_array($prod) ? ($prod['project_id'] ?? ($selectedProject?->id ?? '')) : ($selectedProject?->id ?? '');
+                            $pContractorTax = is_array($prod) ? (!empty($prod['contractor_tax_enabled']) ? 1 : 0) : 0;
+                            $displayText = is_array($prod) ? ($prod['display_text'] ?? '') : '';
+                            if (empty($displayText)) {
+                                if ($pid === 'new') {
+                                    $displayText = '[SP Mới] ' . ($pname ?: $pcode);
+                                } elseif ($pcode || $pname) {
+                                    $displayText = '[' . ($pcode ?: '') . '] ' . ($pname ?: '');
+                                }
+                            }
+                        @endphp
+                        <div class="product-item {{ $idx % 2 === 0 ? 'bg-white' : 'bg-gray-50' }} p-4 border-b last:border-b-0 border-gray-100">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                                <div class="md:col-span-3 product-name-col">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
+                                    <div class="searchable-select product-searchable" data-index="{{ $idx }}" data-ajax-url="{{ route('api.products.search') }}">
+                                        <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
+                                               placeholder="Gõ để tìm sản phẩm..." autocomplete="off" value="{{ old("products.{$idx}.searchable_text", $displayText) }}">
+                                        <input type="hidden" name="products[{{ $idx }}][product_id]" required class="product-id-input" value="{{ old("products.{$idx}.product_id", $pid) }}">
+                                        <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
+                                        <input type="hidden" name="products[{{ $idx }}][is_liquidation]" value="{{ old("products.{$idx}.is_liquidation", 0) }}" class="is-liquidation-input">
+                                    </div>
+                                    <input type="hidden" name="products[{{ $idx }}][new_name]" class="new-name-input" value="{{ old("products.{$idx}.new_name", $pname) }}">
+                                    <input type="hidden" name="products[{{ $idx }}][new_code]" class="new-code-input" value="{{ old("products.{$idx}.new_code", $pcode) }}">
+                                    <input type="hidden" name="products[{{ $idx }}][new_unit]" class="new-unit-input" value="{{ old("products.{$idx}.new_unit", $punit) }}">
+                                    <select name="products[{{ $idx }}][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng cho riêng dòng hàng này">
+                                        <option value="">Dự án của đơn hàng</option>
+                                        @foreach($projects as $project)
+                                            <option value="{{ $project->id }}" {{ old("products.{$idx}.project_id", $pitemProj) == $project->id ? 'selected' : '' }}>{{ $project->code }} - {{ $project->name }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
-                                <input type="hidden" name="products[0][new_name]" class="new-name-input">
-                                <input type="hidden" name="products[0][new_code]" class="new-code-input">
-                                <input type="hidden" name="products[0][new_unit]" class="new-unit-input" value="Cái">
-                                <select name="products[0][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng cho riêng dòng hàng này">
-                                    <option value="">Dự án của đơn hàng</option>
-                                    @foreach($projects as $project)
-                                        <option value="{{ $project->id }}" {{ old('products.0.project_id', $selectedProject?->id) == $project->id ? 'selected' : '' }}>{{ $project->code }} - {{ $project->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="md:col-span-1">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
-                                <input type="number" name="products[0][quantity]" min="1" value="1" required
-                                       onchange="calculateRowTotal(0)"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá <span class="text-red-500">*</span></label>
-                                <input type="text" name="products[0][price]" min="0" required
-                                       onchange="calculateRowTotal(0)"
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                                <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
-                            </div>
-                            <div class="md:col-span-1">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
-                                <select name="products[0][vat]"
-                                        onchange="handleVatChange(this)"
-                                        class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
-                                    <option value="-1">KCT</option>
-                                    <option value="0">0%</option>
-                                    <option value="5">5%</option>
-                                    <option value="8" selected>8%</option>
-                                    <option value="10">10%</option>
-                                    <option value="custom">Khác...</option>
-                                </select>
-                            </div>
-                            <div class="md:col-span-1">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
-                                <input type="number" name="products[0][warranty_months]" min="0" max="120" value=""
-                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
-                                       placeholder="0">
-                            </div>
-                            <div class="md:col-span-1 text-center product-tax-col">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
-                                <input type="hidden" name="products[0][contractor_tax_enabled]" value="0">
-                                <input type="checkbox" name="products[0][contractor_tax_enabled]" value="1"
-                                       class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
-                                <input type="text" readonly
-                                       class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
-                            </div>
-                            <div class="md:col-span-1 flex items-end md:items-center">
-                                <button type="button" onclick="removeProductRow(this)" 
-                                        class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <div class="md:col-span-1">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
+                                    <input type="number" name="products[{{ $idx }}][quantity]" min="1" value="{{ old("products.{$idx}.quantity", $pqty) }}" required
+                                           onchange="calculateRowTotal({{ $idx }})"
+                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá <span class="text-red-500">*</span></label>
+                                    <input type="text" name="products[{{ $idx }}][price]" min="0" required
+                                           value="{{ old("products.{$idx}.price", $pprice ? (is_numeric($pprice) ? number_format($pprice, 0, ',', '.') : $pprice) : '') }}"
+                                           onchange="calculateRowTotal({{ $idx }})"
+                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                    <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                                    <select name="products[{{ $idx }}][vat]"
+                                            onchange="handleVatChange(this)"
+                                            class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                        <option value="-1" {{ old("products.{$idx}.vat", $pvat) == -1 ? 'selected' : '' }}>KCT</option>
+                                        <option value="0" {{ old("products.{$idx}.vat", $pvat) == 0 ? 'selected' : '' }}>0%</option>
+                                        <option value="5" {{ old("products.{$idx}.vat", $pvat) == 5 ? 'selected' : '' }}>5%</option>
+                                        <option value="8" {{ old("products.{$idx}.vat", $pvat) == 8 ? 'selected' : '' }}>8%</option>
+                                        <option value="10" {{ old("products.{$idx}.vat", $pvat) == 10 ? 'selected' : '' }}>10%</option>
+                                        <option value="custom">Khác...</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
+                                    <input type="number" name="products[{{ $idx }}][warranty_months]" min="0" max="120" value="{{ old("products.{$idx}.warranty_months", $pwarranty) }}"
+                                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
+                                           placeholder="0">
+                                </div>
+                                <div class="md:col-span-1 text-center product-tax-col">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
+                                    <input type="hidden" name="products[{{ $idx }}][contractor_tax_enabled]" value="0">
+                                    <input type="checkbox" name="products[{{ $idx }}][contractor_tax_enabled]" value="1" {{ old("products.{$idx}.contractor_tax_enabled", $pContractorTax) ? 'checked' : '' }}
+                                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
+                                    <input type="text" readonly
+                                           class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
+                                </div>
+                                <div class="md:col-span-1 flex items-end md:items-center">
+                                    <button type="button" onclick="removeProductRow(this)" 
+                                            class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    @endforeach
                 </div>
 
                 <button type="button" onclick="addProductRow()" 
@@ -673,6 +768,123 @@
         </div>
     </div>
 </div>
+
+<!-- Quick BOM Import Modal -->
+<div id="bomImportModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" id="bomModalOverlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <i class="fas fa-file-excel text-xl text-emerald-300"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-lg font-bold">Nhập nhanh BOM / Dán từ Excel</h3>
+                        <p class="text-xs text-blue-100">Dán bảng danh sách sản phẩm từ Excel, email hoặc báo giá dự án</p>
+                    </div>
+                </div>
+                <button type="button" id="closeBomModal" class="text-white/80 hover:text-white text-xl p-1 cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-lightbulb text-amber-500 text-base flex-shrink-0"></i>
+                        <div>
+                            <strong>Hướng dẫn:</strong> Copy trực tiếp các cột từ Excel (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá) hoặc dán danh sách theo dòng. Hệ thống tự động nhận diện và khớp với sản phẩm trong kho.
+                        </div>
+                    </div>
+                </div>
+
+                @if(isset($projects) && $projects->count() > 0)
+                <div class="flex items-center space-x-3">
+                    <label class="text-xs font-semibold text-gray-700 whitespace-nowrap">Gán cho dự án:</label>
+                    <select id="bomModalProjectSelect" class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary w-full max-w-xs">
+                        <option value="">-- Mặc định theo dự án đơn hàng --</option>
+                        @foreach($projects as $p)
+                            <option value="{{ $p->id }}" {{ (isset($selectedProject) && $selectedProject->id == $p->id) ? 'selected' : '' }}>{{ $p->code }} - {{ $p->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nội dung BOM / Dữ liệu Excel</label>
+                    <textarea id="bomInputText" rows="6" 
+                        class="w-full font-mono text-xs border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner"
+                        placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex space-x-2">
+                        <button type="button" id="btnParseBom" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                            <i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu
+                        </button>
+                        <button type="button" id="btnClearBomText" class="inline-flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors cursor-pointer">
+                            <i class="fas fa-eraser mr-1.5"></i> Xóa
+                        </button>
+                    </div>
+                    <div id="bomParseStatus" class="text-xs text-gray-500"></div>
+                </div>
+
+                <!-- Preview Table Area -->
+                <div id="bomPreviewArea" class="hidden border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                    <div class="bg-gray-100 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                        <div class="text-xs font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fas fa-list-check text-indigo-600"></i>
+                            <span>Kết quả nhận diện (<span id="bomParsedCount">0</span> dòng)</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                                <i class="fas fa-check mr-1"></i> Khớp kho: <span id="bomMatchedCount" class="ml-1 font-bold">0</span>
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                                <i class="fas fa-plus mr-1"></i> Sản phẩm mới: <span id="bomNewCount" class="ml-1 font-bold">0</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 font-semibold sticky top-0 border-b border-gray-200">
+                                <tr>
+                                    <th class="p-2 text-center w-10">STT</th>
+                                    <th class="p-2">Part Number / Mã</th>
+                                    <th class="p-2">Tên sản phẩm / Model</th>
+                                    <th class="p-2 text-center w-16">SL</th>
+                                    <th class="p-2 text-right w-28">Đơn giá</th>
+                                    <th class="p-2 text-center w-28">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bomPreviewTableBody" class="divide-y divide-gray-200 bg-white">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-500">
+                    * Các sản phẩm mới sẽ được tự động tạo mã và tên khi lưu đơn hàng.
+                </div>
+                <div class="flex space-x-2">
+                    <button type="button" id="btnApplyBomAppend" class="hidden inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm nối tiếp vào bảng
+                    </button>
+                    <button type="button" id="btnApplyBomReplace" class="hidden inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
+                        <i class="fas fa-sync-alt mr-1.5"></i> Ghi đè bảng sản phẩm
+                    </button>
+                    <button type="button" id="btnCloseBomModalFooter" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 cursor-pointer">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('styles')
@@ -738,7 +950,7 @@ input[list]::-webkit-calendar-picker-indicator {
 @endphp
 <script>
 window.initialHasContractorTax = @json($hasContractorTax);
-let productIndex = {{ count(old('products', [])) ?: 1 }};
+let productIndex = {{ count($initialProducts ?? (old('products', []))) ?: 1 }};
 let expenseIndex = {{ count(old('expenses', [])) ?: 0 }};
 let isSubmitting = false;
 
@@ -1123,6 +1335,8 @@ document.addEventListener('DOMContentLoaded', function() {
             loadContacts(initialCustomerId, oldContactId);
         }
     }
+
+    calculateTotal();
 });
 
 // PIC Selection logic
@@ -2737,6 +2951,262 @@ $('#saveSingleContactBtn').on('click', async function() {
         $('#cancelSingleContactBtn').prop('disabled', false);
     }
 });
+
+// ==========================================
+// BOM Import Modal & Quick Paste Logic
+// ==========================================
+const bomModal = document.getElementById('bomImportModal');
+const btnOpenBomModal = document.getElementById('btnOpenBomModal');
+const closeBomModal = document.getElementById('closeBomModal');
+const closeBomModalFooter = document.getElementById('btnCloseBomModalFooter');
+const bomModalOverlay = document.getElementById('bomModalOverlay');
+const btnParseBom = document.getElementById('btnParseBom');
+const btnClearBomText = document.getElementById('btnClearBomText');
+const bomInputText = document.getElementById('bomInputText');
+const bomPreviewArea = document.getElementById('bomPreviewArea');
+const bomPreviewTableBody = document.getElementById('bomPreviewTableBody');
+const btnApplyBomAppend = document.getElementById('btnApplyBomAppend');
+const btnApplyBomReplace = document.getElementById('btnApplyBomReplace');
+const bomParseStatus = document.getElementById('bomParseStatus');
+
+let parsedBomItems = [];
+
+function openBomModal() {
+    if (bomModal) bomModal.classList.remove('hidden');
+}
+
+function hideBomModal() {
+    if (bomModal) bomModal.classList.add('hidden');
+}
+
+if (btnOpenBomModal) btnOpenBomModal.addEventListener('click', openBomModal);
+if (closeBomModal) closeBomModal.addEventListener('click', hideBomModal);
+if (closeBomModalFooter) closeBomModalFooter.addEventListener('click', hideBomModal);
+if (bomModalOverlay) bomModalOverlay.addEventListener('click', hideBomModal);
+
+if (btnClearBomText) {
+    btnClearBomText.addEventListener('click', () => {
+        bomInputText.value = '';
+        bomPreviewArea.classList.add('hidden');
+        btnApplyBomAppend.classList.add('hidden');
+        btnApplyBomReplace.classList.add('hidden');
+        bomParseStatus.textContent = '';
+        parsedBomItems = [];
+    });
+}
+
+if (btnParseBom) {
+    btnParseBom.addEventListener('click', async () => {
+        const text = bomInputText.value.trim();
+        if (!text) {
+            alert('Vui lòng dán hoặc nhập nội dung BOM cần phân tích.');
+            return;
+        }
+
+        const projectSelect = document.getElementById('bomModalProjectSelect');
+        const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('projectSelect')?.value || '');
+
+        btnParseBom.disabled = true;
+        btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
+        bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang tra cứu cơ sở dữ liệu sản phẩm...</span>';
+
+        try {
+            const res = await fetch('{{ route("sales.parse-bom") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    bom_data: text,
+                    project_id: selectedProjId
+                })
+            });
+
+            const data = await res.json();
+            if (data.success && data.items && data.items.length > 0) {
+                parsedBomItems = data.items;
+                renderBomPreview(data.items);
+                btnApplyBomAppend.classList.remove('hidden');
+                btnApplyBomReplace.classList.remove('hidden');
+                bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã phân tích thành công ${data.items.length} dòng hàng</span>`;
+            } else {
+                bomPreviewArea.classList.add('hidden');
+                btnApplyBomAppend.classList.add('hidden');
+                btnApplyBomReplace.classList.add('hidden');
+                bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong nội dung đã nhập.</span>';
+            }
+        } catch (err) {
+            console.error(err);
+            bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
+        } finally {
+            btnParseBom.disabled = false;
+            btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
+        }
+    });
+}
+
+function renderBomPreview(items) {
+    let matchedCount = 0;
+    let newCount = 0;
+    let html = '';
+
+    items.forEach((it, idx) => {
+        if (it.is_matched) matchedCount++;
+        else newCount++;
+
+        const statusBadge = it.is_matched 
+            ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800"><i class="fas fa-check mr-1"></i> Khớp kho</span>'
+            : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800"><i class="fas fa-plus mr-1"></i> SP mới</span>';
+
+        html += `
+            <tr class="hover:bg-gray-50">
+                <td class="p-2 text-center text-gray-500">${idx + 1}</td>
+                <td class="p-2 font-mono font-semibold text-gray-800">${escapeHtml(it.code || '')}</td>
+                <td class="p-2 text-gray-700">${escapeHtml(it.name || '')}</td>
+                <td class="p-2 text-center font-bold text-gray-900">${it.quantity}</td>
+                <td class="p-2 text-right font-medium text-gray-800">${formatMoney(it.price || 0)}</td>
+                <td class="p-2 text-center">${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+    document.getElementById('bomParsedCount').textContent = items.length;
+    document.getElementById('bomMatchedCount').textContent = matchedCount;
+    document.getElementById('bomNewCount').textContent = newCount;
+    bomPreviewTableBody.innerHTML = html;
+    bomPreviewArea.classList.remove('hidden');
+}
+
+function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function applyBomItems(isAppend) {
+    if (!parsedBomItems || parsedBomItems.length === 0) return;
+
+    const productList = document.getElementById('productList');
+    if (!isAppend) {
+        productList.innerHTML = '';
+        productIndex = 0;
+    } else {
+        // If there's only 1 row and it's completely empty, remove it
+        const existingRows = productList.querySelectorAll('.product-item');
+        if (existingRows.length === 1) {
+            const firstRowId = existingRows[0].querySelector('.product-id-input')?.value;
+            const firstRowSearch = existingRows[0].querySelector('.searchable-input')?.value;
+            if (!firstRowId && !firstRowSearch) {
+                existingRows[0].remove();
+                productIndex = 0;
+            }
+        }
+    }
+
+    const mainProjId = document.getElementById('projectSelect')?.value || '';
+    const bomModalProj = document.getElementById('bomModalProjectSelect')?.value || '';
+    const projectOptionsHtml = `@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->code }} - {{ $project->name }}</option>@endforeach`;
+
+    parsedBomItems.forEach(item => {
+        const itemProjId = item.project_id || bomModalProj || mainProjId;
+        const row = document.createElement('div');
+        row.className = `product-item ${productIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} p-4 border-b last:border-b-0 border-gray-100`;
+        
+        const isNew = item.product_id === 'new';
+        const newName = isNew ? (item.new_name || item.name || '') : '';
+        const newCode = isNew ? (item.new_code || item.code || '') : '';
+        const newUnit = item.unit || item.new_unit || 'Cái';
+        const displayText = item.display_text || (isNew ? `[SP Mới] ${newName}` : `[${item.code}] ${item.name}`);
+
+        row.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div class="md:col-span-3 product-name-col">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm <span class="text-red-500">*</span></label>
+                    <div class="searchable-select product-searchable" data-index="${productIndex}" data-ajax-url="{{ route('api.products.search') }}">
+                        <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
+                               placeholder="Gõ để tìm sản phẩm..." autocomplete="off" value="${escapeHtml(displayText)}">
+                        <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input" value="${item.product_id}">
+                        <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
+                        <input type="hidden" name="products[${productIndex}][is_liquidation]" value="0" class="is-liquidation-input">
+                    </div>
+                    <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${escapeHtml(newName)}">
+                    <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${escapeHtml(newCode)}">
+                    <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="${escapeHtml(newUnit)}">
+                    <select name="products[${productIndex}][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng cho riêng dòng hàng này">
+                        <option value="">Dự án của đơn hàng</option>
+                        ${projectOptionsHtml}
+                    </select>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
+                    <input type="number" name="products[${productIndex}][quantity]" min="1" value="${item.quantity || 1}" required
+                           onchange="calculateRowTotal(${productIndex})"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá <span class="text-red-500">*</span></label>
+                    <input type="text" name="products[${productIndex}][price]" min="0" required
+                           value="${formatMoney(item.price || 0)}"
+                           onchange="calculateRowTotal(${productIndex})"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                    <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">VAT (%)</label>
+                    <select name="products[${productIndex}][vat]"
+                            onchange="handleVatChange(this)"
+                            class="w-full border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                        <option value="-1">KCT</option>
+                        <option value="0">0%</option>
+                        <option value="5">5%</option>
+                        <option value="8" ${item.vat == 8 ? 'selected' : ''}>8%</option>
+                        <option value="10" ${item.vat == 10 ? 'selected' : ''}>10%</option>
+                        <option value="custom">Khác...</option>
+                    </select>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
+                    <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value="${item.warranty_months || 12}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
+                           placeholder="0">
+                </div>
+                <div class="md:col-span-1 text-center product-tax-col">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thuế nhà thầu</label>
+                    <input type="hidden" name="products[${productIndex}][contractor_tax_enabled]" value="0">
+                    <input type="checkbox" name="products[${productIndex}][contractor_tax_enabled]" value="1"
+                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 contractor-tax-checkbox">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Thành tiền (gồm VAT)</label>
+                    <input type="text" readonly
+                           class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 row-total text-right font-medium">
+                </div>
+                <div class="md:col-span-1 flex items-end md:items-center">
+                    <button type="button" onclick="removeProductRow(this)" 
+                            class="w-full px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        productList.appendChild(row);
+
+        const projSelect = row.querySelector('.item-project-select');
+        if (projSelect && itemProjId) {
+            projSelect.value = itemProjId;
+        }
+
+        productIndex++;
+    });
+
+    initAllSearchableSelects();
+    initMoneyInputs();
+    updateContractorTaxVisibility(window.hasContractorTaxActive);
+    calculateTotal();
+    hideBomModal();
+}
+
+if (btnApplyBomAppend) btnApplyBomAppend.addEventListener('click', () => applyBomItems(true));
+if (btnApplyBomReplace) btnApplyBomReplace.addEventListener('click', () => applyBomItems(false));
 </script>
 
 @endpush

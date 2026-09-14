@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Artisan;
+use ZipArchive;
+use RecursiveIteratorIterator;
+use RecursiveDirectoryIterator;
+use FilesystemIterator;
 
 class DatabaseBackupController extends Controller
 {
@@ -24,22 +29,24 @@ class DatabaseBackupController extends Controller
     }
 
     /**
-     * Export the database as an encrypted SQL file.
+     * Export the database and attachments as an encrypted backup file.
      */
     public function export(Request $request)
     {
         // Increase limits for large file handling
-        ini_set('memory_limit', '1024M');
-        ini_set('max_execution_time', '600');
-        ini_set('max_input_time', '600');
-        set_time_limit(600);
+        ini_set('memory_limit', '2048M');
+        ini_set('max_execution_time', '1800');
+        ini_set('max_input_time', '1800');
+        set_time_limit(1800);
         
         $request->validate([
             'password' => 'required|string|min:8',
+            'backup_scope' => 'nullable|in:full,db_only',
         ]);
 
         $this->authorize('update', \App\Models\Setting::class);
 
+        $backupScope = $request->input('backup_scope', 'full');
         $dbName = config('database.connections.mysql.database');
         $dbUser = config('database.connections.mysql.username');
         $dbPassword = config('database.connections.mysql.password');
@@ -56,62 +63,115 @@ class DatabaseBackupController extends Controller
         }
 
         $timestamp = date('Y-m-d-H-i-s');
-        $filename = 'backup-' . $timestamp . '.sql';
-        $tempPath = storage_path('app/' . $filename);
+        $sqlFilename = 'database-' . $timestamp . '.sql';
+        $tempSqlPath = storage_path('app/' . $sqlFilename);
+        $tempZipPath = storage_path('app/backup-' . $timestamp . '.zip');
 
         try {
-            // Build the command with escaped arguments
+            // 1. Export MySQL Database
             $args = [
                 '--user=' . escapeshellarg($dbUser),
                 '--host=' . escapeshellarg($dbHost),
                 '--port=' . escapeshellarg($dbPort),
+                '--default-character-set=utf8mb4',
+                '--routines',
+                '--triggers',
             ];
 
             if ($dbPassword) {
-                // Warning: putting password on CLI is not the best but safest for now if we capture output
                 $args[] = '--password=' . escapeshellarg($dbPassword);
             }
 
-            $errPath = $tempPath . '.err';
+            $errPath = $tempSqlPath . '.err';
             $command = sprintf(
                 '%s %s %s > %s 2> %s',
                 $mysqldumpPath,
                 implode(' ', $args),
                 escapeshellarg($dbName),
-                escapeshellarg($tempPath),
+                escapeshellarg($tempSqlPath),
                 escapeshellarg($errPath)
             );
 
-            // Execute the command
+            // Execute mysqldump
             exec($command, $unusedOutput, $returnVar);
 
             if ($returnVar !== 0) {
                 $errorMessage = file_exists($errPath) ? file_get_contents($errPath) : 'Mã lỗi ' . $returnVar;
-                if (file_exists($errPath)) unlink($errPath);
+                if (file_exists($errPath)) @unlink($errPath);
                 throw new \Exception('Mysqldump failed: ' . $errorMessage);
             }
 
-            if (file_exists($errPath)) unlink($errPath);
+            if (file_exists($errPath)) @unlink($errPath);
 
-            if (!file_exists($tempPath) || filesize($tempPath) === 0) {
-                throw new \Exception('File backup tạo ra bị trống hoặc không tồn tại.');
+            if (!file_exists($tempSqlPath) || filesize($tempSqlPath) === 0) {
+                throw new \Exception('File backup SQL tạo ra bị trống hoặc không tồn tại.');
             }
 
-            $sqlContent = file_get_contents($tempPath);
-            $size = filesize($tempPath);
-            unlink($tempPath); // Delete temp SQL file
+            $rawPayload = '';
+            $finalSize = 0;
+            $encryptedFilename = '';
 
-            // Encrypt the content
-            $encryptedData = $this->encrypt($sqlContent, $request->password);
+            if ($backupScope === 'full') {
+                // 2. Package Database SQL + All Attachments into a single ZIP archive
+                $zip = new ZipArchive();
+                if ($zip->open($tempZipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                    throw new \Exception('Không thể tạo file nén ZIP cho bản sao lưu toàn bộ.');
+                }
 
-            $encryptedFilename = 'backup-' . $timestamp . '.sql.enc';
+                // Add SQL dump
+                $zip->addFile($tempSqlPath, 'database.sql');
+
+                // Add public storage attachments (UNC, invoices, quotes, avatars, etc.)
+                $publicStoragePath = storage_path('app/public');
+                if (is_dir($publicStoragePath)) {
+                    $this->addDirectoryToZip($publicStoragePath, $zip, 'storage_public');
+                }
+
+                // Add technical tickets attachments
+                $ticketsStoragePath = storage_path('app/technical_tickets');
+                if (is_dir($ticketsStoragePath)) {
+                    $this->addDirectoryToZip($ticketsStoragePath, $zip, 'storage_tickets');
+                }
+
+                // Add manifest metadata
+                $manifest = [
+                    'app' => 'Mini ERP-CRM',
+                    'version' => '4.9',
+                    'backup_type' => 'full',
+                    'created_at' => now()->toDateTimeString(),
+                    'db_name' => $dbName,
+                    'has_database' => true,
+                    'has_attachments' => true,
+                ];
+                $zip->addFromString('backup_manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+                $zip->close();
+
+                $rawPayload = file_get_contents($tempZipPath);
+                $finalSize = filesize($tempZipPath);
+                $encryptedFilename = 'backup-' . $timestamp . '-full.enc';
+
+                // Cleanup unencrypted temp files
+                @unlink($tempSqlPath);
+                @unlink($tempZipPath);
+            } else {
+                // DB only
+                $rawPayload = file_get_contents($tempSqlPath);
+                $finalSize = filesize($tempSqlPath);
+                $encryptedFilename = 'backup-' . $timestamp . '-db.sql.enc';
+
+                @unlink($tempSqlPath);
+            }
+
+            // 3. Encrypt the entire package using AES-256-CBC
+            $encryptedData = $this->encrypt($rawPayload, $request->password);
             
             // Log to history
             DatabaseBackup::create([
                 'filename' => $encryptedFilename,
                 'backup_password' => Crypt::encryptString($request->password),
                 'user_id' => Auth::id(),
-                'size' => $this->formatBytes($size),
+                'size' => $this->formatBytes($finalSize),
             ]);
 
             return response($encryptedData)
@@ -119,8 +179,11 @@ class DatabaseBackupController extends Controller
                 ->header('Content-Disposition', 'attachment; filename="' . $encryptedFilename . '"');
 
         } catch (\Exception $e) {
-            if (isset($tempPath) && file_exists($tempPath)) {
-                unlink($tempPath);
+            if (isset($tempSqlPath) && file_exists($tempSqlPath)) {
+                @unlink($tempSqlPath);
+            }
+            if (isset($tempZipPath) && file_exists($tempZipPath)) {
+                @unlink($tempZipPath);
             }
             Log::error('Database Export Error: ' . $e->getMessage());
             return back()->with('error', 'Lỗi khi xuất dữ liệu: ' . $e->getMessage());
@@ -128,18 +191,18 @@ class DatabaseBackupController extends Controller
     }
 
     /**
-     * Import an encrypted SQL file into the database.
+     * Import an encrypted backup file (Full archive or SQL dump) into the system.
      */
     public function import(Request $request)
     {
         // Increase limits for large file handling
-        ini_set('memory_limit', '1024M');
-        ini_set('max_execution_time', '600');
-        ini_set('max_input_time', '600');
-        set_time_limit(600);
+        ini_set('memory_limit', '2048M');
+        ini_set('max_execution_time', '1800');
+        ini_set('max_input_time', '1800');
+        set_time_limit(1800);
         
         $request->validate([
-            'backup_file' => 'required|file|max:204800', // 200MB
+            'backup_file' => 'required|file|max:1048576', // up to 1GB
             'password' => 'required|string',
             'confirm_restore' => 'required|accepted',
         ]);
@@ -153,7 +216,8 @@ class DatabaseBackupController extends Controller
         $dbPort = config('database.connections.mysql.port', '3306');
 
         $tempPath = null;
-        $mysqlPath = 'mysql';
+        $tempZipPath = null;
+        $tempExtractDir = null;
 
         try {
             $file = $request->file('backup_file');
@@ -161,84 +225,248 @@ class DatabaseBackupController extends Controller
             
             $decryptedContent = $this->decrypt($encryptedData, $request->password);
 
-            if ($decryptedContent === false) {
+            if ($decryptedContent === false || strlen($decryptedContent) === 0) {
                 return back()->with('error', 'Mật khẩu không chính xác hoặc file đã bị hỏng. Không thể giải mã dữ liệu.');
             }
 
-            // Clean up any warnings that might have been captured in the SQL content (for backward compatibility)
-            if (str_contains($decryptedContent, 'mysqldump: [Warning]')) {
-                $lines = explode("\n", $decryptedContent);
-                $filteredLines = array_filter($lines, function($line) {
-                    return !str_contains($line, 'mysqldump: [Warning]');
-                });
-                $decryptedContent = implode("\n", $filteredLines);
-            }
+            // Detect if decrypted content is a ZIP archive (starts with PK\x03\x04)
+            $isZipArchive = (substr($decryptedContent, 0, 4) === "PK\x03\x04");
+            $restoredItemsSummary = [];
 
-            // Path to mysql CLI
-            $mysqlPath = 'mysql';
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $xamppPath = 'C:\xampp\mysql\bin\mysql.exe';
-                if (file_exists($xamppPath)) {
-                    $mysqlPath = '"' . $xamppPath . '"';
+            if ($isZipArchive) {
+                // 1. Extract ZIP archive
+                $tempZipPath = storage_path('app/restore-' . time() . '.zip');
+                file_put_contents($tempZipPath, $decryptedContent);
+                unset($decryptedContent); // Free memory
+
+                $zip = new ZipArchive();
+                if ($zip->open($tempZipPath) !== true) {
+                    throw new \Exception('Không thể mở gói nén sao lưu sau khi giải mã.');
                 }
+
+                $tempExtractDir = storage_path('app/restore_extracted_' . time());
+                if (!is_dir($tempExtractDir)) {
+                    mkdir($tempExtractDir, 0777, true);
+                }
+
+                $zip->extractTo($tempExtractDir);
+                $zip->close();
+                @unlink($tempZipPath);
+
+                // 2. Restore Database SQL
+                $sqlFiles = glob($tempExtractDir . '/*.sql');
+                if (!empty($sqlFiles)) {
+                    $targetSqlFile = $sqlFiles[0];
+                    $this->executeSqlRestore($targetSqlFile, $dbName, $dbUser, $dbPassword, $dbHost, $dbPort);
+                    $restoredItemsSummary[] = 'Cơ sở dữ liệu (Database)';
+                }
+
+                // 3. Restore Public Attachments (storage_public)
+                $extractedPublicPath = $tempExtractDir . '/storage_public';
+                if (is_dir($extractedPublicPath)) {
+                    $targetPublicStorage = storage_path('app/public');
+                    if (!is_dir($targetPublicStorage)) {
+                        mkdir($targetPublicStorage, 0777, true);
+                    }
+                    $this->copyDirectoryRecursively($extractedPublicPath, $targetPublicStorage);
+                    $restoredItemsSummary[] = 'Toàn bộ tệp & ảnh đính kèm (UNC, Hóa đơn, Báo giá, Tài liệu...)';
+                }
+
+                // 4. Restore Technical Tickets Attachments (storage_tickets)
+                $extractedTicketsPath = $tempExtractDir . '/storage_tickets';
+                if (is_dir($extractedTicketsPath)) {
+                    $targetTicketsStorage = storage_path('app/technical_tickets');
+                    if (!is_dir($targetTicketsStorage)) {
+                        mkdir($targetTicketsStorage, 0777, true);
+                    }
+                    $this->copyDirectoryRecursively($extractedTicketsPath, $targetTicketsStorage);
+                    $restoredItemsSummary[] = 'Tệp đính kèm Ticket kỹ thuật';
+                }
+
+                // Ensure public storage symlink is intact
+                try {
+                    Artisan::call('storage:link');
+                } catch (\Throwable $t) {
+                    // Ignore if symlink already exists
+                }
+
+                // Clean up extraction directory
+                $this->deleteDirectoryRecursively($tempExtractDir);
+
+            } else {
+                // Legacy SQL Dump Restore
+                if (str_contains($decryptedContent, 'mysqldump: [Warning]')) {
+                    $lines = explode("\n", $decryptedContent);
+                    $filteredLines = array_filter($lines, function($line) {
+                        return !str_contains($line, 'mysqldump: [Warning]');
+                    });
+                    $decryptedContent = implode("\n", $filteredLines);
+                }
+
+                $tempFilename = 'restore-' . time() . '.sql';
+                $tempPath = storage_path('app/' . $tempFilename);
+                file_put_contents($tempPath, $decryptedContent);
+                unset($decryptedContent);
+
+                $this->executeSqlRestore($tempPath, $dbName, $dbUser, $dbPassword, $dbHost, $dbPort);
+                if (file_exists($tempPath)) {
+                    @unlink($tempPath);
+                }
+                $restoredItemsSummary[] = 'Cơ sở dữ liệu (Database)';
             }
 
-            // Save decrypted content to a temporary file for mysql CLI
-            $tempFilename = 'restore-' . time() . '.sql';
-            $tempPath = storage_path('app/' . $tempFilename);
-            file_put_contents($tempPath, $decryptedContent);
-
-            // Build the command with escaped arguments
-            $args = [
-                '--user=' . escapeshellarg($dbUser),
-                '--host=' . escapeshellarg($dbHost),
-                '--port=' . escapeshellarg($dbPort),
-            ];
-
-            if ($dbPassword) {
-                $args[] = '--password=' . escapeshellarg($dbPassword);
-            }
-
-            $command = sprintf(
-                '%s %s %s < %s 2>&1',
-                $mysqlPath,
-                implode(' ', $args),
-                escapeshellarg($dbName),
-                escapeshellarg($tempPath)
-            );
-
-            // Execute the command
-            exec($command, $output, $returnVar);
-            
-            if (file_exists($tempPath)) {
-                unlink($tempPath); // Always delete temp SQL file
-            }
-
-            if ($returnVar !== 0) {
-                $errorMessage = implode("\n", $output);
-                throw new \Exception('Mysql restore failed: ' . ($errorMessage ?: 'Mã lỗi ' . $returnVar));
-            }
-
-            return back()->with('success', 'Khôi phục dữ liệu thành công.');
+            $summaryText = implode(', ', $restoredItemsSummary);
+            return back()->with('success', 'Khôi phục dữ liệu thành công: ' . $summaryText . '.');
 
         } catch (\Exception $e) {
             if (isset($tempPath) && file_exists($tempPath)) {
-                unlink($tempPath);
+                @unlink($tempPath);
             }
+            if (isset($tempZipPath) && file_exists($tempZipPath)) {
+                @unlink($tempZipPath);
+            }
+            if (isset($tempExtractDir) && is_dir($tempExtractDir)) {
+                $this->deleteDirectoryRecursively($tempExtractDir);
+            }
+
             Log::error('Database Import Error: ' . $e->getMessage());
             
-            // If it's a specific CLI error, try to make it readable
             $msg = $e->getMessage();
             if (str_contains($msg, 'Access denied')) {
-                $msg = "Lỗi kết nối cơ sở dữ liệu: Quyền truy cập bị từ chối. Vui lòng kiểm tra lại DB_USERNAME và DB_PASSWORD trong file .env của server này.";
+                $msg = "Lỗi kết nối cơ sở dữ liệu: Quyền truy cập bị từ chối. Vui lòng kiểm tra lại DB_USERNAME và DB_PASSWORD trong file .env.";
             } elseif (str_contains($msg, 'Unknown database')) {
-                $msg = "Lỗi: Cơ sở dữ liệu '" . $dbName . "' không tồn tại trên server này. Vui lòng tạo DB trống trước khi khôi phục.";
+                $msg = "Lỗi: Cơ sở dữ liệu '" . $dbName . "' không tồn tại. Vui lòng tạo DB trống trước khi khôi phục.";
             } elseif (str_contains($msg, 'not found') || str_contains($msg, 'not recognized')) {
                 $msg = "Lỗi: Không tìm thấy công cụ 'mysql' CLI trên server. Vui lòng cài đặt MySQL Client hoặc XAMPP.";
             }
 
             return back()->with('error', 'Lỗi khi khôi phục dữ liệu: ' . $msg);
         }
+    }
+
+    /**
+     * Helper to execute SQL restore using mysql CLI.
+     */
+    private function executeSqlRestore(string $sqlFilePath, string $dbName, string $dbUser, ?string $dbPassword, string $dbHost, string $dbPort): void
+    {
+        $mysqlPath = 'mysql';
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $xamppPath = 'C:\xampp\mysql\bin\mysql.exe';
+            if (file_exists($xamppPath)) {
+                $mysqlPath = '"' . $xamppPath . '"';
+            }
+        }
+
+        $args = [
+            '--user=' . escapeshellarg($dbUser),
+            '--host=' . escapeshellarg($dbHost),
+            '--port=' . escapeshellarg($dbPort),
+            '--default-character-set=utf8mb4',
+        ];
+
+        if ($dbPassword) {
+            $args[] = '--password=' . escapeshellarg($dbPassword);
+        }
+
+        $command = sprintf(
+            '%s %s %s < %s 2>&1',
+            $mysqlPath,
+            implode(' ', $args),
+            escapeshellarg($dbName),
+            escapeshellarg($sqlFilePath)
+        );
+
+        exec($command, $output, $returnVar);
+
+        if ($returnVar !== 0) {
+            $errorMessage = implode("\n", $output);
+            throw new \Exception('Mysql restore failed: ' . ($errorMessage ?: 'Mã lỗi ' . $returnVar));
+        }
+    }
+
+    /**
+     * Recursively add a folder to ZipArchive.
+     */
+    private function addDirectoryToZip(string $sourcePath, ZipArchive $zip, string $zipPrefix = ''): void
+    {
+        if (!is_dir($sourcePath)) {
+            return;
+        }
+
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($sourcePath, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($files as $file) {
+            $filePath = $file->getRealPath();
+            $relativePath = substr($filePath, strlen(realpath($sourcePath)) + 1);
+            $relativePath = str_replace('\\', '/', $relativePath);
+            $zipEntryPath = $zipPrefix ? ($zipPrefix . '/' . $relativePath) : $relativePath;
+
+            if ($file->isDir()) {
+                $zip->addEmptyDir($zipEntryPath);
+            } elseif ($file->isFile()) {
+                $zip->addFile($filePath, $zipEntryPath);
+            }
+        }
+    }
+
+    /**
+     * Recursively copy directory contents.
+     */
+    private function copyDirectoryRecursively(string $src, string $dst): void
+    {
+        if (!is_dir($src)) {
+            return;
+        }
+        if (!is_dir($dst)) {
+            mkdir($dst, 0777, true);
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $relativePath = substr($item->getRealPath(), strlen(realpath($src)) + 1);
+            $targetPath = $dst . DIRECTORY_SEPARATOR . $relativePath;
+
+            if ($item->isDir()) {
+                if (!is_dir($targetPath)) {
+                    mkdir($targetPath, 0777, true);
+                }
+            } else {
+                $targetDir = dirname($targetPath);
+                if (!is_dir($targetDir)) {
+                    mkdir($targetDir, 0777, true);
+                }
+                copy($item->getRealPath(), $targetPath);
+            }
+        }
+    }
+
+    /**
+     * Recursively delete directory.
+     */
+    private function deleteDirectoryRecursively(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($files as $fileinfo) {
+            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+            @$todo($fileinfo->getRealPath());
+        }
+
+        @rmdir($dir);
     }
 
     /**

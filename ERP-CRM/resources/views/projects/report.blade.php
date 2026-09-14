@@ -300,8 +300,8 @@
                                         <td class="px-4 py-3 text-sm text-center text-gray-500 border-l border-gray-200" rowspan="{{ $rowspan }}">
                                             {{ $project->created_at ? $project->created_at->format('Y-m-d') : '-' }}
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-600 max-w-[200px] truncate" title="{{ $project->notes->last()?->content ?? $project->note }}" rowspan="{{ $rowspan }}">
-                                            {{ $project->notes->last()?->content ?? $project->note ?? '-' }}
+                                        <td class="px-4 py-3 text-sm text-gray-600 max-w-[260px] whitespace-pre-line" title="{{ $project->getFormattedUpdatesSummary(true) }}" rowspan="{{ $rowspan }}">
+                                            {{ $project->getFormattedUpdatesSummary(false) }}
                                         </td>
                                     @endif
                                 </tr>

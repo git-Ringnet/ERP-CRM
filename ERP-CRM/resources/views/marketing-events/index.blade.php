@@ -206,8 +206,19 @@
                                 <a href="{{ route('marketing-events.show', $event) }}" class="font-medium text-purple-600 hover:underline">
                                     {{ $event->title }}
                                 </a>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    @if($event->is_public_to_sales)
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
+                                            <i class="fas fa-globe text-[9px]"></i> Hãng lớn / Mở rộng
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                            <i class="fas fa-lock text-[9px]"></i> Chỉ định riêng
+                                        </span>
+                                    @endif
+                                </div>
                                 @if($event->description)
-                                <div class="text-xs text-gray-500 truncate max-w-xs">{{ $event->description }}</div>
+                                <div class="text-xs text-gray-500 truncate max-w-xs mt-0.5">{{ $event->description }}</div>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">{{ $event->event_date->format('d/m/Y') }}</td>

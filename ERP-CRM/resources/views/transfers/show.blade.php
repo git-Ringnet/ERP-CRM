@@ -83,17 +83,22 @@
         @endif
 
         <div class="border-t border-gray-200 pt-4">
-            <h3 class="text-lg font-semibold text-gray-800 mb-3">Chi tiết sản phẩm</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold text-gray-800">Chi tiết sản phẩm chuyển</h3>
+                <span class="text-xs font-semibold text-gray-500">{{ $transfer->items->count() }} dòng sản phẩm</span>
+            </div>
+            <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs font-bold text-gray-600 uppercase border-b border-gray-200">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã sản phẩm</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sản phẩm</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nguồn hàng</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial chuyển</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ghi chú</th>
+                            <th class="px-4 py-3 text-left">Mã sản phẩm</th>
+                            <th class="px-4 py-3 text-left">Tên sản phẩm</th>
+                            <th class="px-4 py-3 text-left">PO & Nhà cung cấp</th>
+                            <th class="px-4 py-3 text-left">Đơn hàng SO & Dự án</th>
+                            <th class="px-4 py-3 text-left">Sales phụ trách</th>
+                            <th class="px-4 py-3 text-center">Số lượng</th>
+                            <th class="px-4 py-3 text-left">Serial chuyển</th>
+                            <th class="px-4 py-3 text-left">Ghi chú</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -107,41 +112,87 @@
                                 $productItemIds = json_decode($item->serial_number, true);
                                 if (is_array($productItemIds) && !empty($productItemIds)) {
                                     $serialsWithSku = \App\Models\ProductItem::with([
+                                        'import.purchaseOrder.supplier',
                                         'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.user',
+                                        'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.project',
                                         'import.purchaseOrder.sale.user',
+                                        'import.purchaseOrder.sale.project',
                                     ])->whereIn('id', $productItemIds)->get();
                                 }
                             }
                             // Calculate noSkuCount
                             $noSkuCount = $item->quantity - $serialsWithSku->count();
+
+                            // Fallback if no serial IDs stored (e.g. legacy transfers or no-serial items)
+                            $tracedItems = $serialsWithSku;
+                            if ($tracedItems->isEmpty()) {
+                                $tracedItems = \App\Models\ProductItem::with([
+                                    'import.purchaseOrder.supplier',
+                                    'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.user',
+                                    'import.purchaseOrder.items.saleOrderRequestItem.saleOrderRequest.sale.project',
+                                    'import.purchaseOrder.sale.user',
+                                    'import.purchaseOrder.sale.project',
+                                ])
+                                ->where('product_id', $item->product_id)
+                                ->where(function($q) use ($transfer) {
+                                    $q->where('warehouse_id', $transfer->to_warehouse_id)
+                                      ->orWhere('warehouse_id', $transfer->from_warehouse_id);
+                                })
+                                ->latest('updated_at')
+                                ->take(max(1, (int)$item->quantity))
+                                ->get();
+                            }
+
+                            $poCodes = $tracedItems->map(fn($pi) => $pi->trace_info['po_code'])->filter(fn($c) => $c && $c !== '-')->unique();
+                            $suppliers = $tracedItems->map(fn($pi) => $pi->trace_info['supplier_name'])->filter(fn($s) => $s && $s !== '-')->unique();
+                            $soCodes = $tracedItems->map(fn($pi) => $pi->trace_info['sale_code'])->filter(fn($c) => $c && $c !== '-')->unique();
+                            $projects = $tracedItems->map(fn($pi) => $pi->trace_info['project_name'])->filter(fn($p) => $p && $p !== '-')->unique();
+                            $salespeople = $tracedItems->map(fn($pi) => $pi->trace_info['sales_name'])->filter(fn($s) => $s && $s !== '-')->unique();
                         @endphp
-                        <tr>
+                        <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <span class="font-mono text-sm font-medium text-blue-600">{{ $item->product->code }}</span>
+                                <span class="font-mono text-sm font-bold text-blue-600">{{ $item->product->code }}</span>
                             </td>
                             <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900">{{ $item->product->name }}</div>
+                                <div class="text-sm font-semibold text-gray-900">{{ $item->product->name }}</div>
                             </td>
-                            <td class="px-4 py-3 text-xs text-gray-600">
-                                @php
-                                    $poCodes = $serialsWithSku->pluck('purchase_order_code')->filter()->unique();
-                                    $projects = $serialsWithSku->pluck('project_name')->filter()->unique();
-                                    $salespeople = $serialsWithSku->pluck('order_creator_name')->filter()->unique();
-                                @endphp
-                                <div><span class="text-gray-400">PO:</span> {{ $poCodes->isNotEmpty() ? $poCodes->join(', ') : 'Chưa xác định' }}</div>
-                                <div><span class="text-gray-400">Dự án/SO:</span> {{ $projects->isNotEmpty() ? $projects->join(', ') : '-' }}</div>
-                                <div><span class="text-gray-400">Sales:</span> {{ $salespeople->isNotEmpty() ? $salespeople->join(', ') : '-' }}</div>
+                            <td class="px-4 py-3 text-xs">
+                                @if($poCodes->isNotEmpty())
+                                    <div class="font-semibold text-gray-900">{{ $poCodes->join(', ') }}</div>
+                                    @if($suppliers->isNotEmpty())
+                                        <div class="text-gray-500 text-[11px]">{{ $suppliers->join(', ') }}</div>
+                                    @endif
+                                @else
+                                    <span class="text-gray-400">Chưa xác định</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-xs">
+                                @if($soCodes->isNotEmpty())
+                                    <div class="font-semibold text-purple-700">{{ $soCodes->join(', ') }}</div>
+                                @endif
+                                @if($projects->isNotEmpty())
+                                    <div class="text-gray-600 text-[11px]">{{ $projects->join(', ') }}</div>
+                                @elseif($soCodes->isEmpty())
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-xs">
+                                @if($salespeople->isNotEmpty())
+                                    <span class="font-medium text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{{ $salespeople->join(', ') }}</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <span class="px-3 py-1 text-sm font-bold bg-purple-100 text-purple-800 rounded-full">
                                     {{ number_format($item->quantity) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 text-xs">
                                 @if($serialsWithSku->count() > 0)
                                     <div class="flex flex-wrap gap-1 max-w-md">
                                         @foreach($serialsWithSku as $serial)
-                                            <span class="px-2 py-0.5 text-xs font-mono bg-blue-100 text-blue-700 rounded">
+                                            <span class="px-2 py-0.5 text-xs font-mono font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded" title="PO: {{ $serial->trace_info['po_code'] }} | SO: {{ $serial->trace_info['sale_code'] }}">
                                                 {{ $serial->sku }}
                                             </span>
                                         @endforeach
@@ -156,7 +207,7 @@
                                     <span class="text-gray-400 text-sm">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ $item->comments ?: '-' }}</td>
+                            <td class="px-4 py-3 text-xs text-gray-500">{{ $item->comments ?: '-' }}</td>
                         </tr>
                         @endforeach
                     </tbody>

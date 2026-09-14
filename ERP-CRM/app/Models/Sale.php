@@ -1405,6 +1405,26 @@ class Sale extends Model
     }
 
     /**
+     * Check if the sale order has received any payment
+     */
+    public function hasPayment(): bool
+    {
+        if ((float) $this->paid_amount > 0) {
+            return true;
+        }
+
+        if (in_array($this->payment_status, ['partial', 'paid'], true)) {
+            return true;
+        }
+
+        if ($this->paymentSchedules->contains(fn($s) => (float)$s->paid_amount > 0 || in_array($s->status, ['paid', 'partial', 'confirmed'], true))) {
+            return true;
+        }
+
+        return PaymentHistory::where('sale_id', $this->id)->exists();
+    }
+
+    /**
      * Get polymorphic exports relationship.
      */
     public function exports()

@@ -109,6 +109,14 @@ class Customer extends Model
     }
 
     /**
+     * Relationship with Opportunities
+     */
+    public function opportunities()
+    {
+        return $this->hasMany(Opportunity::class);
+    }
+
+    /**
      * Relationship with Activities (CRM)
      */
     public function activities()

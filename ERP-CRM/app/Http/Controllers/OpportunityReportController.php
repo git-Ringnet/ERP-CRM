@@ -44,7 +44,7 @@ class OpportunityReportController extends Controller
         ]);
 
         // Start build query
-        $query = Opportunity::with(['customer', 'assignedTo', 'technicalUser'])
+        $query = Opportunity::with(['customer', 'assignedTo', 'technicalUser', 'project'])
             ->whereBetween('activity_date', [$startDate, $endDate]);
 
         // Check permission restrictions (Sales Reps see only their own)
@@ -82,14 +82,14 @@ class OpportunityReportController extends Controller
             });
         }
 
-        // 1. Summary statistics
-        $stats = $this->getSummaryStats(clone $query);
+        // 1. Neglected Customers (Khách hàng lâu chưa gặp / cần chăm sóc lại)
+        $neglectedCustomers = $this->getNeglectedCustomers($user, $isManager, $assignedTo);
 
-        // 2. Charts Data
+        // 2. Summary statistics
+        $stats = $this->getSummaryStats(clone $query, count($neglectedCustomers));
+
+        // 3. Clean Charts Data (Chỉ giữ 2 biểu đồ có giá trị thực tế nhất)
         $charts = [
-            'timeline' => $this->getTimelineData(clone $query),
-            'activity_types' => $this->getActivityTypeData(clone $query),
-            'statuses' => $this->getStatusData(clone $query),
             'top_customers' => $this->getTopCustomersData(clone $query),
         ];
 
@@ -97,10 +97,10 @@ class OpportunityReportController extends Controller
             $charts['top_sales_reps'] = $this->getTopSalesRepsData(clone $query);
         }
 
-        // 3. Paginated detailed list
+        // 4. Paginated detailed activities list (15 dòng)
         $activities = $query->latest('activity_date')
             ->latest('start_time')
-            ->paginate(5)
+            ->paginate(15)
             ->withQueryString();
 
         // Dropdowns for filtering
@@ -110,104 +110,114 @@ class OpportunityReportController extends Controller
         $statuses = Opportunity::STATUSES;
 
         return view('opportunities.report', compact(
-            'stats', 'charts', 'activities', 'users', 'customers',
+            'stats', 'charts', 'activities', 'neglectedCustomers', 'users', 'customers',
             'activityTypes', 'statuses', 'periodType', 'startDate', 'endDate',
             'assignedTo', 'customerId', 'activityType', 'status', 'searchCustomer', 'isManager'
         ));
     }
 
     /**
-     * Compute summary statistics card data.
+     * Compute practical summary statistics.
      */
-    private function getSummaryStats($query): array
+    private function getSummaryStats($query, int $neglectedCount): array
     {
         $total = $query->count();
         $completed = (clone $query)->where('status', 'completed')->count();
-        $completionRate = $total > 0 ? ($completed / $total) * 100 : 0;
-        $totalDuration = (clone $query)->sum('duration_minutes');
-        $avgPotential = (clone $query)->whereNotNull('potential_rating')
-            ->where('potential_rating', '>', 0)
-            ->avg(DB::raw('CAST(potential_rating AS UNSIGNED)'));
+        $completionRate = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
+        
+        // Đếm số khách hàng / đối tác duy nhất được chăm sóc trong kỳ
+        $uniquePartnerCount = (clone $query)->whereNotNull('customer_id')->distinct('customer_id')->count('customer_id');
+        $uniqueEuCount = (clone $query)->whereNull('customer_id')->whereNotNull('eu_company_name')->distinct('eu_company_name')->count('eu_company_name');
+        $uniqueCustomers = $uniquePartnerCount + $uniqueEuCount;
+
+        // Số cơ hội đã chuyển đổi thành Dự án thành công
+        $convertedProjects = (clone $query)->whereNotNull('project_id')->count();
+        $conversionRate = $total > 0 ? round(($convertedProjects / $total) * 100, 1) : 0;
 
         return [
             'total' => $total,
             'completed' => $completed,
-            'completion_rate' => round($completionRate, 1),
-            'total_duration' => $totalDuration,
-            'avg_potential' => round($avgPotential ?? 0, 1),
+            'completion_rate' => $completionRate,
+            'unique_customers' => $uniqueCustomers,
+            'converted_projects' => $convertedProjects,
+            'conversion_rate' => $conversionRate,
+            'neglected_count' => $neglectedCount,
         ];
     }
 
     /**
-     * Get meeting count trend over time.
+     * Lấy danh sách khách hàng đang bị "bỏ quên" (quá 30 ngày chưa có cuộc gặp nào hoặc chưa từng được gặp).
      */
-    private function getTimelineData($query): array
+    private function getNeglectedCustomers(User $user, bool $isManager, $assignedTo = null)
     {
-        $data = $query->selectRaw('activity_date, COUNT(*) as count')
-            ->groupBy('activity_date')
-            ->orderBy('activity_date')
-            ->get();
+        $custQuery = Customer::query();
 
-        return [
-            'labels' => $data->map(fn($item) => $item->activity_date->format('d/m/Y'))->toArray(),
-            'counts' => $data->pluck('count')->toArray(),
-        ];
-    }
-
-    /**
-     * Get activity type breakdown count.
-     */
-    private function getActivityTypeData($query): array
-    {
-        $data = $query->selectRaw('activity_type, COUNT(*) as count')
-            ->groupBy('activity_type')
-            ->get();
-
-        $labels = [];
-        $counts = [];
-
-        foreach ($data as $item) {
-            $label = Opportunity::ACTIVITY_TYPES[$item->activity_type] ?? $item->activity_type;
-            $labels[] = $label;
-            $counts[] = $item->count;
+        if (!$isManager) {
+            $custQuery->where(function ($q) use ($user) {
+                $q->where('am', $user->id)
+                  ->orWhere('am', 'like', '%' . $user->name . '%')
+                  ->orWhereHas('opportunities', function ($oq) use ($user) {
+                      $oq->where('assigned_to', $user->id);
+                  });
+            });
+        } elseif ($assignedTo) {
+            $assignedUser = User::find($assignedTo);
+            if ($assignedUser) {
+                $custQuery->where(function ($q) use ($assignedUser) {
+                    $q->where('am', $assignedUser->id)
+                      ->orWhere('am', 'like', '%' . $assignedUser->name . '%')
+                      ->orWhereHas('opportunities', function ($oq) use ($assignedUser) {
+                          $oq->where('assigned_to', $assignedUser->id);
+                      });
+                });
+            }
         }
 
-        return [
-            'labels' => $labels,
-            'counts' => $counts,
-        ];
-    }
-
-    /**
-     * Get activity status breakdown count.
-     */
-    private function getStatusData($query): array
-    {
-        $data = $query->selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
+        // Lấy tất cả khách hàng kèm ngày gặp gần nhất
+        $customers = $custQuery->withMax('opportunities as last_meeting_date', 'activity_date')
+            ->withCount('opportunities as total_meetings')
             ->get();
 
-        $labels = [];
-        $counts = [];
+        $now = Carbon::now();
 
-        foreach ($data as $item) {
-            $label = Opportunity::STATUSES[$item->status] ?? $item->status;
-            $labels[] = $label;
-            $counts[] = $item->count;
-        }
+        $neglected = $customers->map(function ($c) use ($now) {
+            if ($c->last_meeting_date) {
+                $lastDate = Carbon::parse($c->last_meeting_date);
+                $c->days_since = (int) $lastDate->diffInDays($now, false);
+                $c->last_meeting_formatted = $lastDate->format('d/m/Y');
+            } else {
+                $c->days_since = 999;
+                $c->last_meeting_formatted = 'Chưa từng gặp';
+            }
 
-        return [
-            'labels' => $labels,
-            'counts' => $counts,
-        ];
+            // Gán mức độ cảnh báo
+            if ($c->days_since >= 90 || $c->days_since === 999) {
+                $c->alert_level = 'high'; // Đỏ: Báo động khẩn cấp
+                $c->alert_text = $c->days_since === 999 ? 'Chưa từng gặp' : ($c->days_since . ' ngày');
+            } elseif ($c->days_since >= 60) {
+                $c->alert_level = 'medium'; // Cam: Cần chú ý
+                $c->alert_text = $c->days_since . ' ngày';
+            } else {
+                $c->alert_level = 'low'; // Vàng: Nhắc nhở
+                $c->alert_text = $c->days_since . ' ngày';
+            }
+
+            return $c;
+        })
+        ->filter(function ($c) {
+            return $c->days_since >= 30;
+        })
+        ->sortByDesc('days_since')
+        ->values();
+
+        return $neglected;
     }
 
     /**
-     * Aggregates and returns top 10 customers/End Users by visit frequency.
+     * Top 10 khách hàng được tiếp cận nhiều nhất trong kỳ.
      */
     private function getTopCustomersData($query): array
     {
-        // Fetch all matching opportunities to resolve polymorphic-like customer display names cleanly
         $opportunities = $query->get();
         $customerCounts = [];
 
@@ -226,7 +236,7 @@ class OpportunityReportController extends Controller
     }
 
     /**
-     * Aggregates and returns top 10 sales reps by activity frequency.
+     * Năng suất tiếp cận của từng Sales (Manager).
      */
     private function getTopSalesRepsData($query): array
     {
@@ -279,3 +289,4 @@ class OpportunityReportController extends Controller
         };
     }
 }
+

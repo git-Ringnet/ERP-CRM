@@ -33,22 +33,22 @@
             {{-- Loại hình tổ chức --}}
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại hình tổ chức <span class="text-red-500">*</span></label>
-                <select name="organize_type" x-model="organizeType"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
-                    <option value="workshop">Workshop</option>
-                    <option value="networking_dinner">Networking Dinner</option>
-                    <option value="exhibition">Exhibition</option>
-                    <option value="other">Loại hình khác (Nhập tay)</option>
+                <select name="organize_type" x-model="organizeType" translate="no"
+                    class="notranslate w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
+                    <option value="workshop" translate="no" class="notranslate">Workshop</option>
+                    <option value="networking_dinner" translate="no" class="notranslate">Networking Dinner</option>
+                    <option value="exhibition" translate="no" class="notranslate">Exhibition</option>
+                    <option value="other" translate="no" class="notranslate">Other: điền tay</option>
                 </select>
                 @error('organize_type')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             </div>
 
             {{-- Loại hình tổ chức khác --}}
             <div x-show="organizeType === 'other'" x-transition class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nhập loại hình khác <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Other (Loại hình tổ chức khác) <span class="text-red-500">*</span></label>
                 <input type="text" name="organize_type_other" value="{{ old('organize_type_other', $marketingEvent->organize_type_other ?? '') }}"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                    placeholder="VD: Webinar, Đào tạo kỹ thuật...">
+                    placeholder="VD: Webinar, Giải giao lưu thể thao...">
                 @error('organize_type_other')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             </div>
 
@@ -59,6 +59,36 @@
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
                     placeholder="VD: Workshop Giới thiệu Giải pháp WiFi Fortinet Q3/2026">
                 @error('title')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            {{-- Quyền hiển thị cho Đội ngũ Sales --}}
+            <div class="md:col-span-2 bg-gradient-to-r from-purple-50 to-indigo-50/50 p-4 rounded-xl border border-purple-100/80">
+                <label class="block text-sm font-bold text-purple-900 mb-2">
+                    <i class="fas fa-eye text-purple-600 mr-1.5"></i> Quyền hiển thị cho Đội ngũ Sales
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+                    <label class="flex items-start gap-2.5 p-3 rounded-lg border border-purple-200/60 bg-white hover:bg-purple-50/50 cursor-pointer transition-colors select-none">
+                        <input type="radio" name="is_public_to_sales" value="0" 
+                            {{ old('is_public_to_sales', isset($marketingEvent) ? ($marketingEvent->is_public_to_sales ? '1' : '0') : '0') == '0' ? 'checked' : '' }}
+                            class="mt-0.5 text-purple-600 focus:ring-purple-400 h-4 w-4">
+                        <div>
+                            <span class="text-xs font-bold text-gray-800 block">Sự kiện Chỉ định / Riêng tư</span>
+                            <p class="text-[11px] text-gray-500 mt-0.5 leading-snug">Chỉ Sales tạo sự kiện, Sales được gán task hoặc Sales phụ trách khách hàng được mời trong danh sách mới thấy.</p>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-3 rounded-lg border border-purple-200/60 bg-white hover:bg-purple-50/50 cursor-pointer transition-colors select-none">
+                        <input type="radio" name="is_public_to_sales" value="1" 
+                            {{ old('is_public_to_sales', isset($marketingEvent) ? ($marketingEvent->is_public_to_sales ? '1' : '0') : '0') == '1' ? 'checked' : '' }}
+                            class="mt-0.5 text-purple-600 focus:ring-purple-400 h-4 w-4">
+                        <div>
+                            <span class="text-xs font-bold text-purple-900 block flex items-center gap-1">
+                                <i class="fas fa-globe text-purple-600 text-[10px]"></i> Sự kiện Hãng lớn / Toàn công ty
+                            </span>
+                            <p class="text-[11px] text-gray-500 mt-0.5 leading-snug">Toàn bộ Sales đều nhìn thấy trên danh sách để nắm thông tin và chủ động đăng ký mời khách hàng tham dự.</p>
+                        </div>
+                    </label>
+                </div>
             </div>
         </div>
     </div>

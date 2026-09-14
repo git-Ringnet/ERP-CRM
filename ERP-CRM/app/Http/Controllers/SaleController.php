@@ -14,6 +14,7 @@ use App\Models\Warehouse;
 use App\Models\Currency;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\Setting;
 use App\Exports\SalesExport;
 use App\Exports\SaleInvoiceExport;
 use App\Services\SaleExportSyncService;
@@ -23,6 +24,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Services\SalePurchaseSyncService;
+use App\Services\BomParserService;
 use App\Models\ApprovalHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -217,9 +219,31 @@ class SaleController extends Controller
         // Generate sale code
         $code = $this->generateSaleCode();
 
-        // Pre-select project if passed from project detail page
-        $selectedProjectId = $request->get('project_id');
-        $selectedProject = $selectedProjectId ? Project::find($selectedProjectId) : null;
+        // Pre-select project or multiple projects if passed
+        $rawProjectIds = $request->input('project_ids', []);
+        if (empty($rawProjectIds) && $request->filled('project_id')) {
+            $rawProjectIds = [(int)$request->input('project_id')];
+        } elseif (is_string($rawProjectIds)) {
+            $rawProjectIds = explode(',', $rawProjectIds);
+        }
+        $projectIds = array_filter(array_map('intval', (array)$rawProjectIds));
+
+        $selectedProjects = !empty($projectIds)
+            ? Project::with(['customer', 'vendor', 'collaborateCustomer'])->whereIn('id', $projectIds)->get()
+            : collect();
+
+        $clearPartnerEu = $request->boolean('clear_partner_eu');
+        $selectedProject = $selectedProjects->first();
+        $selectedCustomerId = null;
+
+        if (!$clearPartnerEu && $selectedProject) {
+            $effectiveCust = $selectedProject->findOrCreateCustomerFromProject();
+            $selectedCustomerId = $effectiveCust?->id;
+            // Ensure newly created customer is in the list
+            if ($effectiveCust && !$customers->contains('id', $effectiveCust->id)) {
+                $customers = Customer::orderBy('name')->get();
+            }
+        }
 
         // Multi-currency: load active currencies + today's VND base ID
         $currencies = $this->currencyService->getActiveCurrencies();
@@ -227,7 +251,33 @@ class SaleController extends Controller
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
-        return view('sales.create', compact('customers', 'products', 'projects', 'code', 'selectedProject', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
+        // Parse BOM data from selected projects if available
+        $bomParser = app(BomParserService::class);
+        $prefilledProducts = $bomParser->parseFromProjects($selectedProjects);
+
+        return view('sales.create', compact(
+            'customers', 'products', 'projects', 'code', 'selectedProject',
+            'selectedProjects', 'clearPartnerEu', 'selectedCustomerId',
+            'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates',
+            'prefilledProducts'
+        ));
+    }
+
+    /**
+     * API/AJAX endpoint to parse BOM text into structured products
+     */
+    public function parseBom(Request $request)
+    {
+        $bomText = $request->input('bom_data', '');
+        $projectId = $request->input('project_id');
+        $bomParser = app(BomParserService::class);
+        $items = $bomParser->parse($bomText, $projectId ? (int)$projectId : null);
+
+        return response()->json([
+            'success' => true,
+            'count' => count($items),
+            'items' => $items,
+        ]);
     }
 
     /**
@@ -594,6 +644,29 @@ class SaleController extends Controller
                 }
             }
 
+            // Link all involved projects with this sale order
+            $allProjectIds = collect($validated['products'])
+                ->pluck('project_id')
+                ->push($validated['project_id'] ?? null)
+                ->filter()
+                ->unique()
+                ->values();
+
+            foreach ($allProjectIds as $pId) {
+                $p = Project::find($pId);
+                if ($p) {
+                    if (empty($p->po_code)) {
+                        $p->update(['po_code' => $sale->code]);
+                    }
+                    app(\App\Services\ActivityLogService::class)->log(
+                        'updated',
+                        $p,
+                        ['sale_id' => $sale->id, 'sale_code' => $sale->code, 'changes' => ['po_code' => ['old' => null, 'new' => $sale->code]]],
+                        "Đã tạo đơn hàng bán: {$sale->code}"
+                    );
+                }
+            }
+
             DB::commit();
 
             return redirect()->route('sales.index')
@@ -632,7 +705,7 @@ class SaleController extends Controller
             $sale->update(['status' => 'shipping']);
         }
 
-        $sale->load(['items.product', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
+        $sale->load(['items.product', 'items.project', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
@@ -1481,10 +1554,12 @@ class SaleController extends Controller
             return back()->with('error', 'Không thể chuyển trạng thái từ "' . $sale->status_label . '" sang trạng thái này.');
         }
 
-        // Once any purchased item has been received, cancellation impacts
-        // inventory and supplier commitments.  It requires a BOD decision and
-        // an auditable reason; Legal/Sales cannot cancel it unilaterally.
+        // Once any payment or purchased item has been received, cancellation is not allowed directly
         if ($newStatus === 'cancelled') {
+            if ($sale->hasPayment()) {
+                return back()->with('error', 'Không thể hủy đơn hàng đã có thanh toán. Vui lòng hoàn tất hoặc xử lý hoàn tiền trước.');
+            }
+
             $hasGoodsReceived = $sale->all_purchase_orders
                 ->contains(fn ($purchaseOrder) => in_array($purchaseOrder->status, ['partial_received', 'received'], true));
             if ($hasGoodsReceived) {
@@ -1816,6 +1891,18 @@ class SaleController extends Controller
         }
 
         $validated = $validator->validated();
+
+        $submitForApproval = $request->input('_submit_for_approval') == '1';
+        if ($submitForApproval) {
+            foreach ($validated['items'] as $itemData) {
+                if (empty($itemData['supplier_id']) && empty($itemData['is_service'])) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'Vui lòng chọn Hãng (Vendor) cho tất cả các sản phẩm trong bảng P&L trước khi gửi duyệt.')
+                        ->withFragment('pnl');
+                }
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -2421,6 +2508,14 @@ class SaleController extends Controller
             return back()->with('error', 'Tổng tỷ lệ phần trăm các đợt thanh toán phải bằng chính xác 100% (Hiện tại: ' . $totalPercent . '%).');
         }
 
+        // Validate vendor/supplier selection for all items before P&L submission
+        $itemsWithoutVendor = $sale->items->filter(function($item) {
+            return empty($item->supplier_id) && !$item->is_service;
+        });
+        if ($itemsWithoutVendor->isNotEmpty()) {
+            return back()->with('error', 'Vui lòng chọn Hãng (Vendor) cho tất cả các sản phẩm trong bảng P&L trước khi gửi duyệt.');
+        }
+
         // Xóa lịch sử duyệt đang chờ cũ để tránh xung đột
         ApprovalHistory::where('document_type', 'sale_pnl')
             ->where('document_id', $sale->id)
@@ -2697,7 +2792,15 @@ class SaleController extends Controller
             return back()->with('error', 'Đơn hàng chưa đủ điều kiện đặt hàng do chưa có UNC hoặc chưa được Finance xác nhận đợt: ' . $pendingList);
         }
 
-        $sale->load(['items.product', 'customer']);
+        // Kiểm tra xem tất cả các sản phẩm đã được chọn Hãng ở P&L chưa
+        $itemsWithoutVendor = $sale->items->filter(function($item) {
+            return empty($item->supplier_id) && !$item->is_service;
+        });
+        if ($itemsWithoutVendor->isNotEmpty()) {
+            return back()->with('error', 'Đơn hàng có sản phẩm chưa được chọn Hãng ở bảng P&L. Vui lòng cập nhật bảng P&L trước khi tạo yêu cầu đặt hàng.');
+        }
+
+        $sale->load(['items.product', 'items.supplier', 'items.project', 'customer', 'project']);
         $suppliers = \App\Models\Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $customers = Customer::select('id', 'name', 'tax_code')->orderBy('name')->get();
         
@@ -2713,7 +2816,7 @@ class SaleController extends Controller
             return back()->with('error', 'Chỉ có thể chỉnh sửa yêu cầu ở trạng thái "Bản nháp" hoặc "Thiếu thông tin".');
         }
 
-        $sale->load(['items.product', 'customer']);
+        $sale->load(['items.product', 'items.supplier', 'items.project', 'customer', 'project']);
         $orderRequest->load(['items.vendor', 'attachments']);
         $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $customers = Customer::orderBy('name')->get();
@@ -4715,13 +4818,14 @@ class SaleController extends Controller
     }
 
     /**
-     * Orders worth at least one billion VND may not be configured as a single
-     * 100% payment collected only after delivery.  Splitting the schedule or
-     * collecting a pre-order/pre-export milestone remains allowed.
+     * Orders worth at least the configured large order threshold (default 1 billion VND)
+     * may not be configured as a single 100% payment collected only after delivery.
+     * Splitting the schedule or collecting a pre-order/pre-export milestone remains allowed.
      */
     private function validateLargeOrderPaymentTerms(array $paymentTerms, float $total): ?string
     {
-        if ($total < 1_000_000_000 || empty($paymentTerms)) {
+        $threshold = (float) Setting::get('large_order_post_delivery_threshold', 1000000000);
+        if ($threshold <= 0 || $total < $threshold || empty($paymentTerms)) {
             return null;
         }
 
@@ -4734,8 +4838,12 @@ class SaleController extends Controller
                 || $requiredBefore === 'after_delivery';
         });
 
+        $formattedThreshold = $threshold >= 1_000_000_000
+            ? rtrim(rtrim(number_format($threshold / 1_000_000_000, 2, '.', ''), '0'), '.') . ' tỷ đồng'
+            : number_format($threshold, 0, ',', '.') . ' VNĐ';
+
         return $totalPercent >= 99.99 && $allAfterDelivery
-            ? 'Đơn hàng từ 1 tỷ đồng không được áp dụng thanh toán 100% sau giao hàng. Vui lòng thiết lập ít nhất một đợt thanh toán trước đặt hàng hoặc trước xuất hàng.'
+            ? "Đơn hàng từ {$formattedThreshold} không được áp dụng thanh toán 100% sau giao hàng. Vui lòng thiết lập ít nhất một đợt thanh toán trước đặt hàng hoặc trước xuất hàng."
             : null;
     }
 }

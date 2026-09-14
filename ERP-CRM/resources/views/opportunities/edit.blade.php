@@ -275,7 +275,7 @@
                             <div class="flex items-center justify-between">
                                 <div>
                                     <span class="text-sm font-medium text-gray-800">Cần kỹ thuật (Presales/Technical) phối hợp đi cùng?</span>
-                                    <p class="text-xs text-gray-500">Bật lên để chỉ định Technical Manager hỗ trợ hoạt động này.</p>
+                                    <p class="text-xs text-gray-500">Bật lên để tự động gửi yêu cầu phối hợp tới Trưởng nhóm Kỹ thuật (Lead Tech).</p>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="needs_technical" id="needs_technical" value="1"
@@ -285,21 +285,20 @@
                                 </label>
                             </div>
 
-                            <!-- Technical User Select (hidden by default) -->
+                            <!-- Technical Notification info card (shown when toggled) -->
                             <div id="technical_user_wrap" class="{{ old('needs_technical', $opportunity->needs_technical) ? '' : 'hidden' }}">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Chọn người phối hợp kỹ thuật <span class="text-red-500">*</span>
-                                </label>
-                                <select name="technical_user_id" id="technical_user_id"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                                    <option value="">-- Chọn kỹ sư phối hợp --</option>
-                                    @foreach($technicalUsers as $user)
-                                        <option value="{{ $user->id }}" {{ old('technical_user_id', $opportunity->technical_user_id) == $user->id ? 'selected' : '' }}>
-                                            {{ $user->name }} ({{ $user->email }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('technical_user_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                                <input type="hidden" name="technical_user_id" id="technical_user_id" value="{{ old('technical_user_id', $opportunity->technical_user_id ?? $technicalManagerId ?? '') }}">
+                                <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3.5 flex items-start gap-3">
+                                    <i class="fas fa-info-circle text-indigo-600 text-base mt-0.5"></i>
+                                    <div class="text-xs text-indigo-900 leading-relaxed">
+                                        <p class="font-semibold mb-0.5">Hệ thống sẽ tự động tạo Ticket phối hợp kỹ thuật gửi tới <strong>Trưởng nhóm Kỹ thuật (Lead Tech)</strong>.</p>
+                                        @if($opportunity->technicalUser)
+                                            <p class="text-indigo-700">Kỹ thuật viên hiện đang tiếp nhận: <strong class="text-indigo-900">{{ $opportunity->technicalUser->name }}</strong> (Lead Tech có thể điều phối lại trên Ticket kỹ thuật).</p>
+                                        @else
+                                            <p class="text-indigo-700">Trưởng nhóm Kỹ thuật sẽ tiếp nhận, đánh giá và chủ động phân công kỹ sư phù hợp hỗ trợ bạn trong cơ hội này.</p>
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -675,20 +674,12 @@
         function toggleTechnicalSelect() {
             const checked = document.getElementById('needs_technical').checked;
             const wrap = document.getElementById('technical_user_wrap');
-            const select = document.getElementById('technical_user_id');
-
-            if (checked) {
-                wrap.classList.remove('hidden');
-                select.setAttribute('required', 'required');
-                
-                // Tự động assign sang Technical Manager nếu chưa chọn ai
-                const techManagerId = "{{ $technicalManagerId ?? '' }}";
-                if (techManagerId && !select.value) {
-                    select.value = techManagerId;
+            if (wrap) {
+                if (checked) {
+                    wrap.classList.remove('hidden');
+                } else {
+                    wrap.classList.add('hidden');
                 }
-            } else {
-                wrap.classList.add('hidden');
-                select.removeAttribute('required');
             }
         }
 

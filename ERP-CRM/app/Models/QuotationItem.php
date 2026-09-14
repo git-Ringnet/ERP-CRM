@@ -49,11 +49,18 @@ class QuotationItem extends Model
     /**
      * Get product's pricelist price in USD ($)
      */
-    public function getPricelistPriceAttribute(): ?float
+    public function getPricelistPriceAttribute(): float
     {
+        if (isset($this->custom_fields['pricelist']) && $this->custom_fields['pricelist'] !== '' && $this->custom_fields['pricelist'] !== null) {
+            $val = str_replace(['$', ','], '', (string)$this->custom_fields['pricelist']);
+            if (is_numeric($val)) {
+                return (float)$val;
+            }
+        }
+
         $productCode = $this->product_code ?: ($this->product->code ?? null);
         if (!$productCode) {
-            return null;
+            return 0.0;
         }
 
         $skuCode = trim($productCode);
@@ -82,13 +89,13 @@ class QuotationItem extends Model
         }
 
         if (!$priceItem) {
-            return null;
+            return 0.0;
         }
 
         $pl = $priceItem->priceList;
         $rawPrice = $pl->getPrimaryPriceForItem($priceItem);
         if ($rawPrice === null) {
-            return null;
+            return 0.0;
         }
 
         // If the currency of the price list is VND, convert it to USD
@@ -96,10 +103,10 @@ class QuotationItem extends Model
         if ($plCurrency === 'VND' || $plCurrency === 'Đ') {
             $exchangeRate = floatval($pl->exchange_rate ?: 24000);
             if ($exchangeRate > 0) {
-                return $rawPrice / $exchangeRate;
+                return (float)($rawPrice / $exchangeRate);
             }
         }
 
-        return $rawPrice;
+        return (float)$rawPrice;
     }
 }

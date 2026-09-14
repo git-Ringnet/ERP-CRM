@@ -4,6 +4,9 @@
 @section('page-title', "Chi tiết dự án: {$project->code}")
 
 @section('content')
+@php
+    $canViewCommercial = auth()->user()->canViewCommercialPrice($project->manager_id);
+@endphp
 <div class="space-y-6">
     <!-- Actions Toolbar -->
     <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -42,7 +45,7 @@
                     <i class="fas fa-plus mr-1"></i> Tạo đơn hàng
                 </a>
                 @can('create', \App\Models\Quotation::class)
-                    <a href="{{ route('quotations.create', ['customer_id' => $project->customer_id, 'title' => $project->name]) }}"
+                    <a href="{{ route('quotations.create', ['project_id' => $project->id]) }}"
                        class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
                         <i class="fas fa-file-invoice mr-1"></i> Tạo báo giá
                     </a>
@@ -184,8 +187,13 @@
                     <i class="fas fa-coins text-blue-500 text-sm"></i>
                 </div>
             </div>
-            <p class="text-xl font-bold text-gray-900">{{ number_format($salesStats['total_revenue']) }} đ</p>
-            <p class="text-xs text-gray-400 mt-1">{{ $salesStats['total_orders'] }} đơn hàng</p>
+            @if($canViewCommercial)
+                <p class="text-xl font-bold text-gray-900">{{ number_format($salesStats['total_revenue']) }} đ</p>
+                <p class="text-xs text-gray-400 mt-1">{{ $salesStats['total_orders'] }} đơn hàng</p>
+            @else
+                <p class="text-xl font-bold text-gray-400 font-mono italic">***</p>
+                <p class="text-xs text-purple-600 mt-1"><i class="fas fa-shield-alt mr-1"></i>{{ $salesStats['total_orders'] }} đơn (Bảo mật Sales)</p>
+            @endif
         </div>
 
         <!-- Cost -->
@@ -196,7 +204,12 @@
                     <i class="fas fa-box text-orange-500 text-sm"></i>
                 </div>
             </div>
-            <p class="text-xl font-bold text-gray-900">{{ number_format($salesStats['total_cost']) }} đ</p>
+            @if($canViewCommercial)
+                <p class="text-xl font-bold text-gray-900">{{ number_format($salesStats['total_cost']) }} đ</p>
+            @else
+                <p class="text-xl font-bold text-gray-400 font-mono italic">***</p>
+                <p class="text-xs text-gray-400 mt-1">Bảo mật Sales</p>
+            @endif
         </div>
 
         <!-- Profit -->
@@ -207,8 +220,13 @@
                     <i class="fas fa-chart-line {{ $salesStats['profit'] >= 0 ? 'text-green-500' : 'text-red-500' }} text-sm"></i>
                 </div>
             </div>
-            <p class="text-xl font-bold {{ $salesStats['profit'] >= 0 ? 'text-green-600' : 'text-red-600' }}">{{ number_format($salesStats['profit']) }} đ</p>
-            <p class="text-xs text-gray-400 mt-1">{{ number_format($salesStats['profit_percent'], 2) }}% margin</p>
+            @if($canViewCommercial)
+                <p class="text-xl font-bold {{ $salesStats['profit'] >= 0 ? 'text-green-600' : 'text-red-600' }}">{{ number_format($salesStats['profit']) }} đ</p>
+                <p class="text-xs text-gray-400 mt-1">{{ number_format($salesStats['profit_percent'], 2) }}% margin</p>
+            @else
+                <p class="text-xl font-bold text-gray-400 font-mono italic">***</p>
+                <p class="text-xs text-gray-400 mt-1">Bảo mật Sales</p>
+            @endif
         </div>
 
         <!-- Budget Progress or Debt -->
@@ -218,17 +236,22 @@
                 <p class="text-sm font-medium text-gray-500">Dự toán vs Thực tế</p>
             </div>
             @php
-                $budgetPercent = min(($salesStats['total_revenue'] / $project->budget) * 100, 100);
+                $budgetPercent = $project->budget > 0 ? min(($salesStats['total_revenue'] / $project->budget) * 100, 100) : 0;
             @endphp
-            <p class="text-xl font-bold text-gray-900">{{ number_format($budgetPercent, 1) }}%</p>
-            <div class="w-full bg-gray-100 rounded-full h-2 mt-2">
-                <div class="h-2 rounded-full {{ $budgetPercent >= 100 ? 'bg-green-500' : 'bg-blue-500' }} transition-all" 
-                     style="width: {{ $budgetPercent }}%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-gray-400 mt-1.5">
-                <span>{{ number_format($salesStats['total_revenue']) }} đ</span>
-                <span>{{ number_format($project->budget) }} đ</span>
-            </div>
+            @if($canViewCommercial)
+                <p class="text-xl font-bold text-gray-900">{{ number_format($budgetPercent, 1) }}%</p>
+                <div class="w-full bg-gray-100 rounded-full h-2 mt-2">
+                    <div class="h-2 rounded-full {{ $budgetPercent >= 100 ? 'bg-green-500' : 'bg-blue-500' }} transition-all" 
+                         style="width: {{ $budgetPercent }}%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1.5">
+                    <span>{{ number_format($salesStats['total_revenue']) }} đ</span>
+                    <span>{{ number_format($project->budget) }} đ</span>
+                </div>
+            @else
+                <p class="text-xl font-bold text-gray-900">{{ number_format($project->budget) }} đ</p>
+                <p class="text-xs text-gray-400 mt-1">Dự toán dự án</p>
+            @endif
         </div>
         @else
         <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -238,9 +261,14 @@
                     <i class="fas {{ $salesStats['total_debt'] > 0 ? 'fa-file-invoice-dollar text-red-500' : 'fa-check-circle text-green-500' }} text-sm"></i>
                 </div>
             </div>
-            <p class="text-xl font-bold {{ $salesStats['total_debt'] > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($salesStats['total_debt']) }} đ</p>
-            @if($salesStats['total_debt'] == 0)
-                <p class="text-xs text-green-500 mt-1">Không có công nợ</p>
+            @if($canViewCommercial)
+                <p class="text-xl font-bold {{ $salesStats['total_debt'] > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($salesStats['total_debt']) }} đ</p>
+                @if($salesStats['total_debt'] == 0)
+                    <p class="text-xs text-green-500 mt-1">Không có công nợ</p>
+                @endif
+            @else
+                <p class="text-xl font-bold text-gray-400 font-mono italic">***</p>
+                <p class="text-xs text-gray-400 mt-1">Bảo mật Sales</p>
             @endif
         </div>
         @endif
@@ -441,6 +469,27 @@
                         <p class="text-sm text-gray-700">{{ $project->stage }}</p>
                     </div>
                     @endif
+
+                    @if($project->po_code || (isset($recentSales) && $recentSales->count() > 0))
+                    <div class="col-span-2 bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-600 text-white text-xs">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </span>
+                            <div>
+                                <span class="text-[11px] text-gray-500 font-medium block">Đơn hàng bán liên kết (SO):</span>
+                                <span class="font-mono font-bold text-emerald-800 text-sm">
+                                    {{ $project->po_code ?: $recentSales->first()?->code }}
+                                </span>
+                            </div>
+                        </div>
+                        @if(isset($recentSales) && $recentSales->first())
+                            <a href="{{ route('sales.show', $recentSales->first()->id) }}" class="text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-white px-3 py-1.5 rounded-lg border border-emerald-300 shadow-xs hover:bg-emerald-50 transition-colors">
+                                Xem chi tiết đơn <i class="fas fa-arrow-right ml-1"></i>
+                            </a>
+                        @endif
+                    </div>
+                    @endif
                     @if($project->opportunities && $project->opportunities->count() > 0)
                     <div class="col-span-2 border-t border-gray-100 pt-3 mt-1">
                         <p class="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">Cơ hội phát sinh (CRM Origin):</p>
@@ -550,6 +599,177 @@
         @endif
     </div>
     @endif
+
+    <!-- Danh sách Báo giá & Đơn hàng đã tạo từ dự án -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h3 class="text-base font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-file-invoice-dollar mr-2 text-indigo-600"></i> Báo giá & Đơn hàng liên kết
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    @if($canViewCommercial)
+                        Danh sách báo giá và đơn hàng được tạo cho dự án này.
+                    @else
+                        <span class="text-purple-600 font-medium"><i class="fas fa-shield-alt mr-1"></i>Bảo mật giá Sales:</span> Đơn giá và tổng tiền thương mại được ẩn với tài khoản PM/PO.
+                    @endif
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                @can('create', \App\Models\Quotation::class)
+                    <a href="{{ route('quotations.create', ['project_id' => $project->id]) }}" 
+                       class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-xs shadow-xs">
+                        <i class="fas fa-plus mr-1"></i> Tạo báo giá mới
+                    </a>
+                @endcan
+                <a href="{{ route('sales.create', ['project_id' => $project->id]) }}" 
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-xs shadow-xs">
+                    <i class="fas fa-plus mr-1"></i> Tạo đơn hàng mới
+                </a>
+            </div>
+        </div>
+        <div class="p-6 space-y-6">
+            <!-- 1. Quotations List -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center">
+                        <i class="fas fa-file-invoice text-indigo-500 mr-1.5"></i> Danh sách Báo giá ({{ isset($quotations) ? $quotations->count() : 0 }})
+                    </h4>
+                </div>
+                @if(isset($quotations) && $quotations->count() > 0)
+                    <div class="overflow-x-auto border border-gray-100 rounded-xl">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 font-semibold border-b border-gray-100">
+                                <tr>
+                                    <th class="p-3">Mã báo giá</th>
+                                    <th class="p-3">Tiêu đề</th>
+                                    <th class="p-3">Khách hàng</th>
+                                    <th class="p-3">Người tạo</th>
+                                    <th class="p-3">Ngày tạo</th>
+                                    <th class="p-3 text-right">Tổng tiền (gồm VAT)</th>
+                                    <th class="p-3 text-center">Trạng thái</th>
+                                    <th class="p-3 text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                @foreach($quotations as $quote)
+                                    <tr class="hover:bg-gray-50/60 transition-colors">
+                                        <td class="p-3 font-mono font-bold text-indigo-600">
+                                            <a href="{{ route('quotations.show', $quote->id) }}" class="hover:underline">
+                                                {{ $quote->code }}
+                                            </a>
+                                        </td>
+                                        <td class="p-3 text-gray-800 font-medium">{{ $quote->title }}</td>
+                                        <td class="p-3 text-gray-600">{{ $quote->customer?->name ?? 'N/A' }}</td>
+                                        <td class="p-3 text-gray-600">{{ $quote->creator?->name ?? 'N/A' }}</td>
+                                        <td class="p-3 text-gray-500">{{ $quote->date ? $quote->date->format('d/m/Y') : $quote->created_at->format('d/m/Y') }}</td>
+                                        <td class="p-3 text-right font-bold text-gray-900">
+                                            @if($canViewCommercial)
+                                                {{ number_format($quote->total) }} {{ $quote->currency?->symbol ?? '₫' }}
+                                            @else
+                                                <span class="text-gray-400 font-mono italic" title="Giá chào được bảo mật với PM/PO">***</span>
+                                            @endif
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {{ $quote->status_color ?? 'bg-gray-100 text-gray-800' }}">
+                                                {{ $quote->status_label ?? ucfirst($quote->status) }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <div class="flex items-center justify-center gap-1.5">
+                                                <a href="{{ route('quotations.show', $quote->id) }}" 
+                                                   class="px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded text-xs font-medium" title="Xem chi tiết">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                @if($canViewCommercial)
+                                                <a href="{{ route('quotations.edit', $quote->id) }}" 
+                                                   class="px-2 py-1 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded text-xs font-medium" title="Chỉnh sửa">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed text-xs text-gray-500">
+                        <i class="fas fa-file-invoice text-xl text-gray-300 mb-1"></i>
+                        <p>Chưa có báo giá nào được tạo cho dự án này.</p>
+                    </div>
+                @endif
+            </div>
+
+            <!-- 2. Sales Orders List -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center">
+                        <i class="fas fa-shopping-cart text-blue-500 mr-1.5"></i> Danh sách Đơn hàng bán ({{ isset($recentSales) ? $recentSales->count() : 0 }})
+                    </h4>
+                </div>
+                @if(isset($recentSales) && $recentSales->count() > 0)
+                    <div class="overflow-x-auto border border-gray-100 rounded-xl">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 font-semibold border-b border-gray-100">
+                                <tr>
+                                    <th class="p-3">Mã đơn hàng</th>
+                                    <th class="p-3">Khách hàng</th>
+                                    <th class="p-3">Ngày đặt</th>
+                                    <th class="p-3 text-right">Tổng tiền (gồm VAT)</th>
+                                    <th class="p-3 text-center">Trạng thái đơn</th>
+                                    <th class="p-3 text-center">Thanh toán</th>
+                                    <th class="p-3 text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                @foreach($recentSales as $sale)
+                                    <tr class="hover:bg-gray-50/60 transition-colors">
+                                        <td class="p-3 font-mono font-bold text-blue-600">
+                                            <a href="{{ route('sales.show', $sale->id) }}" class="hover:underline">
+                                                {{ $sale->code }}
+                                            </a>
+                                        </td>
+                                        <td class="p-3 text-gray-700 font-medium">{{ $sale->customer?->name ?? 'N/A' }}</td>
+                                        <td class="p-3 text-gray-500">{{ $sale->date ? $sale->date->format('d/m/Y') : $sale->created_at->format('d/m/Y') }}</td>
+                                        <td class="p-3 text-right font-bold text-gray-900">
+                                            @if($canViewCommercial)
+                                                {{ number_format($sale->total) }} đ
+                                            @else
+                                                <span class="text-gray-400 font-mono italic" title="Giá bán được bảo mật với PM/PO">***</span>
+                                            @endif
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {{ $sale->status_color ?? 'bg-blue-100 text-blue-800' }}">
+                                                {{ $sale->status_label ?? ucfirst($sale->status) }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {{ $sale->payment_status_color ?? 'bg-gray-100 text-gray-800' }}">
+                                                {{ $sale->payment_status_label ?? ucfirst($sale->payment_status) }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <a href="{{ route('sales.show', $sale->id) }}" 
+                                               class="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium" title="Xem chi tiết đơn">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed text-xs text-gray-500">
+                        <i class="fas fa-shopping-cart text-xl text-gray-300 mb-1"></i>
+                        <p>Chưa có đơn hàng nào được tạo cho dự án này.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
     
     <!-- Lịch sử trao đổi & Thảo luận giữa PM/PO & Sales -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -775,73 +995,124 @@
 
     <!-- Lịch sử hoạt động & Nhật ký tiến trình dự án (Timeline) -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-            <h3 class="text-base font-semibold text-gray-900 flex items-center">
-                <i class="fas fa-history mr-2 text-indigo-500"></i> Nhật ký hoạt động & Lịch sử dự án
-            </h3>
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+            <div>
+                <h3 class="text-base font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-history mr-2 text-indigo-500"></i> Nhật ký hoạt động & Lịch sử dự án
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5">Theo dõi chi tiết các bước cập nhật, người thực hiện và dự báo hành động tiếp theo</p>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                {{ $activityLogs->count() }} hoạt động
+            </span>
         </div>
         <div class="p-6">
             @if($activityLogs->count() > 0)
-                <div class="flow-root max-h-[350px] overflow-y-auto pr-2">
+                <div class="flow-root max-h-[500px] overflow-y-auto pr-3 custom-scrollbar">
                     <ul role="list" class="-mb-8">
                         @foreach($activityLogs as $index => $log)
+                            @php
+                                $userInfo = \App\Services\ProjectActivityLogPresenter::getUserInfo($log, $project);
+                                $changes = \App\Services\ProjectActivityLogPresenter::formatChanges($log->properties['changes'] ?? []);
+                                $nextAction = \App\Services\ProjectActivityLogPresenter::predictNextAction($log, $project);
+                            @endphp
                             <li>
                                 <div class="relative pb-8">
                                     @if($index < $activityLogs->count() - 1)
-                                        <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-100" aria-hidden="true"></span>
+                                        <span class="absolute top-5 left-5 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
                                     @endif
-                                    <div class="relative flex space-x-3">
-                                        <div>
-                                            <span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center ring-8 ring-white shadow-sm">
+                                    <div class="relative flex space-x-3.5 items-start">
+                                        <!-- Avatar / Icon -->
+                                        <div class="relative flex-shrink-0">
+                                            <div class="h-10 w-10 rounded-full {{ $userInfo['avatar_bg'] }} text-white flex items-center justify-center font-bold text-xs shadow-sm ring-4 ring-white">
+                                                {{ $userInfo['initials'] }}
+                                            </div>
+                                            <span class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white flex items-center justify-center shadow-xs">
                                                 @if($log->action === 'created')
-                                                    <i class="fas fa-plus text-xs text-green-500"></i>
+                                                    <i class="fas fa-plus-circle text-[11px] text-green-500"></i>
                                                 @elseif($log->action === 'updated')
-                                                    <i class="fas fa-edit text-xs text-blue-500"></i>
+                                                    <i class="fas fa-pen-alt text-[10px] text-blue-500"></i>
                                                 @elseif($log->action === 'deleted')
-                                                    <i class="fas fa-trash-alt text-xs text-red-500"></i>
+                                                    <i class="fas fa-trash-alt text-[10px] text-red-500"></i>
                                                 @else
-                                                    <i class="fas fa-info text-xs text-gray-500"></i>
+                                                    <i class="fas fa-info-circle text-[11px] text-gray-400"></i>
                                                 @endif
                                             </span>
                                         </div>
-                                        <div class="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
-                                            <div>
-                                                <p class="text-sm text-gray-800">
-                                                    <span class="font-semibold text-gray-950">{{ $log->user_name }}</span>
-                                                    {{ $log->description }}
-                                                </p>
-                                                @php
-                                                    $changes = $log->properties['changes'] ?? [];
-                                                    $fieldLabels = [
-                                                        'registration_status' => 'Trạng thái đăng ký',
-                                                        'status' => 'Trạng thái dự án',
-                                                        'vendor_quote_note' => 'Phản hồi/Báo giá hãng',
-                                                        'forecast_stage' => 'Dự báo Sales',
-                                                        'support_request_type' => 'Yêu cầu hỗ trợ',
-                                                        'support_request_note' => 'Nội dung yêu cầu',
-                                                        'close_reason' => 'Lý do đóng',
-                                                        'close_note' => 'Ghi chú đóng',
-                                                        'po_code' => 'Mã đơn hàng',
-                                                        'order_value' => 'Giá trị đơn hàng',
-                                                        'order_date' => 'Ngày đơn hàng',
-                                                    ];
-                                                @endphp
-                                                @if(!empty($changes))
-                                                    <div class="mt-1.5 space-y-1 text-xs text-gray-600">
-                                                        @foreach($changes as $field => $change)
-                                                            <div>
-                                                                <span class="font-semibold text-gray-700">{{ $fieldLabels[$field] ?? Str::headline($field) }}:</span>
-                                                                <span class="line-through text-gray-400">{{ filled($change['old'] ?? null) ? (is_scalar($change['old']) ? $change['old'] : json_encode($change['old'])) : 'Trống' }}</span>
-                                                                <i class="fas fa-arrow-right mx-1 text-[9px] text-gray-400"></i>
-                                                                <span class="font-medium text-indigo-700">{{ filled($change['new'] ?? null) ? (is_scalar($change['new']) ? $change['new'] : json_encode($change['new'])) : 'Trống' }}</span>
-                                                            </div>
-                                                        @endforeach
+
+                                        <!-- Log Body -->
+                                        <div class="flex-1 min-w-0 bg-gray-50/70 hover:bg-gray-50 border border-gray-100 rounded-xl p-4 transition-all duration-150">
+                                            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                                <!-- User & Role -->
+                                                <div class="flex items-center flex-wrap gap-2">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border {{ $userInfo['role_color'] }}">
+                                                        {{ $userInfo['role_title'] }}
+                                                    </span>
+                                                    <span class="font-semibold text-gray-900 text-sm">{{ $userInfo['name'] }}</span>
+                                                    <span class="text-xs text-gray-500 font-normal">
+                                                        @if($log->action === 'created')
+                                                            đã tạo mới Đăng ký dự án
+                                                        @elseif($log->action === 'deleted')
+                                                            đã xóa bản ghi dự án
+                                                        @else
+                                                            {{ Str::replaceFirst('Project: ' . $project->name, '', $log->description ?: 'đã cập nhật thông tin dự án') }}
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                                <!-- Timestamp -->
+                                                <div class="text-xs text-gray-400 flex items-center space-x-1 whitespace-nowrap">
+                                                    <i class="far fa-clock text-[11px]"></i>
+                                                    <span>{{ $log->created_at->format('d/m/Y H:i') }}</span>
+                                                    <span class="text-gray-300">({{ $log->created_at->diffForHumans() }})</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Changed Fields Diff -->
+                                            @if(!empty($changes))
+                                                <div class="mt-2.5 bg-white rounded-lg p-3 border border-gray-200/80 shadow-xs space-y-1.5 text-xs">
+                                                    <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 flex items-center">
+                                                        <i class="fas fa-exchange-alt mr-1.5 text-indigo-500"></i> Nội dung thay đổi chi tiết:
                                                     </div>
-                                                @endif
-                                            </div>
-                                            <div class="text-right text-xs whitespace-nowrap text-gray-400">
-                                                {{ $log->created_at->format('d/m/Y H:i') }}
-                                            </div>
+                                                    @foreach($changes as $item)
+                                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-1 py-1 border-b border-gray-50 last:border-0 items-start">
+                                                            <div class="md:col-span-4 font-medium text-gray-700">
+                                                                {{ $item['label'] }}:
+                                                            </div>
+                                                            <div class="md:col-span-8 flex items-center flex-wrap gap-1.5">
+                                                                <span class="line-through text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 max-w-full break-all">
+                                                                    {{ $item['old'] }}
+                                                                </span>
+                                                                <i class="fas fa-arrow-right text-[10px] text-gray-400 mx-0.5"></i>
+                                                                <span class="font-semibold text-indigo-700 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100 max-w-full break-all">
+                                                                    {{ $item['new'] }}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+
+                                            <!-- Next Action Forecast -->
+                                            @if($nextAction)
+                                                <div class="mt-3 bg-gradient-to-r from-slate-50 to-indigo-50/40 rounded-lg p-3 border border-indigo-100/70 flex items-start space-x-2.5">
+                                                    <div class="mt-0.5 flex-shrink-0">
+                                                        <span class="inline-flex items-center justify-center h-6 w-6 rounded-md bg-indigo-100 text-indigo-600 text-xs">
+                                                            <i class="{{ $nextAction['icon'] }}"></i>
+                                                        </span>
+                                                    </div>
+                                                    <div class="flex-1 text-xs">
+                                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                                            <span class="font-bold text-gray-800">Dự báo hành động tiếp theo:</span>
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-600 text-white shadow-xs">
+                                                                👉 Cần phản hồi: {{ $nextAction['respondent'] }}
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-gray-600 mt-1 leading-relaxed">
+                                                            {{ $nextAction['action_text'] }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -850,9 +1121,10 @@
                     </ul>
                 </div>
             @else
-                <div class="text-center py-6 text-gray-400 bg-gray-50/50 rounded-xl border border-dashed text-sm">
-                    <i class="fas fa-history text-2xl mb-1 text-gray-300"></i>
-                    <p>Chưa có nhật ký hoạt động nào được ghi nhận cho dự án này.</p>
+                <div class="text-center py-8 text-gray-400 bg-gray-50/50 rounded-xl border border-dashed text-sm">
+                    <i class="fas fa-history text-3xl mb-2 text-gray-300"></i>
+                    <p class="font-medium text-gray-600">Chưa có nhật ký hoạt động nào được ghi nhận cho dự án này.</p>
+                    <p class="text-xs text-gray-400 mt-1">Các thao tác tạo mới, cập nhật thông tin và báo giá sẽ tự động được ghi lại tại đây.</p>
                 </div>
             @endif
         </div>
@@ -1201,17 +1473,99 @@
                     
                     <!-- Closed Won Fields -->
                     <div id="closed_won_fields" class="hidden space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Số đơn đặt hàng (PO Code) <span class="text-red-500">*</span></label>
-                            <input type="text" name="po_code" id="po_code" value="{{ old('po_code', $latestSaleForClosure?->code) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Giá trị đơn hàng (VNĐ) <span class="text-red-500">*</span></label>
-                            <input type="number" name="order_value" id="order_value" value="{{ old('order_value', $latestSaleForClosure?->total) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Ngày đặt hàng <span class="text-red-500">*</span></label>
-                            <input type="date" name="order_date" id="order_date" value="{{ old('order_date', $latestSaleForClosure?->date?->format('Y-m-d')) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <input type="hidden" name="source_mode" id="source_mode_input" value="{{ $recentSales->count() > 0 ? 'sync_sale' : 'manual' }}">
+                        
+                        @if($recentSales->count() > 0)
+                            <!-- Mode Switcher Tabs -->
+                            <div class="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200">
+                                <button type="button" id="tab_mode_sync" onclick="toggleCloseMode('sync_sale')" class="flex-1 py-1.5 text-xs font-bold text-center rounded-lg bg-indigo-600 text-white shadow-sm transition-all">
+                                    <i class="fas fa-bolt mr-1"></i> Đồng bộ từ Đơn hàng
+                                </button>
+                                <button type="button" id="tab_mode_manual" onclick="toggleCloseMode('manual')" class="flex-1 py-1.5 text-xs font-medium text-center rounded-lg bg-transparent text-gray-600 hover:bg-gray-200 transition-all">
+                                    <i class="fas fa-edit mr-1"></i> Nhập thủ công (Gộp hãng/DA)
+                                </button>
+                            </div>
+
+                            <!-- Sync Mode Container -->
+                            <div id="sync_sale_container" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Chọn Đơn bán hàng liên kết <span class="text-red-500">*</span></label>
+                                    <select name="sale_id" id="close_sale_id" onchange="updateCloseSalePreview()" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        @foreach($recentSales as $s)
+                                            <option value="{{ $s->id }}" 
+                                                    data-code="{{ $s->code }}"
+                                                    data-customer="{{ $s->customer?->name ?? 'N/A' }}"
+                                                    data-date="{{ $s->date ? $s->date->format('Y-m-d') : '' }}"
+                                                    data-date-formatted="{{ $s->date ? $s->date->format('d/m/Y') : '-' }}"
+                                                    data-total="{{ (float)$s->total }}"
+                                                    data-total-formatted="{{ number_format($s->total, 0, ',', '.') }} đ"
+                                                    data-items-count="{{ $s->items->count() }}"
+                                                    {{ ($latestSaleForClosure?->id === $s->id) ? 'selected' : '' }}>
+                                                #{{ $s->code }} - {{ $s->customer?->name ?? 'N/A' }} ({{ number_format($s->total, 0, ',', '.') }} đ | {{ $s->date?->format('d/m/Y') }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <!-- Selected Sale Quick Preview Card -->
+                                <div id="close_sale_preview" class="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
+                                    <div class="flex justify-between items-center pb-1 border-b border-indigo-100">
+                                        <span class="font-bold text-indigo-900 flex items-center gap-1">
+                                            <i class="fas fa-file-invoice text-indigo-600"></i> Mã đơn: <span id="preview_sale_code">{{ $latestSaleForClosure?->code ?? '-' }}</span>
+                                        </span>
+                                        <span class="px-2 py-0.5 bg-indigo-200/80 text-indigo-900 rounded font-semibold text-[11px]" id="preview_sale_items">{{ $latestSaleForClosure?->items->count() ?? 0 }} sản phẩm</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-700">
+                                        <span class="text-gray-500">Khách hàng:</span>
+                                        <span class="font-semibold text-gray-900 text-right truncate max-w-[220px]" id="preview_sale_customer">{{ $latestSaleForClosure?->customer?->name ?? '-' }}</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-700">
+                                        <span class="text-gray-500">Ngày đơn hàng:</span>
+                                        <span class="font-medium text-gray-900" id="preview_sale_date">{{ $latestSaleForClosure?->date?->format('d/m/Y') ?? '-' }}</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-700 pt-1 border-t border-indigo-100">
+                                        <span class="font-bold text-indigo-950">Tổng giá trị đơn:</span>
+                                        <span class="font-bold text-indigo-700 text-sm" id="preview_sale_total">{{ $latestSaleForClosure ? number_format($latestSaleForClosure->total, 0, ',', '.') . ' đ' : '0 đ' }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Sync BOM & selling price checkbox -->
+                                <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                    <label class="flex items-start gap-2.5 cursor-pointer">
+                                        <input type="checkbox" name="sync_bom" value="1" checked class="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                        <div>
+                                            <span class="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                                                <i class="fas fa-sync-alt text-emerald-600"></i> Tự động đồng bộ BOM & Đơn giá bán thực tế
+                                            </span>
+                                            <p class="text-[11px] text-emerald-700 mt-0.5">Cập nhật danh mục hàng hóa, số lượng và giá chốt thực tế từ đơn bán hàng vào dữ liệu dự án.</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        @else
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+                                <i class="fas fa-info-circle text-amber-600 text-base shrink-0"></i>
+                                <span>Chưa có Đơn bán hàng nào được liên kết với dự án. Vui lòng nhập thông tin đóng dự án thủ công bên dưới.</span>
+                            </div>
+                        @endif
+
+                        <!-- Manual Mode Inputs (Active when manual tab selected or no sales exist) -->
+                        <div id="manual_sale_container" class="{{ $recentSales->count() > 0 ? 'hidden' : '' }} space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                            <div class="text-[11px] text-gray-500 italic">
+                                Dành cho trường hợp gộp đơn hàng từ nhiều hãng, chia nhỏ đơn hoặc tự phân bổ giá trị dự án.
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Số đơn đặt hàng (PO Code) <span class="text-red-500">*</span></label>
+                                <input type="text" name="po_code" id="po_code" value="{{ old('po_code', $latestSaleForClosure?->code) }}" placeholder="VD: PO-2026-001 hoặc SO-2026-0099" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Tổng giá trị đơn hàng (VNĐ) <span class="text-red-500">*</span></label>
+                                <input type="number" name="order_value" id="order_value" value="{{ old('order_value', $latestSaleForClosure?->total) }}" placeholder="VD: 150000000" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Ngày đặt hàng <span class="text-red-500">*</span></label>
+                                <input type="date" name="order_date" id="order_date" value="{{ old('order_date', $latestSaleForClosure?->date?->format('Y-m-d') ?? date('Y-m-d')) }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
                         </div>
                     </div>
 
@@ -1336,29 +1690,97 @@
         modal.classList.remove('hidden');
     }
 
+    function toggleCloseMode(mode) {
+        const input = document.getElementById('source_mode_input');
+        if (input) input.value = mode;
+        
+        const syncContainer = document.getElementById('sync_sale_container');
+        const manualContainer = document.getElementById('manual_sale_container');
+        const tabSync = document.getElementById('tab_mode_sync');
+        const tabManual = document.getElementById('tab_mode_manual');
+        const poInput = document.getElementById('po_code');
+        const valInput = document.getElementById('order_value');
+        const dateInput = document.getElementById('order_date');
+        const status = document.getElementById('close_status')?.value;
+
+        if (mode === 'sync_sale') {
+            if (syncContainer) syncContainer.classList.remove('hidden');
+            if (manualContainer) manualContainer.classList.add('hidden');
+            if (tabSync) tabSync.className = "flex-1 py-1.5 text-xs font-bold text-center rounded-lg bg-indigo-600 text-white shadow-sm transition-all";
+            if (tabManual) tabManual.className = "flex-1 py-1.5 text-xs font-medium text-center rounded-lg bg-transparent text-gray-600 hover:bg-gray-200 transition-all";
+            
+            if (poInput) poInput.required = false;
+            if (valInput) valInput.required = false;
+            if (dateInput) dateInput.required = false;
+            updateCloseSalePreview();
+        } else {
+            if (syncContainer) syncContainer.classList.add('hidden');
+            if (manualContainer) manualContainer.classList.remove('hidden');
+            if (tabSync) tabSync.className = "flex-1 py-1.5 text-xs font-medium text-center rounded-lg bg-transparent text-gray-600 hover:bg-gray-200 transition-all";
+            if (tabManual) tabManual.className = "flex-1 py-1.5 text-xs font-bold text-center rounded-lg bg-indigo-600 text-white shadow-sm transition-all";
+            
+            if (status === 'closed_won') {
+                if (poInput) poInput.required = true;
+                if (valInput) valInput.required = true;
+                if (dateInput) dateInput.required = true;
+            }
+        }
+    }
+
+    function updateCloseSalePreview() {
+        const select = document.getElementById('close_sale_id');
+        if (!select || select.selectedIndex < 0) return;
+        const opt = select.options[select.selectedIndex];
+        
+        const preview = document.getElementById('close_sale_preview');
+        if (!preview) return;
+
+        if (opt && opt.value) {
+            const codeEl = document.getElementById('preview_sale_code');
+            const custEl = document.getElementById('preview_sale_customer');
+            const dateEl = document.getElementById('preview_sale_date');
+            const totalEl = document.getElementById('preview_sale_total');
+            const itemsEl = document.getElementById('preview_sale_items');
+
+            if (codeEl) codeEl.textContent = opt.dataset.code || '-';
+            if (custEl) custEl.textContent = opt.dataset.customer || '-';
+            if (dateEl) dateEl.textContent = opt.dataset.dateFormatted || '-';
+            if (totalEl) totalEl.textContent = opt.dataset.totalFormatted || '0 đ';
+            if (itemsEl) itemsEl.textContent = (opt.dataset.itemsCount || '0') + ' sản phẩm';
+            preview.classList.remove('hidden');
+        } else {
+            preview.classList.add('hidden');
+        }
+    }
+
     function toggleCloseStatusFields() {
         const status = document.getElementById('close_status').value;
         const wonFields = document.getElementById('closed_won_fields');
         const reasonFields = document.getElementById('close_reason_fields');
-        
+        const reasonSelect = document.getElementById('close_reason');
+        const modeInput = document.getElementById('source_mode_input');
         const poInput = document.getElementById('po_code');
         const valInput = document.getElementById('order_value');
         const dateInput = document.getElementById('order_date');
-        const reasonSelect = document.getElementById('close_reason');
-        
+
         wonFields.classList.add('hidden');
-        poInput.required = false;
-        valInput.required = false;
-        dateInput.required = false;
-        
         reasonFields.classList.add('hidden');
         reasonSelect.required = false;
-        
+
+        if (poInput) poInput.required = false;
+        if (valInput) valInput.required = false;
+        if (dateInput) dateInput.required = false;
+
         if (status === 'closed_won') {
             wonFields.classList.remove('hidden');
-            poInput.required = true;
-            valInput.required = true;
-            dateInput.required = true;
+            const mode = modeInput ? modeInput.value : 'manual';
+            if (mode === 'manual') {
+                if (poInput) poInput.required = true;
+                if (valInput) valInput.required = true;
+                if (dateInput) dateInput.required = true;
+            } else {
+                updateCloseSalePreview();
+            }
         } else if (status === 'closed_lost' || status === 'cancelled') {
             reasonFields.classList.remove('hidden');
             reasonSelect.required = true;

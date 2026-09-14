@@ -13,7 +13,9 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Currency;
+use App\Models\Project;
 use App\Services\CurrencyService;
+use App\Services\BomParserService;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,18 +66,46 @@ class QuotationController extends Controller
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $code = $this->generateCode();
+        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+
+        $projectId = $request->get('project_id');
+        $selectedProject = null;
+        $prefilledProducts = [];
 
         $prefill = [
             'customer_id' => $request->get('customer_id'),
             'title' => $request->get('title'),
+            'project_id' => $projectId,
         ];
+
+        if ($projectId) {
+            $selectedProject = Project::with(['customer', 'vendor', 'collaborateCustomer'])->find($projectId);
+            if ($selectedProject) {
+                $effectiveCustomer = $selectedProject->findOrCreateCustomerFromProject();
+                $prefill['customer_id'] = $effectiveCustomer?->id ?? $selectedProject->customer_id;
+                $prefill['title'] = $selectedProject->name;
+                $prefill['project_id'] = $selectedProject->id;
+                
+                if ($effectiveCustomer && !$customers->contains('id', $effectiveCustomer->id)) {
+                    $customers = Customer::orderBy('name')->get();
+                }
+
+                if (!empty($selectedProject->bom_data)) {
+                    $bomParser = app(BomParserService::class);
+                    $prefilledProducts = $bomParser->parse($selectedProject->bom_data, $selectedProject->id);
+                }
+            }
+        }
 
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
 
         $defaultDisclaimer = Quotation::defaultDisclaimer();
 
-        return view('quotations.create', compact('customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId', 'defaultDisclaimer'));
+        return view('quotations.create', compact(
+            'customers', 'products', 'code', 'prefill', 'currencies', 'baseCurrencyId',
+            'defaultDisclaimer', 'projects', 'selectedProject', 'prefilledProducts'
+        ));
     }
 
     private function generateCode(): string
@@ -110,6 +140,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:quotations,code'],
             'customer_id' => ['required', 'exists:customers,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'contact_id' => ['required', 'exists:contacts,id'],
             'title' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
@@ -172,6 +203,7 @@ class QuotationController extends Controller
             $quotation = Quotation::create([
                 'code' => $validated['code'],
                 'customer_id' => $validated['customer_id'],
+                'project_id' => $validated['project_id'] ?? null,
                 'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
                 'title' => $validated['title'],
@@ -273,13 +305,15 @@ class QuotationController extends Controller
             return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
         }
 
-        $quotation->load('items');
+        $quotation->load(['items', 'project.customer', 'project.vendor', 'project.collaborateCustomer']);
         $customers = Customer::orderBy('name')->get();
         $products = Product::orderBy('name')->get();
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
+        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orWhere('id', $quotation->project_id)->orderBy('name')->get();
+        $selectedProject = $quotation->project;
 
-        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId'));
+        return view('quotations.edit', compact('quotation', 'customers', 'products', 'currencies', 'baseCurrencyId', 'projects', 'selectedProject'));
     }
 
     public function update(Request $request, Quotation $quotation)
@@ -302,8 +336,9 @@ class QuotationController extends Controller
         }
 
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', Rule::unique('quotations')->ignore($quotation->id)],
+            'code' => ['required', 'string', 'max:50', Rule::unique('quotations', 'code')->ignore($quotation->id)],
             'customer_id' => ['required', 'exists:customers,id'],
+            'project_id' => ['nullable', 'exists:projects,id'],
             'contact_id' => ['required', 'exists:contacts,id'],
             'title' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
@@ -365,6 +400,7 @@ class QuotationController extends Controller
             $quotation->update([
                 'code' => $validated['code'],
                 'customer_id' => $validated['customer_id'],
+                'project_id' => $request->has('project_id') ? ($validated['project_id'] ?? null) : $quotation->project_id,
                 'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
                 'title' => $validated['title'],
@@ -438,7 +474,7 @@ class QuotationController extends Controller
 
             DB::commit();
 
-            return redirect()->route('quotations.index')
+            return redirect()->route('quotations.show', $quotation->id)
                 ->with('success', 'Báo giá đã được cập nhật.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -607,15 +643,16 @@ class QuotationController extends Controller
             // Create sale
             $sale = Sale::create([
                 'code' => $saleCode,
-                'type' => 'retail',
+                'type' => $quotation->project_id ? 'project' : 'retail',
+                'project_id' => $quotation->project_id,
                 'customer_id' => $quotation->customer_id,
                 'contact_id' => $quotation->contact_id,
                 'customer_name' => $quotation->customer_name,
                 'date' => now(),
                 'subtotal' => $quotation->subtotal,
-                'discount' => $quotation->discount,
-                'vat' => $quotation->vat,
-                'vat_amount' => $quotation->vat_amount,
+                'discount' => $quotation->discount ?? 0,
+                'vat' => $quotation->vat ?? 0,
+                'vat_amount' => $quotation->vat_amount ?? 0,
                 'total' => $quotation->total,
                 'total_foreign' => $quotation->total_foreign,
                 'currency_id' => $quotation->currency_id,
@@ -641,6 +678,7 @@ class QuotationController extends Controller
                     'sale_id' => $sale->id,
                     'product_id' => $item->product_id,
                     'product_name' => $item->product_name,
+                    'project_id' => $quotation->project_id,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
                     'total' => $item->total,

@@ -266,7 +266,8 @@ class PurchaseOrder extends Model
     public function getLinkedSalespersonNamesAttribute(): string
     {
         $names = $this->items->map(function($item) {
-            return $item->saleOrderRequestItem->saleOrderRequest->sale->user->name ?? null;
+            return $item->saleOrderRequestItem->saleOrderRequest->creator->name 
+                ?? ($item->saleOrderRequestItem->saleOrderRequest->sale->user->name ?? null);
         })->filter()->unique();
 
         return $names->isEmpty() ? ($this->sale->user->name ?? $this->creator->name ?? 'N/A') : $names->implode(', ');

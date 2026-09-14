@@ -176,6 +176,7 @@ Route::middleware(['auth'])->group(function () {
     // Sales routes
     Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
     Route::get('/sales/order-tracking', [SaleController::class, 'orderTracking'])->name('sales.order-tracking');
+    Route::post('/sales/parse-bom', [SaleController::class, 'parseBom'])->name('sales.parse-bom');
     Route::resource('sales', SaleController::class);
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'generatePdf'])->name('sales.pdf');
     Route::post('/sales/{sale}/email', [SaleController::class, 'sendEmail'])->name('sales.email');
@@ -247,6 +248,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Payment Template routes
     Route::post('/settings/payment-templates/{id}/toggle', [\App\Http\Controllers\PaymentTemplateController::class, 'toggle'])->name('settings.payment-templates.toggle');
+    Route::post('/settings/payment-templates/threshold', [\App\Http\Controllers\PaymentTemplateController::class, 'updateThreshold'])->name('settings.payment-templates.update-threshold');
     Route::resource('settings/payment-templates', \App\Http\Controllers\PaymentTemplateController::class, ['names' => 'settings.payment-templates']);
 
     // Customer Debt Management routes

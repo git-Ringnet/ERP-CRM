@@ -122,6 +122,17 @@
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
                         {{ $marketingEvent->code }}
                     </span>
+                    @if($marketingEvent->is_public_to_sales)
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <i class="fas fa-globe text-emerald-500"></i>
+                            <span>Hãng lớn / Toàn công ty</span>
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                            <i class="fas fa-lock text-slate-400"></i>
+                            <span>Chỉ định / Riêng tư</span>
+                        </span>
+                    @endif
                 </div>
                 <ul class="text-sm text-gray-400 mt-1.5 flex flex-wrap items-center">
                     <li class="inline-flex items-center gap-1.5 mr-4 mb-1">
@@ -281,8 +292,8 @@
                         </div>
                         <div>
                             <span class="text-gray-400">Loại hình tổ chức:</span>
-                            <span class="font-bold text-gray-700 block">
-                                {{ $marketingEvent->organize_type === 'other' ? $marketingEvent->organize_type_other : ucfirst($marketingEvent->organize_type) }}
+                            <span class="font-bold text-gray-700 block notranslate" translate="no">
+                                {{ $marketingEvent->organize_type_label }}
                             </span>
                         </div>
                         <div>

@@ -146,6 +146,11 @@ class Project extends Model
         return $this->hasMany(Sale::class);
     }
 
+    public function quotations()
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
     public function opportunities()
     {
         return $this->hasMany(Opportunity::class);
@@ -174,6 +179,199 @@ class Project extends Model
     public function statusUpdates()
     {
         return $this->hasMany(ProjectStatusUpdate::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get list of all chronological updates made by Sales and PM on this project.
+     * Format: [H:i j.n.Y] Role: Content
+     * 
+     * @return array
+     */
+    public function getTimelineUpdates(): array
+    {
+        $entries = [];
+
+        // 1. Sales monthly / periodic status updates
+        $statusUpdates = $this->relationLoaded('statusUpdates') ? $this->statusUpdates : $this->statusUpdates()->get();
+        foreach ($statusUpdates as $su) {
+            $stageText = match ($su->forecast_stage) {
+                'budget_quote' => 'Đã báo giá dự toán',
+                'bidding' => 'Đang đấu thầu',
+                'waiting_result' => 'Chờ kết quả thầu',
+                'close_deal' => 'Chốt hợp đồng',
+                default => $su->forecast_stage ?: 'Cập nhật tiến độ',
+            };
+            
+            $details = [];
+            if (!empty($stageText)) {
+                $details[] = $stageText;
+            }
+            if (!empty($su->support_request_note)) {
+                $details[] = $su->support_request_note;
+            } elseif (!empty($su->support_request_type)) {
+                $details[] = $su->support_request_type;
+            }
+
+            $content = implode(' - ', $details);
+            $time = $su->created_at ? $su->created_at->format('H:i j.n.Y') : '';
+            $entries[] = [
+                'time' => $time,
+                'created_at' => $su->created_at,
+                'role' => 'Sales',
+                'formatted' => "[{$time}] Sales: {$content}",
+            ];
+        }
+
+        // 2. PM and Sales conversation notes
+        $notes = $this->relationLoaded('notes') ? $this->notes : $this->notes()->get();
+        foreach ($notes as $note) {
+            $role = ($note->user_role === 'pm' || ($note->user && in_array($note->user->department, ['PM', 'PO', 'PM Team', 'PO Team']))) ? 'PM' : 'Sales';
+            $time = $note->created_at ? $note->created_at->format('H:i j.n.Y') : '';
+            $content = trim((string)$note->content);
+            if (!empty($content)) {
+                $entries[] = [
+                    'time' => $time,
+                    'created_at' => $note->created_at,
+                    'role' => $role,
+                    'formatted' => "[{$time}] {$role}: {$content}",
+                ];
+            }
+        }
+
+        // 3. PM vendor quote submissions
+        $vendorQuotes = $this->relationLoaded('vendorQuoteVersions') ? $this->vendorQuoteVersions : $this->vendorQuoteVersions()->get();
+        foreach ($vendorQuotes as $vq) {
+            $time = $vq->created_at ? $vq->created_at->format('H:i j.n.Y') : '';
+            $vqContent = "Đã nộp báo giá Hãng v" . ($vq->version ?? $vq->version_number ?? '1') . ($vq->note ? ": {$vq->note}" : '');
+            $entries[] = [
+                'time' => $time,
+                'created_at' => $vq->created_at,
+                'role' => 'PM',
+                'formatted' => "[{$time}] PM: {$vqContent}",
+            ];
+        }
+
+        // 4. Initial note from registration
+        if (!empty($this->note)) {
+            $time = $this->created_at ? $this->created_at->format('H:i j.n.Y') : '';
+            $entries[] = [
+                'time' => $time,
+                'created_at' => $this->created_at,
+                'role' => 'Sales',
+                'formatted' => "[{$time}] Sales: " . trim((string)$this->note),
+            ];
+        }
+
+        // Sort by created_at desc (newest first)
+        usort($entries, function ($a, $b) {
+            $tA = $a['created_at'] ? $a['created_at']->timestamp : 0;
+            $tB = $b['created_at'] ? $b['created_at']->timestamp : 0;
+            return $tB <=> $tA;
+        });
+
+        return $entries;
+    }
+
+    /**
+     * Get formatted updates text for export / table display
+     * 
+     * @param bool $allUpdates If true, returns all updates separated by newline; if false, returns latest update.
+     * @return string
+     */
+    public function getFormattedUpdatesSummary(bool $allUpdates = true): string
+    {
+        $updates = $this->getTimelineUpdates();
+        if (empty($updates)) {
+            $time = $this->created_at ? $this->created_at->format('H:i j.n.Y') : '';
+            return "[{$time}] Sales: Đăng ký dự án ban đầu";
+        }
+
+        if (!$allUpdates) {
+            return $updates[0]['formatted'];
+        }
+
+        return implode("\n", array_column($updates, 'formatted'));
+    }
+
+    /**
+     * Find or auto-create Customer record in customers table from Project details
+     */
+    public function findOrCreateCustomerFromProject(): ?Customer
+    {
+        // 1. If collaborate_customer_id exists and points to a valid Customer
+        if ($this->collaborate_customer_id) {
+            $cust = Customer::find($this->collaborate_customer_id);
+            if ($cust) return $cust;
+        }
+
+        // 2. If partner info is filled (collaborate_type === 'partner')
+        if ($this->collaborate_type === 'partner' && !empty($this->collaborate_company)) {
+            $customer = null;
+            if (!empty($this->collaborate_tax_code)) {
+                $customer = Customer::where('tax_code', trim($this->collaborate_tax_code))->first();
+            }
+            if (!$customer) {
+                $customer = Customer::where('name', trim($this->collaborate_company))->first();
+            }
+
+            if (!$customer) {
+                $customer = Customer::create([
+                    'name' => trim($this->collaborate_company),
+                    'tax_code' => $this->collaborate_tax_code ?: null,
+                    'phone' => $this->collaborate_pic_phone ?: null,
+                    'email' => $this->collaborate_pic_email ?: null,
+                    'address' => $this->address ?: null,
+                    'type' => 'normal',
+                ]);
+            }
+
+            // Update project with customer ID
+            $this->update([
+                'collaborate_customer_id' => $customer->id,
+                'customer_id' => $this->customer_id ?: $customer->id,
+            ]);
+
+            return $customer;
+        }
+
+        // 3. If customer_id exists and points to a valid Customer
+        if ($this->customer_id) {
+            $cust = Customer::find($this->customer_id);
+            if ($cust) return $cust;
+        }
+
+        // 4. If end-user info is filled
+        $euName = $this->eu_name_vi ?: $this->customer_name;
+        if (!empty($euName)) {
+            $customer = null;
+            if (!empty($this->eu_tax_code)) {
+                $customer = Customer::where('tax_code', trim($this->eu_tax_code))->first();
+            }
+            if (!$customer) {
+                $customer = Customer::where('name', trim($euName))->first();
+            }
+
+            if (!$customer) {
+                $customer = Customer::create([
+                    'name' => trim($euName),
+                    'name_en' => $this->eu_name_en ?: null,
+                    'abv_name' => $this->eu_name_abbr ?: null,
+                    'tax_code' => $this->eu_tax_code ?: null,
+                    'address' => $this->address ?: null,
+                    'type' => 'normal',
+                ]);
+            }
+
+            // Update project reference
+            $this->update([
+                'collaborate_customer_id' => $customer->id,
+                'customer_id' => $customer->id,
+            ]);
+
+            return $customer;
+        }
+
+        return null;
     }
 
     // --- Helper Methods ---

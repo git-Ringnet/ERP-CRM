@@ -846,7 +846,17 @@
                                                 Quá hạn SLA
                                             </div>
                                         </template>
-                                        <template x-if="!deal.is_sla_overdue">
+                                        <template x-if="!deal.is_sla_overdue && deal.is_nearing_expiry">
+                                            <div class="space-y-0.5">
+                                                <span
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                                    >60 ngày chưa update
+                                                </span>
+                                                <div class="text-[10px] text-slate-400"
+                                                    x-text="deal.last_updated ? ('Update ' + deal.last_updated) : deal.updated_at_raw"></div>
+                                            </div>
+                                        </template>
+                                        <template x-if="!deal.is_sla_overdue && !deal.is_nearing_expiry">
                                             <div class="text-[10px] text-slate-500"
                                                 x-text="deal.last_updated ? ('Update ' + deal.last_updated) : deal.updated_at_raw">
                                             </div>

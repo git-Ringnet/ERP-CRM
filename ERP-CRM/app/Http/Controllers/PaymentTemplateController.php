@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PaymentTemplate;
 use App\Models\PaymentTemplateItem;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -13,7 +14,18 @@ class PaymentTemplateController extends Controller
     {
         $this->authorize('viewAny', PaymentTemplate::class);
         $templates = PaymentTemplate::withCount('items')->orderBy('created_at', 'desc')->get();
-        return view('settings.payment-templates.index', compact('templates'));
+        $largeOrderThreshold = (float) Setting::get('large_order_post_delivery_threshold', 1000000000);
+        return view('settings.payment-templates.index', compact('templates', 'largeOrderThreshold'));
+    }
+
+    public function updateThreshold(Request $request)
+    {
+        $this->authorize('update', PaymentTemplate::class);
+        $raw = str_replace([',', '.', ' '], '', $request->input('large_order_post_delivery_threshold', '1000000000'));
+        $threshold = max(0, (float) $raw);
+        Setting::set('large_order_post_delivery_threshold', $threshold);
+
+        return back()->with('success', 'Đã cập nhật hạn mức đơn hàng lớn bắt buộc đặt cọc / thanh toán trước thành công.');
     }
 
     public function create()
