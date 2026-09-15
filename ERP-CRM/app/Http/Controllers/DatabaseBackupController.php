@@ -128,21 +128,31 @@ class DatabaseBackupController extends Controller
 
                 // Add public storage attachments (UNC, invoices, quotes, avatars, etc.)
                 $publicStoragePath = storage_path('app/public');
-                if (is_dir($publicStoragePath)) {
+                if (file_exists($publicStoragePath)) {
                     $this->addDirectoryToZip($publicStoragePath, $zip, 'storage_public');
                 }
 
                 // Add technical tickets attachments
                 $ticketsStoragePath = storage_path('app/technical_tickets');
-                if (is_dir($ticketsStoragePath)) {
+                if (file_exists($ticketsStoragePath)) {
                     $this->addDirectoryToZip($ticketsStoragePath, $zip, 'storage_tickets');
+                }
+
+                // Add any configured external drive attachment paths
+                $externalPaths = config('backup.attachment_paths', []);
+                foreach ($externalPaths as $idx => $path) {
+                    if (!empty($path) && file_exists($path)) {
+                        $folderName = 'external_' . basename(rtrim(str_replace('\\', '/', $path), '/'));
+                        $this->addDirectoryToZip($path, $zip, $folderName);
+                    }
                 }
 
                 // Add manifest metadata
                 $manifest = [
                     'app' => 'Mini ERP-CRM',
-                    'version' => '4.9',
+                    'version' => '5.0',
                     'backup_type' => 'full',
+
                     'created_at' => now()->toDateTimeString(),
                     'db_name' => $dbName,
                     'has_database' => true,
@@ -394,18 +404,25 @@ class DatabaseBackupController extends Controller
      */
     private function addDirectoryToZip(string $sourcePath, ZipArchive $zip, string $zipPrefix = ''): void
     {
-        if (!is_dir($sourcePath)) {
+        if (!file_exists($sourcePath)) {
             return;
         }
 
+        $realSource = realpath($sourcePath) ?: $sourcePath;
+        $flags = FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS;
+
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($sourcePath, FilesystemIterator::SKIP_DOTS),
+            new RecursiveDirectoryIterator($sourcePath, $flags),
             RecursiveIteratorIterator::SELF_FIRST
         );
 
         foreach ($files as $file) {
             $filePath = $file->getRealPath();
-            $relativePath = substr($filePath, strlen(realpath($sourcePath)) + 1);
+            if (!$filePath || !file_exists($filePath)) {
+                continue;
+            }
+
+            $relativePath = substr($filePath, strlen($realSource) + 1);
             $relativePath = str_replace('\\', '/', $relativePath);
             $zipEntryPath = $zipPrefix ? ($zipPrefix . '/' . $relativePath) : $relativePath;
 
@@ -416,6 +433,7 @@ class DatabaseBackupController extends Controller
             }
         }
     }
+
 
     /**
      * Recursively copy directory contents.

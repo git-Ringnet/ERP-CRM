@@ -218,7 +218,9 @@
                                         @if($stat['is_current_year'])
                                             <span class="ml-1 text-[10px] bg-primary text-white px-2 py-0.5 rounded-full uppercase">Năm hiện tại</span>
                                         @elseif($year == date('Y') - 1)
-                                            <span class="ml-1 text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">Năm liền kề</span>
+                                            <span class="ml-1 text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">Năm ngoái</span>
+                                        @else
+                                            <span class="ml-1 text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full uppercase">Lịch sử</span>
                                         @endif
                                     </td>
                                     <td class="px-5 py-4 text-gray-800">
@@ -263,12 +265,16 @@
                                                     <i class="fas fa-rotate-left mr-1"></i> Phục hồi về Live
                                                 </button>
                                             @endif
+                                            @if($stat['total_live_records'] == 0 && $stat['archived_sales_count'] == 0)
+                                                <span class="text-xs text-gray-400 italic">Không có dữ liệu</span>
+                                            @endif
                                         @else
                                             <span class="text-xs text-gray-400 italic">
                                                 <i class="fas fa-lock mr-1"></i> Đang hoạt động (Hot Data)
                                             </span>
                                         @endif
                                     </td>
+
                                 </tr>
                             @endforeach
                         @else

@@ -138,7 +138,13 @@ class DataArchivingService
 
             // Live counts
             $salesCount = DB::table('sales')->whereBetween('created_at', [$startDate, $endDate])->count();
-            $salesTotal = DB::table('sales')->whereBetween('created_at', [$startDate, $endDate])->sum('total_amount') ?? 0;
+            $salesTotal = 0;
+            if (Schema::hasColumn('sales', 'total')) {
+                $salesTotal = DB::table('sales')->whereBetween('created_at', [$startDate, $endDate])->sum('total') ?? 0;
+            } elseif (Schema::hasColumn('sales', 'total_amount')) {
+                $salesTotal = DB::table('sales')->whereBetween('created_at', [$startDate, $endDate])->sum('total_amount') ?? 0;
+            }
+
             $quotationsCount = Schema::hasTable('quotations') ? DB::table('quotations')->whereBetween('created_at', [$startDate, $endDate])->count() : 0;
             $importsCount = Schema::hasTable('imports') ? DB::table('imports')->whereBetween('created_at', [$startDate, $endDate])->count() : 0;
             $exportsCount = Schema::hasTable('exports') ? DB::table('exports')->whereBetween('created_at', [$startDate, $endDate])->count() : 0;
@@ -154,7 +160,7 @@ class DataArchivingService
                     ->count();
             }
 
-            $isSafeToArchive = ($year < $currentYear - 1); // Older than 2 recent years
+            $isSafeToArchive = ($year < $currentYear); // All completed past years can be archived if user wants
 
             $stats[$year] = [
                 'year' => $year,
