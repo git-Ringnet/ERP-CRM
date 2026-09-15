@@ -463,10 +463,24 @@ class DatabaseBackupController extends Controller
             } else {
                 $targetDir = dirname($targetPath);
                 if (!is_dir($targetDir)) {
-                    mkdir($targetDir, 0777, true);
+                    @mkdir($targetDir, 0777, true);
                 }
-                copy($item->getRealPath(), $targetPath);
+
+                // If target file already exists and is not writable, attempt to fix permissions or ignore if it's .gitignore
+                if (file_exists($targetPath)) {
+                    if (basename($targetPath) === '.gitignore') {
+                        continue; // Keep existing .gitignore safely
+                    }
+                    @chmod($targetPath, 0666);
+                }
+
+                try {
+                    @copy($item->getRealPath(), $targetPath);
+                } catch (\Throwable $e) {
+                    Log::warning("Không thể ghi đè file khi khôi phục ({$targetPath}): " . $e->getMessage());
+                }
             }
+
         }
     }
 
