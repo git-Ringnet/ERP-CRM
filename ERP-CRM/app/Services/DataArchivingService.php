@@ -120,11 +120,19 @@ class DataArchivingService
         $currentYear = (int) date('Y');
 
         // Find the oldest record year across sales, quotations, financial transactions
-        $oldestSale = DB::table('sales')->min('created_at');
-        $oldestYear = $oldestSale ? (int) date('Y', strtotime($oldestSale)) : ($currentYear - 3);
+        $minDate = DB::table('sales')->min('created_at');
+        if (Schema::hasTable('quotations')) {
+            $minQuote = DB::table('quotations')->min('created_at');
+            if ($minQuote && (!$minDate || $minQuote < $minDate)) $minDate = $minQuote;
+        }
+        if (Schema::hasTable('financial_transactions')) {
+            $minTx = DB::table('financial_transactions')->min('created_at');
+            if ($minTx && (!$minDate || $minTx < $minDate)) $minDate = $minTx;
+        }
 
-        if ($oldestYear > $currentYear - 2) {
-            $oldestYear = $currentYear - 2;
+        $oldestYear = $minDate ? (int) date('Y', strtotime($minDate)) : $currentYear;
+        if ($oldestYear > $currentYear) {
+            $oldestYear = $currentYear;
         }
 
         $archiveConn = $this->checkArchiveConnection();
@@ -160,7 +168,14 @@ class DataArchivingService
                     ->count();
             }
 
-            $isSafeToArchive = ($year < $currentYear); // All completed past years can be archived if user wants
+            $totalLiveRecords = $salesCount + $quotationsCount + $importsCount + $exportsCount + $transactionsCount + $activityLogsCount;
+
+            // Only display years that have actual data or are the active current year
+            if ($year !== $currentYear && $totalLiveRecords === 0 && $archivedSalesCount === 0) {
+                continue;
+            }
+
+            $isSafeToArchive = ($year < $currentYear);
 
             $stats[$year] = [
                 'year' => $year,
@@ -171,12 +186,13 @@ class DataArchivingService
                 'exports_count' => $exportsCount,
                 'transactions_count' => $transactionsCount,
                 'activity_logs_count' => $activityLogsCount,
-                'total_live_records' => $salesCount + $quotationsCount + $importsCount + $exportsCount + $transactionsCount + $activityLogsCount,
+                'total_live_records' => $totalLiveRecords,
                 'archived_sales_count' => $archivedSalesCount,
                 'is_safe_to_archive' => $isSafeToArchive,
                 'is_current_year' => ($year === $currentYear),
             ];
         }
+
 
         return $stats;
     }
