@@ -523,12 +523,17 @@ class DatabaseBackupController extends Controller
 
         $backup = DatabaseBackup::findOrFail($id);
 
+        if (empty($backup->backup_password)) {
+            return response()->json(['password' => 'Bản sao lưu này không đặt mật khẩu (Gói nén ZIP tiêu chuẩn).']);
+        }
+
         try {
             $password = Crypt::decryptString($backup->backup_password);
             return response()->json(['password' => $password]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Không thể giải mã mật khẩu.'], 500);
         }
+
     }
 
     /**

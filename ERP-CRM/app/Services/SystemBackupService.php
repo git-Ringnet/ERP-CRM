@@ -247,10 +247,11 @@ class SystemBackupService
             // 4. Record to Database History Table
             DatabaseBackup::create([
                 'filename' => $finalFilename,
-                'backup_password' => !empty($passwordToUse) ? Crypt::encryptString($passwordToUse) : null,
+                'backup_password' => !empty($passwordToUse) ? Crypt::encryptString($passwordToUse) : '',
                 'user_id' => $userId,
                 'size' => $this->formatBytes($finalSize),
             ]);
+
 
             // 5. Cleanup temporary folder
             $this->deleteDirectory($tempDir);
