@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseBackup;
+use App\Services\DataArchivingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -19,13 +20,17 @@ use FilesystemIterator;
 class DatabaseBackupController extends Controller
 {
     /**
-     * Display the backup/restore management page.
+     * Display the backup/restore and data archiving management page.
      */
-    public function index()
+    public function index(DataArchivingService $archivingService)
     {
         $this->authorize('viewAny', \App\Models\Setting::class);
         $backups = DatabaseBackup::with('user')->orderBy('created_at', 'desc')->get();
-        return view('settings.database', compact('backups'));
+        
+        $archiveConn = $archivingService->checkArchiveConnection();
+        $yearlyStats = $archivingService->getYearlyStats();
+
+        return view('settings.database', compact('backups', 'archiveConn', 'yearlyStats'));
     }
 
     /**
@@ -538,6 +543,56 @@ class DatabaseBackupController extends Controller
     }
 
     /**
+     * Archive data of a specific year to Archive DB.
+     */
+     public function archiveYear(Request $request, DataArchivingService $archivingService)
+     {
+         $this->authorize('update', \App\Models\Setting::class);
+
+         $request->validate([
+             'year' => 'required|integer|min:2000|max:' . date('Y'),
+             'purge_from_live' => 'nullable|boolean',
+         ]);
+
+         $year = (int) $request->input('year');
+         $purgeFromLive = $request->boolean('purge_from_live', true);
+
+         try {
+             $result = $archivingService->archiveYear($year, $purgeFromLive);
+             return redirect()->route('settings.database.index')
+                 ->with('success', $result['message']);
+         } catch (\Exception $e) {
+             Log::error("Data Archiving Error for year {$year}: " . $e->getMessage());
+             return redirect()->route('settings.database.index')
+                 ->with('error', 'Lỗi khi đóng gói dữ liệu năm ' . $year . ': ' . $e->getMessage());
+         }
+     }
+
+     /**
+      * Restore/Unarchive data of a specific year from Archive DB back to Live DB.
+      */
+     public function restoreYear(Request $request, DataArchivingService $archivingService)
+     {
+         $this->authorize('update', \App\Models\Setting::class);
+
+         $request->validate([
+             'year' => 'required|integer|min:2000|max:' . date('Y'),
+         ]);
+
+         $year = (int) $request->input('year');
+
+         try {
+             $result = $archivingService->restoreYear($year);
+             return redirect()->route('settings.database.index')
+                 ->with('success', $result['message']);
+         } catch (\Exception $e) {
+             Log::error("Data Restore Error for year {$year}: " . $e->getMessage());
+             return redirect()->route('settings.database.index')
+                 ->with('error', 'Lỗi khi phục hồi dữ liệu năm ' . $year . ': ' . $e->getMessage());
+         }
+     }
+
+    /**
      * Format bytes to human readable size.
      */
     private function formatBytes($bytes, $precision = 2)
@@ -551,3 +606,4 @@ class DatabaseBackupController extends Controller
         return round($bytes, $precision) . ' ' . $units[$pow];
     }
 }
+

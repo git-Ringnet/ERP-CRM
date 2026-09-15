@@ -146,6 +146,144 @@
         </ul>
     </div>
 
+    {{-- Data Archiving Section --}}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-2">
+            <div>
+                <h4 class="font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-box-archive mr-2 text-amber-600"></i>
+                    Đóng gói & Lưu trữ Dữ liệu Lịch sử (Data Archiving)
+                </h4>
+                <p class="text-xs text-gray-500 mt-1">
+                    Bóc tách dữ liệu các năm cũ sang CSDL Lưu trữ riêng để tối ưu tốc độ hệ thống mà vẫn tra cứu được tức thì.
+                </p>
+            </div>
+            <div class="flex items-center space-x-2">
+                @if(isset($archiveConn) && $archiveConn['status'])
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                        <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                        CSDL Lưu trữ: {{ $archiveConn['db_name'] }} (Sẵn sàng)
+                    </span>
+                @else
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800" title="{{ $archiveConn['message'] ?? '' }}">
+                        <span class="w-2 h-2 mr-1.5 bg-amber-500 rounded-full"></span>
+                        CSDL Lưu trữ: Tự động khởi tạo khi đóng gói
+                    </span>
+                @endif
+            </div>
+        </div>
+
+        <div class="p-6">
+            {{-- Explain Box --}}
+            <div class="mb-6 p-4 bg-amber-50/70 border border-amber-200/80 rounded-lg text-xs text-amber-900 leading-relaxed">
+                <div class="font-bold flex items-center mb-1 text-amber-950">
+                    <i class="fas fa-lightbulb text-amber-600 mr-2 text-sm"></i> Nguyên tắc vận hành an toàn:
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                    <div class="p-2.5 bg-white/70 rounded border border-amber-100">
+                        <span class="font-semibold block text-gray-900 mb-0.5">1. Chốt số dư chuyển tiếp</span>
+                        Hệ thống tự động chốt số dư công nợ và tồn kho cuối năm cũ thành số dư đầu kỳ cho năm mới.
+                    </div>
+                    <div class="p-2.5 bg-white/70 rounded border border-amber-100">
+                        <span class="font-semibold block text-gray-900 mb-0.5">2. Sao chép sang Archive DB</span>
+                        Toàn bộ giao dịch (Đơn hàng, Báo giá, Phiếu kho, Giao dịch) được chuyển sang CSDL Lưu trữ.
+                    </div>
+                    <div class="p-2.5 bg-white/70 rounded border border-amber-100">
+                        <span class="font-semibold block text-gray-900 mb-0.5">3. Tối ưu CSDL chính</span>
+                        CSDL chính chỉ giữ 2 năm gần nhất, nhẹ hơn 70-80%, truy vấn báo cáo siêu tốc.
+                    </div>
+                </div>
+            </div>
+
+            {{-- Yearly Table --}}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-5 py-3">Năm</th>
+                            <th class="px-5 py-3">Đơn hàng (Sales)</th>
+                            <th class="px-5 py-3">Tổng doanh số</th>
+                            <th class="px-5 py-3">Báo giá / Phiếu kho / Thu chi</th>
+                            <th class="px-5 py-3 text-center">Bản ghi CSDL chính</th>
+                            <th class="px-5 py-3 text-center">Bản ghi Lưu trữ</th>
+                            <th class="px-5 py-3 text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @if(isset($yearlyStats) && count($yearlyStats) > 0)
+                            @foreach($yearlyStats as $year => $stat)
+                                <tr class="hover:bg-gray-50 transition-colors {{ $stat['is_current_year'] ? 'bg-primary/5 font-medium' : '' }}">
+                                    <td class="px-5 py-4 font-bold text-gray-900">
+                                        {{ $year }}
+                                        @if($stat['is_current_year'])
+                                            <span class="ml-1 text-[10px] bg-primary text-white px-2 py-0.5 rounded-full uppercase">Năm hiện tại</span>
+                                        @elseif($year == date('Y') - 1)
+                                            <span class="ml-1 text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">Năm liền kề</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-4 text-gray-800">
+                                        <span class="font-semibold">{{ number_format($stat['sales_count']) }}</span> đơn
+                                    </td>
+                                    <td class="px-5 py-4 text-emerald-600 font-semibold">
+                                        {{ number_format($stat['sales_total'], 0, ',', '.') }} đ
+                                    </td>
+                                    <td class="px-5 py-4 text-xs text-gray-600 space-y-0.5">
+                                        <div>Báo giá: <span class="font-medium text-gray-800">{{ $stat['quotations_count'] }}</span> | Xuất/Nhập: <span class="font-medium text-gray-800">{{ $stat['imports_count'] + $stat['exports_count'] }}</span></div>
+                                        <div>Thu chi: <span class="font-medium text-gray-800">{{ $stat['transactions_count'] }}</span> | Log: <span class="font-medium text-gray-800">{{ $stat['activity_logs_count'] }}</span></div>
+                                    </td>
+                                    <td class="px-5 py-4 text-center">
+                                        @if($stat['total_live_records'] > 0)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                {{ number_format($stat['total_live_records']) }} bản ghi
+                                            </span>
+                                        @else
+                                            <span class="text-xs text-gray-400">0 (Đã dọn dẹp)</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-4 text-center">
+                                        @if($stat['archived_sales_count'] > 0)
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                <i class="fas fa-check-circle mr-1 text-green-600"></i> Đã lưu trữ ({{ number_format($stat['archived_sales_count']) }} đơn)
+                                            </span>
+                                        @else
+                                            <span class="text-xs text-gray-400">Chưa lưu trữ</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-4 text-right space-x-2 whitespace-nowrap">
+                                        @if($stat['is_safe_to_archive'])
+                                            @if($stat['total_live_records'] > 0)
+                                                <button type="button" onclick="openArchiveModal({{ $year }}, {{ $stat['total_live_records'] }})" 
+                                                        class="inline-flex items-center px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 shadow-sm transition-colors">
+                                                    <i class="fas fa-box-archive mr-1.5"></i> Đóng gói sang Archive
+                                                </button>
+                                            @endif
+                                            @if($stat['archived_sales_count'] > 0)
+                                                <button type="button" onclick="openRestoreArchiveModal({{ $year }})" 
+                                                        class="inline-flex items-center px-2.5 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 border border-gray-300 transition-colors">
+                                                    <i class="fas fa-rotate-left mr-1"></i> Phục hồi về Live
+                                                </button>
+                                            @endif
+                                        @else
+                                            <span class="text-xs text-gray-400 italic">
+                                                <i class="fas fa-lock mr-1"></i> Đang hoạt động (Hot Data)
+                                            </span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        @else
+                            <tr>
+                                <td colspan="7" class="px-5 py-6 text-center text-gray-500 text-xs">
+                                    Không có dữ liệu giao dịch nào cần thống kê.
+                                </td>
+                            </tr>
+                        @endif
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     {{-- History Section --}}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
@@ -253,6 +391,95 @@
     </div>
 </div>
 
+{{-- Archive Action Modal --}}
+<div id="archiveActionModal" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+        <button onclick="closeArchiveModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-lg"></i>
+        </button>
+        <div class="text-center mb-4">
+            <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-box-archive text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900">Đóng gói Dữ liệu Năm <span id="archiveTargetYear" class="text-amber-600 font-extrabold"></span></h3>
+            <p class="text-xs text-gray-500 mt-1">
+                Dữ liệu năm này sẽ được chuyển sang CSDL Lưu trữ (<code class="bg-gray-100 px-1 py-0.5 rounded text-amber-700">{{ $archiveConn['db_name'] ?? 'erp_crm_archive' }}</code>).
+            </p>
+        </div>
+
+        <form action="{{ route('settings.database.archive') }}" method="POST">
+            @csrf
+            <input type="hidden" name="year" id="archiveInputYear" value="">
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3.5 mb-4 text-xs text-amber-900 space-y-1.5">
+                <div class="font-semibold flex items-center text-amber-950">
+                    <i class="fas fa-check-circle text-amber-600 mr-1.5"></i> Các bước hệ thống sẽ tự động thực hiện:
+                </div>
+                <div class="pl-4 space-y-1 text-amber-800">
+                    <div>• Chốt số dư công nợ & tồn kho sang năm kế tiếp.</div>
+                    <div>• Copy toàn bộ đơn hàng, báo giá, phiếu kho, thu chi sang CSDL Lưu trữ.</div>
+                    <div>• Tối ưu giải phóng dung lượng trên CSDL chính.</div>
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <label class="flex items-start cursor-pointer p-2.5 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" name="purge_from_live" value="1" checked class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 mt-0.5 mr-2">
+                    <div class="text-xs">
+                        <span class="font-semibold text-gray-900 block">Xóa dữ liệu năm cũ khỏi CSDL chính (Khuyến nghị)</span>
+                        <span class="text-gray-500">Giải phóng dung lượng và tăng tốc hệ thống. Bạn vẫn tra cứu được dữ liệu bất cứ lúc nào qua CSDL Lưu trữ.</span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="flex space-x-3">
+                <button type="button" onclick="closeArchiveModal()" class="w-1/2 py-2.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                    Hủy bỏ
+                </button>
+                <button type="submit" class="w-1/2 py-2.5 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 shadow-sm transition-colors flex items-center justify-center">
+                    <i class="fas fa-box-archive mr-1.5"></i> Tiến hành Đóng gói
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Restore Archive Modal --}}
+<div id="restoreArchiveModal" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+        <button onclick="closeRestoreArchiveModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-lg"></i>
+        </button>
+        <div class="text-center mb-4">
+            <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-rotate-left text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900">Phục hồi Dữ liệu Năm <span id="restoreTargetYear" class="text-blue-600 font-extrabold"></span></h3>
+            <p class="text-xs text-gray-500 mt-1">
+                Nạp lại toàn bộ dữ liệu từ CSDL Lưu trữ về CSDL chính đang hoạt động.
+            </p>
+        </div>
+
+        <form action="{{ route('settings.database.restore') }}" method="POST">
+            @csrf
+            <input type="hidden" name="year" id="restoreInputYear" value="">
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3.5 mb-5 text-xs text-blue-900">
+                <p>Thao tác này sẽ nạp lại các bản ghi của năm <strong id="restoreTargetYearSpan"></strong> từ CSDL Lưu trữ vào CSDL chính mà không làm mất các bản ghi hiện tại.</p>
+            </div>
+
+            <div class="flex space-x-3">
+                <button type="button" onclick="closeRestoreArchiveModal()" class="w-1/2 py-2.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                    Hủy bỏ
+                </button>
+                <button type="submit" class="w-1/2 py-2.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm transition-colors flex items-center justify-center">
+                    <i class="fas fa-rotate-left mr-1.5"></i> Xác nhận Phục hồi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     let currentBackupId = null;
 
@@ -267,6 +494,27 @@
 
     function closeModal() {
         document.getElementById('passwordModal').style.display = 'none';
+    }
+
+    function openArchiveModal(year, totalRecords) {
+        document.getElementById('archiveTargetYear').innerText = year;
+        document.getElementById('archiveInputYear').value = year;
+        document.getElementById('archiveActionModal').style.display = 'flex';
+    }
+
+    function closeArchiveModal() {
+        document.getElementById('archiveActionModal').style.display = 'none';
+    }
+
+    function openRestoreArchiveModal(year) {
+        document.getElementById('restoreTargetYear').innerText = year;
+        document.getElementById('restoreTargetYearSpan').innerText = year;
+        document.getElementById('restoreInputYear').value = year;
+        document.getElementById('restoreArchiveModal').style.display = 'flex';
+    }
+
+    function closeRestoreArchiveModal() {
+        document.getElementById('restoreArchiveModal').style.display = 'none';
     }
 
     async function submitPasswordRequest() {
@@ -312,7 +560,12 @@
     }
 
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeModal();
+        if (e.key === 'Escape') {
+            closeModal();
+            closeArchiveModal();
+            closeRestoreArchiveModal();
+        }
     });
 </script>
 @endsection
+

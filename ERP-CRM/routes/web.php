@@ -239,12 +239,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings/po-company', [SupplierController::class, 'companyConfig'])->name('settings.po-company');
     Route::put('/settings/po-company', [SupplierController::class, 'updateCompanyConfig'])->name('settings.po-company.update');
 
-    // Database Backup & Restore routes
+    // Database Backup, Restore & Archiving routes
     Route::get('/settings/database', [\App\Http\Controllers\DatabaseBackupController::class, 'index'])->name('settings.database.index');
     Route::post('/settings/database/export', [\App\Http\Controllers\DatabaseBackupController::class, 'export'])->middleware('large.upload')->name('settings.database.export');
     Route::post('/settings/database/import', [\App\Http\Controllers\DatabaseBackupController::class, 'import'])->middleware('large.upload')->name('settings.database.import');
+    Route::post('/settings/database/archive', [\App\Http\Controllers\DatabaseBackupController::class, 'archiveYear'])->name('settings.database.archive');
+    Route::post('/settings/database/restore', [\App\Http\Controllers\DatabaseBackupController::class, 'restoreYear'])->name('settings.database.restore');
     Route::post('/settings/database/show-password/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'showPassword'])->name('settings.database.show-password');
     Route::delete('/settings/database/{id}', [\App\Http\Controllers\DatabaseBackupController::class, 'destroy'])->name('settings.database.destroy');
+
 
     // Payment Template routes
     Route::post('/settings/payment-templates/{id}/toggle', [\App\Http\Controllers\PaymentTemplateController::class, 'toggle'])->name('settings.payment-templates.toggle');
