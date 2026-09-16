@@ -16,7 +16,11 @@ class TransferSeeder extends Seeder
      */
     public function run(): void
     {
-        $warehouses = Warehouse::all();
+        // Ưu tiên 4 kho vận hành chính
+        $warehouses = Warehouse::whereIn('code', ['WH_RUNRATE', 'WH_PROJECT', 'WH_LICENSE', 'WH_WARRANTY'])->get();
+        if ($warehouses->count() < 2) {
+            $warehouses = Warehouse::all();
+        }
         $users = User::all();
         $products = Product::all();
 
