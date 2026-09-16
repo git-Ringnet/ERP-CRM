@@ -393,14 +393,6 @@
                         </tbody>
                     </table>
                 </div>
-                                        <i class="fas fa-search text-4xl mb-3"></i>
-                                        <p>Không tìm thấy dữ liệu theo dõi hàng về nào.</p>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
 
                 <!-- PO Quick View Modal -->
                 <div x-show="showPoModal" 
@@ -497,15 +489,6 @@
                             </template>
                         </div>
                     </div>
-                </div>
-            </div>
-                                        <i class="fas fa-box-open text-4xl mb-2 opacity-20"></i>
-                                        <p>Không có dữ liệu theo dõi hàng về.</p>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
