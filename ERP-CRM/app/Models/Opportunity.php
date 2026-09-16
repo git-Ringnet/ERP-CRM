@@ -121,6 +121,11 @@ class Opportunity extends Model
         return $this->belongsTo(Project::class);
     }
 
+    public function marketingItemTransactions()
+    {
+        return $this->hasMany(MarketingItemTransaction::class, 'opportunity_id')->orderBy('created_at', 'desc');
+    }
+
     // ===================================================================
     // Accessors
     // ===================================================================

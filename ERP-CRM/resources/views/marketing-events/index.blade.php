@@ -12,7 +12,27 @@
     $currentTab = request('tab', 'events');
 @endphp
 
-<div class="space-y-4" x-data="{ showAddFundModal: false }">
+<div class="space-y-4" x-data="{ 
+    showAddFundModal: false,
+    showAllocateGiftModal: false,
+    activeTicket: null,
+    giftRows: [{ item_id: '', quantity: 1 }],
+    giftNote: '',
+    openAllocateModal(ticket) {
+        this.activeTicket = ticket;
+        this.giftRows = [{ item_id: '', quantity: 1 }];
+        this.giftNote = '';
+        this.showAllocateGiftModal = true;
+    },
+    addGiftRow() {
+        this.giftRows.push({ item_id: '', quantity: 1 });
+    },
+    removeGiftRow(index) {
+        if (this.giftRows.length > 1) {
+            this.giftRows.splice(index, 1);
+        }
+    }
+}">
     {{-- Tabs Navigation --}}
     @if($isSuperOrMktOrOMOrBOD)
     <div class="bg-white rounded-lg shadow-sm p-2 flex border-b border-gray-100">
@@ -50,7 +70,7 @@
                         <tr>
                             <th class="px-4 py-3 text-left">Mã ticket</th>
                             <th class="px-4 py-3 text-left">Hoạt động / khách hàng</th>
-                            <th class="px-4 py-3 text-left">Nội dung cần xử lý</th>
+                            <th class="px-4 py-3 text-left min-w-[320px]">Nội dung cần xử lý & Quà tặng</th>
                             <th class="px-4 py-3 text-left">Hạn</th>
                             <th class="px-4 py-3 text-center">Trạng thái</th>
                             <th class="px-4 py-3 text-left">Người phụ trách</th>
@@ -59,17 +79,85 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse($directRequests as $marketingRequest)
+                            @php
+                                $allocatedTxs = $marketingRequest->allocated_item_transactions->where('type', 'export');
+                                $ticketCode = $marketingRequest->ticket?->code ?: $marketingRequest->code;
+                                $targetName = $marketingRequest->opportunity?->name ?: ($marketingRequest->event?->title ?: 'Ticket quà tặng');
+                                $customerName = $marketingRequest->opportunity?->customer_display_name ?: '-';
+                                $modalPayload = [
+                                    'id' => $marketingRequest->id,
+                                    'code' => $ticketCode,
+                                    'name' => $targetName,
+                                    'customer' => $customerName,
+                                    'description' => $marketingRequest->description ?: 'Không có ghi chú thêm',
+                                    'actionUrl' => route('marketing-requests.allocate-items', $marketingRequest),
+                                    'allocatedItems' => $allocatedTxs->map(fn($t) => [
+                                        'id' => $t->id,
+                                        'item_name' => $t->marketingItem?->name ?? 'Vật phẩm',
+                                        'quantity' => $t->quantity,
+                                        'unit' => $t->marketingItem?->unit ?? 'Cái',
+                                        'deleteUrl' => route('marketing-requests.remove-item', ['marketingRequest' => $marketingRequest->id, 'transaction' => $t->id])
+                                    ])->values(),
+                                ];
+                            @endphp
                             <tr class="hover:bg-purple-50/30">
-                                <td class="px-4 py-3 font-semibold text-purple-700">
-                                    {{ $marketingRequest->ticket?->code ?: $marketingRequest->code }}
+                                <td class="px-4 py-3 font-semibold text-purple-700 whitespace-nowrap">
+                                    {{ $ticketCode }}
                                 </td>
-                                <td class="px-4 py-3">
-                                    <a class="font-medium text-gray-800 hover:text-purple-700" href="{{ route('opportunities.show', $marketingRequest->opportunity_id) }}">{{ $marketingRequest->opportunity?->name }}</a>
-                                    <div class="text-xs text-gray-500 mt-1"><i class="fas fa-building text-gray-400 mr-1"></i>{{ $marketingRequest->opportunity?->customer_display_name ?: '-' }}</div>
+                                <td class="px-4 py-3 min-w-[200px]">
+                                    @if($marketingRequest->opportunity_id)
+                                        <a class="font-medium text-gray-800 hover:text-purple-700 flex items-center gap-1.5" href="{{ route('opportunities.show', $marketingRequest->opportunity_id) }}">
+                                            <i class="fas fa-bullseye text-indigo-500 text-xs"></i> {{ $targetName }}
+                                        </a>
+                                    @elseif($marketingRequest->marketing_event_id)
+                                        <a class="font-medium text-gray-800 hover:text-purple-700 flex items-center gap-1.5" href="{{ route('marketing-events.show', $marketingRequest->marketing_event_id) }}">
+                                            <i class="fas fa-calendar-alt text-purple-500 text-xs"></i> {{ $targetName }}
+                                        </a>
+                                    @else
+                                        <span class="font-medium text-gray-800">{{ $targetName }}</span>
+                                    @endif
+                                    <div class="text-xs text-gray-500 mt-1"><i class="fas fa-building text-gray-400 mr-1"></i>{{ $customerName }}</div>
                                 </td>
-                                <td class="px-4 py-3 max-w-md whitespace-pre-line text-gray-600">
-                                    <div class="font-medium text-gray-800 mb-1"><i class="fas fa-gift text-purple-500 mr-1"></i>Quà tặng / Vật phẩm:</div>
-                                    <div class="bg-gray-50 p-2 rounded text-xs border border-gray-100">{{ $marketingRequest->description }}</div>
+                                <td class="px-4 py-3 max-w-lg">
+                                    <div class="space-y-2">
+                                        {{-- Yêu cầu từ Sales --}}
+                                        <div>
+                                            <div class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                                                <i class="fas fa-comment-dots text-purple-500"></i> Yêu cầu từ Sales:
+                                            </div>
+                                            <div class="bg-gray-50 p-2 rounded text-xs border border-gray-100 text-gray-600 whitespace-pre-line leading-relaxed">{{ $marketingRequest->description }}</div>
+                                        </div>
+
+                                        {{-- Tình trạng phân bổ quà từ kho --}}
+                                        @if($allocatedTxs->count() > 0)
+                                            <div class="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200">
+                                                <div class="flex items-center justify-between mb-1.5">
+                                                    <span class="text-[11px] font-bold text-emerald-800 uppercase flex items-center gap-1">
+                                                        <i class="fas fa-box-check text-emerald-600"></i> Đã xuất kho ({{ $allocatedTxs->count() }} loại quà):
+                                                    </span>
+                                                    <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" class="text-[11px] text-purple-700 hover:text-purple-900 font-bold hover:underline inline-flex items-center gap-1">
+                                                        <i class="fas fa-plus-circle"></i> Xuất thêm / Quản lý
+                                                    </button>
+                                                </div>
+                                                <div class="flex flex-wrap gap-1.5">
+                                                    @foreach($allocatedTxs as $tx)
+                                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white text-emerald-900 text-xs font-bold border border-emerald-300 shadow-2xs">
+                                                            <i class="fas fa-gift text-emerald-600"></i> {{ $tx->marketingItem?->name }}: <span class="text-purple-700">{{ $tx->quantity }} {{ $tx->marketingItem?->unit }}</span>
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="p-2.5 rounded-lg bg-amber-50/80 border border-amber-300 flex items-center justify-between gap-2">
+                                                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                                                    <i class="fas fa-exclamation-triangle text-amber-500 text-sm"></i> Chưa phân bổ quà từ kho
+                                                </span>
+                                                <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-bold shadow-xs transition inline-flex items-center gap-1">
+                                                    <i class="fas fa-plus"></i> Phân bổ quà ngay
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
                                     {{ $marketingRequest->deadline?->format('d/m/Y') ?: '-' }}
@@ -102,44 +190,51 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-center whitespace-nowrap">
-                                    <div class="flex items-center justify-center gap-2">
-                                        @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
-                                            <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex items-center gap-1">
-                                                @csrf
-                                                <select name="assigned_to" class="max-w-[130px] border border-gray-300 rounded px-2 py-1 text-xs" required title="Chọn người phụ trách">
-                                                    <option value="">Phân công...</option>
-                                                    @foreach($marketingAssignees as $assignee)
-                                                        <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
-                                                    @endforeach
-                                                </select>
-                                                <button type="submit" class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 shadow-sm" title="Lưu phân công"><i class="fas fa-save"></i></button>
-                                            </form>
-                                        @endif
+                                    <div class="flex flex-col gap-2 items-center justify-center">
+                                        {{-- Nút Phân bổ Quà tặng từ kho --}}
+                                        <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" class="w-full px-2.5 py-1.5 text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors shadow-2xs inline-flex items-center justify-center gap-1.5" title="Phân bổ / Xuất quà từ kho cho Ticket này">
+                                            <i class="fas fa-gift text-purple-600"></i> Phân bổ quà
+                                        </button>
 
-                                        @if($marketingRequest->status !== 'completed')
-                                            @if($marketingRequest->status === 'received')
-                                                <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
+                                        <div class="flex items-center justify-center gap-1 w-full">
+                                            @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
+                                                <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex items-center gap-1">
                                                     @csrf
-                                                    <input type="hidden" name="status" value="in_progress">
-                                                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors shadow-sm" title="Bắt đầu chuẩn bị quà">
-                                                        <i class="fas fa-play mr-1"></i>Nhận việc
-                                                    </button>
-                                                </form>
-                                            @else
-                                                <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
-                                                    @csrf
-                                                    <input type="hidden" name="status" value="completed">
-                                                    <input type="hidden" name="comment" value="Đã chuẩn bị và bàn giao quà tặng đầy đủ cho Sales.">
-                                                    <button type="submit" onclick="return confirm('Xác nhận đã đóng gói và bàn giao quà cho Sales?')" class="px-2.5 py-1 text-xs font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Bàn giao quà cho Sales">
-                                                        <i class="fas fa-check mr-1"></i>Bàn giao xong
-                                                    </button>
+                                                    <select name="assigned_to" class="max-w-[110px] border border-gray-300 rounded px-1.5 py-1 text-xs" required title="Chọn người phụ trách">
+                                                        <option value="">Phân công...</option>
+                                                        @foreach($marketingAssignees as $assignee)
+                                                            <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <button type="submit" class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 shadow-sm" title="Lưu phân công"><i class="fas fa-save"></i></button>
                                                 </form>
                                             @endif
-                                        @else
-                                            <span class="inline-flex items-center text-xs text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
-                                                <i class="fas fa-check-double mr-1"></i>Hoàn tất
-                                            </span>
-                                        @endif
+
+                                            @if($marketingRequest->status !== 'completed')
+                                                @if($marketingRequest->status === 'received')
+                                                    <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
+                                                        @csrf
+                                                        <input type="hidden" name="status" value="in_progress">
+                                                        <button type="submit" class="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors shadow-sm" title="Bắt đầu chuẩn bị quà">
+                                                            <i class="fas fa-play mr-1"></i>Nhận
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
+                                                        @csrf
+                                                        <input type="hidden" name="status" value="completed">
+                                                        <input type="hidden" name="comment" value="Đã chuẩn bị và bàn giao quà tặng đầy đủ cho Sales.">
+                                                        <button type="submit" onclick="return confirm('Xác nhận đã đóng gói và bàn giao quà cho Sales?')" class="px-2 py-1 text-xs font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Bàn giao quà cho Sales">
+                                                            <i class="fas fa-check mr-1"></i>Bàn giao
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            @else
+                                                <span class="inline-flex items-center text-xs text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
+                                                    <i class="fas fa-check-double mr-1"></i>Xong
+                                                </span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -148,6 +243,159 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        {{-- MODAL PHÂN BỔ QUÀ TẶNG TỪ KHO MARKETING --}}
+        <div x-show="showAllocateGiftModal" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-100"
+                 @click.outside="showAllocateGiftModal = false">
+                <div class="px-6 py-4 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">
+                            <i class="fas fa-gift"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold">Phân bổ Quà tặng từ Kho Marketing</h3>
+                            <p class="text-xs text-purple-100 mt-0.5">
+                                Ticket: <strong x-text="activeTicket?.code"></strong>
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" @click="showAllocateGiftModal = false" class="text-white/80 hover:text-white text-lg">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+                    {{-- Thông tin ticket --}}
+                    <div class="bg-purple-50/50 rounded-xl p-4 border border-purple-100 space-y-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <span class="text-gray-500 font-semibold block uppercase">Cơ hội / Hoạt động:</span>
+                                <span class="font-bold text-gray-900" x-text="activeTicket?.name"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 font-semibold block uppercase">Khách hàng:</span>
+                                <span class="font-bold text-gray-900" x-text="activeTicket?.customer"></span>
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-purple-100/60 text-xs">
+                            <span class="text-gray-500 font-semibold block uppercase mb-0.5">Yêu cầu quà từ Sales:</span>
+                            <div class="text-gray-700 font-medium bg-white p-2 rounded-lg border border-purple-100/80 whitespace-pre-line" x-text="activeTicket?.description"></div>
+                        </div>
+                    </div>
+
+                    {{-- Danh sách vật phẩm đã xuất kho trước đó (nếu có) --}}
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <i class="fas fa-boxes text-purple-600"></i> Quà tặng đã phân bổ cho Ticket này:
+                        </h4>
+                        
+                        <template x-if="activeTicket?.allocatedItems && activeTicket.allocatedItems.length > 0">
+                            <div class="border border-emerald-200 rounded-xl overflow-hidden bg-emerald-50/30">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-emerald-100/60 text-emerald-900 font-bold uppercase text-[11px]">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">Tên vật phẩm quà tặng</th>
+                                            <th class="px-3 py-2 text-center">Số lượng</th>
+                                            <th class="px-3 py-2 text-center">Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-emerald-100">
+                                        <template x-for="item in activeTicket.allocatedItems" :key="item.id">
+                                            <tr>
+                                                <td class="px-3 py-2 font-semibold text-gray-800" x-text="item.item_name"></td>
+                                                <td class="px-3 py-2 text-center font-bold text-emerald-800">
+                                                    <span x-text="item.quantity"></span> <span x-text="item.unit"></span>
+                                                </td>
+                                                <td class="px-3 py-2 text-center">
+                                                    <form :action="item.deleteUrl" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc muốn hoàn trả vật phẩm này về lại kho?')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-[11px] font-bold transition-colors" title="Hoàn trả về kho">
+                                                            <i class="fas fa-undo mr-1"></i>Hoàn về kho
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+
+                        <template x-if="!activeTicket?.allocatedItems || activeTicket.allocatedItems.length === 0">
+                            <div class="text-center py-3 bg-amber-50/60 border border-dashed border-amber-300 rounded-xl text-xs text-amber-800 font-medium">
+                                <i class="fas fa-info-circle mr-1 text-amber-600"></i> Chưa có vật phẩm nào được xuất kho cho ticket này. Vui lòng chọn bên dưới để xuất quà.
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- Form thêm quà từ kho --}}
+                    <form :action="activeTicket?.actionUrl" method="POST" class="space-y-4 pt-3 border-t border-gray-100">
+                        @csrf
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fas fa-plus-circle text-purple-600"></i> Chọn vật phẩm xuất từ Kho Marketing <span class="text-red-500">*</span>
+                                </label>
+                                <button type="button" @click="addGiftRow()" class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-bold transition-colors">
+                                    <i class="fas fa-plus mr-1"></i>Thêm món
+                                </button>
+                            </div>
+
+                            <div class="space-y-2.5">
+                                <template x-for="(row, idx) in giftRows" :key="idx">
+                                    <div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                                        <div class="flex-1">
+                                            <select :name="'items[' + idx + '][item_id]'" x-model="row.item_id" required class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-3 py-2 bg-white">
+                                                <option value="">-- Chọn vật phẩm từ Kho (Tồn kho) --</option>
+                                                @foreach($availableMarketingItems as $mItem)
+                                                    <option value="{{ $mItem->id }}">
+                                                        {{ $mItem->name }} (Tồn: {{ $mItem->stock_quantity }} {{ $mItem->unit }} - {{ $mItem->category_label }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="w-28">
+                                            <input type="number" :name="'items[' + idx + '][quantity]'" x-model="row.quantity" min="1" required placeholder="Số lượng" class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-3 py-2 bg-white text-center font-bold">
+                                        </div>
+                                        <button type="button" @click="removeGiftRow(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center text-xs transition-colors" title="Xóa dòng" x-show="giftRows.length > 1">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ghi chú xuất quà (tuỳ chọn)</label>
+                            <input type="text" name="note" x-model="giftNote" placeholder="Ví dụ: Đã đóng gói túi quà kèm brochure..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-purple-400">
+                        </div>
+
+                        <div class="flex items-center justify-between pt-3 border-t">
+                            <span class="text-xs text-gray-500 italic">
+                                <i class="fas fa-sync-alt mr-1"></i>Tồn kho sẽ tự động trừ ngay sau khi xác nhận.
+                            </span>
+                            <div class="flex gap-2">
+                                <button type="button" @click="showAllocateGiftModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-xs font-bold transition-colors">
+                                    Đóng
+                                </button>
+                                <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5">
+                                    <i class="fas fa-check-circle"></i> Xác nhận xuất quà & Lưu Ticket
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     @elseif($currentTab === 'events')

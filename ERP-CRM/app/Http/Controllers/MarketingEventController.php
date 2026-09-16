@@ -78,9 +78,21 @@ class MarketingEventController extends Controller
         $events = $query->paginate(15)->withQueryString();
         $directRequests = collect();
         $marketingAssignees = collect();
+        $availableMarketingItems = collect();
         if ($request->query('tab') === 'requests') {
-            $directRequests = MarketingRequest::with(['ticket.creator', 'opportunity.customer', 'assignee'])
-                ->whereNotNull('opportunity_id')
+            $directRequests = MarketingRequest::with([
+                'ticket.creator',
+                'opportunity.customer',
+                'opportunity.marketingItemTransactions.marketingItem',
+                'event.marketingItemTransactions.marketingItem',
+                'assignee',
+                'comments.user'
+            ])
+                ->where(function ($q) {
+                    $q->whereNotNull('opportunity_id')
+                      ->orWhere('support_team', 'marketing')
+                      ->orWhere('support_content', 'giveaway');
+                })
                 ->when($request->filled('opportunity_id'), fn ($q) => $q->where('opportunity_id', $request->integer('opportunity_id')))
                 ->latest()
                 ->get();
@@ -88,6 +100,10 @@ class MarketingEventController extends Controller
                 $query->where('department', 'like', '%Marketing%')
                     ->orWhereHas('roles', fn ($roles) => $roles->whereIn('slug', ['marketing', 'marketing_manager']));
             })->orderBy('name')->get(['id', 'name']);
+            $availableMarketingItems = \App\Models\MarketingItem::where('status', 'active')
+                ->where('stock_quantity', '>', 0)
+                ->orderBy('name')
+                ->get();
         }
         
         // Load workflow to check permissions on index
@@ -103,7 +119,16 @@ class MarketingEventController extends Controller
             $transactions = MarketingSupplierTransaction::with(['supplier', 'fund', 'event', 'request', 'creator'])->latest()->get();
         }
 
-        return view('marketing-events.index', compact('events', 'mktWorkflow', 'supplierFunds', 'suppliers', 'transactions', 'directRequests', 'marketingAssignees'));
+        return view('marketing-events.index', compact(
+            'events', 
+            'mktWorkflow', 
+            'supplierFunds', 
+            'suppliers', 
+            'transactions', 
+            'directRequests', 
+            'marketingAssignees',
+            'availableMarketingItems'
+        ));
     }
 
     public function create()

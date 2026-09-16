@@ -6,6 +6,9 @@ use App\Models\MarketingEvent;
 use App\Models\MarketingTicket;
 use App\Models\MarketingRequest;
 use App\Models\MarketingRequestComment;
+use App\Models\MarketingItem;
+use App\Models\MarketingItemTransaction;
+use App\Models\Opportunity;
 use App\Models\User;
 use App\Models\MarketingSupplierFund;
 use App\Models\MarketingSupplierTransaction;
@@ -593,5 +596,116 @@ class MarketingRequestController extends Controller
         if (!empty($normalized)) {
             $request->merge($normalized);
         }
+    }
+
+    /**
+     * Phân bổ quà tặng / vật phẩm trực tiếp từ Ticket
+     */
+    public function allocateItems(Request $request, MarketingRequest $marketingRequest)
+    {
+        $user = auth()->user();
+        $isMarketingOrAdmin = $user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']);
+        if (!$isMarketingOrAdmin && $marketingRequest->assigned_to !== $user->id) {
+            return back()->with('error', 'Bạn không có quyền phân bổ quà tặng cho ticket này.');
+        }
+
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.item_id' => 'required|exists:marketing_items,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $marketingRequest, $user) {
+                $allocatedSummary = [];
+                $ticketCode = $marketingRequest->ticket?->code ?: $marketingRequest->code;
+                $targetName = $marketingRequest->opportunity?->name ?: $marketingRequest->event?->title ?: ('Ticket ' . $ticketCode);
+
+                foreach ($validated['items'] as $itemData) {
+                    $item = MarketingItem::lockForUpdate()->find($itemData['item_id']);
+                    if (!$item || $item->stock_quantity < $itemData['quantity']) {
+                        throw new \Exception("Vật phẩm '" . ($item?->name ?? 'Không xác định') . "' không đủ tồn kho (Còn: " . ($item?->stock_quantity ?? 0) . ", yêu cầu: " . $itemData['quantity'] . ").");
+                    }
+
+                    $newStock = $item->stock_quantity - $itemData['quantity'];
+                    $item->update(['stock_quantity' => $newStock]);
+
+                    MarketingItemTransaction::create([
+                        'marketing_item_id'  => $item->id,
+                        'type'               => 'export',
+                        'quantity'           => $itemData['quantity'],
+                        'remaining_stock'    => $newStock,
+                        'opportunity_id'     => $marketingRequest->opportunity_id,
+                        'marketing_event_id' => $marketingRequest->marketing_event_id,
+                        'created_by'         => $user->id,
+                        'reference_code'     => 'EXP-' . $ticketCode,
+                        'note'               => $validated['note'] ?: ("Xuất quà cho Ticket " . $ticketCode . " - " . $targetName),
+                    ]);
+
+                    $allocatedSummary[] = "{$item->name} (x{$itemData['quantity']} {$item->unit})";
+                }
+
+                // Tự động chuyển trạng thái Ticket sang in_progress nếu đang là received / pending_approval
+                if (in_array($marketingRequest->status, ['received', 'pending_approval', 'pending'])) {
+                    $marketingRequest->update(['status' => 'in_progress']);
+                    if ($marketingRequest->ticket) {
+                        $marketingRequest->ticket->update(['status' => 'in_progress']);
+                    }
+                }
+
+                // Ghi nhận lịch sử vào Trao đổi / Thảo luận
+                MarketingRequestComment::create([
+                    'marketing_request_id' => $marketingRequest->id,
+                    'user_id'              => $user->id,
+                    'comment'              => "Đã phân bổ vật phẩm quà tặng từ kho: " . implode(', ', $allocatedSummary) . ($validated['note'] ? " (Ghi chú: {$validated['note']})" : ""),
+                ]);
+            });
+
+            return back()->with('success', 'Đã phân bổ quà tặng từ kho cho ticket thành công.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Lỗi khi phân bổ quà tặng: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Hoàn trả vật phẩm quà tặng đã phân bổ về kho
+     */
+    public function removeItemTransaction(MarketingRequest $marketingRequest, MarketingItemTransaction $transaction)
+    {
+        $user = auth()->user();
+        $isMarketingOrAdmin = $user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']);
+        if (!$isMarketingOrAdmin && $marketingRequest->assigned_to !== $user->id) {
+            return back()->with('error', 'Bạn không có quyền hoàn tác phân bổ quà tặng.');
+        }
+
+        if ($transaction->type !== 'export') {
+            return back()->with('error', 'Chỉ có thể hoàn tác giao dịch xuất quà.');
+        }
+
+        // Verify ownership
+        if ($marketingRequest->opportunity_id && $transaction->opportunity_id != $marketingRequest->opportunity_id) {
+            return back()->with('error', 'Giao dịch không thuộc về cơ hội của ticket này.');
+        }
+        if ($marketingRequest->marketing_event_id && $transaction->marketing_event_id != $marketingRequest->marketing_event_id) {
+            return back()->with('error', 'Giao dịch không thuộc về sự kiện của ticket này.');
+        }
+
+        DB::transaction(function () use ($transaction, $marketingRequest, $user) {
+            $item = MarketingItem::lockForUpdate()->find($transaction->marketing_item_id);
+            if ($item) {
+                $item->increment('stock_quantity', $transaction->quantity);
+            }
+
+            MarketingRequestComment::create([
+                'marketing_request_id' => $marketingRequest->id,
+                'user_id'              => $user->id,
+                'comment'              => "Đã hoàn trả vật phẩm quà tặng về kho: " . ($item?->name ?? 'Vật phẩm') . " (x{$transaction->quantity})",
+            ]);
+
+            $transaction->delete();
+        });
+
+        return back()->with('success', 'Đã hoàn trả vật phẩm quà tặng về kho thành công.');
     }
 }

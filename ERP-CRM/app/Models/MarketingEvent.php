@@ -112,6 +112,11 @@ class MarketingEvent extends Model
         return $this->hasMany(Project::class, 'marketing_event_id');
     }
 
+    public function marketingItemTransactions()
+    {
+        return $this->hasMany(MarketingItemTransaction::class, 'marketing_event_id')->orderBy('created_at', 'desc');
+    }
+
     // --- Helpers ---
     public function getStatusLabelAttribute(): string
     {

@@ -107,6 +107,17 @@ class MarketingRequest extends Model
         return $this->hasMany(MarketingRequestComment::class, 'marketing_request_id')->latest();
     }
 
+    public function getAllocatedItemTransactionsAttribute()
+    {
+        if ($this->opportunity_id && $this->opportunity) {
+            return $this->opportunity->marketingItemTransactions;
+        }
+        if ($this->marketing_event_id && $this->event) {
+            return $this->event->marketingItemTransactions;
+        }
+        return collect();
+    }
+
     public function scopeForUser(Builder $query, User $user)
     {
         // Super admin, BOD (director), Marketing team, and Finance/Accountant see everything

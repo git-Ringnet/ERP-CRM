@@ -641,6 +641,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/marketing-requests/{marketingRequest}/accept', [\App\Http\Controllers\MarketingRequestController::class, 'acceptRequest'])->name('marketing-requests.accept');
     Route::post('/marketing-requests/{marketingRequest}/status', [\App\Http\Controllers\MarketingRequestController::class, 'updateStatus'])->name('marketing-requests.status.update');
     Route::post('/marketing-requests/' . '{marketingRequest}/comments', [\App\Http\Controllers\MarketingRequestController::class, 'addComment'])->name('marketing-requests.comments.store');
+    Route::post('/marketing-requests/{marketingRequest}/allocate-items', [\App\Http\Controllers\MarketingRequestController::class, 'allocateItems'])->name('marketing-requests.allocate-items');
+    Route::delete('/marketing-requests/{marketingRequest}/items/{transaction}', [\App\Http\Controllers\MarketingRequestController::class, 'removeItemTransaction'])->name('marketing-requests.remove-item');
 
     // --- Marketing Supplier Funds & Receivables ---
     Route::post('/marketing-events/funds', [\App\Http\Controllers\MarketingEventController::class, 'storeFund'])->name('marketing-events.funds.store');
