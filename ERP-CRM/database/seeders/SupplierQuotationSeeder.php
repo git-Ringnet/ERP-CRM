@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 class SupplierQuotationSeeder extends Seeder
 {
@@ -25,13 +26,19 @@ class SupplierQuotationSeeder extends Seeder
         }
 
         $statuses = ['pending', 'selected', 'rejected'];
+        $lastNum = (int) SupplierQuotation::count();
         
-        // Tạo 30 báo giá NCC để test phân trang
-        for ($i = 1; $i <= 30; $i++) {
+        // Tạo 10 báo giá NCC
+        for ($i = 1; $i <= 10; $i++) {
+            $code = 'SQ' . date('Ymd') . str_pad($lastNum + $i, 4, '0', STR_PAD_LEFT);
+            if (SupplierQuotation::where('code', $code)->exists()) {
+                continue;
+            }
+
             $supplier = $suppliers->random();
             
             $quotation = SupplierQuotation::create([
-                'code' => 'SQ' . date('Ymd') . str_pad($i, 4, '0', STR_PAD_LEFT),
+                'code' => $code,
                 'purchase_request_id' => $requests->isNotEmpty() && rand(0, 1) ? $requests->random()->id : null,
                 'supplier_id' => $supplier->id,
                 'quotation_date' => now()->subDays(rand(0, 30)),
@@ -51,21 +58,22 @@ class SupplierQuotationSeeder extends Seeder
                 'created_by' => $user?->id,
             ]);
 
-            // Thêm 2-6 sản phẩm
-            $itemCount = rand(2, 6);
+            // Thêm 2-4 sản phẩm
+            $itemCount = rand(2, 4);
             $selectedProducts = $products->random(min($itemCount, $products->count()));
             $subtotal = 0;
 
             foreach ($selectedProducts as $product) {
-                $quantity = rand(10, 100);
-                $unitPrice = $product->price * (1 - rand(5, 25) / 100);
+                $quantity = rand(10, 50);
+                $basePrice = $product->price ?? rand(1000000, 15000000);
+                $unitPrice = $basePrice * (1 - rand(5, 25) / 100);
                 $total = $quantity * $unitPrice;
                 $subtotal += $total;
 
                 SupplierQuotationItem::create([
                     'supplier_quotation_id' => $quotation->id,
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => Str::limit($product->name, 190),
                     'quantity' => $quantity,
                     'unit' => $product->unit ?? 'Cái',
                     'unit_price' => $unitPrice,
@@ -88,6 +96,6 @@ class SupplierQuotationSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('Đã tạo 30 báo giá nhà cung cấp.');
+        $this->command->info('Đã tạo thành công dữ liệu mẫu Báo giá NCC (Supplier Quotations)!');
     }
 }

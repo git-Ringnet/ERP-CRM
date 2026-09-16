@@ -28,21 +28,27 @@ class ExportSeeder extends Seeder
         }
 
         $statuses = ['pending', 'completed', 'cancelled', 'rejected'];
+        $lastNum = (int) Export::count();
         
-        for ($i = 1; $i <= 15; $i++) {
+        for ($i = 1; $i <= 10; $i++) {
+            $code = 'EXP' . str_pad($lastNum + $i, 6, '0', STR_PAD_LEFT);
+            if (Export::where('code', $code)->exists()) {
+                continue;
+            }
+
             $warehouse = $warehouses->random();
             $project = $projects->isNotEmpty() ? $projects->random() : null;
             $user = $users->random();
             $status = $statuses[array_rand($statuses)];
             
             $export = Export::create([
-                'code' => 'EXP' . str_pad($i, 6, '0', STR_PAD_LEFT),
+                'code' => $code,
                 'warehouse_id' => $warehouse->id,
                 'project_id' => $project?->id,
                 'date' => now()->subDays(rand(0, 90)),
                 'employee_id' => $user->id,
                 'total_qty' => 0,
-                'note' => 'Sample export #' . $i,
+                'note' => 'Sample export #' . ($lastNum + $i),
                 'status' => $status,
             ]);
 

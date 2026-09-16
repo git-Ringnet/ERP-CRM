@@ -26,22 +26,29 @@ class TransferSeeder extends Seeder
         }
 
         $statuses = ['pending', 'completed', 'cancelled', 'rejected'];
+        $lastNum = (int) Transfer::count();
         
         for ($i = 1; $i <= 10; $i++) {
+            $code = 'TRF' . str_pad($lastNum + $i, 6, '0', STR_PAD_LEFT);
+            if (Transfer::where('code', $code)->exists()) {
+                continue;
+            }
+
             // Get two different warehouses
             $fromWarehouse = $warehouses->random();
-            $toWarehouse = $warehouses->where('id', '!=', $fromWarehouse->id)->random();
+            $otherWarehouses = $warehouses->where('id', '!=', $fromWarehouse->id);
+            $toWarehouse = $otherWarehouses->isNotEmpty() ? $otherWarehouses->random() : $fromWarehouse;
             $user = $users->random();
             $status = $statuses[array_rand($statuses)];
             
             $transfer = Transfer::create([
-                'code' => 'TRF' . str_pad($i, 6, '0', STR_PAD_LEFT),
+                'code' => $code,
                 'from_warehouse_id' => $fromWarehouse->id,
                 'to_warehouse_id' => $toWarehouse->id,
                 'date' => now()->subDays(rand(0, 90)),
                 'employee_id' => $user->id,
                 'total_qty' => 0,
-                'note' => 'Sample transfer #' . $i,
+                'note' => 'Sample transfer #' . ($lastNum + $i),
                 'status' => $status,
             ]);
 

@@ -26,19 +26,25 @@ class ImportSeeder extends Seeder
         }
 
         $statuses = ['pending', 'completed', 'cancelled', 'rejected'];
+        $lastNum = (int) Import::count();
         
-        for ($i = 1; $i <= 20; $i++) {
+        for ($i = 1; $i <= 10; $i++) {
+            $code = 'IMP' . str_pad($lastNum + $i, 6, '0', STR_PAD_LEFT);
+            if (Import::where('code', $code)->exists()) {
+                continue;
+            }
+
             $warehouse = $warehouses->random();
             $user = $users->random();
             $status = $statuses[array_rand($statuses)];
             
             $import = Import::create([
-                'code' => 'IMP' . str_pad($i, 6, '0', STR_PAD_LEFT),
+                'code' => $code,
                 'warehouse_id' => $warehouse->id,
                 'date' => now()->subDays(rand(0, 90)),
                 'employee_id' => $user->id,
                 'total_qty' => 0,
-                'note' => 'Sample import #' . $i,
+                'note' => 'Sample import #' . ($lastNum + $i),
                 'status' => $status,
             ]);
 

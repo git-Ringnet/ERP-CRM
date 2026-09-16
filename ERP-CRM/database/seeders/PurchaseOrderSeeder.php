@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\SupplierQuotation;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 class PurchaseOrderSeeder extends Seeder
 {
@@ -24,25 +25,31 @@ class PurchaseOrderSeeder extends Seeder
             return;
         }
 
-        $statuses = ['draft', 'pending_approval', 'approved', 'sent', 'confirmed', 'shipping', 'partial_received', 'received', 'cancelled'];
+        $statuses = ['draft', 'pending_approval', 'approved', 'shipping', 'partial_received', 'received', 'cancelled'];
         $paymentTerms = ['immediate', 'cod', 'net15', 'net30', 'net45', 'net60'];
+        $lastNum = (int) PurchaseOrder::count();
         
-        // Tạo 35 đơn mua hàng để test phân trang
-        for ($i = 1; $i <= 35; $i++) {
+        // Tạo 10 đơn mua hàng
+        for ($i = 1; $i <= 10; $i++) {
+            $code = 'PO' . date('Ymd') . str_pad($lastNum + $i, 4, '0', STR_PAD_LEFT);
+            if (PurchaseOrder::where('code', $code)->exists()) {
+                continue;
+            }
+
             $supplier = $suppliers->random();
             $status = $statuses[array_rand($statuses)];
-            $isApproved = in_array($status, ['approved', 'sent', 'confirmed', 'shipping', 'partial_received', 'received']);
-            $isSent = in_array($status, ['sent', 'confirmed', 'shipping', 'partial_received', 'received']);
-            $isConfirmed = in_array($status, ['confirmed', 'shipping', 'partial_received', 'received']);
+            $isApproved = in_array($status, ['approved', 'shipping', 'partial_received', 'received']);
+            $isSent = in_array($status, ['shipping', 'partial_received', 'received']);
+            $isConfirmed = in_array($status, ['shipping', 'partial_received', 'received']);
             
             $order = PurchaseOrder::create([
-                'code' => 'PO' . date('Ymd') . str_pad($i, 4, '0', STR_PAD_LEFT),
+                'code' => $code,
                 'supplier_id' => $supplier->id,
                 'supplier_quotation_id' => $quotations->isNotEmpty() && rand(0, 1) ? $quotations->random()->id : null,
                 'order_date' => now()->subDays(rand(0, 60)),
                 'expected_delivery' => now()->addDays(rand(7, 30)),
                 'actual_delivery' => $status === 'received' ? now()->subDays(rand(1, 5)) : null,
-                'delivery_address' => 'Số ' . rand(1, 100) . ', Đường ' . rand(1, 50) . ', Quận ' . rand(1, 12) . ', TP.HCM',
+                'delivery_address' => 'Số ' . rand(1, 100) . ', Đường ' . rand(1, 50) . ', Quận 1, TP.HCM',
                 'subtotal' => 0,
                 'discount_percent' => rand(0, 10),
                 'discount_amount' => 0,
@@ -61,14 +68,15 @@ class PurchaseOrderSeeder extends Seeder
                 'confirmed_at' => $isConfirmed ? now()->subDays(rand(1, 5)) : null,
             ]);
 
-            // Thêm 3-7 sản phẩm
-            $itemCount = rand(3, 7);
-            $selectedProducts = $products->random(min($itemCount, $products->count()));
+            // Thêm 2-4 sản phẩm
+            $itemCount = min(rand(2, 4), $products->count());
+            $selectedProducts = $products->random($itemCount);
             $subtotal = 0;
 
             foreach ($selectedProducts as $product) {
-                $quantity = rand(10, 100);
-                $unitPrice = $product->price * (1 - rand(5, 20) / 100);
+                $quantity = rand(5, 50);
+                $basePrice = $product->price ?? rand(1000000, 15000000);
+                $unitPrice = $basePrice * (1 - rand(5, 20) / 100);
                 $total = $quantity * $unitPrice;
                 $subtotal += $total;
 
@@ -76,13 +84,13 @@ class PurchaseOrderSeeder extends Seeder
                 if ($status === 'received') {
                     $receivedQty = $quantity;
                 } elseif ($status === 'partial_received') {
-                    $receivedQty = rand(1, $quantity - 1);
+                    $receivedQty = rand(1, max(1, $quantity - 1));
                 }
 
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $order->id,
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => Str::limit($product->name, 190),
                     'quantity' => $quantity,
                     'received_quantity' => $receivedQty,
                     'unit' => $product->unit ?? 'Cái',
@@ -106,6 +114,6 @@ class PurchaseOrderSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('Đã tạo 35 đơn mua hàng.');
+        $this->command->info('Đã tạo thành công dữ liệu mẫu Đơn mua hàng (Purchase Orders)!');
     }
 }
