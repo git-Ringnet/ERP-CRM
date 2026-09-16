@@ -17,10 +17,9 @@ class SaleSeeder extends Seeder
 
         if ($customers->isEmpty()) {
             $custId = DB::table('customers')->insertGetId([
-                'code' => 'KH-DEFAULT',
                 'name' => 'Công ty TNHH Giải Pháp Công Nghệ',
-                'type' => 'si',
-                'status' => 'active',
+                'tax_code' => '0301999888',
+                'type' => 'vip',
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);

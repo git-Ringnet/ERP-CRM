@@ -32,11 +32,11 @@ class ProjectSeeder extends Seeder
             $customers = Customer::all();
         }
 
-        $c1 = $customers->firstWhere('code', 'KH-FPT-IS') ?? $customers->get(0);
-        $c2 = $customers->firstWhere('code', 'KH-CMC-TS') ?? $customers->get(1) ?? $c1;
-        $c3 = $customers->firstWhere('code', 'KH-DTS') ?? $customers->get(2) ?? $c1;
-        $c4 = $customers->firstWhere('code', 'KH-SACOMBANK') ?? $customers->get(3) ?? $c1;
-        $c5 = $customers->firstWhere('code', 'KH-VINGROUP') ?? $customers->get(4) ?? $c1;
+        $c1 = $customers->firstWhere('abv_name', 'FPT IS') ?? $customers->firstWhere('tax_code', '0101344434') ?? $customers->get(0);
+        $c2 = $customers->firstWhere('abv_name', 'CMC TS') ?? $customers->firstWhere('tax_code', '0100244112') ?? $customers->get(1) ?? $c1;
+        $c3 = $customers->firstWhere('abv_name', 'DTS Telecom') ?? $customers->firstWhere('tax_code', '0301988899') ?? $customers->get(2) ?? $c1;
+        $c4 = $customers->firstWhere('abv_name', 'Sacombank') ?? $customers->firstWhere('tax_code', '0301103908') ?? $customers->get(3) ?? $c1;
+        $c5 = $customers->firstWhere('abv_name', 'Vingroup') ?? $customers->firstWhere('tax_code', '0101245486') ?? $customers->get(4) ?? $c1;
 
         $sup1 = $suppliers->firstWhere('name', 'like', '%Fortinet%') ?? $suppliers->get(0);
         $sup2 = $suppliers->firstWhere('name', 'like', '%Cisco%') ?? $suppliers->get(1) ?? $sup1;
