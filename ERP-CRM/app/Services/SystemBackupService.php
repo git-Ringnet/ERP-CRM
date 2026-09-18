@@ -162,14 +162,19 @@ class SystemBackupService
 
         $destinationDir = $destinationDir ?: config('backup.destination_path', storage_path('app/backups'));
         if (!is_dir($destinationDir)) {
-            mkdir($destinationDir, 0777, true);
+            if (!@mkdir($destinationDir, 0777, true) && !is_dir($destinationDir)) {
+                throw new \Exception("Không thể tạo thư mục lưu trữ sao lưu '{$destinationDir}'. Vui lòng cấp quyền ghi cho thư mục này (chmod 777).");
+            }
         }
 
         $timestamp = date('Y-m-d-His');
         $tempDir = storage_path('app/backup_temp_' . $timestamp);
         if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0777, true);
+            if (!@mkdir($tempDir, 0777, true) && !is_dir($tempDir)) {
+                throw new \Exception("Không thể tạo thư mục tạm '{$tempDir}'. Vui lòng cấp quyền ghi cho thư mục storage/app (chmod -R 777 storage).");
+            }
         }
+
 
         $tempSqlPath = $tempDir . '/database.sql';
         $tempZipPath = $tempDir . '/backup.zip';
