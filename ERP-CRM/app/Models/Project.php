@@ -325,6 +325,19 @@ class Project extends Model
                 ]);
             }
 
+            // Create Contact if customer has none
+            if ($customer && $customer->contacts()->count() === 0) {
+                $picName = $this->collaborate_pic_name ?: ($this->manager ? $this->manager->name : $customer->name);
+                $customer->contacts()->create([
+                    'name' => $picName,
+                    'first_name' => $picName,
+                    'position' => $this->collaborate_pic_title ?: 'P.I.C',
+                    'phone' => $this->collaborate_pic_phone ?: ($customer->phone ?: ''),
+                    'email' => $this->collaborate_pic_email ?: ($customer->email ?: ''),
+                    'is_primary' => true,
+                ]);
+            }
+
             // Update project with customer ID
             $this->update([
                 'collaborate_customer_id' => $customer->id,
@@ -337,7 +350,20 @@ class Project extends Model
         // 3. If customer_id exists and points to a valid Customer
         if ($this->customer_id) {
             $cust = Customer::find($this->customer_id);
-            if ($cust) return $cust;
+            if ($cust) {
+                if ($cust->contacts()->count() === 0) {
+                    $picName = $this->collaborate_pic_name ?: ($this->manager ? $this->manager->name : $cust->name);
+                    $cust->contacts()->create([
+                        'name' => $picName,
+                        'first_name' => $picName,
+                        'position' => $this->collaborate_pic_title ?: 'P.I.C',
+                        'phone' => $this->collaborate_pic_phone ?: ($cust->phone ?: ''),
+                        'email' => $this->collaborate_pic_email ?: ($cust->email ?: ''),
+                        'is_primary' => true,
+                    ]);
+                }
+                return $cust;
+            }
         }
 
         // 4. If end-user info is filled
@@ -359,6 +385,19 @@ class Project extends Model
                     'tax_code' => $this->eu_tax_code ?: null,
                     'address' => $this->address ?: null,
                     'type' => 'normal',
+                ]);
+            }
+
+            // Create Contact if customer has none
+            if ($customer && $customer->contacts()->count() === 0) {
+                $picName = $this->collaborate_pic_name ?: ($this->manager ? $this->manager->name : $customer->name);
+                $customer->contacts()->create([
+                    'name' => $picName,
+                    'first_name' => $picName,
+                    'position' => $this->collaborate_pic_title ?: 'P.I.C',
+                    'phone' => $this->collaborate_pic_phone ?: ($customer->phone ?: ''),
+                    'email' => $this->collaborate_pic_email ?: ($customer->email ?: ''),
+                    'is_primary' => true,
                 ]);
             }
 

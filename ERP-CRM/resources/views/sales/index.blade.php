@@ -304,6 +304,21 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
+                                {{-- Điều khoản thanh toán (Payment Term) & Bảo lãnh ngân hàng --}}
+                                <div class="mb-1.5 flex flex-col items-center gap-1">
+                                    <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-2xs max-w-[220px] truncate" 
+                                         title="Điều khoản thanh toán: {{ $sale->payment_term_full }}">
+                                        <i class="fas fa-file-invoice-dollar text-indigo-500 text-[10px]"></i>
+                                        <span class="truncate">{{ $sale->payment_term_summary }}</span>
+                                    </div>
+                                    @if($sale->has_bank_guarantee)
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs" 
+                                              title="{{ $sale->bank_guarantee_note ? 'Bảo lãnh thanh toán: ' . $sale->bank_guarantee_note : 'Có bảo lãnh thanh toán (Bank Guarantee)' }}">
+                                            <i class="fas fa-shield-alt text-amber-600 text-[10px]"></i> Bank Guarantee
+                                        </span>
+                                    @endif
+                                </div>
+
                                 {{-- Trạng thái thanh toán --}}
                                 <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $sale->payment_status_color }}">
                                     {{ $sale->payment_status_label }}
@@ -488,11 +503,13 @@
                                         title="Xem chi tiết">
                                         <i class="fas fa-eye"></i><span>Xem</span>
                                     </a>
+                                    @if($sale->status !== 'cancelled' && !$sale->hasPayment())
                                     <a href="{{ route('sales.edit', $sale->id) }}"
                                         class="inline-flex items-center gap-1.5 px-2.5 py-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors text-xs font-semibold"
                                         title="Sửa">
                                         <i class="fas fa-edit"></i><span>Sửa</span>
                                     </a>
+                                    @endif
                                     @if($sale->status === 'pending')
                                     <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
                                         @csrf
@@ -567,10 +584,12 @@
                             class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
                             <i class="fas fa-eye mr-1"></i>Xem
                         </a>
+                        @if($sale->status !== 'cancelled' && !$sale->hasPayment())
                         <a href="{{ route('sales.edit', $sale->id) }}"
                             class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
+                        @endif
                         @if($sale->status === 'pending')
                         <form action="{{ route('sales.destroy', $sale) }}" method="POST"
                             class="flex-1">

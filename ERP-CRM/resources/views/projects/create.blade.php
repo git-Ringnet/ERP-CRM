@@ -102,10 +102,10 @@
                             <!-- Address -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Address
+                                    Address <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="address" value="{{ old('address', $preFill['address'] ?? '') }}"
-                                    placeholder="Địa chỉ End-User"
+                                    placeholder="Địa chỉ End-User" required
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('address') border-red-500 @enderror">
                                 @error('address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
@@ -349,9 +349,9 @@
                             </div>
                             <div id="collab_pic_email_wrap" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    PIC Email <span class="text-red-500">*</span>
+                                    PIC Email
                                 </label>
-                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email" required
+                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email"
                                     value="{{ old('collaborate_pic_email') }}"
                                     placeholder="pic@company.com"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
@@ -675,7 +675,7 @@
                 if (phoneInput) phoneInput.required = false;
                 if (nameInput) nameInput.required = true;
                 if (titleInput) titleInput.required = true;
-                if (emailInput) emailInput.required = true;
+                if (emailInput) emailInput.required = false;
 
                 const activeMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value || 'existing';
                 togglePartnerInputMode(activeMode, isInit);
@@ -698,7 +698,7 @@
                 if (phoneInput) phoneInput.required = false;
                 if (nameInput) nameInput.required = true;
                 if (titleInput) titleInput.required = true;
-                if (emailInput) emailInput.required = true;
+                if (emailInput) emailInput.required = false;
             } else {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.add('hidden');
@@ -1220,11 +1220,16 @@
                 }
             }
 
-            // Prevent form submit if duplicate collaborate tax code exists
+            // Form submit validation & duplicate prevention
             const projectForm = document.getElementById('project_form');
             if (projectForm) {
+                let isProjectSubmitting = false;
                 projectForm.addEventListener('submit', function(e) {
-                    const collabType = document.getElementById('collaborate_type').value;
+                    if (!this.checkValidity()) {
+                        return;
+                    }
+
+                    const collabType = document.getElementById('collaborate_type')?.value;
                     const partnerMode = document.querySelector('input[name="partner_input_mode"]:checked')?.value;
                     if (collabType === 'partner' && partnerMode === 'new' && collabTaxExists) {
                         e.preventDefault();
@@ -1239,6 +1244,19 @@
                         } else {
                             alert('MST đã tồn tại trong hệ thống, vui lòng kiểm tra lại hoặc sử dụng Company có sẵn.');
                         }
+                        return false;
+                    }
+
+                    if (isProjectSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    isProjectSubmitting = true;
+
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.classList.add('opacity-75', 'pointer-events-none');
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang đăng ký dự án...';
                     }
                 });
             }

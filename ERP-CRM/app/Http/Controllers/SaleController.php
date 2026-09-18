@@ -338,6 +338,12 @@ class SaleController extends Controller
             }
         }
 
+        $saleCode = $request->input('code');
+        if (empty($saleCode) || Sale::where('code', $saleCode)->exists()) {
+            $saleCode = $this->generateSaleCode();
+        }
+        $request->merge(['code' => $saleCode]);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
@@ -380,11 +386,6 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
-
-        if ($this->hasMultipleProjects($validated['products'], $validated['project_id'] ?? null)
-            && !$request->boolean('multi_project_confirmed')) {
-            return back()->withInput()->with('error', 'Đơn hàng có dòng hàng thuộc nhiều dự án. Vui lòng xác nhận gộp dự án trước khi lưu.');
-        }
 
         DB::beginTransaction();
         try {
@@ -525,8 +526,8 @@ class SaleController extends Controller
                 $costPrice = $product->calculated_cost;
                 $quantity = $item['quantity'];
 
-                // Use item-level project_id if set, otherwise use sale-level project_id
-                $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
+                // Inherit sale-level project_id
+                $itemProjectId = $validated['project_id'] ?? null;
 
                 // Get warranty: use input value if provided, otherwise use product default
                 $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
@@ -669,7 +670,7 @@ class SaleController extends Controller
 
             DB::commit();
 
-            return redirect()->route('sales.index')
+            return redirect()->route('sales.show', $sale->id)
                 ->with('success', 'Đơn hàng đã được tạo thành công.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -718,6 +719,16 @@ class SaleController extends Controller
      */
     public function edit(Sale $sale)
     {
+        if ($sale->status === 'cancelled') {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã hủy, không thể chỉnh sửa.');
+        }
+
+        if ($sale->hasPayment()) {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
+        }
+
         $this->authorize('update', $sale);
 
         $sale->load(['items.product', 'expenses', 'orderRequests.items', 'orderRequests.attachments']);
@@ -741,6 +752,16 @@ class SaleController extends Controller
      */
     public function update(Request $request, Sale $sale)
     {
+        if ($sale->status === 'cancelled') {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã hủy, không thể chỉnh sửa.');
+        }
+
+        if ($sale->hasPayment()) {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
+        }
+
         $this->authorize('update', $sale);
 
         if ($sale->isPendingApproval()) {
@@ -818,11 +839,6 @@ class SaleController extends Controller
             'payment_due_date' => ['nullable', 'date'],
             'payment_exception_file' => ['nullable', 'file', 'max:20480'],
         ]);
-
-        if ($this->hasMultipleProjects($validated['products'], $validated['project_id'] ?? null)
-            && !$request->boolean('multi_project_confirmed')) {
-            return back()->withInput()->with('error', 'Đơn hàng có dòng hàng thuộc nhiều dự án. Vui lòng xác nhận gộp dự án trước khi cập nhật.');
-        }
 
         DB::beginTransaction();
         try {
@@ -1072,8 +1088,8 @@ class SaleController extends Controller
                 $costPrice = $product->calculated_cost;
                 $quantity = $item['quantity'];
 
-                // Use item-level project_id if set, otherwise use sale-level project_id
-                $itemProjectId = $item['project_id'] ?? $validated['project_id'] ?? null;
+                // Inherit sale-level project_id
+                $itemProjectId = $validated['project_id'] ?? null;
 
                 // Get warranty: use input value if provided, otherwise use product default
                 $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
@@ -1337,6 +1353,10 @@ class SaleController extends Controller
         // Return 404 instead of 403 if user lacks permission
         if (!auth()->user()->can('view', $sale)) {
             abort(404);
+        }
+
+        if ($sale->status === 'cancelled') {
+            return back()->with('error', 'Không thể gửi email cho đơn hàng đã hủy.');
         }
 
         $sale->load('items', 'customer');
@@ -1870,6 +1890,8 @@ class SaleController extends Controller
             'pnl_attachments.*' => ['file', 'max:20480'],
             'payment_term' => ['nullable', 'string', 'max:100'],
             'payment_due_date' => ['nullable', 'date'],
+            'has_bank_guarantee' => ['nullable', 'boolean'],
+            'bank_guarantee_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         if ($validator->fails()) {
@@ -1911,6 +1933,10 @@ class SaleController extends Controller
             }
             if ($request->has('payment_due_date')) {
                 $sale->payment_due_date = $validated['payment_due_date'] ?? null;
+            }
+            if ($request->has('has_bank_guarantee')) {
+                $sale->has_bank_guarantee = $request->boolean('has_bank_guarantee');
+                $sale->bank_guarantee_note = $sale->has_bank_guarantee ? ($validated['bank_guarantee_note'] ?? null) : null;
             }
 
             foreach ($validated['items'] as $itemData) {
@@ -2490,6 +2516,12 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
+        if (request()->has('has_bank_guarantee')) {
+            $sale->has_bank_guarantee = request()->boolean('has_bank_guarantee');
+            $sale->bank_guarantee_note = $sale->has_bank_guarantee ? (request()->input('bank_guarantee_note') ?? null) : null;
+            $sale->save();
+        }
+
         // Validate payment terms before P&L submission
         if (!$sale->payment_term_type) {
             return back()->with('error', 'Vui lòng chọn loại điều khoản thanh toán trước khi gửi duyệt P&L.');
@@ -2782,6 +2814,10 @@ class SaleController extends Controller
 
     public function createOrderRequest(Sale $sale)
     {
+        if ($sale->status === 'cancelled') {
+            return back()->with('error', 'Đơn hàng đã hủy, không thể tạo yêu cầu đặt hàng.');
+        }
+
         if ($sale->pl_status !== 'approved') {
             return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
         }
@@ -2829,6 +2865,10 @@ class SaleController extends Controller
      */
     public function storeOrderRequest(Request $request, Sale $sale)
     {
+        if ($sale->status === 'cancelled') {
+            return back()->with('error', 'Đơn hàng đã hủy, không thể tạo yêu cầu đặt hàng.');
+        }
+
         if ($sale->pl_status !== 'approved') {
             return back()->with('error', 'Yêu cầu đặt hàng chỉ được tạo sau khi P&L đã được duyệt.');
         }

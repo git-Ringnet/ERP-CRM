@@ -966,9 +966,20 @@
             return;
         }
 
+        const hasGuarantee = document.getElementById('pnl_has_bank_guarantee')?.checked;
+        const guaranteeBadge = hasGuarantee 
+            ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 ml-1.5"><i class="fas fa-shield-alt text-amber-600"></i> Có bảo lãnh Bank Guarantee</span>'
+            : '';
+        const ptText = '{{ $sale->payment_term_summary }}';
+
         Swal.fire({
             title: 'Xác nhận gửi duyệt P&L?',
-            text: message,
+            html: `<div class="text-left text-sm space-y-2">
+                     <p>${message}</p>
+                     <div class="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-950 flex flex-col gap-1">
+                       <div><strong><i class="fas fa-file-invoice-dollar text-indigo-600 mr-1"></i> Điều khoản thanh toán:</strong> ${ptText} ${guaranteeBadge}</div>
+                     </div>
+                   </div>`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
@@ -2184,6 +2195,45 @@
                 </div>
             </div>
             @endif
+
+            {{-- Bank Guarantee & Payment Term Card for Sales & Accountant --}}
+            <div class="bg-gradient-to-r from-amber-50/80 via-white to-indigo-50/80 border border-amber-200/90 rounded-xl p-4 shadow-xs mb-2">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-amber-200/60">
+                    <div class="flex items-center gap-2.5">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500 text-white font-bold shadow-xs">
+                            <i class="fas fa-shield-alt"></i>
+                        </span>
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-900">Bảo lãnh thanh toán (Bank Guarantee) & Điều khoản thanh toán</h4>
+                            <p class="text-xs text-gray-600">Xác nhận thông tin bảo lãnh ngân hàng trước khi gửi duyệt P&L để Kế toán theo dõi</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-gray-700">Payment Term hiện tại:</span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                            <i class="fas fa-file-invoice-dollar text-indigo-600"></i> {{ $sale->payment_term_summary }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <label class="flex items-center gap-2.5 text-sm font-bold text-amber-950 cursor-pointer select-none">
+                        <input type="hidden" name="has_bank_guarantee" value="0" form="pnlForm">
+                        <input type="checkbox" name="has_bank_guarantee" id="pnl_has_bank_guarantee" form="pnlForm" value="1" 
+                               {{ old('has_bank_guarantee', $sale->has_bank_guarantee) ? 'checked' : '' }}
+                               {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                               class="w-4 h-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500">
+                        <span>Deal có bảo lãnh thanh toán (Bank Guarantee)</span>
+                    </label>
+                    <div>
+                        <input type="text" name="bank_guarantee_note" id="pnl_bank_guarantee_note" form="pnlForm"
+                               value="{{ old('bank_guarantee_note', $sale->bank_guarantee_note) }}" maxlength="1000"
+                               placeholder="Ghi chú / Số bảo lãnh ngân hàng (nếu có)..."
+                               {{ !$sale->isPlEditable() ? 'disabled' : '' }}
+                               class="w-full text-xs rounded-lg border border-amber-200 bg-white px-3 py-2 focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                </div>
+            </div>
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">

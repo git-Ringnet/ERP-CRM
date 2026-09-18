@@ -10,29 +10,97 @@
     $user = auth()->user();
     $isSuperOrMktOrOMOrBOD = $user->hasAnyRole(['super_admin', 'admin', 'marketing', 'marketing_manager', 'order_management', 'director', 'accountant']);
     $currentTab = request('tab', 'events');
+    $availableMarketingItemsJson = json_encode($availableMarketingItems->map(fn($item) => [
+        'id' => $item->id,
+        'code' => $item->code,
+        'name' => $item->name,
+        'stock' => (int) $item->stock_quantity,
+        'unit' => $item->unit ?: 'Cái',
+        'category_label' => $item->category_label,
+    ])->values());
 @endphp
 
-<div class="space-y-4" x-data="{ 
-    showAddFundModal: false,
-    showAllocateGiftModal: false,
-    activeTicket: null,
-    giftRows: [{ item_id: '', quantity: 1 }],
-    giftNote: '',
-    openAllocateModal(ticket) {
-        this.activeTicket = ticket;
-        this.giftRows = [{ item_id: '', quantity: 1 }];
-        this.giftNote = '';
-        this.showAllocateGiftModal = true;
-    },
-    addGiftRow() {
-        this.giftRows.push({ item_id: '', quantity: 1 });
-    },
-    removeGiftRow(index) {
-        if (this.giftRows.length > 1) {
-            this.giftRows.splice(index, 1);
+<script>
+function marketingEventsPage() {
+    return {
+        showAddFundModal: false,
+        showAllocateGiftModal: false,
+        activeTicket: null,
+        availableItems: {!! $availableMarketingItemsJson !!},
+        giftRows: [{ item_id: '', search: '', open: false, selectedItem: null, quantity: 1 }],
+        giftNote: '',
+        openAllocateModal(ticket) {
+            this.activeTicket = ticket;
+            this.giftRows = [{ item_id: '', search: '', open: false, selectedItem: null, quantity: 1 }];
+            this.giftNote = '';
+            this.showAllocateGiftModal = true;
+        },
+        addGiftRow() {
+            this.giftRows.push({ item_id: '', search: '', open: false, selectedItem: null, quantity: 1 });
+        },
+        removeGiftRow(index) {
+            if (this.giftRows.length > 1) {
+                this.giftRows.splice(index, 1);
+            }
+        },
+        selectGiftItem(row, item) {
+            row.item_id = item.id;
+            row.selectedItem = item;
+            row.search = item.name;
+            row.open = false;
+        },
+        clearGiftItem(row) {
+            row.item_id = '';
+            row.selectedItem = null;
+            row.search = '';
+            row.open = true;
+        },
+        removeVietnameseTones(str) {
+            if (!str) return '';
+            str = str.toLowerCase();
+            str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a');
+            str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e');
+            str = str.replace(/ì|í|ị|ỉ|ĩ/g, 'i');
+            str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, 'o');
+            str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, 'u');
+            str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, 'y');
+            str = str.replace(/đ/g, 'd');
+            str = str.replace(/[\u0300-\u036f]/g, '');
+            return str;
+        },
+        getFilteredItems(searchTerm) {
+            if (!searchTerm || !searchTerm.trim()) {
+                return this.availableItems;
+            }
+            const q = this.removeVietnameseTones(searchTerm.trim());
+            return this.availableItems.filter(item => {
+                const target = this.removeVietnameseTones((item.name || '') + ' ' + (item.code || '') + ' ' + (item.category_label || ''));
+                return target.includes(q);
+            });
+        },
+        submitAllocation(event) {
+            for (let i = 0; i < this.giftRows.length; i++) {
+                const row = this.giftRows[i];
+                if (!row.item_id) {
+                    alert('Vui lòng tìm và chọn vật phẩm quà tặng cho dòng thứ ' + (i + 1) + '.');
+                    return;
+                }
+                if (!row.quantity || row.quantity < 1) {
+                    alert('Vui lòng nhập số lượng hợp lệ cho dòng thứ ' + (i + 1) + ' (tối thiểu là 1).');
+                    return;
+                }
+                if (row.selectedItem && row.quantity > row.selectedItem.stock) {
+                    alert('Vật phẩm "' + row.selectedItem.name + '" chỉ còn tồn kho ' + row.selectedItem.stock + ' ' + row.selectedItem.unit + '. Vui lòng điều chỉnh lại số lượng.');
+                    return;
+                }
+            }
+            event.target.submit();
         }
-    }
-}">
+    };
+}
+</script>
+
+<div class="space-y-4" x-data="marketingEventsPage()">
     {{-- Tabs Navigation --}}
     @if($isSuperOrMktOrOMOrBOD)
     <div class="bg-white rounded-lg shadow-sm p-2 flex border-b border-gray-100">
@@ -340,7 +408,7 @@
                     </div>
 
                     {{-- Form thêm quà từ kho --}}
-                    <form :action="activeTicket?.actionUrl" method="POST" class="space-y-4 pt-3 border-t border-gray-100">
+                    <form :action="activeTicket?.actionUrl" method="POST" @submit.prevent="submitAllocation($event)" class="space-y-4 pt-3 border-t border-gray-100">
                         @csrf
                         <div>
                             <div class="flex items-center justify-between mb-2">
@@ -352,23 +420,105 @@
                                 </button>
                             </div>
 
-                            <div class="space-y-2.5">
+                            <div class="space-y-3">
                                 <template x-for="(row, idx) in giftRows" :key="idx">
-                                    <div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl border border-gray-200">
-                                        <div class="flex-1">
-                                            <select :name="'items[' + idx + '][item_id]'" x-model="row.item_id" required class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-3 py-2 bg-white">
-                                                <option value="">-- Chọn vật phẩm từ Kho (Tồn kho) --</option>
-                                                @foreach($availableMarketingItems as $mItem)
-                                                    <option value="{{ $mItem->id }}">
-                                                        {{ $mItem->name }} (Tồn: {{ $mItem->stock_quantity }} {{ $mItem->unit }} - {{ $mItem->category_label }})
-                                                    </option>
-                                                @endforeach
-                                            </select>
+                                    <div class="flex items-start gap-2 p-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                                        {{-- Searchable Dropdown --}}
+                                        <div class="relative flex-1" @click.outside="row.open = false">
+                                            <div class="relative flex items-center">
+                                                <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">
+                                                    <i class="fas fa-search"></i>
+                                                </div>
+                                                <input type="text"
+                                                       x-model="row.search"
+                                                       @focus="row.open = true"
+                                                       @click="row.open = true"
+                                                       @input="row.open = true; if(row.selectedItem && row.search !== row.selectedItem.name) { row.item_id = ''; row.selectedItem = null; }"
+                                                       placeholder="Gõ tìm theo tên, mã hoặc loại quà tặng..."
+                                                       class="w-full text-xs rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 pl-8 pr-16 py-2 bg-white transition-all shadow-xs"
+                                                       autocomplete="off">
+                                                
+                                                <input type="hidden" :name="'items[' + idx + '][item_id]'" :value="row.item_id">
+
+                                                <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                                                    <button type="button" 
+                                                            x-show="row.search || row.item_id" 
+                                                            @click="clearGiftItem(row)" 
+                                                            class="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center text-[10px] transition-colors"
+                                                            title="Xóa lựa chọn">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                    <button type="button" 
+                                                            @click="row.open = !row.open" 
+                                                            class="text-gray-400 hover:text-purple-600 text-xs px-1">
+                                                        <i class="fas fa-chevron-down transition-transform duration-150" :class="{'rotate-180': row.open}"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {{-- Dropdown kết quả tìm kiếm --}}
+                                            <div x-show="row.open"
+                                                 x-transition:enter="transition ease-out duration-100"
+                                                 x-transition:enter-start="opacity-0 scale-95"
+                                                 x-transition:enter-end="opacity-100 scale-100"
+                                                 x-transition:leave="transition ease-in duration-75"
+                                                 x-transition:leave-start="opacity-100 scale-100"
+                                                 x-transition:leave-end="opacity-0 scale-95"
+                                                 class="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-purple-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100"
+                                                 style="display: none;">
+                                                
+                                                <template x-for="item in getFilteredItems(row.search)" :key="item.id">
+                                                    <div @click="selectGiftItem(row, item)"
+                                                         class="p-2.5 hover:bg-purple-50/80 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs group"
+                                                         :class="{'bg-purple-50 border-l-4 border-purple-600': row.item_id === item.id}">
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="flex items-center gap-2 mb-0.5">
+                                                                <span class="font-bold text-gray-900 group-hover:text-purple-700 truncate" x-text="item.name"></span>
+                                                                <span class="text-[10px] font-mono px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded" x-text="item.code"></span>
+                                                            </div>
+                                                            <div class="text-[11px] text-gray-500 flex items-center gap-2">
+                                                                <span class="inline-flex items-center gap-1">
+                                                                    <i class="fas fa-tag text-[10px] text-purple-400"></i>
+                                                                    <span x-text="item.category_label"></span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-right shrink-0">
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                                                  :class="item.stock > 10 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
+                                                                <i class="fas fa-cubes text-[10px]"></i>
+                                                                <span>Tồn: <strong x-text="item.stock"></strong> <span x-text="item.unit"></span></span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+
+                                                <div x-show="getFilteredItems(row.search).length === 0" class="p-4 text-center text-xs text-gray-500">
+                                                    <i class="fas fa-search mr-1 text-gray-400"></i> Không tìm thấy vật phẩm quà tặng nào phù hợp.
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="w-28">
-                                            <input type="number" :name="'items[' + idx + '][quantity]'" x-model="row.quantity" min="1" required placeholder="Số lượng" class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 px-3 py-2 bg-white text-center font-bold">
+
+                                        {{-- Số lượng --}}
+                                        <div class="w-28 shrink-0">
+                                            <div class="relative">
+                                                <input type="number" 
+                                                       :name="'items[' + idx + '][quantity]'" 
+                                                       x-model.number="row.quantity" 
+                                                       min="1" 
+                                                       :max="row.selectedItem ? row.selectedItem.stock : null"
+                                                       required 
+                                                       placeholder="SL" 
+                                                       class="w-full text-xs rounded-lg border border-gray-300 focus:border-purple-500 px-3 py-2 bg-white text-center font-bold">
+                                                <span x-show="row.selectedItem" 
+                                                      class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-semibold pointer-events-none"
+                                                      x-text="row.selectedItem?.unit">
+                                                </span>
+                                            </div>
                                         </div>
-                                        <button type="button" @click="removeGiftRow(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center text-xs transition-colors" title="Xóa dòng" x-show="giftRows.length > 1">
+
+                                        {{-- Nút xóa dòng --}}
+                                        <button type="button" @click="removeGiftRow(idx)" class="w-8 h-8 mt-0.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center text-xs transition-colors shrink-0" title="Xóa dòng" x-show="giftRows.length > 1">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>

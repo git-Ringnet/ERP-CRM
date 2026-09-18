@@ -270,15 +270,21 @@ class ProjectController extends Controller
 
         $collabRequired = $request->input('collaborate_type') === 'partner' ? 'required' : 'nullable';
 
+        $projectCode = $request->input('code');
+        if (empty($projectCode) || Project::where('code', $projectCode)->exists()) {
+            $projectCode = $this->generateProjectCode();
+        }
+        $request->merge(['code' => $projectCode]);
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:projects,code'],
             'name' => ['required', 'string', 'max:255'],
             'name_en' => ['nullable', 'string', 'max:255'],
             'customer_id' => ['nullable', 'exists:customers,id'],
-            'address' => ['nullable', 'string'],
+            'address' => ['required', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
             'budget' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
+            'status' => ['nullable', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
             'note' => ['nullable', 'string'],
             'marketing_event_id' => ['nullable', 'exists:marketing_events,id'],
@@ -314,6 +320,8 @@ class ProjectController extends Controller
             'special_request_type' => ['nullable', 'string'],
             'special_request_note' => ['required_with:special_request_type', 'nullable', 'string'],
         ], [], $this->validationAttributes());
+
+        $validated['status'] = $validated['status'] ?? 'planning';
 
         $validated['name_en'] = $validated['name_en'] ?? $validated['name'];
 
@@ -909,10 +917,10 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'name_en' => ['nullable', 'string', 'max:255'],
             'customer_id' => ['nullable', 'exists:customers,id'],
-            'address' => ['nullable', 'string'],
+            'address' => ['required', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
             'budget' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
+            'status' => ['nullable', 'in:planning,in_progress,completed,cancelled,on_hold'],
             'manager_id' => ['nullable', 'exists:users,id'],
             'note' => ['nullable', 'string'],
             // Distributor
@@ -947,6 +955,8 @@ class ProjectController extends Controller
             'special_request_type' => ['nullable', 'string'],
             'special_request_note' => ['nullable', 'string'],
         ], [], $this->validationAttributes());
+
+        $validated['status'] = $validated['status'] ?? $project->status ?? 'planning';
 
         $validated['name_en'] = $validated['name_en'] ?? $validated['name'];
 
@@ -1233,6 +1243,7 @@ class ProjectController extends Controller
             'eu_name_vi' => 'Tên tiếng Việt (End-User)',
             'eu_name_en' => 'Tên tiếng Anh (End-User)',
             'eu_tax_code' => 'Website / Mã số thuế (End-User)',
+            'address' => 'Địa chỉ (End-User)',
             'eu_province' => 'Tỉnh / Thành phố',
             'eu_industry' => 'Ngành nghề',
             'collaborate_type' => 'Hình thức hợp tác',

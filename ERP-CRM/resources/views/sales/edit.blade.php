@@ -19,7 +19,6 @@
                 </ul>
             </div>
         @endif
-        <input type="hidden" name="multi_project_confirmed" id="multiProjectConfirmed" value="0">
         
         @php $isLocked = $sale->pl_status === 'approved'; @endphp
         
@@ -211,7 +210,9 @@
                 $decimals = $isForeign ? ($sale->currency->decimal_places ?? 2) : 0;
             @endphp
             <div class="border-t pt-4">
-                   <h4 class="text-lg font-medium text-gray-900 mb-4">Chi tiết sản phẩm</h4>
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h4 class="text-lg font-medium text-gray-900">Chi tiết sản phẩm</h4>
+                </div>
                 
                 <!-- Product List Header (Desktop) -->
                 <div class="hidden md:grid grid-cols-12 gap-3 px-4 py-2 bg-gray-100 border border-gray-200 rounded-t-lg font-bold text-gray-700">
@@ -236,17 +237,6 @@
                                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off"
                                            value="{{ $item->product?->code }}" {{ $isLocked ? 'readonly' : '' }}>
                                     <input type="hidden" name="products[{{ $index }}][product_id]" required class="product-id-input" value="{{ $item->product_id }}">
-                                    <select name="products[{{ $index }}][project_id]" {{ $isLocked ? 'disabled' : '' }}
-                                            class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 {{ $isLocked ? 'bg-gray-100' : '' }}"
-                                            title="Dự án áp dụng riêng cho dòng hàng này">
-                                        <option value="">-- Dự án theo đơn --</option>
-                                        @foreach($projects as $project)
-                                            <option value="{{ $project->id }}" {{ old("products.{$index}.project_id", $item->project_id ?: $sale->project_id) == $project->id ? 'selected' : '' }}>{{ $project->code }} - {{ $project->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    @if($isLocked && $item->project_id)
-                                        <input type="hidden" name="products[{{ $index }}][project_id]" value="{{ $item->project_id }}">
-                                    @endif
                                     @if(!$isLocked)
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                     @endif
@@ -410,6 +400,7 @@
                 <input type="hidden" name="payment_term_type" id="payment_term_type" value="{{ $sale->payment_term_type }}">
                 <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
+                        <input type="hidden" name="has_bank_guarantee" value="0">
                         <input type="checkbox" name="has_bank_guarantee" value="1" {{ old('has_bank_guarantee', $sale->has_bank_guarantee) ? 'checked' : '' }}>
                         Có bảo lãnh thanh toán (Bank Guarantee)
                     </label>
@@ -1050,18 +1041,17 @@ function toggleProjectSelect() {
         projectWrapper.classList.remove('hidden');
     } else {
         projectWrapper.classList.add('hidden');
-        projectSelect.value = ''; // Clear project selection when switching to retail
+        if (projectSelect) projectSelect.value = ''; // Clear project selection when switching to retail
     }
 }
 
 function handleProjectSelection() {
     const projectSelect = document.getElementById('projectSelect');
-    const option = projectSelect.options[projectSelect.selectedIndex];
+    const option = projectSelect ? projectSelect.options[projectSelect.selectedIndex] : null;
     
     if (!option || !option.value) return;
     
     const customerId = option.dataset.customerId;
-    
     if (customerId) {
         $('select[name="customer_id"]').val(customerId).trigger('change');
     }
@@ -1291,6 +1281,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     
     calculateRowTotal();
+
+    // Show SweetAlert2 error modal when there are server validation errors
+    @if($errors->any())
+        const errorMessages = @json($errors->all());
+        const errorList = errorMessages.map(msg => `<li class="text-left text-sm">${msg}</li>`).join('');
+        Swal.fire({
+            icon: 'error',
+            title: 'Vui lòng kiểm tra lại thông tin đơn hàng!',
+            html: `<ul class="list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">${errorList}</ul>`,
+            confirmButtonText: 'Đã hiểu',
+            confirmButtonColor: '#3B82F6',
+            customClass: { popup: 'text-sm' }
+        });
+
+        const firstError = document.querySelector('.border-red-500');
+        if (firstError) {
+            setTimeout(() => {
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstError.focus();
+            }, 500);
+        }
+    @endif
 });
 
 // PIC Selection logic
@@ -1313,16 +1325,30 @@ async function loadContacts(customerId, selectedContactId = null) {
             .then(response => response.json())
             .then(contacts => {
                 contactsData = contacts;
+                if (!contacts || contacts.length === 0) {
+                    contactSelect.innerHTML = '<option value="">-- Chưa có người phụ trách (Bấm Thêm mới) --</option>';
+                    contactSelect.disabled = false;
+                    picDetails.classList.add('hidden');
+                    return;
+                }
+
+                let autoSelectedId = selectedContactId;
+                if (!autoSelectedId) {
+                    const primaryContact = contacts.find(c => c.is_primary);
+                    autoSelectedId = primaryContact ? primaryContact.id : contacts[0].id;
+                }
+
                 let options = '<option value="">Chọn người phụ trách</option>';
                 contacts.forEach(c => {
-                    const isSel = (selectedContactId && selectedContactId == c.id) || (!selectedContactId && c.is_primary) ? 'selected' : '';
-                    options += `<option value="${c.id}" ${isSel}>${c.name} ${c.is_primary ? '(Mặc định)' : ''}</option>`;
+                    const isSel = autoSelectedId == c.id ? 'selected' : '';
+                    const cName = c.name || (c.first_name + ' ' + (c.last_name || ''));
+                    options += `<option value="${c.id}" ${isSel}>${cName} ${c.is_primary ? '(Mặc định)' : ''}</option>`;
                 });
                 contactSelect.innerHTML = options;
                 contactSelect.disabled = false;
                 
-                const activeVal = contactSelect.value;
-                if (activeVal) {
+                if (autoSelectedId) {
+                    contactSelect.value = autoSelectedId;
                     updatePicDetails();
                 } else {
                     picDetails.classList.add('hidden');
@@ -1374,12 +1400,6 @@ function addProductRow() {
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
                     <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
-                    <select name="products[${productIndex}][project_id]" class="item-project-select mt-2 w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" title="Dự án áp dụng riêng cho dòng hàng này">
-                        <option value="">-- Dự án theo đơn --</option>
-                        @foreach($projects as $project)
-                            <option value="{{ $project->id }}">{{ $project->code }} - {{ $project->name }}</option>
-                        @endforeach
-                    </select>
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                 </div>
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input">
@@ -1438,11 +1458,6 @@ function addProductRow() {
         </div>
     `;
     productList.appendChild(newRow);
-    const itemProjectSelect = newRow.querySelector('.item-project-select');
-    const saleProjectSelect = document.getElementById('projectSelect');
-    if (itemProjectSelect && saleProjectSelect?.value) {
-        itemProjectSelect.value = saleProjectSelect.value;
-    }
     productIndex++;
     
     // Initialize searchable select and money inputs for new row
@@ -1642,6 +1657,7 @@ function calculateDebt() {
 
 // Validation function
 function validateAndSubmit() {
+    if (isSubmitting) return;
     const errors = [];
     const errorContainer = document.getElementById('validationErrors');
     const errorList = document.getElementById('errorList');
@@ -1668,6 +1684,12 @@ function validateAndSubmit() {
         if (select2Selection) {
             select2Selection.classList.add('border-red-500');
         }
+    }
+
+    const contactId = document.querySelector('select[name="contact_id"]');
+    if (!contactId || !contactId.value) {
+        errors.push('Người phụ trách (P.I.C)');
+        if (contactId) contactId.classList.add('border-red-500');
     }
     
     const date = document.querySelector('input[name="date"]');
@@ -1736,22 +1758,6 @@ function validateAndSubmit() {
         errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
         errorContainer.classList.add('hidden');
-
-        const projectIds = [...document.querySelectorAll('.item-project-select')]
-            .map(select => select.value)
-            .filter(Boolean);
-        const isMultiProject = new Set(projectIds).size > 1;
-        const multiProjectConfirmed = document.getElementById('multiProjectConfirmed');
-
-        if (isMultiProject) {
-            const accepted = window.confirm(
-                'Đơn hàng đang gộp nhiều dự án. Partner/EU và PO có thể được tách theo từng dòng hàng. Bạn xác nhận tiếp tục?'
-            );
-            if (!accepted) return;
-            multiProjectConfirmed.value = '1';
-        } else {
-            multiProjectConfirmed.value = '0';
-        }
         
         Swal.fire({
             title: 'Xác nhận cập nhật đơn hàng?',
@@ -1765,6 +1771,13 @@ function validateAndSubmit() {
             reverseButtons: true
         }).then((result) => {
             if (result.isConfirmed) {
+                isSubmitting = true;
+                const submitBtn = document.querySelector('button[onclick="validateAndSubmit()"]');
+                if (submitBtn) {
+                    submitBtn.classList.add('opacity-75', 'pointer-events-none');
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu cập nhật...';
+                }
+
                 // Unformat money values before submit
                 document.querySelectorAll('.price-input').forEach(input => {
                     input.value = unformatMoney(input.value);
@@ -1782,8 +1795,10 @@ function validateAndSubmit() {
                 
                 // Set flag to prevent "Leave site?" warning from app.js
                 window.formChanged = false;
-                isSubmitting = true;
-                document.getElementById('saleForm').submit();
+                const form = document.getElementById('saleForm');
+                if (form) {
+                    HTMLFormElement.prototype.submit.call(form);
+                }
             }
         });
     }

@@ -193,6 +193,101 @@ class Sale extends Model
         $this->tempPaymentTerms = is_string($value) ? json_decode($value, true) : $value;
     }
 
+    /**
+     * Get clean, readable payment term summary (e.g., '30% Advance + 70% Net 30', '100% Advance', '100% Net 30')
+     */
+    public function getPaymentTermSummaryAttribute()
+    {
+        // 1. From paymentSchedules relationship
+        $schedules = $this->paymentSchedules;
+        if ($schedules && $schedules->isNotEmpty()) {
+            $parts = [];
+            foreach ($schedules as $ms) {
+                $pct = (float)$ms->percentage;
+                $pctStr = ($pct == (int)$pct ? (int)$pct : number_format($pct, 1)) . '%';
+                $name = $ms->milestone_name ?? '';
+
+                $isAdvance = in_array($ms->trigger_type, ['ON_CONTRACT_SIGNED', 'CONTRACT_SIGNING']) 
+                    || in_array($ms->blocking_stage, ['BLOCK_PO_SEND'])
+                    || ($ms->due_days == 0 && in_array($ms->trigger_type, ['BEFORE_EXPORT']))
+                    || (stripos($name, 'cọc') !== false || stripos($name, 'ứng') !== false || stripos($name, 'advance') !== false || stripos($name, 'deposit') !== false);
+
+                if ($isAdvance) {
+                    $parts[] = "{$pctStr} Advance";
+                } elseif ($ms->due_days > 0) {
+                    $parts[] = "{$pctStr} Net {$ms->due_days}";
+                } elseif ($ms->due_days == 0 && in_array($ms->trigger_type, ['ON_GOODS_DELIVERED', 'ON_INVOICE_ISSUED'])) {
+                    $parts[] = "{$pctStr} COD";
+                } else {
+                    $parts[] = "{$pctStr} " . ($name ?: 'Net 30');
+                }
+            }
+            if (!empty($parts)) {
+                return implode(' + ', $parts);
+            }
+        }
+
+        // 2. From payment_terms array
+        $milestones = $this->payment_terms;
+        if (!empty($milestones) && is_array($milestones)) {
+            $parts = [];
+            foreach ($milestones as $ms) {
+                $pct = (float)($ms['percentage'] ?? ($ms['percent'] ?? 0));
+                $pctStr = ($pct == (int)$pct ? (int)$pct : number_format($pct, 1)) . '%';
+                $timing = $ms['timing'] ?? 'after_contract';
+                $dueDays = (int)($ms['due_days'] ?? ($ms['days'] ?? 0));
+                $name = $ms['milestone_name'] ?? ($ms['label'] ?? '');
+
+                if ($timing === 'after_contract' || stripos($name, 'cọc') !== false || stripos($name, 'ứng') !== false || stripos($name, 'advance') !== false) {
+                    $parts[] = "{$pctStr} Advance";
+                } elseif ($dueDays > 0) {
+                    $parts[] = "{$pctStr} Net {$dueDays}";
+                } elseif ($dueDays == 0 && ($timing === 'after_delivery' || $timing === 'after_invoice')) {
+                    $parts[] = "{$pctStr} COD";
+                } else {
+                    $parts[] = "{$pctStr} " . ($name ?: 'Net 30');
+                }
+            }
+            if (!empty($parts)) {
+                return implode(' + ', $parts);
+            }
+        }
+
+        // 3. From text field payment_term if specified
+        if (!empty($this->payment_term)) {
+            return trim($this->payment_term);
+        }
+
+        // 4. From payment_term_type
+        if ($this->payment_term_type === 'prepaid_100') {
+            return '100% Advance';
+        } elseif ($this->payment_term_type === 'postpaid') {
+            $days = $this->customer->debt_days ?? 30;
+            return "100% Net {$days}";
+        }
+
+        // 5. Fallback from customer debt days
+        if ($this->customer && $this->customer->debt_days) {
+            return "100% Net {$this->customer->debt_days}";
+        }
+
+        return '100% Net 30';
+    }
+
+    /**
+     * Get full payment term string including Bank Guarantee suffix if applicable
+     */
+    public function getPaymentTermFullAttribute()
+    {
+        $summary = $this->payment_term_summary;
+        if ($this->has_bank_guarantee) {
+            if (stripos($summary, 'guarantee') === false && stripos($summary, 'bảo lãnh') === false) {
+                $summary .= ' with Bank Guarantee';
+            }
+        }
+        return $summary;
+    }
+
     public function syncPaymentSchedules(array $milestones)
     {
         $this->paymentSchedules()->delete();

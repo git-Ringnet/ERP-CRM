@@ -83,8 +83,9 @@
                                 </div>
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                                <input type="text" name="address" value="{{ old('address', $project->address) }}"
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
+                                <input type="text" name="address" value="{{ old('address', $project->address) }}" required
+                                    placeholder="Địa chỉ End-User"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('address') border-red-500 @enderror">
                                 @error('address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
@@ -289,8 +290,8 @@
                                 @error('collaborate_pic_phone') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div id="collab_pic_email_wrap" class="{{ old('collaborate_type', $project->collaborate_type) == 'partner' ? '' : 'hidden' }}">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Email <span class="text-red-500">*</span></label>
-                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email" required
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PIC Email</label>
+                                <input type="email" name="collaborate_pic_email" id="collaborate_pic_email"
                                     value="{{ old('collaborate_pic_email', $project->collaborate_pic_email) }}"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
@@ -572,7 +573,7 @@
                 if (phoneInput) phoneInput.required = false;
                 if (nameInput) nameInput.required = true;
                 if (titleInput) titleInput.required = true;
-                if (emailInput) emailInput.required = true;
+                if (emailInput) emailInput.required = false;
 
                 const mode = document.querySelector('input[name="partner_input_mode"]:checked')?.value || 'existing';
                 togglePartnerInputMode(mode, isInit);
@@ -595,7 +596,7 @@
                 if (phoneInput) phoneInput.required = false;
                 if (nameInput) nameInput.required = true;
                 if (titleInput) titleInput.required = true;
-                if (emailInput) emailInput.required = true;
+                if (emailInput) emailInput.required = false;
             } else {
                 partnerToggle.classList.add('hidden');
                 enduserNotice.classList.add('hidden');
@@ -1085,6 +1086,24 @@
                         }
                     });
                 }
+
+                // Prevent duplicate submit & show loading
+                let isProjectSubmitting = false;
+                document.getElementById('project_form')?.addEventListener('submit', function(e) {
+                    if (!this.checkValidity()) {
+                        return;
+                    }
+                    if (isProjectSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    isProjectSubmitting = true;
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.classList.add('opacity-75', 'pointer-events-none');
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu cập nhật...';
+                    }
+                });
             });
         </script>
     @endpush

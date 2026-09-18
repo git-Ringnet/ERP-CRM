@@ -9,12 +9,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn && !form.classList.contains('delete-form')) {
                 const originalText = submitBtn.innerHTML;
-                submitBtn.disabled = true;
+                submitBtn.classList.add('pointer-events-none', 'opacity-75');
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý...';
                 
                 // Re-enable after 10 seconds as fallback
                 setTimeout(() => {
-                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('pointer-events-none', 'opacity-75');
                     submitBtn.innerHTML = originalText;
                 }, 10000);
             }
@@ -35,52 +35,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Confirm navigation away from unsaved forms
+    // Navigation flags (kept for backward compatibility with existing views)
     window.formChanged = false;
     window.isSubmitting = false;
-
-    // Use event delegation for input changes to support dynamic forms
-    document.addEventListener('change', function(e) {
-        const input = e.target;
-        if (input && input.closest) {
-            const form = input.closest('form');
-            if (form) {
-                // Ignore GET forms (filters/search) and forms with data-no-dirty-check attribute
-                const method = (form.getAttribute('method') || 'GET').toUpperCase();
-                const isGetForm = method === 'GET';
-                const hasNoDirtyCheck = form.hasAttribute('data-no-dirty-check') || form.classList.contains('no-dirty-check');
-                
-                if (!isGetForm && !hasNoDirtyCheck) {
-                    window.formChanged = true;
-                }
-            }
-        }
-    });
-
-    // Support tracking standard submits with event delegation
-    document.addEventListener('submit', function(e) {
-        window.isSubmitting = true;
-        // Fallback: if submit is prevented, reset the flag in the next tick
-        setTimeout(() => {
-            if (e.defaultPrevented) {
-                window.isSubmitting = false;
-            }
-        }, 0);
-    });
-
-    // Override HTMLFormElement.prototype.submit to track programmatic submits
-    const originalSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function() {
-        window.isSubmitting = true;
-        originalSubmit.apply(this, arguments);
-    };
-
-    window.addEventListener('beforeunload', function(e) {
-        if (window.formChanged && !window.isSubmitting) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
-    });
 
     // Add tooltips to truncated text
     document.querySelectorAll('.truncate').forEach(el => {

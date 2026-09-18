@@ -25,11 +25,24 @@
                class="inline-flex items-center px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors shadow-xs">
                 <i class="fas fa-arrow-left mr-2 text-gray-500"></i> Quay lại
             </a>
-            <a href="{{ route('sales.edit', $sale->id) }}" 
-               class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
-                <i class="fas fa-edit mr-2"></i> Sửa
-            </a>
+            @if($sale->status === 'cancelled')
+                <span class="inline-flex items-center px-3.5 py-2 bg-red-50 text-red-500 text-sm font-semibold rounded-lg border border-red-200 cursor-not-allowed" 
+                      title="Đơn hàng đã hủy, không thể chỉnh sửa.">
+                    <i class="fas fa-ban mr-2 text-red-400"></i> Đã hủy
+                </span>
+            @elseif(!$sale->hasPayment())
+                <a href="{{ route('sales.edit', $sale->id) }}" 
+                   class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
+                    <i class="fas fa-edit mr-2"></i> Sửa
+                </a>
+            @else
+                <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed" 
+                      title="Đơn hàng đã phát sinh thanh toán, đã khóa chỉnh sửa thông tin và BOM.">
+                    <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đã thanh toán)
+                </span>
+            @endif
 
+            @if($sale->status !== 'cancelled')
             <form action="{{ route('sales.email', $sale->id) }}" method="POST" class="inline" id="emailForm">
                 @csrf
                 <button type="button" onclick="confirmSendEmail()"
@@ -37,12 +50,13 @@
                     <i class="fas fa-envelope mr-2"></i> Gửi Email
                 </button>
             </form>
+            @endif
         </div>
         <div>
             @php
                 $hasOfficialInvoiceForPayment = $sale->invoiceRequests->where('status', 'official_issued')->isNotEmpty();
             @endphp
-            @if($sale->pl_status === 'approved')
+            @if($sale->status !== 'cancelled' && $sale->pl_status === 'approved')
             <a href="{{ route('sales.order-request.create', $sale->id) }}" 
                     class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-xs">
                 <i class="fas fa-cart-plus mr-2"></i> Yêu cầu đặt hàng

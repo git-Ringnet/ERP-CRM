@@ -62,6 +62,16 @@ class SalePolicy extends BasePolicy
      */
     public function update(User $user, Sale $sale): bool
     {
+        // Disallow editing if order is cancelled
+        if ($sale->status === 'cancelled') {
+            return false;
+        }
+
+        // Disallow editing if payment has already been recorded
+        if ($sale->hasPayment()) {
+            return false;
+        }
+
         // If pending approval, only allow users with approve_sales permission (BOD/Legal) to edit
         if ($sale->isPendingApproval()) {
             return $this->checkPermission($user, 'approve_sales');
