@@ -30,10 +30,9 @@ class Kernel extends ConsoleKernel
         // Kiểm tra hạn thanh toán từng đợt (milestones) mỗi ngày lúc 8h sáng
         $schedule->command('payment:check-due-dates')->dailyAt('08:00');
 
-        // Tự động sao lưu toàn diện hệ thống (Database + File đính kèm mọi ổ đĩa) - Đang set mỗi phút 1 lần để test
+        // Tự động sao lưu toàn diện hệ thống (Database + File đính kèm mọi ổ đĩa) mỗi 1 tiếng 1 lần
         $schedule->command('backup:system --scope=full')
-            ->everyMinute()
-            ->runInBackground()
+            ->hourly()
             ->appendOutputTo(storage_path('logs/backup.log'));
     }
 
