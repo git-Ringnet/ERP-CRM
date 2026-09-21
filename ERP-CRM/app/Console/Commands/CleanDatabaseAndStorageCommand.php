@@ -22,7 +22,7 @@ class CleanDatabaseAndStorageCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Xóa sạch dữ liệu nghiệp vụ database và toàn bộ file đính kèm trong storage, giữ lại nhân viên/người dùng và phân quyền';
+    protected $description = 'Xóa sạch dữ liệu nghiệp vụ database và toàn bộ file đính kèm trong storage, giữ lại nhân viên, khách hàng, nhà cung cấp, sản phẩm và phân quyền';
 
     /**
      * Whitelist of tables that must NOT be cleared.
@@ -30,16 +30,37 @@ class CleanDatabaseAndStorageCommand extends Command
      * @var array
      */
     protected array $preservedTables = [
+        // 1. Nhân viên, Tài khoản & Phân quyền
         'users',
         'roles',
         'permissions',
         'role_permissions',
         'user_roles',
         'user_permissions',
+        'work_locations',
+        'salary_components',
+        'employee_salary_components',
+        'skills',
+        'skill_categories',
+        'employee_skills',
+        'work_schedules',
+
+        // 2. Khách hàng & Nhà cung cấp
+        'customers',
+        'contacts',
+        'suppliers',
+        'supplier_contacts',
+        'customer_care_stages',
+        'care_milestones',
+        'milestone_templates',
+        'template_milestones',
+
+        // 3. Sản phẩm, Kho & Cấu hình hệ thống
+        'products',
+        'warehouses',
         'migrations',
         'currencies',
         'exchange_rates',
-        'warehouses',
         'settings',
         'po_company_config',
         'supplier_po_configs',
@@ -47,6 +68,8 @@ class CleanDatabaseAndStorageCommand extends Command
         'payment_template_items',
         'approval_workflows',
         'approval_levels',
+        'transaction_categories',
+        'cash_flow_config_items',
     ];
 
     /**
@@ -58,7 +81,7 @@ class CleanDatabaseAndStorageCommand extends Command
         $this->info('================================================================');
         $this->warn('⚠  CÔNG CỤ DỌN DẸP DATABASE & FILE ĐÍNH KÈM STORAGE');
         $this->info('================================================================');
-        $this->line('  • Giữ lại: users (nhân viên/đăng nhập), roles, permissions, settings, master config.');
+        $this->line('  • Giữ lại: users (nhân viên), customers, suppliers, products, roles, permissions, settings...');
         $this->line('  • Xóa: Toàn bộ dữ liệu nghiệp vụ giao dịch, bán hàng, mua hàng, kho, crm...');
         $this->line('  • Xóa: Toàn bộ file đính kèm trong storage/app/public & storage/app/*');
         $this->info('================================================================');
