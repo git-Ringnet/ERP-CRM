@@ -542,7 +542,7 @@
         {{-- ── TAB 3: YÊU CẦU & ĐẦU VIỆC (STEP 2 & STEP 3) ── --}}
         <div x-show="activeTab === 'requests'" class="space-y-5">
             {{-- Form tạo Ticket (nếu được phép) --}}
-            <div x-data="{ showCreateTicket: false, ticketType: 'internal_collaboration' }" class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div x-data="{ showCreateTicket: {{ ($errors->any() || session('error')) ? 'true' : 'false' }}, ticketType: '{{ old('type', 'internal_collaboration') }}' }" class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <div class="flex justify-between items-center">
                     <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide"><i class="fas fa-ticket-alt mr-2 text-violet-500"></i>Đầu việc & Yêu cầu hỗ trợ liên phòng ban</h4>
                     @if($marketingEvent->status === 'approved')
@@ -668,7 +668,7 @@
                                 </div>
                             </template>
                             <button type="button" @click="rows.push({support_team: 'technical', support_team_other: '', pic_type: 'lead', support_content: 'speaker', support_content_other: '', description: '', deadline: ''})" class="w-full py-1.5 border border-dashed border-purple-300 text-purple-600 rounded-lg text-xs font-semibold hover:bg-purple-50">
-                                <i class="fas fa-plus mr-1"></i> Thêm dòng yêu cầu phối hợp
+                                <i class="fas fa-plus mr-1"></i> Thêm yêu cầu con
                             </button>
                         </div>
 
@@ -677,22 +677,22 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ngày xuất phát <span class="text-red-500">*</span></label>
-                                    <input type="date" name="departure_date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400">
+                                    <input type="date" name="departure_date" value="{{ old('departure_date') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số lượng nhân sự tham gia <span class="text-red-500">*</span></label>
-                                    <input type="number" name="personnel_count" min="1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: 3">
+                                    <input type="number" name="personnel_count" min="1" value="{{ old('personnel_count') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: 3">
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ghi chú ngày đi (nếu nhiều đoàn khác nhau)</label>
-                                    <textarea name="departure_date_note" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: 2 nhân sự bay ngày 26/04, 1 nhân sự đi xe ngày 27/04..."></textarea>
+                                    <textarea name="departure_date_note" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: 2 nhân sự bay ngày 26/04, 1 nhân sự đi xe ngày 27/04...">{{ old('departure_date_note') }}</textarea>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Chi phí dự toán công tác (VND) <span class="text-red-500">*</span></label>
-                                    <input type="text" name="amount" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Nhập số tiền">
+                                    <input type="text" name="amount" value="{{ old('amount') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Nhập số tiền">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Đính kèm vé máy bay / Booking <span class="text-red-500">*</span></label>
+                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Đính kèm vé máy bay / Booking <span class="text-gray-400 text-[11px] font-normal">(Tùy chọn)</span></label>
                                     <input type="file" name="trip_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
                                 </div>
                             </div>
@@ -703,29 +703,29 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nội dung thanh toán / Tạm ứng <span class="text-red-500">*</span></label>
-                                    <textarea name="payment_content" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Tóm tắt: Tạm ứng cọc tiệc khách sạn Rex, thanh toán hóa đơn in backdrop..."></textarea>
+                                    <textarea name="payment_content" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Tóm tắt: Tạm ứng cọc tiệc khách sạn Rex, thanh toán hóa đơn in backdrop...">{{ old('payment_content') }}</textarea>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số tiền cần chi (VND) <span class="text-red-500">*</span></label>
-                                    <input type="text" name="amount" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Bằng số">
+                                    <input type="text" name="amount" value="{{ old('amount') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Bằng số">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số tiền bằng chữ <span class="text-red-500">*</span></label>
-                                    <input type="text" name="amount_in_words" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Bằng chữ">
+                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Số tiền bằng chữ</label>
+                                    <input type="text" name="amount_in_words" value="{{ old('amount_in_words') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Bằng chữ (VD: Bốn trăm nghìn đồng)">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Mã request phối hợp liên kết (nếu có)</label>
-                                    <input type="text" name="reference_request_code" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: REQ-2026-0001">
+                                    <input type="text" name="reference_request_code" value="{{ old('reference_request_code') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="VD: REQ-2026-0001">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nguồn tiền chi trả / Hãng tài trợ</label>
                                     <select name="funding_source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 bg-white">
                                         <option value="">-- Chọn nguồn tiền / hãng --</option>
                                         @foreach($suppliers as $supplier)
-                                            <option value="{{ $supplier->name }}">{{ $supplier->name }}</option>
+                                            <option value="{{ $supplier->name }}" {{ old('funding_source') == $supplier->name ? 'selected' : '' }}>{{ $supplier->name }}</option>
                                         @endforeach
-                                        <option value="Ngân sách công ty">Ngân sách công ty (Nội bộ)</option>
-                                        <option value="Khác">Khác</option>
+                                        <option value="Ngân sách công ty" {{ old('funding_source') == 'Ngân sách công ty' ? 'selected' : '' }}>Ngân sách công ty (Nội bộ)</option>
+                                        <option value="Khác" {{ old('funding_source') == 'Khác' ? 'selected' : '' }}>Khác</option>
                                     </select>
                                 </div>
                                 <div>
@@ -733,18 +733,18 @@
                                     <select name="marketing_supplier_fund_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 bg-white">
                                         <option value="">-- Chọn quỹ của hãng (nếu có) --</option>
                                         @foreach($supplierFunds as $fund)
-                                            <option value="{{ $fund->id }}">{{ $fund->supplier->name ?? '—' }} - {{ $fund->name }} (Số dư: {{ number_format($fund->remaining_amount) }} đ)</option>
+                                            <option value="{{ $fund->id }}" {{ old('marketing_supplier_fund_id') == $fund->id ? 'selected' : '' }}>{{ $fund->supplier->name ?? '—' }} - {{ $fund->name }} (Số dư: {{ number_format($fund->remaining_amount) }} đ)</option>
                                         @endforeach
                                     </select>
                                 </div>
                                 <div>
                                     <label class="inline-flex items-center gap-2 cursor-pointer mt-5">
-                                        <input type="checkbox" name="supplier_debt_checked" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400 h-4.5 w-4.5">
+                                        <input type="checkbox" name="supplier_debt_checked" {{ old('supplier_debt_checked') ? 'checked' : '' }} class="rounded border-gray-300 text-purple-600 focus:ring-purple-400 h-4.5 w-4.5">
                                         <span class="text-xs font-semibold text-gray-700 select-none">Ghi nhận vào công nợ của hãng (Hãng sẽ hoàn trả sau)</span>
                                     </label>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Hóa đơn / Bảng tính đính kèm <span class="text-red-500">*</span></label>
+                                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Hóa đơn / Bảng tính đính kèm <span class="text-gray-400 text-[11px] font-normal">(Tùy chọn)</span></label>
                                     <input type="file" name="payment_files[]" multiple class="w-full text-xs text-gray-500 mt-1 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:bg-violet-50 file:text-violet-700">
                                 </div>
                             </div>
@@ -758,7 +758,7 @@
                                     <select name="assigned_to" class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-purple-400">
                                         <option value="">-- Chọn nhân sự --</option>
                                         @foreach($users as $u)
-                                            <option value="{{ $u->id }}">{{ $u->name }} ({{ $u->department }} - {{ $u->position }})</option>
+                                            <option value="{{ $u->id }}" {{ old('assigned_to') == $u->id ? 'selected' : '' }}>{{ $u->name }} ({{ $u->department }} - {{ $u->position }})</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -768,7 +768,7 @@
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nội dung yêu cầu phối hợp chi tiết <span class="text-red-500">*</span></label>
-                                    <textarea name="description" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Chi tiết các nội dung phối hợp khác..."></textarea>
+                                    <textarea name="description" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400" placeholder="Chi tiết các nội dung phối hợp khác...">{{ old('description') }}</textarea>
                                 </div>
                             </div>
                         </div>

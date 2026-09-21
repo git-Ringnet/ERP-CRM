@@ -29,6 +29,43 @@ class MarketingRequestController extends Controller
 
         $ticketType = $validated['type'];
 
+        // Xử lý chuẩn hóa tiền tệ trước khi validate
+        $this->normalizeMoneyFields($request, ['amount']);
+
+        if ($ticketType === 'internal_collaboration') {
+            $reqsData = $request->input('requests', []);
+            if (empty($reqsData)) {
+                return back()->withInput()->with('error', 'Ticket phối hợp nội bộ phải chứa ít nhất 1 yêu cầu.');
+            }
+        } elseif ($ticketType === 'business_trip') {
+            $request->validate([
+                'departure_date'      => 'required|date',
+                'departure_date_note' => 'nullable|string',
+                'personnel_count'     => 'required|integer|min:1',
+                'amount'              => 'required|numeric|min:0',
+                'trip_files'          => 'nullable|array',
+                'trip_files.*'        => 'file',
+            ]);
+        } elseif ($ticketType === 'payment') {
+            $request->validate([
+                'payment_content'        => 'required|string',
+                'amount'                 => 'required|numeric|min:0',
+                'amount_in_words'        => 'nullable|string',
+                'reference_request_code' => 'nullable|string',
+                'funding_source'         => 'nullable|string',
+                'payment_files'          => 'nullable|array',
+                'payment_files.*'        => 'file',
+                'marketing_supplier_fund_id' => 'nullable|exists:marketing_supplier_funds,id',
+            ]);
+        } elseif ($ticketType === 'others') {
+            $request->validate([
+                'assigned_to' => 'required|exists:users,id',
+                'description' => 'required|string',
+                'other_files' => 'nullable|array',
+                'other_files.*' => 'file',
+            ]);
+        }
+
         DB::beginTransaction();
         try {
             $ticket = MarketingTicket::create([
@@ -40,10 +77,6 @@ class MarketingRequestController extends Controller
 
             if ($ticketType === 'internal_collaboration') {
                 $reqsData = $request->input('requests', []);
-                if (empty($reqsData)) {
-                    return back()->with('error', 'Ticket phối hợp nội bộ phải chứa ít nhất 1 yêu cầu.');
-                }
-
                 foreach ($reqsData as $index => $req) {
                     $supportTeam = $req['support_team'] ?? 'technical';
                     if ($supportTeam === 'other' && !empty($req['support_team_other'])) {
@@ -82,18 +115,6 @@ class MarketingRequestController extends Controller
                 $ticket->update(['status' => 'in_progress']);
 
             } elseif ($ticketType === 'business_trip') {
-                $request->validate([
-                    'departure_date'      => 'required|date',
-                    'departure_date_note' => 'nullable|string',
-                    'personnel_count'     => 'required|integer|min:1',
-                    'amount'              => 'required|numeric|min:0',
-                    'trip_files'          => 'nullable|array',
-                    'trip_files.*'        => 'file',
-                ]);
-
-                // Xử lý tiền tệ
-                $this->normalizeMoneyFields($request, ['amount']);
-
                 $uploadedFiles = [];
                 if ($request->hasFile('trip_files')) {
                     foreach ($request->file('trip_files') as $file) {
@@ -120,19 +141,6 @@ class MarketingRequestController extends Controller
                 ]);
 
             } elseif ($ticketType === 'payment') {
-                $request->validate([
-                    'payment_content'        => 'required|string',
-                    'amount'                 => 'required|numeric|min:0',
-                    'amount_in_words'        => 'required|string',
-                    'reference_request_code' => 'nullable|string',
-                    'funding_source'         => 'nullable|string',
-                    'payment_files'          => 'required|array|min:1',
-                    'payment_files.*'        => 'file',
-                    'marketing_supplier_fund_id' => 'nullable|exists:marketing_supplier_funds,id',
-                ]);
-
-                $this->normalizeMoneyFields($request, ['amount']);
-
                 $uploadedFiles = [];
                 if ($request->hasFile('payment_files')) {
                     foreach ($request->file('payment_files') as $file) {
@@ -163,13 +171,6 @@ class MarketingRequestController extends Controller
                 ]);
 
             } elseif ($ticketType === 'others') {
-                $request->validate([
-                    'assigned_to' => 'required|exists:users,id',
-                    'description' => 'required|string',
-                    'other_files' => 'nullable|array',
-                    'other_files.*' => 'file',
-                ]);
-
                 $uploadedFiles = [];
                 if ($request->hasFile('other_files')) {
                     foreach ($request->file('other_files') as $file) {
@@ -198,9 +199,12 @@ class MarketingRequestController extends Controller
             DB::commit();
             return back()->with('success', 'Đã tạo Ticket yêu cầu thành công.');
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return back()->withInput()->withErrors($e->validator)->with('error', 'Dữ liệu không hợp lệ: ' . $e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Lỗi khi tạo Ticket: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Lỗi khi tạo Ticket: ' . $e->getMessage());
         }
     }
 
