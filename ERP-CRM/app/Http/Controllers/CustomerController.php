@@ -163,6 +163,8 @@ class CustomerController extends Controller
     {
         $this->authorize('create', Customer::class);
 
+        $isOpportunity = $request->input('source') === 'opportunity' || !$request->has('contacts');
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'tax_code' => 'required|string|max:100|unique:customers,tax_code',
@@ -172,7 +174,7 @@ class CustomerController extends Controller
             'address' => 'nullable|string',
 
             // Contacts array
-            'contacts' => 'required|array|min:1',
+            'contacts' => $isOpportunity ? 'nullable|array' : 'required|array|min:1',
             'contacts.*.name' => 'required|string|max:255',
             'contacts.*.position' => 'required|string|max:255',
             'contacts.*.phone' => 'required|string|max:50',
@@ -182,15 +184,17 @@ class CustomerController extends Controller
         ]);
 
         // Check for duplicate emails within the contacts array for this new customer
-        $emails = array_map('strtolower', array_column($validated['contacts'], 'email'));
-        if (count($emails) !== count(array_unique($emails))) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Trong danh sách khai báo có người liên hệ bị trùng email với nhau.',
-                'errors' => [
-                    'contacts' => ['Các người liên hệ của cùng 1 khách hàng không được dùng trùng email.']
-                ]
-            ], 422);
+        if (!empty($validated['contacts'])) {
+            $emails = array_map('strtolower', array_column($validated['contacts'], 'email'));
+            if (count($emails) !== count(array_unique($emails))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Trong danh sách khai báo có người liên hệ bị trùng email với nhau.',
+                    'errors' => [
+                        'contacts' => ['Các người liên hệ của cùng 1 khách hàng không được dùng trùng email.']
+                    ]
+                ], 422);
+            }
         }
 
         DB::beginTransaction();
@@ -198,42 +202,44 @@ class CustomerController extends Controller
             $customer = Customer::create([
                 'name' => $validated['name'],
                 'tax_code' => $validated['tax_code'],
-                'abv_name' => $validated['abv_name'],
+                'abv_name' => $validated['abv_name'] ?? null,
                 'phone' => $validated['phone'] ?? null,
                 'email' => $validated['email'] ?? null,
                 'address' => $validated['address'] ?? null,
                 'type' => 'normal',
             ]);
 
-            // Create all contacts
+            // Create all contacts if provided
             $primaryContact = null;
-            foreach ($validated['contacts'] as $contactData) {
-                $contact = $customer->contacts()->create([
-                    'name' => $contactData['name'],
-                    'first_name' => $contactData['name'],
-                    'position' => $contactData['position'],
-                    'phone' => $contactData['phone'],
-                    'email' => $contactData['email'],
-                    'title' => $contactData['title'] ?? null,
-                    'is_primary' => !empty($contactData['is_primary']),
-                ]);
+            if (!empty($validated['contacts'])) {
+                foreach ($validated['contacts'] as $contactData) {
+                    $contact = $customer->contacts()->create([
+                        'name' => $contactData['name'],
+                        'first_name' => $contactData['name'],
+                        'position' => $contactData['position'],
+                        'phone' => $contactData['phone'],
+                        'email' => $contactData['email'],
+                        'title' => $contactData['title'] ?? null,
+                        'is_primary' => !empty($contactData['is_primary']),
+                    ]);
 
-                if (!empty($contactData['is_primary'])) {
-                    $primaryContact = $contact;
+                    if (!empty($contactData['is_primary'])) {
+                        $primaryContact = $contact;
+                    }
                 }
-            }
 
-            // If no contact was marked primary, use the first one
-            if (!$primaryContact) {
-                $primaryContact = $customer->contacts()->first();
-                $primaryContact->update(['is_primary' => true]);
+                // If no contact was marked primary, use the first one
+                if (!$primaryContact && $customer->contacts()->exists()) {
+                    $primaryContact = $customer->contacts()->first();
+                    $primaryContact->update(['is_primary' => true]);
+                }
             }
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã tạo công ty và người liên hệ thành công.',
+                'message' => 'Đã tạo công ty' . ($primaryContact ? ' và người liên hệ' : '') . ' thành công.',
                 'customer' => $customer,
                 'contact' => $primaryContact,
             ]);

@@ -417,10 +417,17 @@
                     <input type="text" id="modal_comp_name" placeholder="Tên công ty chính thức..."
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế / MST <span class="text-red-500">*</span></label>
-                    <input type="text" id="modal_comp_tax" placeholder="Mã số thuế doanh nghiệp..."
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mã số thuế / MST <span class="text-red-500">*</span></label>
+                        <input type="text" id="modal_comp_tax" placeholder="Mã số thuế doanh nghiệp..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tên viết tắt <span class="text-red-500">*</span></label>
+                        <input type="text" id="modal_comp_abv" placeholder="VD: FPT, CMC..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -694,13 +701,14 @@
         function saveNewCompany() {
             const name = document.getElementById('modal_comp_name').value.trim();
             const tax_code = document.getElementById('modal_comp_tax').value.trim();
+            const abv_name = document.getElementById('modal_comp_abv') ? document.getElementById('modal_comp_abv').value.trim() : '';
             const phone = document.getElementById('modal_comp_phone').value.trim();
             const email = document.getElementById('modal_comp_email').value.trim();
             const address = document.getElementById('modal_comp_address').value.trim();
             const errorDiv = document.getElementById('company_modal_error');
 
-            if (!name || !tax_code) {
-                errorDiv.textContent = "Vui lòng nhập tên công ty và mã số thuế.";
+            if (!name || !tax_code || !abv_name) {
+                errorDiv.textContent = "Vui lòng nhập tên công ty, mã số thuế và tên viết tắt.";
                 errorDiv.classList.remove('hidden');
                 return;
             }
@@ -714,7 +722,7 @@
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ name, tax_code, phone, email, address })
+                body: JSON.stringify({ name, tax_code, abv_name, phone, email, address, source: 'opportunity' })
             })
             .then(res => res.json())
             .then(result => {
@@ -728,8 +736,9 @@
                     select.value = result.customer.id;
                     
                     // Clear inputs & đóng modal
-                    ['modal_comp_name', 'modal_comp_tax', 'modal_comp_phone', 'modal_comp_email', 'modal_comp_address'].forEach(id => {
-                        document.getElementById(id).value = '';
+                    ['modal_comp_name', 'modal_comp_tax', 'modal_comp_abv', 'modal_comp_phone', 'modal_comp_email', 'modal_comp_address'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
                     });
                     closeNewCompanyModal();
                     
@@ -740,7 +749,11 @@
                         Swal.fire({ icon: 'success', title: 'Đã tạo Company mới!', timer: 1500, showConfirmButton: false });
                     }
                 } else {
-                    errorDiv.textContent = result.message || 'Lỗi khi tạo Company.';
+                    let msg = result.message || 'Lỗi khi tạo Company.';
+                    if (result.errors) {
+                        msg = Object.values(result.errors).flat().join(' ');
+                    }
+                    errorDiv.textContent = msg;
                     errorDiv.classList.remove('hidden');
                 }
             })
