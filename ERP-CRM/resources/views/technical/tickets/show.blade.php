@@ -18,64 +18,80 @@
 
 @section('content')
 
-    <div x-data="{ 
-        activeTab: 'details', 
-        currentUserId: '{{ Auth::id() }}',
-        currentUserName: '{{ addslashes(Auth::user()->name) }}',
-        openLogModal: false, 
-        openProgressModal: false,
-        logEditMode: false, 
-        logActionUrl: '', 
-        logData: { id: '', log_date: '{{ date('Y-m-d') }}', user_id: '{{ Auth::id() }}', serial_number: '', support_content: '', status: '{{ $ticket->status }}', customer_info: '{{ addslashes($ticket->customer->name ?? '') }}', contact_info: '', notes: '' },
-        engineersList: @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name])),
-        customersList: @json($customers->map(fn($c) => ['name' => $c->name])),
-        supportLogsList: @json($ticket->supportLogs),
-        openEng: false,
-        openCust: false,
-        engSearch: '{{ addslashes(Auth::user()->name) }}',
-        custSearch: '{{ addslashes($ticket->customer->name ?? '') }}',
-        engTyping: false,
-        custTyping: false,
-        openCreateLogModal() {
-            this.logEditMode = false;
-            this.logActionUrl = '{{ route('technical-tickets.support-logs.store', $ticket->id) }}';
-            this.logData = { 
-                id: '', 
-                log_date: '{{ date('Y-m-d') }}', 
-                user_id: this.currentUserId, 
-                serial_number: '', 
-                support_content: '', 
-                status: '{{ $ticket->status }}', 
-                customer_info: '{{ addslashes($ticket->customer->name ?? '') }}', 
-                contact_info: '', 
-                notes: '' 
+    <script>
+        function ticketShowData() {
+            return {
+                activeTab: 'details',
+                currentUserId: '{{ Auth::id() }}',
+                currentUserName: @json(Auth::user()->name),
+                openLogModal: false,
+                openProgressModal: false,
+                logEditMode: false,
+                logActionUrl: '',
+                logData: {
+                    id: '',
+                    log_date: '{{ date('Y-m-d') }}',
+                    user_id: '{{ Auth::id() }}',
+                    serial_number: '',
+                    support_content: '',
+                    status: '{{ $ticket->status }}',
+                    customer_info: @json($ticket->customer->name ?? ''),
+                    contact_info: '',
+                    notes: ''
+                },
+                engineersList: @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name])),
+                customersList: @json($customers->map(fn($c) => ['name' => $c->name])),
+                supportLogsList: @json($ticket->supportLogs),
+                openEng: false,
+                openCust: false,
+                engSearch: @json(Auth::user()->name),
+                custSearch: @json($ticket->customer->name ?? ''),
+                engTyping: false,
+                custTyping: false,
+                openCreateLogModal() {
+                    this.logEditMode = false;
+                    this.logActionUrl = '{{ route('technical-tickets.support-logs.store', $ticket->id) }}';
+                    this.logData = {
+                        id: '',
+                        log_date: '{{ date('Y-m-d') }}',
+                        user_id: this.currentUserId,
+                        serial_number: '',
+                        support_content: '',
+                        status: '{{ $ticket->status }}',
+                        customer_info: @json($ticket->customer->name ?? ''),
+                        contact_info: '',
+                        notes: ''
+                    };
+                    this.engSearch = this.currentUserName;
+                    this.custSearch = @json($ticket->customer->name ?? '');
+                    this.openLogModal = true;
+                },
+                editLog(id) {
+                    var log = this.supportLogsList.find(function(l){ return l.id == id; });
+                    if (!log) return;
+                    this.logEditMode = true;
+                    this.logActionUrl = '/technical-tickets/{{ $ticket->id }}/support-logs/' + log.id;
+                    this.logData = {
+                        id: log.id,
+                        log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
+                        user_id: log.user_id,
+                        serial_number: log.serial_number || '',
+                        support_content: log.support_content || '',
+                        status: log.status || '{{ $ticket->status }}',
+                        customer_info: log.customer_info || '',
+                        contact_info: log.contact_info || '',
+                        notes: log.notes || ''
+                    };
+                    this.openLogModal = true;
+                    var eng = this.engineersList.find(function(e){ return e.id == log.user_id; });
+                    this.engSearch = eng ? eng.name : '';
+                    this.custSearch = log.customer_info || '';
+                }
             };
-            this.engSearch = this.currentUserName;
-            this.custSearch = '{{ addslashes($ticket->customer->name ?? '') }}';
-            this.openLogModal = true;
-        },
-        editLog(id) {
-            var log = this.supportLogsList.find(function(l){ return l.id == id; });
-            if (!log) return;
-            this.logEditMode = true;
-            this.logActionUrl = '/technical-tickets/{{ $ticket->id }}/support-logs/' + log.id;
-            this.logData = {
-                id: log.id,
-                log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
-                user_id: log.user_id,
-                serial_number: log.serial_number || '',
-                support_content: log.support_content || '',
-                status: log.status || '{{ $ticket->status }}',
-                customer_info: log.customer_info || '',
-                contact_info: log.contact_info || '',
-                notes: log.notes || ''
-            };
-            this.openLogModal = true;
-            var eng = this.engineersList.find(function(e){ return e.id == log.user_id; });
-            this.engSearch = eng ? eng.name : '';
-            this.custSearch = log.customer_info || '';
         }
-    }" class="space-y-6">
+    </script>
+
+    <div x-data="ticketShowData()" class="space-y-6">
         <!-- Breadcrumb & Actions -->
         <div
             class="flex flex-col md:flex-row md:justify-between md:items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200 gap-4">

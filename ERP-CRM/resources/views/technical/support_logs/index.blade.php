@@ -8,62 +8,79 @@
 <style>[x-cloak] { display: none !important; }</style>
 @endpush
 
-<div x-data="{ 
-    openLogModal: false, 
-    logEditMode: false, 
-    logActionUrl: '', 
-    currentUserId: '{{ Auth::id() }}',
-    currentUserName: '{{ addslashes(Auth::user()->name) }}',
-    logData: { id: '', technical_ticket_id: '', log_date: '{{ date('Y-m-d') }}', user_id: '{{ Auth::id() }}', serial_number: '', support_content: '', status: 'open', customer_info: '', contact_info: '', notes: '' },
-    engineersList: @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name])),
-    customersList: @json($customers->map(fn($c) => ['name' => $c->name])),
-    supportLogsList: @json($supportLogs->items()),
-    openEng: false,
-    openCust: false,
-    engSearch: '{{ addslashes(Auth::user()->name) }}',
-    custSearch: '',
-    openCreateModal() {
-        this.logEditMode = false;
-        this.logActionUrl = '{{ route('technical.support-logs.store-centralized') }}';
-        this.logData = { 
-            id: '', 
-            technical_ticket_id: '', 
-            log_date: '{{ date('Y-m-d') }}', 
-            user_id: this.currentUserId, 
-            serial_number: '', 
-            support_content: '', 
-            status: 'open', 
-            customer_info: '', 
-            contact_info: '', 
-            notes: '' 
+<script>
+    function supportLogsIndexData() {
+        return {
+            openLogModal: false,
+            logEditMode: false,
+            logActionUrl: '{{ route('technical.support-logs.store-centralized') }}',
+            currentUserId: '{{ Auth::id() }}',
+            currentUserName: @json(Auth::user()->name),
+            logData: {
+                id: '',
+                technical_ticket_id: '',
+                log_date: '{{ date('Y-m-d') }}',
+                user_id: '{{ Auth::id() }}',
+                serial_number: '',
+                support_content: '',
+                status: 'open',
+                customer_info: '',
+                contact_info: '',
+                notes: ''
+            },
+            engineersList: @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name])),
+            customersList: @json($customers->map(fn($c) => ['name' => $c->name])),
+            supportLogsList: @json($supportLogs->items()),
+            openEng: false,
+            openCust: false,
+            engSearch: @json(Auth::user()->name),
+            custSearch: '',
+            openCreateModal() {
+                this.logEditMode = false;
+                this.logActionUrl = '{{ route('technical.support-logs.store-centralized') }}';
+                this.logData = {
+                    id: '',
+                    technical_ticket_id: '',
+                    log_date: '{{ date('Y-m-d') }}',
+                    user_id: this.currentUserId,
+                    serial_number: '',
+                    support_content: '',
+                    status: 'open',
+                    customer_info: '',
+                    contact_info: '',
+                    notes: ''
+                };
+                this.engSearch = this.currentUserName;
+                this.custSearch = '';
+                this.openLogModal = true;
+            },
+            editLog(id) {
+                var log = this.supportLogsList.find(function(l){ return l.id == id; });
+                if (!log) return;
+                this.logEditMode = true;
+                this.logActionUrl = '/technical/support-logs/' + log.id;
+                this.logData = {
+                    id: log.id,
+                    technical_ticket_id: log.technical_ticket_id || '',
+                    log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
+                    user_id: log.user_id,
+                    serial_number: log.serial_number || '',
+                    support_content: log.support_content || '',
+                    status: log.status || 'open',
+                    customer_info: log.customer_info || '',
+                    contact_info: log.contact_info || '',
+                    notes: log.notes || ''
+                };
+                this.openLogModal = true;
+                var eng = this.engineersList.find(function(e){ return e.id == log.user_id; });
+                this.engSearch = eng ? eng.name : '';
+                this.custSearch = log.customer_info || '';
+            }
         };
-        this.engSearch = this.currentUserName;
-        this.custSearch = '';
-        this.openLogModal = true;
-    },
-    editLog(id) {
-        var log = this.supportLogsList.find(function(l){ return l.id == id; });
-        if (!log) return;
-        this.logEditMode = true;
-        this.logActionUrl = '/technical/support-logs/' + log.id;
-        this.logData = {
-            id: log.id,
-            technical_ticket_id: log.technical_ticket_id || '',
-            log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
-            user_id: log.user_id,
-            serial_number: log.serial_number || '',
-            support_content: log.support_content || '',
-            status: log.status || 'open',
-            customer_info: log.customer_info || '',
-            contact_info: log.contact_info || '',
-            notes: log.notes || ''
-        };
-        this.openLogModal = true;
-        var eng = this.engineersList.find(function(e){ return e.id == log.user_id; });
-        this.engSearch = eng ? eng.name : '';
-        this.custSearch = log.customer_info || '';
     }
-}" class="space-y-6">
+</script>
+
+<div x-data="supportLogsIndexData()" class="space-y-6">
     <!-- Header Block -->
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200 gap-4">
         <div>
