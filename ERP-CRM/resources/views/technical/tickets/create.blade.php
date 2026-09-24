@@ -242,7 +242,7 @@
                                     class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
                                     <option value="">-- Không chọn / Không có --</option>
                                     @foreach($projects as $proj)
-                                        <option value="{{ $proj->id }}" {{ old('project_id') == $proj->id ? 'selected' : '' }}>
+                                        <option value="{{ $proj->id }}" {{ (old('project_id', $selectedProjectId ?? request('project_id')) == $proj->id) ? 'selected' : '' }}>
                                             {{ $proj->name }}
                                         </option>
                                     @endforeach

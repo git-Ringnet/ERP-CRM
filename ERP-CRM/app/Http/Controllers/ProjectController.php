@@ -420,6 +420,12 @@ class ProjectController extends Controller
             $opp = \App\Models\Opportunity::find($request->opportunity_id);
             if ($opp) {
                 $opp->update(['project_id' => $project->id]);
+                \App\Models\TechnicalTicket::where('opportunity_id', $opp->id)
+                    ->whereNull('project_id')
+                    ->update([
+                        'project_id' => $project->id,
+                        'project_name' => $project->name,
+                    ]);
             }
         }
 
@@ -461,6 +467,10 @@ class ProjectController extends Controller
             ->limit(10)
             ->get();
 
+        $technicalTickets = $project->technicalTickets()
+            ->with(['assignedTo', 'assignedEngineers', 'creator', 'customer'])
+            ->get();
+
         $exportStats = [
             'total_exports' => $project->exports()->count(),
             'total_export_value' => $project->total_export_value,
@@ -490,7 +500,7 @@ class ProjectController extends Controller
             ->with('items.product')
             ->first();
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'technicalTickets', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
     }
 
     /**

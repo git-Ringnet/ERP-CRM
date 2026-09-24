@@ -50,6 +50,12 @@
                         <i class="fas fa-file-invoice mr-1"></i> Tạo báo giá
                     </a>
                 @endcan
+                @can('create_technical_tickets')
+                    <a href="{{ route('technical-tickets.create', ['project_id' => $project->id]) }}"
+                       class="inline-flex items-center px-3 py-1.5 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
+                        <i class="fas fa-tools mr-1"></i> Tạo Ticket Kỹ thuật
+                    </a>
+                @endcan
                 
                 <!-- Sales Actions -->
                 @if(in_array($project->registration_status, ['update_status', 'vendor_quoted', 'registered']))
@@ -1254,6 +1260,132 @@
         }
     }
     </script>
+
+    <!-- Technical Tickets Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <h3 class="text-base font-semibold text-gray-900">Ticket Kỹ thuật của dự án</h3>
+                <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-800">
+                    {{ $technicalTickets->count() }}
+                </span>
+            </div>
+            <div class="flex items-center gap-3">
+                @can('create_technical_tickets')
+                    <a href="{{ route('technical-tickets.create', ['project_id' => $project->id]) }}" 
+                       class="inline-flex items-center px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium text-xs shadow-xs">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm Ticket Kỹ thuật
+                    </a>
+                @endcan
+                <a href="{{ route('technical-tickets.index', ['project_id' => $project->id]) }}" class="text-sm text-primary hover:underline font-medium">
+                    Xem tất cả <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã Ticket</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tiêu đề</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại công việc</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ưu tiên</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kỹ sư phụ trách</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hạn SLA</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @forelse($technicalTickets as $ticket)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                            <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="font-mono text-xs font-bold text-primary hover:underline">
+                                {{ $ticket->code }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                            <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="hover:text-primary transition-colors">
+                                {{ $ticket->title }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-gray-600">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                {{ $ticket->work_type_label }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full 
+                                {{ $ticket->priority === 'urgent' ? 'bg-red-100 text-red-800' : ($ticket->priority === 'high' ? 'bg-orange-100 text-orange-800' : ($ticket->priority === 'medium' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800')) }}">
+                                {{ $ticket->priority_label }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-gray-700">
+                            @if($ticket->assignedEngineers->count() > 0)
+                                <div class="flex flex-wrap gap-1">
+                                    @foreach($ticket->assignedEngineers as $eng)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                            <i class="fas fa-user-circle mr-1 text-indigo-400"></i> {{ $eng->name }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @elseif($ticket->assignedTo)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    <i class="fas fa-user-circle mr-1 text-indigo-400"></i> {{ $ticket->assignedTo->name }}
+                                </span>
+                            @else
+                                <span class="text-gray-400 italic">Chưa phân công</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            @if($ticket->sla_deadline)
+                                <span class="{{ $ticket->is_overdue ? 'text-red-600 font-bold' : 'text-gray-600' }}">
+                                    {{ $ticket->sla_deadline->format('H:i d/m/Y') }}
+                                    @if($ticket->is_overdue)
+                                        <i class="fas fa-exclamation-triangle text-red-500 ml-1" title="Quá hạn SLA"></i>
+                                    @endif
+                                </span>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full 
+                                {{ match($ticket->status) {
+                                    'open' => 'bg-blue-100 text-blue-800',
+                                    'assigned' => 'bg-indigo-100 text-indigo-800',
+                                    'in_progress' => 'bg-amber-100 text-amber-800',
+                                    'waiting' => 'bg-purple-100 text-purple-800',
+                                    'completed' => 'bg-green-100 text-green-800',
+                                    'closed' => 'bg-gray-100 text-gray-800',
+                                    default => 'bg-gray-100 text-gray-800'
+                                } }}">
+                                {{ $ticket->status_label }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                                <i class="fas fa-eye mr-0.5"></i> Xem
+                            </a>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            <i class="fas fa-ticket-alt text-3xl mb-2 text-gray-300"></i>
+                            <p class="text-sm">Chưa có ticket kỹ thuật nào cho dự án này</p>
+                            @can('create_technical_tickets')
+                                <a href="{{ route('technical-tickets.create', ['project_id' => $project->id]) }}" class="inline-flex items-center mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium text-xs transition-colors">
+                                    <i class="fas fa-plus mr-1"></i> Tạo Ticket kỹ thuật ngay
+                                </a>
+                            @endcan
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <!-- Recent Sales -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

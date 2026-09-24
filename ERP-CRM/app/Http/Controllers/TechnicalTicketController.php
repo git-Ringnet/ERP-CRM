@@ -168,7 +168,7 @@ class TechnicalTicketController extends Controller
             ->get();
         $customers = Customer::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
-        $projects = Project::orderBy('name')->get();
+        $projects = $this->getProjectsForTicketUser();
         $salesUsers = User::where('status', 'active')
             ->whereHas('roles', function($q) {
                 $q->whereIn('slug', ['sales_manager', 'sales_staff', 'sales', 'super_admin', 'director']);
@@ -182,14 +182,15 @@ class TechnicalTicketController extends Controller
     /**
      * Show the form for creating a new technical ticket.
      */
-    public function create()
+    public function create(Request $request)
     {
         if (!Gate::allows('create_technical_tickets')) {
             abort(403, 'Bạn không có quyền tạo ticket kỹ thuật.');
         }
 
         $customers = Customer::orderBy('name')->get();
-        $projects = Project::orderBy('name')->get();
+        $projects = $this->getProjectsForTicketUser();
+        $selectedProjectId = $request->input('project_id');
         $opportunities = Opportunity::orderBy('name')->get();
         $sales = Sale::orderBy('code')->get();
         $suppliers = Supplier::orderBy('name')->get(); // Vendors
@@ -206,7 +207,7 @@ class TechnicalTicketController extends Controller
             ->distinct()
             ->pluck('department');
 
-        return view('technical.tickets.create', compact('customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'departments'));
+        return view('technical.tickets.create', compact('customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'departments', 'selectedProjectId'));
     }
 
     public function store(Request $request)
@@ -305,25 +306,43 @@ class TechnicalTicketController extends Controller
             $data['status'] = 'assigned';
         }
 
-        // Resolve customer_id automatically from system links
-        if (empty($data['customer_id'])) {
-            if (!empty($data['project_id'])) {
-                $project = \App\Models\Project::find($data['project_id']);
-                if ($project) {
+        // Resolve customer_id, project_name, and sales_owner_id automatically from system links
+        if (!empty($data['project_id'])) {
+            $project = \App\Models\Project::find($data['project_id']);
+            if ($project) {
+                if (empty($data['customer_id'])) {
                     $data['customer_id'] = $project->customer_id;
                 }
-            }
-            if (empty($data['customer_id']) && !empty($data['opportunity_id'])) {
-                $opportunity = \App\Models\Opportunity::find($data['opportunity_id']);
-                if ($opportunity) {
-                    $data['customer_id'] = $opportunity->customer_id;
+                if (empty($data['project_name'])) {
+                    $data['project_name'] = $project->name;
+                }
+                if (empty($data['sales_owner_id'])) {
+                    $data['sales_owner_id'] = $project->manager_id;
                 }
             }
-            if (empty($data['customer_id']) && !empty($data['sale_id'])) {
-                $sale = \App\Models\Sale::find($data['sale_id']);
-                if ($sale) {
-                    $data['customer_id'] = $sale->customer_id;
+
+            // Default ticket created for/from a project is assigned to Technical Lead
+            if (empty($assignedIds)) {
+                $techLead = $this->resolveTechnicalLead();
+                if ($techLead) {
+                    $assignedIds = [$techLead->id];
+                    $data['assigned_to'] = $techLead->id;
+                    if (!isset($data['status']) || $data['status'] === 'open') {
+                        $data['status'] = 'assigned';
+                    }
                 }
+            }
+        }
+        if (empty($data['customer_id']) && !empty($data['opportunity_id'])) {
+            $opportunity = \App\Models\Opportunity::find($data['opportunity_id']);
+            if ($opportunity) {
+                $data['customer_id'] = $opportunity->customer_id;
+            }
+        }
+        if (empty($data['customer_id']) && !empty($data['sale_id'])) {
+            $sale = \App\Models\Sale::find($data['sale_id']);
+            if ($sale) {
+                $data['customer_id'] = $sale->customer_id;
             }
         }
 
@@ -335,8 +354,24 @@ class TechnicalTicketController extends Controller
 
         // Send notifications
         $requiresLeadAssign = $ticket->isLeaderOnly();
+        $isFromProject = !empty($data['project_id']);
         
-        if ($requiresLeadAssign) {
+        if ($isFromProject && !empty($data['assigned_to'])) {
+            // Notify assigned Tech Lead about project ticket
+            $assignedUser = User::find($data['assigned_to']);
+            if ($assignedUser) {
+                \App\Models\Notification::create([
+                    'user_id' => $assignedUser->id,
+                    'type' => 'technical_ticket',
+                    'title' => 'Ticket mới từ Dự án',
+                    'message' => "Bạn được phân công phụ trách ticket kỹ thuật từ dự án: {$ticket->code} - {$ticket->title}. Vui lòng kiểm tra và phân công kỹ sư xử lý nếu cần.",
+                    'link' => route('technical-tickets.show', $ticket->id),
+                    'icon' => 'project-diagram',
+                    'color' => 'blue',
+                    'is_read' => false,
+                ]);
+            }
+        } elseif ($requiresLeadAssign) {
             // ONLY Technical Leads
             $recipients = User::where('status', 'active')
                 ->whereHas('roles', function($q) {
@@ -547,7 +582,7 @@ class TechnicalTicketController extends Controller
             }
         }
         $customers = Customer::orderBy('name')->get();
-        $projects = Project::orderBy('name')->get();
+        $projects = $this->getProjectsForTicketUser($ticket->project_id);
         $opportunities = Opportunity::orderBy('name')->get();
         $sales = Sale::orderBy('code')->get();
         $suppliers = Supplier::orderBy('name')->get(); // Vendors
@@ -732,25 +767,31 @@ class TechnicalTicketController extends Controller
             }
         }
 
-        // Resolve customer_id automatically from system links
-        if (empty($data['customer_id'])) {
-            if (!empty($data['project_id'])) {
-                $project = \App\Models\Project::find($data['project_id']);
-                if ($project) {
+        // Resolve customer_id, project_name, and sales_owner_id automatically from system links
+        if (!empty($data['project_id'])) {
+            $project = \App\Models\Project::find($data['project_id']);
+            if ($project) {
+                if (empty($data['customer_id'])) {
                     $data['customer_id'] = $project->customer_id;
                 }
-            }
-            if (empty($data['customer_id']) && !empty($data['opportunity_id'])) {
-                $opportunity = \App\Models\Opportunity::find($data['opportunity_id']);
-                if ($opportunity) {
-                    $data['customer_id'] = $opportunity->customer_id;
+                if (empty($data['project_name'])) {
+                    $data['project_name'] = $project->name;
+                }
+                if (empty($data['sales_owner_id'])) {
+                    $data['sales_owner_id'] = $project->manager_id;
                 }
             }
-            if (empty($data['customer_id']) && !empty($data['sale_id'])) {
-                $sale = \App\Models\Sale::find($data['sale_id']);
-                if ($sale) {
-                    $data['customer_id'] = $sale->customer_id;
-                }
+        }
+        if (empty($data['customer_id']) && !empty($data['opportunity_id'])) {
+            $opportunity = \App\Models\Opportunity::find($data['opportunity_id']);
+            if ($opportunity) {
+                $data['customer_id'] = $opportunity->customer_id;
+            }
+        }
+        if (empty($data['customer_id']) && !empty($data['sale_id'])) {
+            $sale = \App\Models\Sale::find($data['sale_id']);
+            if ($sale) {
+                $data['customer_id'] = $sale->customer_id;
             }
         }
 
@@ -1054,5 +1095,50 @@ class TechnicalTicketController extends Controller
         ]);
 
         return redirect()->back()->with('success_swal', 'Gửi ý kiến trao đổi thành công.');
+    }
+
+    /**
+     * Get list of projects visible for the current user when creating/editing/filtering technical tickets.
+     * For sales accounts, only show projects they registered (manager_id = auth id).
+     */
+    protected function getProjectsForTicketUser(?int $includeProjectId = null)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return collect();
+        }
+
+        $isPrivilegedUser = $user->hasAnyRole([
+            'super_admin', 'director', 'technical_lead', 'technical_engineer', 
+            'admin', 'purchase_manager', 'purchase_staff'
+        ]);
+
+        if (!$isPrivilegedUser && ($user->hasRole('sales_staff') || $user->hasRole('sales_manager') || $user->hasRole('sales') || in_array($user->department, ['Sales', 'Phòng Kinh doanh']))) {
+            return Project::where(function ($q) use ($user, $includeProjectId) {
+                $q->where('manager_id', $user->id);
+                if ($includeProjectId) {
+                    $q->orWhere('id', $includeProjectId);
+                }
+            })->orderBy('name')->get();
+        }
+
+        return Project::orderBy('name')->get();
+    }
+
+    /**
+     * Resolve the Technical Lead user for routing and default assignment.
+     */
+    protected function resolveTechnicalLead(): ?User
+    {
+        return User::where('status', 'active')
+            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
+            ->first()
+            ?: User::where('status', 'active')
+                ->whereIn('department', ['Technical', 'Tech', 'Kỹ thuật'])
+                ->whereHas('roles', fn ($q) => $q->where('slug', 'like', '%lead%')->orWhere('slug', 'like', '%manager%'))
+                ->first()
+            ?: User::where('status', 'active')
+                ->whereHas('roles', fn ($roles) => $roles->whereIn('slug', ['technical_lead', 'technical_engineer']))
+                ->first();
     }
 }

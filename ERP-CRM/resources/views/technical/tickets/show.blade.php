@@ -20,20 +20,40 @@
 
     <div x-data="{ 
         activeTab: 'details', 
+        currentUserId: '{{ Auth::id() }}',
+        currentUserName: '{{ addslashes(Auth::user()->name) }}',
         openLogModal: false, 
         openProgressModal: false,
         logEditMode: false, 
         logActionUrl: '', 
-        logData: { id: '', log_date: '{{ date('Y-m-d') }}', user_id: '{{ Auth::id() }}', serial_number: '', support_content: '', status: '{{ $ticket->status }}', customer_info: '', contact_info: '', notes: '' },
-        engineersList: window.technicalEngineers || [],
-        customersList: window.technicalCustomers || [],
-        supportLogsList: window.technicalSupportLogs || [],
+        logData: { id: '', log_date: '{{ date('Y-m-d') }}', user_id: '{{ Auth::id() }}', serial_number: '', support_content: '', status: '{{ $ticket->status }}', customer_info: '{{ addslashes($ticket->customer->name ?? '') }}', contact_info: '', notes: '' },
+        engineersList: @json($engineers->map(fn($e) => ['id' => $e->id, 'name' => $e->name])),
+        customersList: @json($customers->map(fn($c) => ['name' => $c->name])),
+        supportLogsList: @json($ticket->supportLogs),
         openEng: false,
         openCust: false,
-        engSearch: '',
-        custSearch: '',
+        engSearch: '{{ addslashes(Auth::user()->name) }}',
+        custSearch: '{{ addslashes($ticket->customer->name ?? '') }}',
         engTyping: false,
         custTyping: false,
+        openCreateLogModal() {
+            this.logEditMode = false;
+            this.logActionUrl = '{{ route('technical-tickets.support-logs.store', $ticket->id) }}';
+            this.logData = { 
+                id: '', 
+                log_date: '{{ date('Y-m-d') }}', 
+                user_id: this.currentUserId, 
+                serial_number: '', 
+                support_content: '', 
+                status: '{{ $ticket->status }}', 
+                customer_info: '{{ addslashes($ticket->customer->name ?? '') }}', 
+                contact_info: '', 
+                notes: '' 
+            };
+            this.engSearch = this.currentUserName;
+            this.custSearch = '{{ addslashes($ticket->customer->name ?? '') }}';
+            this.openLogModal = true;
+        },
         editLog(id) {
             var log = this.supportLogsList.find(function(l){ return l.id == id; });
             if (!log) return;
@@ -703,7 +723,7 @@
                                 <h4 class="text-sm font-bold text-gray-800">Nhật ký hỗ trợ kỹ thuật (Report Tech)</h4>
                                 @can('manage_technical_support_logs')
                                     <button
-                                        @click="logEditMode = false; logActionUrl = '{{ route('technical-tickets.support-logs.store', $ticket->id) }}'; logData = { id: '', log_date: '{{ date('Y-m-d') }}', user_id: '{{ Auth::id() }}', serial_number: '', support_content: '', status: '{{ $ticket->status }}', customer_info: '{{ $ticket->customer->name ?? '' }}', contact_info: '', notes: '' }; openLogModal = true; let found = engineersList.find(function(e){ return e.id == logData.user_id; }); engSearch = found ? found.name : ''; custSearch = logData.customer_info || '';"
+                                        @click="openCreateLogModal()"
                                         class="inline-flex items-center px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/95 transition-colors shadow-sm">
                                         <i class="fas fa-plus mr-1"></i> Viết Nhật ký (Report Tech)
                                     </button>
@@ -874,163 +894,166 @@
 
         <!-- 4. Support Log Create/Edit Modal (Alpine.js powered) -->
         <div x-show="openLogModal"
-            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black bg-opacity-50" x-cloak>
+            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs" x-cloak>
             <div @click.away="openLogModal = false"
-                class="bg-white rounded-xl shadow-lg max-w-lg w-full border border-gray-200 overflow-hidden transform transition-all">
-                <!-- Modal Header -->
-                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 class="text-md font-bold text-gray-900"
-                        x-text="logEditMode ? 'Sửa Nhật ký hỗ trợ (Report Tech)' : 'Thêm Nhật ký hỗ trợ (Report Tech)'">
-                    </h3>
-                    <button @click="openLogModal = false"
-                        class="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none">
-                        <i class="fas fa-times text-lg"></i>
+                class="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col border border-gray-200 overflow-hidden transform transition-all my-auto">
+                <!-- Modal Header (Fixed at top) -->
+                <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50/90 flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 text-primary flex items-center justify-center text-sm font-bold">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900"
+                            x-text="logEditMode ? 'Sửa Nhật ký hỗ trợ (Report Tech)' : 'Thêm Nhật ký hỗ trợ (Report Tech)'">
+                        </h3>
+                    </div>
+                    <button type="button" @click="openLogModal = false"
+                        class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-colors focus:outline-none">
+                        <i class="fas fa-times text-base"></i>
                     </button>
                 </div>
 
-                <!-- Modal Form -->
-                <form :action="logActionUrl" method="POST" class="p-6 space-y-4">
+                <!-- Modal Form (Scrollable body + Fixed footer) -->
+                <form :action="logActionUrl" method="POST" class="flex flex-col flex-1 overflow-hidden">
                     @csrf
                     <template x-if="logEditMode">
                         <input type="hidden" name="_method" value="PUT">
                     </template>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Date -->
-                        <div>
-                            <label for="log_date" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ngày hỗ
-                                trợ (*)</label>
-                            <input type="date" name="log_date" id="log_date" required
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                                x-model="logData.log_date">
-                        </div>
+                    <!-- Scrollable Body -->
+                    <div class="p-5 space-y-3.5 overflow-y-auto flex-1">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <!-- Date -->
+                            <div>
+                                <label for="log_date" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ngày hỗ trợ (*)</label>
+                                <input type="date" name="log_date" id="log_date" required
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                    x-model="logData.log_date">
+                            </div>
 
-                        <!-- Engineer Searchable Select -->
-                        <div class="relative">
-                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kỹ sư thực hiện
-                                (*)</label>
+                            <!-- Engineer Searchable Select -->
                             <div class="relative">
-                                <input type="text" placeholder="-- Chọn Kỹ sư --"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="engSearch" @focus="openEng = true" @click="openEng = true"
-                                    @input="openEng = true; engTyping = true"
-                                    @click.away="openEng = false; engTyping = false; const found = engineersList.find(e => e.id == logData.user_id); engSearch = found ? found.name : ''">
-                                <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-xs"></i>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kỹ sư thực hiện (*)</label>
+                                <div class="relative">
+                                    <input type="text" placeholder="-- Chọn Kỹ sư --"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8 bg-white"
+                                        x-model="engSearch" @focus="openEng = true" @click="openEng = true"
+                                        @input="openEng = true; engTyping = true"
+                                        @click.away="setTimeout(function(){ openEng = false; engTyping = false; const found = engineersList.find(e => e.id == logData.user_id); engSearch = found ? found.name : currentUserName }, 200)">
+                                    <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
+                                        <i class="fas fa-chevron-down text-xs"></i>
+                                    </div>
                                 </div>
+                                <div x-show="openEng"
+                                    class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
+                                    x-cloak>
+                                    <template x-for="eng in engineersList" :key="eng.id">
+                                        <button type="button"
+                                            x-show="!engTyping || eng.name.toLowerCase().includes(engSearch.toLowerCase())"
+                                            @mousedown.prevent="logData.user_id = eng.id; engSearch = eng.name; openEng = false; engTyping = false"
+                                            class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
+                                            :class="{'font-bold text-primary bg-blue-50': logData.user_id == eng.id}"
+                                            x-text="eng.name"></button>
+                                    </template>
+                                </div>
+                                <input type="hidden" name="user_id" :value="logData.user_id">
                             </div>
-                            <div x-show="openEng"
-                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5"
-                                x-cloak>
-                                <template x-for="eng in engineersList" :key="eng.id">
-                                    <button type="button"
-                                        x-show="!engTyping || eng.name.toLowerCase().includes(engSearch.toLowerCase())"
-                                        @mousedown.prevent="logData.user_id = eng.id; engSearch = eng.name; openEng = false; engTyping = false"
-                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
-                                        x-text="eng.name"></button>
-                                </template>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <!-- Serial Number -->
+                            <div>
+                                <label for="serial_number" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Số S/N</label>
+                                <input type="text" name="serial_number" id="serial_number" placeholder="Số S/N thiết bị..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                    x-model="logData.serial_number">
                             </div>
-                            <input type="hidden" name="user_id" :value="logData.user_id">
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Serial Number -->
-                        <div>
-                            <label for="serial_number" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Số
-                                S/N</label>
-                            <input type="text" name="serial_number" id="serial_number" placeholder="Số S/N thiết bị..."
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                                x-model="logData.serial_number">
+                            <!-- Status -->
+                            <div>
+                                <label for="log_status" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Trạng thái công việc (*)</label>
+                                <select name="status" id="log_status" required
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                    x-model="logData.status">
+                                    <option value="open">Mới tạo (Open)</option>
+                                    <option value="assigned">Đã phân công</option>
+                                    <option value="pending">Tạm ngưng (Pending)</option>
+                                    <option value="escalate">Cần hỗ trợ thêm (Escalate)</option>
+                                    <option value="completed">Hoàn thành (Completed)</option>
+                                    <option value="closed">Đã đóng (Closed)</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <!-- Status -->
-                        <div>
-                            <label for="log_status" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Trạng
-                                thái công việc (*)</label>
-                            <select name="status" id="log_status" required
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                                x-model="logData.status">
-                                <option value="open">Mới tạo (Open)</option>
-                                <option value="assigned">Đã phân công</option>
-                                <option value="pending">Tạm ngưng (Pending)</option>
-                                <option value="escalate">Cần hỗ trợ thêm (Escalate)</option>
-                                <option value="completed">Hoàn thành (Completed)</option>
-                                <option value="closed">Đã đóng (Closed)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Customer Searchable Select -->
-                        <div class="relative">
-                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Thông tin khách
-                                hàng</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <!-- Customer Searchable Select -->
                             <div class="relative">
-                                <input type="text" placeholder="-- Chọn Khách hàng --"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8"
-                                    x-model="custSearch" @focus="openCust = true" @click="openCust = true"
-                                    @input="openCust = true; custTyping = true"
-                                    @click.away="openCust = false; custTyping = false; custSearch = logData.customer_info || ''">
-                                <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-xs"></i>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Thông tin khách hàng</label>
+                                <div class="relative">
+                                    <input type="text" placeholder="-- Chọn Khách hàng --"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary pr-8 bg-white"
+                                        x-model="custSearch" @focus="openCust = true" @click="openCust = true"
+                                        @input="openCust = true; custTyping = true"
+                                        @click.away="setTimeout(function(){ openCust = false; custTyping = false; custSearch = logData.customer_info || '' }, 200)">
+                                    <div class="absolute right-3 top-2.5 text-gray-400 pointer-events-none">
+                                        <i class="fas fa-chevron-down text-xs"></i>
+                                    </div>
                                 </div>
-                            </div>
-                            <div x-show="openCust"
-                                class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-1 space-y-0.5"
-                                x-cloak>
-                                <button type="button"
-                                    @mousedown.prevent="logData.customer_info = ''; custSearch = ''; openCust = false; custTyping = false"
-                                    class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
-                                    -- Chọn Khách hàng --
-                                </button>
-                                <template x-for="cust in customersList" :key="cust.name">
+                                <div x-show="openCust"
+                                    class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
+                                    x-cloak>
                                     <button type="button"
-                                        x-show="!custTyping || cust.name.toLowerCase().includes(custSearch.toLowerCase())"
-                                        @mousedown.prevent="logData.customer_info = cust.name; custSearch = cust.name; openCust = false; custTyping = false"
-                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
-                                        x-text="cust.name"></button>
-                                </template>
+                                        @mousedown.prevent="logData.customer_info = ''; custSearch = ''; openCust = false; custTyping = false"
+                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors italic text-gray-400">
+                                        -- Chọn Khách hàng --
+                                    </button>
+                                    <template x-for="cust in customersList" :key="cust.name">
+                                        <button type="button"
+                                            x-show="!custTyping || cust.name.toLowerCase().includes(custSearch.toLowerCase())"
+                                            @mousedown.prevent="logData.customer_info = cust.name; custSearch = cust.name; openCust = false; custTyping = false"
+                                            class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 text-xs transition-colors"
+                                            :class="{'font-bold text-primary bg-blue-50': logData.customer_info == cust.name}"
+                                            x-text="cust.name"></button>
+                                    </template>
+                                </div>
+                                <input type="hidden" name="customer_info" :value="logData.customer_info">
                             </div>
-                            <input type="hidden" name="customer_info" :value="logData.customer_info">
+
+                            <!-- Contact Info -->
+                            <div>
+                                <label for="contact_info" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Thông tin người liên hệ</label>
+                                <input type="text" name="contact_info" id="contact_info" placeholder="Họ tên, SĐT, Chức vụ..."
+                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                    x-model="logData.contact_info">
+                            </div>
                         </div>
 
-                        <!-- Contact Info -->
+                        <!-- Support Content -->
                         <div>
-                            <label for="contact_info" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Thông
-                                tin người liên hệ</label>
-                            <input type="text" name="contact_info" id="contact_info" placeholder="Họ tên, SĐT, Chức vụ..."
+                            <label for="support_content" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nội dung hỗ trợ (*)</label>
+                            <textarea name="support_content" id="support_content" required rows="3"
+                                placeholder="Nhập chi tiết nội dung công việc xử lý..."
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                                x-model="logData.contact_info">
+                                x-model="logData.support_content"></textarea>
+                        </div>
+
+                        <!-- Notes -->
+                        <div>
+                            <label for="notes" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ghi chú</label>
+                            <textarea name="notes" id="notes" rows="2" placeholder="Ghi chú thêm..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
+                                x-model="logData.notes"></textarea>
                         </div>
                     </div>
 
-                    <!-- Support Content -->
-                    <div>
-                        <label for="support_content" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nội
-                            dung hỗ trợ (*)</label>
-                        <textarea name="support_content" id="support_content" required rows="8"
-                            placeholder="Nhập chi tiết nội dung công việc xử lý..."
-                            class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                            x-model="logData.support_content"></textarea>
-                    </div>
-
-                    <!-- Notes -->
-                    <div>
-                        <label for="notes" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ghi chú</label>
-                        <textarea name="notes" id="notes" rows="4" placeholder="Ghi chú thêm..."
-                            class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                            x-model="logData.notes"></textarea>
-                    </div>
-
-                    <!-- Modal Actions -->
-                    <div class="pt-4 border-t border-gray-100 flex justify-end space-x-3">
+                    <!-- Modal Actions (Fixed at bottom) -->
+                    <div class="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 shrink-0">
                         <button type="button" @click="openLogModal = false"
                             class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors bg-white">
                             Hủy bỏ
                         </button>
                         <button type="submit"
-                            class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm"
+                            class="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm"
                             x-text="logEditMode ? 'Lưu thay đổi' : 'Thêm nhật ký'"></button>
                     </div>
                 </form>
@@ -1039,61 +1062,69 @@
 
         <!-- 5. Quick Progress / Evaluation Update Modal -->
         <div x-show="openProgressModal"
-            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black bg-opacity-50" x-cloak>
+            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs" x-cloak>
             <div @click.away="openProgressModal = false"
-                class="bg-white rounded-xl shadow-lg max-w-lg w-full border border-gray-200 overflow-hidden transform transition-all">
-                <!-- Modal Header -->
-                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 class="text-md font-bold text-gray-900">
-                        Cập nhật tiến độ & Phương án xử lý
-                    </h3>
-                    <button @click="openProgressModal = false"
-                        class="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none">
-                        <i class="fas fa-times text-lg"></i>
+                class="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col border border-gray-200 overflow-hidden transform transition-all my-auto">
+                <!-- Modal Header (Fixed at top) -->
+                <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50/90 flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900">
+                            Cập nhật tiến độ & Phương án xử lý
+                        </h3>
+                    </div>
+                    <button type="button" @click="openProgressModal = false"
+                        class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-colors focus:outline-none">
+                        <i class="fas fa-times text-base"></i>
                     </button>
                 </div>
 
-                <!-- Modal Form -->
-                <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="p-6 space-y-4">
+                <!-- Modal Form (Scrollable body + Fixed footer) -->
+                <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="flex flex-col flex-1 overflow-hidden">
                     @csrf
                     @method('PUT')
 
                     <!-- Action flag -->
                     <input type="hidden" name="action" value="update_solution">
 
-                    <!-- Status Checkboxes -->
-                    @if(!in_array($ticket->status, ['completed', 'closed']))
-                    <div class="space-y-2">
-                        <div class="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
-                            <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
-                                class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
-                            <label for="progress_is_completed" class="text-sm font-semibold text-emerald-800 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
+                    <!-- Scrollable Body -->
+                    <div class="p-5 space-y-3.5 overflow-y-auto flex-1">
+                        <!-- Status Checkboxes -->
+                        @if(!in_array($ticket->status, ['completed', 'closed']))
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2.5 bg-emerald-50 border border-emerald-200/70 p-3 rounded-xl">
+                                <input type="checkbox" name="is_completed" id="progress_is_completed" value="1"
+                                    class="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                                <label for="progress_is_completed" class="text-xs font-semibold text-emerald-900 cursor-pointer">Đã hoàn thành công việc kỹ thuật (Completed)</label>
+                            </div>
+                            <div class="flex items-center space-x-2.5 bg-purple-50 border border-purple-200/70 p-3 rounded-xl">
+                                <input type="checkbox" name="is_waiting" id="progress_is_waiting" value="1"
+                                    {{ $ticket->status === 'waiting' ? 'checked' : '' }}
+                                    class="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                <label for="progress_is_waiting" class="text-xs font-semibold text-purple-900 cursor-pointer">Chờ phản hồi từ Khách hàng / Đối tác / Nhà cung cấp</label>
+                            </div>
                         </div>
-                        <div class="flex items-center space-x-2 bg-purple-50 border border-purple-100 p-3 rounded-lg">
-                            <input type="checkbox" name="is_waiting" id="progress_is_waiting" value="1"
-                                {{ $ticket->status === 'waiting' ? 'checked' : '' }}
-                                class="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
-                            <label for="progress_is_waiting" class="text-sm font-semibold text-purple-800 cursor-pointer">Chờ phản hồi từ Khách hàng / Đối tác / Nhà cung cấp</label>
+                        @endif
+
+                        <!-- Solution / Evaluation -->
+                        <div>
+                            <label for="progress_solution" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nguyên nhân / Phương án / Cách xử lý</label>
+                            <textarea name="solution" id="progress_solution" rows="4"
+                                placeholder="Nhập nguyên nhân lỗi, phương án khắc phục, cấu hình chi tiết..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ $ticket->solution }}</textarea>
                         </div>
                     </div>
-                    @endif
 
-                    <!-- Solution / Evaluation -->
-                    <div>
-                        <label for="progress_solution" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nguyên nhân / Phương án / Cách xử lý</label>
-                        <textarea name="solution" id="progress_solution" rows="6"
-                            placeholder="Nhập nguyên nhân lỗi, phương án khắc phục, cấu hình chi tiết..."
-                            class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">{{ $ticket->solution }}</textarea>
-                    </div>
-
-                    <!-- Modal Actions -->
-                    <div class="pt-4 border-t border-gray-100 flex justify-end space-x-3">
+                    <!-- Modal Actions (Fixed at bottom) -->
+                    <div class="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 shrink-0">
                         <button type="button" @click="openProgressModal = false"
                             class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors bg-white">
                             Hủy bỏ
                         </button>
                         <button type="submit"
-                            class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
+                            class="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
                             Lưu cập nhật
                         </button>
                     </div>

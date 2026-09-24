@@ -116,6 +116,14 @@ class TestUserSeeder extends Seeder
                 'position' => 'Technical Engineer',
                 'department' => 'Technical'
             ],
+            [
+                'email' => 'marketing@erp.com',
+                'name' => 'Marketing User',
+                'employee_code' => 'MKT001',
+                'role_slug' => 'marketing',
+                'position' => 'Marketing Specialist',
+                'department' => 'Marketing'
+            ],
         ];
 
         // Get admin user for 'assigned_by' reference

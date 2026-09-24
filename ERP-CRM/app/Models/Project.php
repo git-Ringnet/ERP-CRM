@@ -181,6 +181,11 @@ class Project extends Model
         return $this->hasMany(ProjectStatusUpdate::class)->orderBy('created_at', 'desc');
     }
 
+    public function technicalTickets()
+    {
+        return $this->hasMany(TechnicalTicket::class, 'project_id')->orderBy('created_at', 'desc');
+    }
+
     /**
      * Get list of all chronological updates made by Sales and PM on this project.
      * Format: [H:i j.n.Y] Role: Content
