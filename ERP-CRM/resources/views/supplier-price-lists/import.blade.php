@@ -1181,13 +1181,20 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                 body: JSON.stringify(requestBody)
             })
-                .then(res => {
+                .then(async res => {
+                    const isJson = res.headers.get('content-type')?.includes('application/json');
+                    const data = isJson ? await res.json() : await res.text();
+                    
                     if (!res.ok) {
-                        return res.text().then(text => {
-                            throw new Error(text.substring(0, 200));
-                        });
+                        let errMsg = 'Lỗi ' + res.status;
+                        if (typeof data === 'object' && data.message) {
+                            errMsg = data.message;
+                        } else if (typeof data === 'string' && data.trim() !== '') {
+                            errMsg = data.substring(0, 300);
+                        }
+                        throw new Error(errMsg);
                     }
-                    return res.json();
+                    return data;
                 })
                 .then(data => {
                     hideLoading();
@@ -1201,7 +1208,7 @@
                 .catch(err => {
                     hideLoading();
                     console.error('Import error:', err);
-                    alert('Lỗi import: ' + err.message);
+                    alert('Lỗi import: ' + (err.message || 'Lỗi không xác định từ máy chủ'));
                 });
         }
 

@@ -586,8 +586,8 @@ class SupplierPriceListController extends Controller
     public function import(Request $request)
     {
         // Increase limits for large file processing
-        set_time_limit(600);
-        ini_set('memory_limit', '512M');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '-1');
 
         $request->validate([
             'supplier_id' => 'required|exists:suppliers,id',
@@ -618,8 +618,14 @@ class SupplierPriceListController extends Controller
             }
 
             $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($fullPath);
-            // DO NOT setReadDataOnly(true) during auto-detection as many files (like QNAP) 
-            // use merged cells (vertical) for headers.
+            $reader->setReadDataOnly(true);
+            
+            // Only load sheets that user selected to save memory
+            $selectedSheetNames = array_map(fn($s) => $s['name'], $request->sheets ?? []);
+            if (!empty($selectedSheetNames)) {
+                $reader->setLoadSheetsOnly($selectedSheetNames);
+            }
+            
             $spreadsheet = $reader->load($fullPath);
 
             // Lấy supplier để xác định preset
@@ -706,7 +712,6 @@ class SupplierPriceListController extends Controller
                 if (isset($sheetConfig['mapping'])) {
                     foreach ($sheetConfig['mapping'] as $key => $colIndex) {
                         if (str_starts_with($key, 'custom_') || str_starts_with($key, 'meta_')) {
-                            // Extract label: either from header (if available) or from key
                             $label = (isset($realHeaders[$colIndex]) && $realHeaders[$colIndex] !== '') 
                                      ? $realHeaders[$colIndex] 
                                      : str_replace(['custom_', 'meta_'], '', $key);
@@ -728,16 +733,111 @@ class SupplierPriceListController extends Controller
             // Lưu definition các cột (cả custom và standard)
             $columnDefinitions = []; // format: key => label
 
-            foreach ($sheets as $sheetConfig) {
-                // Chúng ta sẽ lấy lại headers từ file trong vòng lặp xử lý sheet bên dưới
-                // Tuy nhiên, để map label chính xác cho toàn bộ Price List (dùng chung cho các sheet), 
-                // ta nên ưu tiên label từ sheet đầu tiên hoặc merge lại.
-                // Ở đây ta xử lý LOGIC CAPTURE LABEL bên trong vòng lặp xử lý từng sheet phía dưới 
-                // và cập nhật vào biến $columnDefinitions
-            }
+            // Cache existing products to prevent redundant queries during bulk sync
+            $existingProductsCache = [];
+
+            // Helper to flush batch items into DB and sync to products in bulk
+            $flushBatch = function (array &$batchItems, string $importMode, int $priceListId, array &$sheetLog) use (&$existingProductsCache, $priceList) {
+                if (empty($batchItems)) return;
+                
+                $now = now();
+                $chunkSkus = array_unique(array_filter(array_column($batchItems, 'sku')));
+                
+                if ($importMode === 'update') {
+                    $existingItems = SupplierPriceListItem::where('supplier_price_list_id', $priceListId)
+                        ->whereIn('sku', $chunkSkus)
+                        ->get()
+                        ->keyBy('sku');
+                        
+                    $toInsert = [];
+                    foreach ($batchItems as $item) {
+                        $sku = $item['sku'];
+                        if (isset($existingItems[$sku])) {
+                            $existingItems[$sku]->update($item);
+                            $sheetLog['items_updated']++;
+                        } else {
+                            $item['created_at'] = $now;
+                            $item['updated_at'] = $now;
+                            if (isset($item['extra_data']) && is_array($item['extra_data'])) {
+                                $item['extra_data'] = json_encode($item['extra_data']);
+                            }
+                            $toInsert[] = $item;
+                            $sheetLog['items_created']++;
+                        }
+                    }
+                    if (!empty($toInsert)) {
+                        SupplierPriceListItem::insert($toInsert);
+                    }
+                } else {
+                    $toInsert = [];
+                    foreach ($batchItems as $item) {
+                        $item['created_at'] = $now;
+                        $item['updated_at'] = $now;
+                        if (isset($item['extra_data']) && is_array($item['extra_data'])) {
+                            $item['extra_data'] = json_encode($item['extra_data']);
+                        }
+                        $toInsert[] = $item;
+                        $sheetLog['items_created']++;
+                    }
+                    if (!empty($toInsert)) {
+                        SupplierPriceListItem::insert($toInsert);
+                    }
+                }
+                
+                // Batch sync to products table
+                if (!empty($chunkSkus)) {
+                    $uncachedSkus = array_diff($chunkSkus, array_keys($existingProductsCache));
+                    if (!empty($uncachedSkus)) {
+                        $foundProducts = Product::whereIn('code', $uncachedSkus)->get()->keyBy('code');
+                        foreach ($foundProducts as $code => $p) {
+                            $existingProductsCache[$code] = $p;
+                        }
+                        foreach ($uncachedSkus as $code) {
+                            if (!isset($existingProductsCache[$code])) {
+                                $existingProductsCache[$code] = false;
+                            }
+                        }
+                    }
+                    
+                    $newProductsToInsert = [];
+                    foreach ($batchItems as $item) {
+                        $sku = $this->cleanSku($item['sku']);
+                        if (empty($sku)) continue;
+                        $sku = mb_substr($sku, 0, 191);
+                        
+                        if (isset($existingProductsCache[$sku]) && $existingProductsCache[$sku] instanceof Product) {
+                            // Product exists - update description if needed
+                            $p = $existingProductsCache[$sku];
+                            if ($item['description'] && empty($p->description)) {
+                                $p->update(['description' => mb_substr($item['description'], 0, 65000)]);
+                            }
+                        } elseif (!isset($newProductsToInsert[$sku])) {
+                            $cat = $item['category'] ?? 'Z';
+                            if (empty($cat) || strlen($cat) > 1) {
+                                $cat = 'Z';
+                            }
+                            $newProductsToInsert[$sku] = [
+                                'code' => $sku,
+                                'name' => mb_substr($item['product_name'] ?: $sku, 0, 255),
+                                'description' => $item['description'] ? mb_substr($item['description'], 0, 65000) : null,
+                                'unit' => 'Bộ',
+                                'category' => $cat,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                            $existingProductsCache[$sku] = true;
+                        }
+                    }
+                    
+                    if (!empty($newProductsToInsert)) {
+                        Product::insert(array_values($newProductsToInsert));
+                    }
+                }
+                
+                $batchItems = [];
+            };
 
             foreach ($sheets as $sheetConfig) {
-                // ... (logic skip sheet giữ nguyên) ...
                 $sheetName = $sheetConfig['name'];
                 
                 // Kiểm tra skip
@@ -751,7 +851,6 @@ class SupplierPriceListController extends Controller
                     }
                 }
                 if ($shouldSkip) {
-                    // ... log skip ...
                     Log::info("Skipping sheet '{$sheetName}' - in skip list");
                     $importLog['sheets'][] = [
                         'name' => $sheetName, 
@@ -761,8 +860,12 @@ class SupplierPriceListController extends Controller
                     continue;
                 }
 
-                $worksheet = $spreadsheet->getSheet($sheetConfig['index']);
-                $configHeaderRow = $sheetConfig['header_row'];
+                // Check sheet existence
+                if (!$spreadsheet->sheetNameExists($sheetName)) {
+                    continue;
+                }
+                $worksheet = $spreadsheet->getSheetByName($sheetName);
+                $configHeaderRow = $sheetConfig['header_row'] ?? 1;
                 $highestColumn = $worksheet->getHighestColumn();
                 $highestRow = $worksheet->getHighestRow();
 
@@ -770,7 +873,6 @@ class SupplierPriceListController extends Controller
                 $headerRow = $this->findHeaderRow($worksheet, $configHeaderRow, $highestColumn, $preset);
                 
                 if ($headerRow === null) {
-                   // ... log error ...
                    continue;
                 }
 
@@ -788,7 +890,6 @@ class SupplierPriceListController extends Controller
                     $value = $this->getCellValue($worksheet, $col, $headerRow);
                     $trimVal = trim($value ?? '');
                     
-                    // Multi-row header: combine with next row ONLY if row-level check confirmed it's a header continuation
                     if ($isMultiRowHeader && $headerRow < $highestRow) {
                         $nextRowVal = $this->getCellValue($worksheet, $col, $headerRow + 1);
                         $nextVal = trim($nextRowVal ?? '');
@@ -814,7 +915,7 @@ class SupplierPriceListController extends Controller
                 // Tự động detect mapping nếu không có mapping được gửi lên hoặc mapping rỗng
                 $mapping = $sheetConfig['mapping'] ?? [];
 
-                // Luôn chạy auto-detect để tìm các cột có thể bị thiếu trong mapping gửi lên (ví dụ: các cột contract)
+                // Luôn chạy auto-detect để tìm các cột có thể bị thiếu trong mapping gửi lên
                 $detectedMapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset, [], $realHeaders);
 
                 // Nếu mapping rỗng (không gửi từ UI), dùng full detected
@@ -847,7 +948,6 @@ class SupplierPriceListController extends Controller
                 // CAPTURE LABELS from this sheet's mapping
                 foreach ($mapping as $field => $colIndex) {
                     if ($colIndex !== '' && isset($realHeaders[$colIndex])) {
-                        // Skip internal mapping fields (per-tier SKU columns and range column)
                         if (str_starts_with($field, '_') || preg_match('/^sku_\d+yr$/', $field)) continue;
                         
                         $originalName = $realHeaders[$colIndex];
@@ -857,7 +957,6 @@ class SupplierPriceListController extends Controller
                     }
                 }
                 
-                // Also capture Custom/Meta Columns Labels from key name directly if not found in header (fallback)
                 foreach ($mapping as $key => $colIndex) {
                      if (str_starts_with($key, 'custom_')) {
                          $label = substr($key, 7);
@@ -881,22 +980,20 @@ class SupplierPriceListController extends Controller
                     'skipped_details' => [],
                 ];
 
-                $currentCategory = null; // Track current category from section headers
+                $currentCategory = null;
                 $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
-                // Determine data start row (reuse multi-row header flag from above)
+                // Determine data start row
                 $dataStartRow = $isMultiRowHeader ? $headerRow + 2 : $headerRow + 1;
-                if ($isMultiRowHeader) {
-                    Log::debug("Multi-row header detected, data starts at row {$dataStartRow}");
-                }
+                
+                $batchItems = [];
+                $batchSize = 500;
 
                 for ($row = $dataStartRow; $row <= $highestRow; $row++) {
                     $rowData = [];
-                    // Chỉ đọc các cột cần thiết dựa trên mapping
                     $colsToRead = array_unique(array_filter(array_values($mapping), fn($v) => $v !== ''));
                     
                     if (empty($colsToRead)) {
-                        // Nếu không có mapping, đọc tối đa 100 cột đầu
                         $maxColToProcess = min($highestColIndex, 100);
                         for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
                             $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
@@ -907,7 +1004,6 @@ class SupplierPriceListController extends Controller
                             $rowData[$colIdx - 1] = $cellValue;
                         }
                     } else {
-                        // Chỉ đọc các cột được map
                         foreach ($colsToRead as $colIndex) {
                             $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
                             $cellValue = $worksheet->getCell($col . $row)->getValue();
@@ -918,15 +1014,10 @@ class SupplierPriceListController extends Controller
                         }
                     }
 
-                    // ============================================================
                     // MULTI-TIER SPLIT MODE
-                    // When per-tier SKU columns are detected (e.g., Bitdefender format with 
-                    // repeating [SKU][Price] pairs), split each Excel row into multiple items.
-                    // ============================================================
                     $hasMultiTierSku = isset($mapping['sku_2yr']) || isset($mapping['sku_3yr']) || isset($mapping['sku_4yr']) || isset($mapping['sku_5yr']);
                     
                     if ($hasMultiTierSku) {
-                        // Build tier definitions: each tier has a SKU column and a price column
                         $tiers = [];
                         $tierDefs = [
                             ['sku_field' => 'sku', 'price_field' => 'price_1yr', 'period' => '1 Year'],
@@ -936,7 +1027,6 @@ class SupplierPriceListController extends Controller
                             ['sku_field' => 'sku_5yr', 'price_field' => 'price_5yr', 'period' => '5 Years'],
                         ];
                         
-                        // For tier 1: use main 'sku' column with 'price_1yr' (or 'price' fallback)
                         foreach ($tierDefs as $def) {
                             $skuCol = $mapping[$def['sku_field']] ?? null;
                             $priceCol = $mapping[$def['price_field']] ?? ($def['sku_field'] === 'sku' ? ($mapping['price'] ?? null) : null);
@@ -950,7 +1040,6 @@ class SupplierPriceListController extends Controller
                             }
                         }
                         
-                        // Get common fields
                         $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' 
                             ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
                         $rangeValue = isset($mapping['_range_column']) && $mapping['_range_column'] !== ''
@@ -963,7 +1052,6 @@ class SupplierPriceListController extends Controller
                         $description = isset($mapping['description']) && $mapping['description'] !== ''
                             ? mb_substr(trim((string) ($rowData[$mapping['description']] ?? '')), 0, 65000) : null;
                         
-                        // Check if this is a category header row (no valid tier data)
                         $anyTierHasData = false;
                         foreach ($tiers as $tier) {
                             $tierSku = trim((string) ($rowData[$tier['sku_col']] ?? ''));
@@ -975,7 +1063,6 @@ class SupplierPriceListController extends Controller
                         }
                         
                         if (!$anyTierHasData) {
-                            // Possibly a category/section header
                             $candidate = $productName ?: trim((string) ($rowData[$mapping['sku']] ?? ''));
                             if (!empty($candidate) && strlen($candidate) < 100 && 
                                 !str_contains(strtolower($candidate), 'price list') && 
@@ -986,17 +1073,13 @@ class SupplierPriceListController extends Controller
                             continue;
                         }
                         
-                        // Create one item per tier
                         foreach ($tiers as $tier) {
                             $tierSku = trim((string) ($rowData[$tier['sku_col']] ?? ''));
                             $tierPrice = $this->parsePrice($rowData[$tier['price_col']] ?? null);
                             
-                            // Skip tiers with no SKU or no price
                             if (empty($tierSku) || !$tierPrice) continue;
-                            
                             if (!$this->isValidSku($tierSku)) continue;
                             
-                            // Build descriptive product name: "Product Name (Range) - Period"
                             $tierProductName = $productName ?: $tierSku;
                             if (!empty($rangeValue)) {
                                 $tierProductName .= ' (' . $rangeValue . ')';
@@ -1022,192 +1105,143 @@ class SupplierPriceListController extends Controller
                                 ],
                             ];
                             
-                            if ($request->import_mode === 'update') {
-                                $existing = SupplierPriceListItem::where('supplier_price_list_id', $priceList->id)
-                                    ->where('sku', $tierSku)
-                                    ->first();
-                                if ($existing) {
-                                    $existing->update($itemData);
-                                    $this->syncItemToProduct($existing);
-                                    $sheetLog['items_updated']++;
-                                } else {
-                                    $newItem = SupplierPriceListItem::create($itemData);
-                                    $this->syncItemToProduct($newItem);
-                                    $sheetLog['items_created']++;
-                                }
-                            } else {
-                                $newItem = SupplierPriceListItem::create($itemData);
-                                $this->syncItemToProduct($newItem);
-                                $sheetLog['items_created']++;
-                            }
-                            
+                            $batchItems[] = $itemData;
                             $sheetLog['rows_processed']++;
+                            
+                            if (count($batchItems) >= $batchSize) {
+                                $flushBatch($batchItems, $request->import_mode, $priceList->id, $sheetLog);
+                            }
                         }
                         
                     } else {
-                    // ============================================================
-                    // STANDARD MODE (original logic - one item per row)
-                    // ============================================================
-                    
-                    // Lấy giá trị theo mapping
-                    $sku = isset($mapping['sku']) && $mapping['sku'] !== '' ? trim((string) ($rowData[$mapping['sku']] ?? '')) : '';
-                    $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
-                    
-                    // Parse values to check valid item
-                    $listPrice = isset($mapping['price']) && $mapping['price'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price']] ?? null)
-                            : null;
-                    $price1yr = isset($mapping['price_1yr']) && $mapping['price_1yr'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price_1yr']] ?? null)
-                            : null;
-                    
-                    // Capture dynamic prices & meta
-                    $extraPrices = [];
-                    $metaData = [];
-                    foreach ($mapping as $key => $colIndex) {
-                        if ($colIndex === '') continue;
-                        if (str_starts_with($key, 'custom_')) {
-                            $val = $this->parsePrice($rowData[$colIndex] ?? null);
-                            if ($val !== null) $extraPrices[$key] = $val;
-                        } elseif (str_starts_with($key, 'meta_')) {
-                            $metaData[$key] = trim((string)($rowData[$colIndex] ?? ''));
+                        // STANDARD MODE
+                        $sku = isset($mapping['sku']) && $mapping['sku'] !== '' ? trim((string) ($rowData[$mapping['sku']] ?? '')) : '';
+                        $productName = isset($mapping['product_name']) && $mapping['product_name'] !== '' ? trim((string) ($rowData[$mapping['product_name']] ?? '')) : '';
+                        
+                        $listPrice = isset($mapping['price']) && $mapping['price'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price']] ?? null)
+                                : null;
+                        $price1yr = isset($mapping['price_1yr']) && $mapping['price_1yr'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price_1yr']] ?? null)
+                                : null;
+                        
+                        $extraPrices = [];
+                        $metaData = [];
+                        foreach ($mapping as $key => $colIndex) {
+                            if ($colIndex === '') continue;
+                            if (str_starts_with($key, 'custom_')) {
+                                $val = $this->parsePrice($rowData[$colIndex] ?? null);
+                                if ($val !== null) $extraPrices[$key] = $val;
+                            } elseif (str_starts_with($key, 'meta_')) {
+                                $metaData[$key] = trim((string)($rowData[$colIndex] ?? ''));
+                            }
                         }
-                    }
-                    $hasDynamicPrice = !empty($extraPrices);
+                        $hasDynamicPrice = !empty($extraPrices);
 
-                    // Check all possible price columns (Allow 0 price)
-                    $hasPrice = ($listPrice !== null || $price1yr !== null || $hasDynamicPrice);
-                    
-                    if (!$hasPrice) {
-                        // Check other standard price columns (price_2yr..5yr)
-                        foreach (['price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $priceCol) {
-                            if (isset($mapping[$priceCol]) && $mapping[$priceCol] !== '') {
-                                $val = $this->parsePrice($rowData[$mapping[$priceCol]] ?? null);
-                                if ($val !== null) {
-                                    $hasPrice = true;
-                                    break;
+                        $hasPrice = ($listPrice !== null || $price1yr !== null || $hasDynamicPrice);
+                        
+                        if (!$hasPrice) {
+                            foreach (['price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'] as $priceCol) {
+                                if (isset($mapping[$priceCol]) && $mapping[$priceCol] !== '') {
+                                    $val = $this->parsePrice($rowData[$mapping[$priceCol]] ?? null);
+                                    if ($val !== null) {
+                                        $hasPrice = true;
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Category Logic:
-                    // If row has text in SKU/Name col, but NO Price, treat as Section Header -> Category
-                    if (empty($sku) || !$hasPrice) {
-                        // Log để debug
-                        if (!empty($sku) && $row <= $headerRow + 5) {
-                            Log::info("Row {$row} skipped - SKU: {$sku}, hasPrice: " . ($hasPrice ? 'YES' : 'NO') . ", listPrice: {$listPrice}, hasDynamicPrice: " . ($hasDynamicPrice ? 'YES' : 'NO'), [
-                                'mapping' => $mapping,
-                                'rowData_sample' => array_slice($rowData, 0, 10),
-                                'extraPrices' => $extraPrices
-                            ]);
-                        }
-                        
-                        // Check if potential category
-                        $candidate = $sku ?: $productName;
-                        // Heuristic: short text, no price keywords, reasonably meaningful
-                        $checkClean = trim(strtolower($candidate));
-                        $isHeaderKw = str_contains($checkClean, 'sku') || 
-                                     str_contains($checkClean, 'product') || 
-                                     str_contains($checkClean, 'description') || 
-                                     str_contains($checkClean, 'part number') ||
-                                     str_contains($checkClean, 'unit') ||
-                                     str_contains($checkClean, 'price') ||
-                                     str_contains($checkClean, 'msrp');
+                        if (empty($sku) || !$hasPrice) {
+                            $candidate = $sku ?: $productName;
+                            $checkClean = trim(strtolower($candidate));
+                            $isHeaderKw = str_contains($checkClean, 'sku') || 
+                                         str_contains($checkClean, 'product') || 
+                                         str_contains($checkClean, 'description') || 
+                                         str_contains($checkClean, 'part number') ||
+                                         str_contains($checkClean, 'unit') ||
+                                         str_contains($checkClean, 'price') ||
+                                         str_contains($checkClean, 'msrp');
 
-                        if (!empty($candidate) && strlen($candidate) < 100 && 
-                            !$isHeaderKw &&
-                            !str_contains($checkClean, 'price list') && 
-                            !str_contains($checkClean, 'note:')) {
+                            if (!empty($candidate) && strlen($candidate) < 100 && 
+                                !$isHeaderKw &&
+                                !str_contains($checkClean, 'price list') && 
+                                !str_contains($checkClean, 'note:')) {
+                                
+                                $currentCategory = $candidate;
+                            }
                             
-                            $currentCategory = $candidate;
+                            $sheetLog['items_skipped']++;
+                            if (count($sheetLog['skipped_details']) < 100) {
+                                $sheetLog['skipped_details'][] = [
+                                    'row' => $row,
+                                    'sku' => $sku,
+                                    'reason' => 'Không có giá hoặc SKU'
+                                ];
+                            }
+                            continue;
                         }
-                        
-                        $sheetLog['items_skipped']++;
-                         if (count($sheetLog['skipped_details']) < 100) {
-                            $sheetLog['skipped_details'][] = [
-                                'row' => $row,
-                                'sku' => $sku,
-                                'reason' => 'Không có giá hoặc SKU (Có thể là tiêu đề nhóm: ' . ($currentCategory === $candidate ? 'YES' : 'NO') . ')'
-                            ];
+
+                        if (!$this->isValidSku($sku)) {
+                            $sheetLog['items_skipped']++;
+                            if (count($sheetLog['skipped_details']) < 100) {
+                                $sheetLog['skipped_details'][] = [
+                                    'row' => $row,
+                                    'sku' => $sku,
+                                    'reason' => 'SKU không hợp lệ hoặc bị blacklist'
+                                ];
+                            }
+                            continue;
                         }
-                        continue;
-                    }
 
-                    // Lọc bỏ các dòng không hợp lệ (nếu có giá nhưng SKU lỗi)
-                    // Note: "APV 1600" as SKU? If it has price, it's an item. If no price, captured above.
-                    if (!$this->isValidSku($sku)) {
-                         $sheetLog['items_skipped']++;
-                        if (count($sheetLog['skipped_details']) < 100) {
-                            $sheetLog['skipped_details'][] = [
-                                'row' => $row,
-                                'sku' => $sku,
-                                'reason' => 'SKU không hợp lệ hoặc bị blacklist'
-                            ];
+                        $category = isset($mapping['category']) && $mapping['category'] !== ''
+                                ? mb_substr(trim((string) ($rowData[$mapping['category']] ?? '')), 0, 255)
+                                : null;
+
+                        if (empty($category) && !empty($currentCategory)) {
+                            $category = mb_substr($currentCategory, 0, 255);
                         }
-                        continue;
-                    }
 
-                    $category = isset($mapping['category']) && $mapping['category'] !== ''
-                            ? mb_substr(trim((string) ($rowData[$mapping['category']] ?? '')), 0, 255)
-                            : null;
+                        $itemData = [
+                            'supplier_price_list_id' => $priceList->id,
+                            'sku' => mb_substr(trim((string) $sku), 0, 255),
+                            'product_name' => mb_substr(trim((string) ($productName ?: $sku)), 0, 65000),
+                            'description' => isset($mapping['description']) && $mapping['description'] !== ''
+                                ? mb_substr(trim((string) ($rowData[$mapping['description']] ?? '')), 0, 65000)
+                                : null,
+                            'category' => $category,
+                            'list_price' => $listPrice,
+                            'price_1yr' => $price1yr,
+                            'price_2yr' => isset($mapping['price_2yr']) && $mapping['price_2yr'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price_2yr']] ?? null)
+                                : null,
+                            'price_3yr' => isset($mapping['price_3yr']) && $mapping['price_3yr'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price_3yr']] ?? null)
+                                : null,
+                            'price_4yr' => isset($mapping['price_4yr']) && $mapping['price_4yr'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price_4yr']] ?? null)
+                                : null,
+                            'price_5yr' => isset($mapping['price_5yr']) && $mapping['price_5yr'] !== ''
+                                ? $this->parsePrice($rowData[$mapping['price_5yr']] ?? null)
+                                : null,
+                            'source_sheet' => mb_substr($sheetConfig['name'], 0, 255),
+                            'extra_data' => (!empty($extraPrices) || !empty($metaData)) 
+                                            ? ['prices' => $extraPrices, 'metadata' => $metaData] 
+                                            : null,
+                        ];
 
-                    // Fallback to section header category if mapped category is empty
-                    if (empty($category) && !empty($currentCategory)) {
-                        $category = mb_substr($currentCategory, 0, 255);
-                    }
+                        $batchItems[] = $itemData;
+                        $sheetLog['rows_processed']++;
 
-                    $itemData = [
-                        'supplier_price_list_id' => $priceList->id,
-                        'sku' => mb_substr(trim((string) $sku), 0, 255),
-                        'product_name' => mb_substr(trim((string) ($productName ?: $sku)), 0, 65000),
-                        'description' => isset($mapping['description']) && $mapping['description'] !== ''
-                            ? mb_substr(trim((string) ($rowData[$mapping['description']] ?? '')), 0, 65000)
-                            : null,
-                        'category' => $category,
-                        'list_price' => $listPrice,
-                        'price_1yr' => $price1yr,
-                        'price_2yr' => isset($mapping['price_2yr']) && $mapping['price_2yr'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price_2yr']] ?? null)
-                            : null,
-                        'price_3yr' => isset($mapping['price_3yr']) && $mapping['price_3yr'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price_3yr']] ?? null)
-                            : null,
-                        'price_4yr' => isset($mapping['price_4yr']) && $mapping['price_4yr'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price_4yr']] ?? null)
-                            : null,
-                        'price_5yr' => isset($mapping['price_5yr']) && $mapping['price_5yr'] !== ''
-                            ? $this->parsePrice($rowData[$mapping['price_5yr']] ?? null)
-                            : null,
-                        'source_sheet' => mb_substr($sheetConfig['name'], 0, 255),
-                        'extra_data' => (!empty($extraPrices) || !empty($metaData)) 
-                                        ? ['prices' => $extraPrices, 'metadata' => $metaData] 
-                                        : null,
-                    ];
-
-                    if ($request->import_mode === 'update') {
-                        $existing = SupplierPriceListItem::where('supplier_price_list_id', $priceList->id)
-                            ->where('sku', $sku)
-                            ->first();
-
-                        if ($existing) {
-                            $existing->update($itemData);
-                            $this->syncItemToProduct($existing);
-                            $sheetLog['items_updated']++;
-                        } else {
-                            $newItem = SupplierPriceListItem::create($itemData);
-                            $this->syncItemToProduct($newItem);
-                            $sheetLog['items_created']++;
+                        if (count($batchItems) >= $batchSize) {
+                            $flushBatch($batchItems, $request->import_mode, $priceList->id, $sheetLog);
                         }
-                    } else {
-                        $newItem = SupplierPriceListItem::create($itemData);
-                        $this->syncItemToProduct($newItem);
-                        $sheetLog['items_created']++;
                     }
+                }
 
-                    $sheetLog['rows_processed']++;
-                    
-                    } // end if/else hasMultiTierSku
+                // Flush remaining items of this sheet
+                if (!empty($batchItems)) {
+                    $flushBatch($batchItems, $request->import_mode, $priceList->id, $sheetLog);
                 }
 
                 $importLog['sheets'][] = $sheetLog;
@@ -1218,25 +1252,16 @@ class SupplierPriceListController extends Controller
             }
 
             // Save Collected Column Definitions to price list
-            // Transform [key => label] to [{key, label}]
-            // Filter out standard hardcoded fields (already shown in show view), internal fields, and unused tiers
             if (!empty($columnDefinitions)) {
-                // Standard fields already displayed as hardcoded columns in show.blade.php
                 $standardFields = ['sku', 'product_name', 'category', 'description'];
                 
-                // Check if multi-tier split was used (per-tier SKU columns detected)
                 $isMultiTierImport = isset($mapping['sku_2yr']) || isset($mapping['sku_3yr']) 
                     || isset($mapping['sku_4yr']) || isset($mapping['sku_5yr']);
                 
                 $cols = [];
                 foreach ($columnDefinitions as $key => $label) {
-                    // Skip standard hardcoded fields
                     if (in_array($key, $standardFields)) continue;
-                    
-                    // Skip internal mapping fields
                     if (str_starts_with($key, '_') || preg_match('/^sku_\d+yr$/', $key)) continue;
-                    
-                    // In multi-tier mode, skip price_Xyr (each item only has list_price)
                     if ($isMultiTierImport && preg_match('/^price_\d+yr$/', $key)) continue;
                     
                     $cols[] = [
@@ -1253,8 +1278,6 @@ class SupplierPriceListController extends Controller
             // Auto-detect primary_price_column if not already set
             if (!$priceList->primary_price_column) {
                 $primaryCol = null;
-                
-                // Priority: list_price > price_1yr > price_2yr > ... > first custom price
                 $standardPriority = ['list_price', 'price_1yr', 'price_2yr', 'price_3yr', 'price_4yr', 'price_5yr'];
                 foreach ($standardPriority as $col) {
                     if ($priceList->items()->whereNotNull($col)->where($col, '>', 0)->exists()) {
@@ -1263,11 +1286,9 @@ class SupplierPriceListController extends Controller
                     }
                 }
                 
-                // If no standard column has data, try first custom price column
                 if (!$primaryCol && !empty($cols)) {
                     foreach ($cols as $colDef) {
                         if (($colDef['type'] ?? 'price') === 'price') {
-                            // Check if any item has data for this custom column
                             $key = $colDef['key'];
                             $hasData = $priceList->items()
                                 ->whereNotNull('extra_data')
@@ -1299,7 +1320,7 @@ class SupplierPriceListController extends Controller
                 'import_log' => $importLog,
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Error importing price list: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
