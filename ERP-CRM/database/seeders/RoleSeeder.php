@@ -416,27 +416,32 @@ class RoleSeeder extends Seeder
         
         // ============================================================
         // FINANCE TEAM - Kế toán
-        // Quy trình: Xuất hoá đơn chính thức → Theo dõi công nợ & thanh toán KH
+        // Quy trình: Nhận yêu cầu xuất HĐ -> Import HĐ -> Sales xác nhận -> Theo dõi công nợ, thanh toán KH
         // ============================================================
         if (isset($roles['accountant'])) {
-            // View and export for all modules (including marketing_events view)
-            $accountantPerms = $this->getPermissionsByActions($allPermissions, ['view', 'export']);
+            // Sales & Customer Debts & Sales Reports
+            $salesModules = ['sales', 'customer_debts', 'sale_reports'];
+            $salesPerms = $this->getPermissionsByModulesAndActions($allPermissions, $salesModules, ['view', 'export']);
+
+            // Special view permissions
             $specialPerms = $this->getPermissionsBySlugs($allPermissions, [
-                'view_all_sales', 'view_all_quotations', 'view_all_purchase_orders'
+                'view_all_sales'
             ]);
+
             // Create/edit for financial modules
             $financialPerms = $this->getPermissionsByModulesAndActions($allPermissions, 
                 ['financial_transactions', 'transaction_categories', 'reconciliations', 
-                 'warehouse_journal_entries', 'employee_asset_assignments'], 
-                ['create', 'edit']
+                 'warehouse_journal_entries'], 
+                ['view', 'create', 'edit', 'export']
             );
-            // Create/edit exports (xuất hoá đơn chính thức & bàn giao hàng)
-            $exportPerms = $this->getPermissionsByModulesAndActions($allPermissions,
-                ['exports'], ['create', 'edit']
-            );
-            // Record payment for customer debts (theo dõi công nợ & thanh toán)
+
+            // Record payment for customer debts (theo dõi công nợ & thu tiền)
             $debtPerms = $this->getPermissionsBySlugs($allPermissions, ['record_payment_customer_debts']);
-            $accountantPerms = array_unique(array_merge($accountantPerms, $specialPerms, $financialPerms, $exportPerms, $debtPerms));
+
+            // Technical module (Chỉ Tạo & Xem Ticket kỹ thuật, không xem báo cáo)
+            $technicalPerms = $this->getPermissionsByModulesAndActions($allPermissions, ['technical_tickets'], ['view', 'create']);
+
+            $accountantPerms = array_unique(array_merge($salesPerms, $specialPerms, $financialPerms, $debtPerms, $technicalPerms));
             $this->attachPermissionsToRole($roles['accountant'], $accountantPerms, $now);
         }
 

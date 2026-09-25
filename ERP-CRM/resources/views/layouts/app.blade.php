@@ -105,11 +105,13 @@
 
             <!-- Navigation -->
             <nav class="mt-4 px-2">
-                <a href="{{ route('dashboard') }}"
-                    class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard*') ? 'bg-primary text-white' : '' }}">
-                    <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
-                    <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
-                </a>
+                @can('view_dashboard')
+                    <a href="{{ route('dashboard') }}"
+                        class="flex items-center px-4 py-3 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('dashboard*') ? 'bg-primary text-white' : '' }}">
+                        <i class="fas fa-tachometer-alt w-6 flex-shrink-0"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Dashboard</span>
+                    </a>
+                @endcan
 
                 {{-- <div class="mt-4">
                     <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
@@ -502,17 +504,21 @@
                                 </a>
                             @endcan
 
-                            <a href="{{ route('purchase-requests.index', ['my_requests' => 1]) }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && request()->boolean('my_requests') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-clipboard-list w-6 text-cyan-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu đặt hàng</span>
-                            </a>
+                            @can('create_purchase_requests')
+                                <a href="{{ route('purchase-requests.index', ['my_requests' => 1]) }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.index') && request()->boolean('my_requests') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-clipboard-list w-6 text-cyan-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Yêu cầu đặt hàng</span>
+                                </a>
+                            @endcan
 
-                            <a href="{{ route('sales.order-tracking') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-map-marked-alt w-6 text-emerald-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi hàng về</span>
-                            </a>
+                            @if(!auth()->user()->hasRole('accountant'))
+                                <a href="{{ route('sales.order-tracking') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-map-marked-alt w-6 text-emerald-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi hàng về</span>
+                                </a>
+                            @endif
 
                             @can('view_sales_revenues')
                                 <a href="{{ route('sales-revenues.index') }}"

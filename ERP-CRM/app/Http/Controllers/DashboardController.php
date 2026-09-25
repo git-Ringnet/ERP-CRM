@@ -16,6 +16,15 @@ class DashboardController extends Controller
      */
     public function index(Request $request)
     {
+        $user = auth()->user();
+        if ($user && !$user->can('view_dashboard')) {
+            if ($user->can('view_sales')) {
+                return redirect()->route('sales.index');
+            }
+            if ($user->can('view_customer_debts')) {
+                return redirect()->route('customer-debts.index');
+            }
+        }
         $filters = $request->only([
             'period_type',
             'date_from',

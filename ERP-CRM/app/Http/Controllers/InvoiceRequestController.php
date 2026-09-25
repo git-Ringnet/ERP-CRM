@@ -90,6 +90,8 @@ class InvoiceRequestController extends Controller
         }
         $request->validate([
             'draft_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:10240',
+            'invoice_date' => 'nullable|date',
+            'payment_due_date' => 'nullable|date',
             'note' => 'nullable|string',
         ]);
 
@@ -99,6 +101,16 @@ class InvoiceRequestController extends Controller
             if ($request->hasFile('draft_file')) {
                 $path = $request->file('draft_file')->store('invoices/drafts', 'public');
                 $invoiceRequest->draft_path = $path;
+                $invoiceRequest->official_path = $path;
+            }
+
+            // Update invoice_date / payment_due_date on Sale if provided
+            $dateUpdates = array_filter([
+                'invoice_date' => $request->invoice_date,
+                'payment_due_date' => $request->payment_due_date,
+            ]);
+            if (!empty($dateUpdates)) {
+                $invoiceRequest->sale->update($dateUpdates);
             }
 
             $isReimport = ($invoiceRequest->status === 'rejected');
@@ -118,24 +130,25 @@ class InvoiceRequestController extends Controller
                 'version' => $nextVersion,
                 'action' => $action,
                 'draft_path' => $path,
-                'note' => $request->note ?: ($isReimport ? "Kế toán import lại hóa đơn nháp (Phiên bản v{$nextVersion})" : "Tải lên hóa đơn nháp (Phiên bản v{$nextVersion})"),
+                'official_path' => $path,
+                'note' => $request->note ?: ($isReimport ? "Kế toán import lại hóa đơn (Phiên bản v{$nextVersion})" : "Tải lên file hóa đơn (Phiên bản v{$nextVersion})"),
             ]);
 
             // Notify Sales requester
             \App\Models\Notification::create([
                 'user_id' => $invoiceRequest->requester_id,
                 'type' => 'invoice_draft_issued',
-                'title' => $isReimport ? 'Hóa đơn nháp đã được import lại' : 'Hóa đơn nháp mới đã được tải lên',
+                'title' => $isReimport ? 'Hóa đơn đã được import lại' : 'Hóa đơn đã được tải lên',
                 'message' => $isReimport 
-                    ? "Kế toán đã import lại hóa đơn nháp (v{$nextVersion}) cho đơn hàng {$invoiceRequest->sale->code}. Vui lòng kiểm tra và xác nhận."
-                    : "Hóa đơn nháp cho đơn hàng {$invoiceRequest->sale->code} đã được xuất. Vui lòng kiểm tra và xác nhận.",
+                    ? "Kế toán đã import lại file hóa đơn (v{$nextVersion}) cho đơn hàng {$invoiceRequest->sale->code}. Vui lòng kiểm tra và xác nhận."
+                    : "Hóa đơn cho đơn hàng {$invoiceRequest->sale->code} đã được tải lên. Vui lòng kiểm tra và xác nhận.",
                 'link' => route('invoice-requests.show', $invoiceRequest->id),
                 'icon' => 'fas fa-file-invoice',
                 'color' => 'blue',
             ]);
 
             DB::commit();
-            return back()->with('success', $isReimport ? 'Đã import lại hóa đơn nháp thành công!' : 'Đã duyệt yêu cầu và xác nhận hóa đơn nháp!');
+            return back()->with('success', $isReimport ? 'Đã import lại file hóa đơn thành công!' : 'Đã import file hóa đơn thành công!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
@@ -143,19 +156,16 @@ class InvoiceRequestController extends Controller
     }
 
     /**
-     * Upload official invoice and delivery note (Finance Admin)
+     * Upload official invoice and delivery note (Finance Admin) - Retained for backward compatibility
      */
     public function issueOfficial(Request $request, InvoiceRequest $invoiceRequest)
     {
         if (!auth()->user()->hasAnyRole(['super_admin', 'accountant'])) {
             return back()->with('error', 'Bạn không có quyền thực hiện thao tác này.');
         }
-        if ($invoiceRequest->status !== 'sales_confirmed') {
-            return back()->with('error', 'Sales cần xác nhận hóa đơn nháp trước khi Kế toán phát hành hóa đơn chính thức.');
-        }
         $request->validate([
-            'invoice_date' => 'required|date',
-            'payment_due_date' => 'required|date',
+            'invoice_date' => 'nullable|date',
+            'payment_due_date' => 'nullable|date',
             'official_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:10240',
             'delivery_note_file' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:10240',
         ]);
@@ -181,9 +191,9 @@ class InvoiceRequestController extends Controller
                 'version' => $currentVersion,
                 'action' => 'official_issued',
                 'draft_path' => $invoiceRequest->draft_path,
-                'official_path' => $invoiceRequest->official_path,
+                'official_path' => $invoiceRequest->official_path ?: $invoiceRequest->draft_path,
                 'delivery_note_path' => $invoiceRequest->delivery_note_path,
-                'note' => 'Xác nhận và xuất hóa đơn chính thức',
+                'note' => 'Xác nhận và hoàn tất hóa đơn',
             ]);
 
             // Update linked export status from pending_invoice to pending (Chờ xử lý / Chờ kho xuất)
@@ -202,14 +212,16 @@ class InvoiceRequestController extends Controller
                 }
             }
 
-            // Update invoice_date and payment_due_date on Sale
-            $invoiceRequest->sale->update([
-                'invoice_date' => $request->invoice_date,
-                'payment_due_date' => $request->payment_due_date,
-            ]);
+            // Update invoice_date and payment_due_date on Sale if provided
+            if ($request->filled('invoice_date') || $request->filled('payment_due_date')) {
+                $invoiceRequest->sale->update(array_filter([
+                    'invoice_date' => $request->invoice_date,
+                    'payment_due_date' => $request->payment_due_date,
+                ]));
+            }
 
             DB::commit();
-            return back()->with('success', 'Đã xác nhận xuất hóa đơn chính thức!');
+            return back()->with('success', 'Đã xác nhận hoàn tất hóa đơn!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
@@ -230,17 +242,53 @@ class InvoiceRequestController extends Controller
 
         DB::beginTransaction();
         try {
-            $invoiceRequest->update(['status' => 'sales_confirmed']);
+            $invoiceRequest->update([
+                'status' => 'official_issued',
+                'finance_id' => $invoiceRequest->admin_id ?? auth()->id(),
+                'official_path' => $invoiceRequest->draft_path,
+            ]);
 
             $currentVersion = (int) $invoiceRequest->revisions()->max('version') ?: 1;
             \App\Models\InvoiceRequestRevision::create([
                 'invoice_request_id' => $invoiceRequest->id,
                 'user_id' => auth()->id(),
                 'version' => $currentVersion,
-                'action' => 'sales_confirmed',
+                'action' => 'official_issued',
                 'draft_path' => $invoiceRequest->draft_path,
-                'note' => 'Sales đã kiểm tra hóa đơn nháp và chuyển Kế toán phát hành chính thức.',
+                'official_path' => $invoiceRequest->draft_path,
+                'note' => 'Sales đã kiểm tra và xác nhận hóa đơn chính xác - Hoàn tất quy trình xuất HĐ.',
             ]);
+
+            // Update linked export status from pending_invoice to pending (Chờ kho xuất hàng)
+            if ($invoiceRequest->export_id) {
+                $linkedExport = \App\Models\Export::find($invoiceRequest->export_id);
+                if ($linkedExport && $linkedExport->status === 'pending_invoice') {
+                    $linkedExport->update(['status' => 'pending']);
+                }
+            } else {
+                $linkedExports = \App\Models\Export::where('reference_type', 'sale')
+                    ->where('reference_id', $invoiceRequest->sale_id)
+                    ->where('status', 'pending_invoice')
+                    ->get();
+                foreach ($linkedExports as $le) {
+                    $le->update(['status' => 'pending']);
+                }
+            }
+
+            // Ensure invoice_date and payment_due_date on Sale are set
+            $sale = $invoiceRequest->sale;
+            $updates = [];
+            if (empty($sale->invoice_date)) {
+                $updates['invoice_date'] = now()->toDateString();
+            }
+            if (empty($sale->payment_due_date)) {
+                $debtDays = (int)($sale->customer->debt_days ?? 30);
+                $baseDate = !empty($updates['invoice_date']) ? \Carbon\Carbon::parse($updates['invoice_date']) : ($sale->invoice_date ? \Carbon\Carbon::parse($sale->invoice_date) : now());
+                $updates['payment_due_date'] = $baseDate->copy()->addDays($debtDays)->toDateString();
+            }
+            if (!empty($updates)) {
+                $sale->update($updates);
+            }
 
             // Notify Accountants / Finance
             $accountants = \App\Models\User::whereHas('roles', fn($q) => $q->whereIn('slug', ['accountant', 'super_admin', 'sales_manager']))->get();
@@ -248,9 +296,9 @@ class InvoiceRequestController extends Controller
                 if ($acc->id !== auth()->id()) {
                     \App\Models\Notification::create([
                         'user_id' => $acc->id,
-                'type' => 'invoice_draft_confirmed',
-                'title' => 'Sales đã xác nhận hóa đơn nháp',
-                'message' => "Sales (" . auth()->user()->name . ") đã xác nhận hóa đơn nháp cho đơn {$invoiceRequest->sale->code}. Vui lòng phát hành hóa đơn chính thức.",
+                        'type' => 'invoice_confirmed',
+                        'title' => 'Sales đã xác nhận hoàn tất hóa đơn',
+                        'message' => "Sales (" . auth()->user()->name . ") đã xác nhận hóa đơn cho đơn {$invoiceRequest->sale->code}. Quy trình hóa đơn đã hoàn tất.",
                         'link' => route('invoice-requests.show', $invoiceRequest->id),
                         'icon' => 'fas fa-check-circle',
                         'color' => 'green',
@@ -259,7 +307,7 @@ class InvoiceRequestController extends Controller
             }
 
             DB::commit();
-            return back()->with('success', 'Đã xác nhận hóa đơn nháp. Đang chờ Kế toán phát hành hóa đơn chính thức.');
+            return back()->with('success', 'Đã xác nhận hóa đơn thành công! Quy trình hóa đơn đã hoàn tất.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());

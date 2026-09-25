@@ -52,12 +52,6 @@
                 </button>
             @endif
 
-            @if($invoiceRequest->status === 'sales_confirmed' && auth()->user()->hasAnyRole(['super_admin', 'accountant']))
-                <button onclick="openActionModal('official')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                    <i class="fas fa-file-signature"></i> PHÁT HÀNH HÓA ĐƠN CHÍNH THỨC
-                </button>
-            @endif
-
             @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
                 <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-sm flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
                     <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG HÓA ĐƠN
@@ -65,14 +59,9 @@
             @endif
 
             {{-- Status Official Completed Badge --}}
-            @if($invoiceRequest->status === 'official_issued')
+            @if($invoiceRequest->status === 'official_issued' || $invoiceRequest->status === 'sales_confirmed')
                 <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
                     <i class="fas fa-check-double"></i> ĐÃ XÁC NHẬN HOÀN TẤT
-                </span>
-            @endif
-            @if($invoiceRequest->status === 'sales_confirmed')
-                <span class="px-3 py-1.5 bg-violet-100 text-violet-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
-                    <i class="fas fa-clock"></i> CHỜ KẾ TOÁN PHÁT HÀNH
                 </span>
             @endif
         </div>
@@ -453,38 +442,28 @@
             
             <!-- Draft Form Content -->
             <div id="formContentDraft" class="hidden space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ngày xuất HĐ</label>
+                        <input type="date" name="invoice_date" id="action_invoice_date"
+                            value="{{ $sale->invoice_date ? $sale->invoice_date->format('Y-m-d') : date('Y-m-d') }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Hạn thanh toán</label>
+                        <input type="date" name="payment_due_date" id="action_payment_due_date"
+                            value="{{ $sale->payment_due_date ? $sale->payment_due_date->format('Y-m-d') : '' }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Chọn file hóa đơn nháp (PDF, PNG, JPG, DOCX)</label>
-                    <input type="file" name="draft_file" accept=".pdf,image/*,.doc,.docx"
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Chọn file hóa đơn (PDF, PNG, JPG, DOCX) <span class="text-red-500">*</span></label>
+                    <input type="file" name="draft_file" accept=".pdf,image/*,.doc,.docx" required
                         class="w-full border border-dashed border-gray-300 rounded-lg px-4 py-6 text-center cursor-pointer hover:bg-gray-50 transition-all">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ghi chú cho phiên bản này (Không bắt buộc)</label>
-                    <input type="text" name="note" placeholder="VD: Đã điều chỉnh địa chỉ thuế theo yêu cầu của Sales..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-            </div>
-
-            <!-- Official Form Content -->
-            <div id="formContentOfficial" class="hidden space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ngày xuất hóa đơn <span class="text-red-500">*</span></label>
-                        <input type="date" name="invoice_date" id="action_invoice_date" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Hạn thanh toán <span class="text-red-500">*</span></label>
-                        <input type="date" name="payment_due_date" id="action_payment_due_date" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Tải file Hóa đơn chính thức</label>
-                    <input type="file" name="official_file" accept=".pdf,image/*,.doc,.docx" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Biên bản giao hàng / Bàn giao thực tế</label>
-                    <input type="file" name="delivery_note_file" accept=".pdf,image/*,.doc,.docx" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <input type="text" name="note" placeholder="VD: Đã điều chỉnh theo yêu cầu của Sales..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
             </div>
 
@@ -512,21 +491,15 @@ function openActionModal(action) {
     const form = document.getElementById('actionForm');
     const submitBtn = document.getElementById('submitActionBtn');
     
-    const invoiceDate = document.getElementById('action_invoice_date');
-    const paymentDueDate = document.getElementById('action_payment_due_date');
     const reason = document.getElementById('action_reason');
-    
-    // Reset required attributes to prevent hidden fields from blocking form submission
-    if (invoiceDate) invoiceDate.required = false;
-    if (paymentDueDate) paymentDueDate.required = false;
     if (reason) reason.required = false;
     
     // Hide all headers & contents
     document.getElementById('modalHeaderDraft').classList.add('hidden');
-    document.getElementById('modalHeaderOfficial').classList.add('hidden');
+    if (document.getElementById('modalHeaderOfficial')) document.getElementById('modalHeaderOfficial').classList.add('hidden');
     document.getElementById('modalHeaderReject').classList.add('hidden');
     document.getElementById('formContentDraft').classList.add('hidden');
-    document.getElementById('formContentOfficial').classList.add('hidden');
+    if (document.getElementById('formContentOfficial')) document.getElementById('formContentOfficial').classList.add('hidden');
     document.getElementById('formContentReject').classList.add('hidden');
     
     if (action === 'draft') {
@@ -534,23 +507,7 @@ function openActionModal(action) {
         document.getElementById('formContentDraft').classList.remove('hidden');
         form.action = "{{ route('invoice-requests.issue-draft', $invoiceRequest->id) }}";
         submitBtn.className = "flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm shadow";
-        submitBtn.innerText = "XÁC NHẬN IMPORT NHÁP";
-    } else if (action === 'official') {
-        document.getElementById('modalHeaderOfficial').classList.remove('hidden');
-        document.getElementById('formContentOfficial').classList.remove('hidden');
-        form.action = "{{ route('invoice-requests.issue-official', $invoiceRequest->id) }}";
-        
-        // Set dates
-        const today = new Date();
-        const formattedToday = formatDate(today);
-        if (invoiceDate) invoiceDate.value = formattedToday;
-        updatePaymentDueDate(formattedToday);
-        
-        if (invoiceDate) invoiceDate.required = true;
-        if (paymentDueDate) paymentDueDate.required = true;
-        
-        submitBtn.className = "flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm shadow";
-        submitBtn.innerText = "XUẤT HÓA ĐƠN CHÍNH THỨC";
+        submitBtn.innerText = "XÁC NHẬN IMPORT HÓA ĐƠN";
     } else if (action === 'reject') {
         document.getElementById('modalHeaderReject').classList.remove('hidden');
         document.getElementById('formContentReject').classList.remove('hidden');

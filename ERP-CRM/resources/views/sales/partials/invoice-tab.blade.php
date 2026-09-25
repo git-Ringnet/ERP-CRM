@@ -120,14 +120,10 @@
                                                 </button>
                                             @endif
 
-                                        {{-- 4. Status: official_issued -> Completed --}}
-                                        @elseif($request->status === 'official_issued')
+                                        {{-- 4. Status: official_issued / sales_confirmed -> Completed --}}
+                                        @elseif($request->status === 'official_issued' || $request->status === 'sales_confirmed')
                                             <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
                                                 <i class="fas fa-check-double mr-1"></i> HOÀN TẤT
-                                            </span>
-                                        @elseif($request->status === 'sales_confirmed')
-                                            <span class="text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-1 rounded border border-violet-200">
-                                                <i class="fas fa-clock mr-1"></i> CHỜ KT PHÁT HÀNH
                                             </span>
                                         @endif
                                     </div>

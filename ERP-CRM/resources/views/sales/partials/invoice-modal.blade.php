@@ -229,66 +229,38 @@
         </div>
         <form id="draftForm" method="POST" enctype="multipart/form-data" class="p-6">
             @csrf
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Chọn file hóa đơn (PDF, Image, Word) <span class="text-red-500">*</span></label>
-                <input type="file" name="draft_file" accept=".pdf,image/*,.doc,.docx" required
-                    class="w-full border border-dashed border-gray-300 rounded-lg px-4 py-8 text-center cursor-pointer hover:bg-gray-50 transition-all">
-                <p class="text-[10px] text-gray-500 mt-2 italic">* Đính kèm file hóa đơn để Sales kiểm tra và xác nhận.</p>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày xuất HĐ</label>
+                        <input type="date" name="invoice_date" id="draft_invoice_date"
+                            value="{{ $sale->invoice_date ? $sale->invoice_date->format('Y-m-d') : date('Y-m-d') }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Hạn thanh toán</label>
+                        <input type="date" name="payment_due_date" id="draft_payment_due_date"
+                            value="{{ $sale->payment_due_date ? $sale->payment_due_date->format('Y-m-d') : '' }}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Chọn file hóa đơn (PDF, Image, Word) <span class="text-red-500">*</span></label>
+                    <input type="file" name="draft_file" accept=".pdf,image/*,.doc,.docx" required
+                        class="w-full border border-dashed border-gray-300 rounded-lg px-4 py-6 text-center cursor-pointer hover:bg-gray-50 transition-all">
+                    <p class="text-[10px] text-gray-500 mt-1 italic">* Đính kèm file hóa đơn để Sales kiểm tra và xác nhận.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ghi chú (Không bắt buộc)</label>
+                    <input type="text" name="note" placeholder="VD: Đã cập nhật theo yêu cầu..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
             </div>
             <div class="flex gap-3 mt-6">
                 <button type="button" onclick="closeDraftModal()"
                     class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">HỦY</button>
                 <button type="submit"
-                    class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">XÁC NHẬN IMPORT</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Xuất hóa đơn chính thức (Finance) -->
-<div id="officialModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
-        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-green-50 rounded-t-xl">
-            <h3 class="text-lg font-bold text-green-900">Xác nhận Hóa đơn chính thức</h3>
-            <button onclick="closeOfficialModal()" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <form id="officialForm" method="POST" enctype="multipart/form-data" class="p-6">
-            @csrf
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ngày xuất hóa
-                            đơn <span class="text-red-500">*</span></label>
-                        <input type="date" name="invoice_date" id="official_invoice_date" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Hạn thanh
-                            toán <span class="text-red-500">*</span></label>
-                        <input type="date" name="payment_due_date" id="official_payment_due_date" required
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">File hóa đơn chính thức <span class="text-red-500">*</span></label>
-                    <input type="file" name="official_file" accept=".pdf,image/*,.doc,.docx" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Biên bản bàn giao (Nếu có)</label>
-                    <input type="file" name="delivery_note_file" accept=".pdf,image/*,.doc,.docx"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                </div>
-                <p class="text-[10px] text-gray-500 italic">* Đính kèm file hóa đơn chính thức để hoàn tất xuất hóa đơn.</p>
-            </div>
-            <div class="flex gap-3 mt-6">
-                <button type="button" onclick="closeOfficialModal()"
-                    class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">HỦY</button>
-                <button type="submit"
-                    class="flex-1 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-lg">XÁC
-                    NHẬN CHÍNH THỨC</button>
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow">XÁC NHẬN IMPORT</button>
             </div>
         </form>
     </div>
@@ -532,24 +504,6 @@
         document.getElementById('draftModal').classList.add('hidden');
     }
 
-    function openOfficialModal(requestId) {
-        const form = document.getElementById('officialForm');
-        form.action = `/invoice-requests/${requestId}/issue-official`;
-
-        // Set default invoice date to today
-        const today = new Date();
-        const formattedToday = formatDate(today);
-
-        const invoiceDateInput = document.getElementById('official_invoice_date');
-
-        if (invoiceDateInput) {
-            invoiceDateInput.value = formattedToday;
-            updatePaymentDueDate(formattedToday);
-        }
-
-        document.getElementById('officialModal').classList.remove('hidden');
-    }
-
     function formatDate(date) {
         const d = new Date(date);
         let month = '' + (d.getMonth() + 1);
@@ -562,12 +516,12 @@
         return [year, month, day].join('-');
     }
 
-    function updatePaymentDueDate(invoiceDateStr) {
+    function updateDraftPaymentDueDate(invoiceDateStr) {
         if (!invoiceDateStr) return;
         const invoiceDate = new Date(invoiceDateStr);
         invoiceDate.setDate(invoiceDate.getDate() + debtDays);
 
-        const paymentDueDateInput = document.getElementById('official_payment_due_date');
+        const paymentDueDateInput = document.getElementById('draft_payment_due_date');
         if (paymentDueDateInput) {
             paymentDueDateInput.value = formatDate(invoiceDate);
         }
@@ -575,17 +529,13 @@
 
     // Add event listener when the DOM is loaded
     document.addEventListener('DOMContentLoaded', function () {
-        const invoiceDateInput = document.getElementById('official_invoice_date');
-        if (invoiceDateInput) {
-            invoiceDateInput.addEventListener('change', function () {
-                updatePaymentDueDate(this.value);
+        const draftInvoiceDateInput = document.getElementById('draft_invoice_date');
+        if (draftInvoiceDateInput) {
+            draftInvoiceDateInput.addEventListener('change', function () {
+                updateDraftPaymentDueDate(this.value);
             });
         }
     });
-
-    function closeOfficialModal() {
-        document.getElementById('officialModal').classList.add('hidden');
-    }
 
     function openRejectModal(requestId) {
         const form = document.getElementById('rejectForm');
@@ -601,7 +551,6 @@
         if (e.key === 'Escape') {
             closeInvoiceRequestModal();
             closeDraftModal();
-            closeOfficialModal();
             closeRejectModal();
             closeEditInvoiceContentModal();
         }
