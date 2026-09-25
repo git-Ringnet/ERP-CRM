@@ -17,10 +17,10 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             RoleSeeder::class,
 
-                // Admin user - chạy sau khi đã có roles và permissions
+                // Admin user - chỉ tạo tài khoản admin cao nhất
             AdminUserSeeder::class,
-            TestUserSeeder::class,
-            SalesEmployeeSeeder::class,
+            // TestUserSeeder::class,
+            // SalesEmployeeSeeder::class,
                 // Base data - phải chạy trước
                 // CustomerSeeder::class,
                 // SupplierSeeder::class,

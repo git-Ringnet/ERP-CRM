@@ -98,6 +98,7 @@ Route::middleware(['auth'])->group(function () {
     // Excel Import routes
     Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
     Route::post('/excel-import', [ExcelImportController::class, 'store'])->name('excel-import.store');
+    Route::post('/excel-import/preview', [ExcelImportController::class, 'preview'])->name('excel-import.preview');
 
     // Import Module Routes (Nhập kho)
     Route::get('/imports/export-misa', [ImportController::class, 'exportMisa'])->name('imports.export-misa');

@@ -36,10 +36,14 @@ class ExcelImportController extends Controller
             $tempFile = match($type) {
                 'products' => $this->excelImportService->generateProductTemplate(),
                 'inventory' => $this->excelImportService->generateInventoryTemplate(),
+                'update_serials' => $this->excelImportService->generateUpdateSerialTemplate(),
                 default => throw new \Exception('Invalid template type'),
             };
             
-            $filename = $type . '_template_' . date('Y-m-d') . '.xlsx';
+            $filename = match($type) {
+                'update_serials' => 'mau_cap_nhat_serial_' . date('Y-m-d') . '.xlsx',
+                default => $type . '_template_' . date('Y-m-d') . '.xlsx',
+            };
             
             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
             
@@ -50,15 +54,14 @@ class ExcelImportController extends Controller
 
     /**
      * Import data from Excel file
-     * Updated: Import sản phẩm vào kho với cột Kho trong Excel (mã kho hoặc tên kho)
-     * Không cần chọn kho trước - kho được xác định từ file Excel
+     * Updated: Support Products import, Inventory import, and Serial updates for existing in-stock items
      */
     public function store(Request $request)
     {
         $this->authorize('create', \App\Models\ExcelImport::class);
         
         $request->validate([
-            'type' => 'required|in:products',
+            'type' => 'required|in:products,inventory,update_serials',
             'warehouse_id' => 'nullable|exists:warehouses,id', // Optional fallback warehouse
             'file' => 'required|file|mimes:xlsx,xls|max:10240', // Max 10MB
         ]);
@@ -66,13 +69,20 @@ class ExcelImportController extends Controller
         try {
             $file = $request->file('file');
             $warehouseId = $request->input('warehouse_id'); // Optional fallback
+            $type = $request->input('type');
             
             // Save file temporarily
             $path = $file->store('temp');
             $fullPath = storage_path('app/' . $path);
             
-            // Process import (warehouse is read from Excel column)
-            $result = $this->excelImportService->importProducts($fullPath, $warehouseId);
+            // Process import based on type
+            if ($type === 'update_serials') {
+                $result = $this->excelImportService->importUpdateSerials($fullPath, $warehouseId);
+            } elseif ($type === 'inventory') {
+                $result = $this->excelImportService->importInventory($fullPath, $warehouseId);
+            } else {
+                $result = $this->excelImportService->importProducts($fullPath, $warehouseId);
+            }
             
             // Clean up temp file
             Storage::delete($path);

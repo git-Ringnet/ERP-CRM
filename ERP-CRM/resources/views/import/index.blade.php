@@ -22,7 +22,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-3">
                     Loại dữ liệu <span class="text-red-500">*</span>
                 </label>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <label class="relative flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
                         <input type="radio" name="import_type" value="products" class="mr-3" checked onchange="updateImportType()">
                         <div class="flex-1">
@@ -30,20 +30,33 @@
                                 <i class="fas fa-box text-blue-600 text-2xl mr-3"></i>
                                 <div>
                                     <h3 class="font-semibold text-gray-900">Sản phẩm</h3>
-                                    <p class="text-sm text-gray-500">Import danh sách sản phẩm</p>
+                                    <p class="text-xs text-gray-500">Import danh sách & nhập kho</p>
                                 </div>
                             </div>
                         </div>
                     </label>
 
-                    <label class="relative flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                    <label class="relative flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-green-500 transition-colors">
                         <input type="radio" name="import_type" value="inventory" class="mr-3" onchange="updateImportType()">
                         <div class="flex-1">
                             <div class="flex items-center">
                                 <i class="fas fa-warehouse text-green-600 text-2xl mr-3"></i>
                                 <div>
                                     <h3 class="font-semibold text-gray-900">Kho hàng</h3>
-                                    <p class="text-sm text-gray-500">Import dữ liệu nhập kho</p>
+                                    <p class="text-xs text-gray-500">Import dữ liệu nhập kho</p>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="relative flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-emerald-500 transition-colors">
+                        <input type="radio" name="import_type" value="update_serials" class="mr-3" onchange="updateImportType()">
+                        <div class="flex-1">
+                            <div class="flex items-center">
+                                <i class="fas fa-barcode text-emerald-600 text-2xl mr-3"></i>
+                                <div>
+                                    <h3 class="font-semibold text-gray-900">Cập nhật Serial</h3>
+                                    <p class="text-xs text-gray-500">Gán serial cho hàng tồn kho</p>
                                 </div>
                             </div>
                         </div>
@@ -63,7 +76,7 @@
                         <p class="text-xs text-blue-600 mb-3">
                             <i class="fas fa-lightbulb mr-1"></i> <strong>Mẹo nhập Serial (S/N):</strong> Bạn có thể điền <strong>mỗi SN trên 1 dòng</strong> HOẶC điền <strong>1 dòng cho sản phẩm và paste danh sách nhiều SN trong 1 ô</strong> (phân cách bằng xuống dòng <code>Alt + Enter</code>, dấu phẩy <code>,</code> hoặc chấm phẩy <code>;</code>).
                         </p>
-                        <div class="flex gap-3">
+                        <div class="flex flex-wrap gap-3">
                             <a href="{{ route('excel-import.template', 'products') }}" 
                                class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                                 <i class="fas fa-download mr-2"></i>
@@ -73,6 +86,11 @@
                                class="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                                 <i class="fas fa-download mr-2"></i>
                                 Mẫu Kho hàng
+                            </a>
+                            <a href="{{ route('excel-import.template', 'update_serials') }}" 
+                               class="inline-flex items-center px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+                                <i class="fas fa-download mr-2"></i>
+                                Mẫu Cập nhật Serial
                             </a>
                         </div>
                     </div>

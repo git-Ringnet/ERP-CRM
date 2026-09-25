@@ -298,7 +298,7 @@
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xl font-semibold text-gray-900">
-                        <i class="fas fa-file-excel text-green-600 mr-2"></i>Import Sản phẩm từ Excel
+                        <i class="fas fa-file-excel text-green-600 mr-2"></i>Import Dữ Liệu từ Excel
                     </h3>
                     <button type="button" onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times text-xl"></i>
@@ -307,24 +307,75 @@
             </div>
 
             <div class="p-6">
-                <!-- Template Download -->
-                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <!-- Import Type Selector -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Chọn loại dữ liệu import <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label id="modalTypeProductsLabel" class="relative flex items-center p-3.5 border-2 border-blue-500 bg-blue-50/40 rounded-xl cursor-pointer transition-all">
+                            <input type="radio" name="modal_import_type" value="products" checked onchange="switchModalImportType('products')" class="mr-3 text-blue-600 focus:ring-blue-500">
+                            <div class="flex-1">
+                                <div class="flex items-center">
+                                    <i class="fas fa-box text-blue-600 text-xl mr-2.5"></i>
+                                    <div>
+                                        <div class="font-semibold text-gray-900 text-sm">Nhập kho sản phẩm</div>
+                                        <div class="text-xs text-gray-500">Tạo phiếu nhập & tăng tồn kho</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <label id="modalTypeSerialsLabel" class="relative flex items-center p-3.5 border-2 border-gray-200 hover:border-emerald-400 rounded-xl cursor-pointer transition-all">
+                            <input type="radio" name="modal_import_type" value="update_serials" onchange="switchModalImportType('update_serials')" class="mr-3 text-emerald-600 focus:ring-emerald-500">
+                            <div class="flex-1">
+                                <div class="flex items-center">
+                                    <i class="fas fa-barcode text-emerald-600 text-xl mr-2.5"></i>
+                                    <div>
+                                        <div class="font-semibold text-gray-900 text-sm">Cập nhật Serial tồn kho</div>
+                                        <div class="text-xs text-gray-500">Gán Serial cho hàng tồn (NOSERIAL)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Template Download Products -->
+                <div id="modalInfoProducts" class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                     <div class="flex items-start">
                         <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
                         <div class="flex-1">
-                            <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu</h4>
-                            <p class="text-sm text-blue-700 mb-3">
-                                Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. Hệ thống sẽ tự động tạo sản phẩm mới
-                                nếu chưa tồn tại và nhập vào kho theo cột "Kho" trong file.
+                            <h4 class="font-medium text-blue-900 mb-1">Mẫu Nhập kho sản phẩm</h4>
+                            <p class="text-xs text-blue-700 mb-2">
+                                Tự động tạo phiếu nhập kho và thêm số lượng sản phẩm vào kho theo cột <strong>Kho</strong> trong file.
                             </p>
-                            <p class="text-sm text-blue-700 mb-3">
-                                <strong>Lưu ý:</strong> Cột "Kho" có thể nhập <strong>mã kho</strong> (VD: WH0001) hoặc
-                                <strong>tên kho</strong> (VD: Kho Chính HCM).
+                            <p class="text-xs text-blue-600 mb-3">
+                                <i class="fas fa-lightbulb mr-1"></i> Có thể nhập nhiều Serial trên 1 dòng (cách nhau bởi dấu phẩy, chấm phẩy hoặc xuống dòng <code>Alt + Enter</code>).
                             </p>
                             <a href="{{ route('excel-import.template', 'products') }}"
-                                class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                                <i class="fas fa-download mr-2"></i>
-                                Tải file mẫu Excel
+                                class="inline-flex items-center px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition">
+                                <i class="fas fa-download mr-1.5"></i> Tải file mẫu Nhập kho
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Template Download Update Serials -->
+                <div id="modalInfoSerials" class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl hidden">
+                    <div class="flex items-start">
+                        <i class="fas fa-info-circle text-emerald-600 mt-1 mr-3"></i>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-emerald-900 mb-1">Mẫu Cập nhật Serial tồn kho</h4>
+                            <p class="text-xs text-emerald-700 mb-2">
+                                Gán số Serial cho các sản phẩm <strong>chưa có serial đang tồn kho</strong>. Hệ thống <strong>KHÔNG</strong> tạo phiếu nhập mới và <strong>KHÔNG</strong> làm tăng số lượng tồn.
+                            </p>
+                            <p class="text-xs text-emerald-600 mb-3">
+                                <i class="fas fa-lightbulb mr-1"></i> Cột <strong>Kho</strong> và <strong>Part Number</strong> cần khớp với mã SP có hàng chưa có serial trong kho.
+                            </p>
+                            <a href="{{ route('excel-import.template', 'update_serials') }}"
+                                class="inline-flex items-center px-4 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition">
+                                <i class="fas fa-download mr-1.5"></i> Tải file mẫu Cập nhật Serial
                             </a>
                         </div>
                     </div>
@@ -334,7 +385,7 @@
                 <form action="{{ route('excel-import.store') }}" method="POST" enctype="multipart/form-data"
                     id="importForm">
                     @csrf
-                    <input type="hidden" name="type" value="products">
+                    <input type="hidden" name="type" id="modalImportType" value="products">
 
                     <!-- File Upload -->
                     <div class="mb-6">
@@ -417,6 +468,32 @@
             function closeImportModal() {
                 document.getElementById('importModal').classList.add('hidden');
                 clearFile();
+            }
+
+            function switchModalImportType(type) {
+                const typeInput = document.getElementById('modalImportType');
+                const infoProducts = document.getElementById('modalInfoProducts');
+                const infoSerials = document.getElementById('modalInfoSerials');
+                const labelProducts = document.getElementById('modalTypeProductsLabel');
+                const labelSerials = document.getElementById('modalTypeSerialsLabel');
+
+                typeInput.value = type;
+
+                if (type === 'products') {
+                    infoProducts.classList.remove('hidden');
+                    infoSerials.classList.add('hidden');
+                    labelProducts.classList.add('border-blue-500', 'bg-blue-50/40');
+                    labelProducts.classList.remove('border-gray-200');
+                    labelSerials.classList.remove('border-emerald-500', 'bg-emerald-50/40');
+                    labelSerials.classList.add('border-gray-200');
+                } else {
+                    infoProducts.classList.add('hidden');
+                    infoSerials.classList.remove('hidden');
+                    labelProducts.classList.remove('border-blue-500', 'bg-blue-50/40');
+                    labelProducts.classList.add('border-gray-200');
+                    labelSerials.classList.add('border-emerald-500', 'bg-emerald-50/40');
+                    labelSerials.classList.remove('border-gray-200');
+                }
             }
 
 

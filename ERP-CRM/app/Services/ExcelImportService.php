@@ -78,6 +78,48 @@ class ExcelImportService
     }
 
     /**
+     * Generate Update Serial Excel template
+     * Columns: STT | Part Number / FRU | Kho | Số Serial mới | Ghi chú
+     */
+    public function generateUpdateSerialTemplate(): string
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Cập nhật Serial');
+
+        $headers = ['STT', 'Part Number / FRU', 'Kho', 'Số Serial mới (S/N)', 'Ghi chú'];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:E1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('107C41');
+        $sheet->getStyle('A1:E1')->getFont()->getColor()->setRGB('FFFFFF');
+
+        $examples = [
+            [1, 'ST4000VN006', 'WH0001', "WW67EWKA\nWW67H60T", 'Cập nhật 2 serial cho lô không serial (xuống dòng hoặc phẩy)'],
+            [2, 'XGS2220-30F-US0101F', 'Kho Hà Nội', 'S242L02014561', 'Hoặc mỗi dòng 1 serial'],
+            [3, 'WAX510D-EU0101F', 'WH0002', 'S252L14101325, S252L14100502', ''],
+        ];
+
+        $row = 2;
+        foreach ($examples as $example) {
+            $sheet->fromArray($example, null, 'A' . $row);
+            $row++;
+        }
+
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $lastRow = $row - 1;
+        $sheet->getStyle("A1:E{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'update_serial_template_') . '.xlsx';
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tempFile);
+
+        return $tempFile;
+    }
+
+    /**
      * Generate PO Serial Import template
      */
     public function generatePoSerialTemplate(): string
@@ -948,5 +990,248 @@ class ExcelImportService
         }
         
         return $decoded;
+    }
+
+    /**
+     * Import Serial updates for existing in-stock products without serial (NOSERIAL / NOSKU)
+     * Does NOT increase stock, only assigns new serials to existing NOSERIAL items.
+     */
+    public function importUpdateSerials(string $filePath, ?int $warehouseId = null): array
+    {
+        $spreadsheet = IOFactory::load($filePath);
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, false, false);
+
+        if (empty($rows) || count($rows) < 2) {
+            return [
+                'success' => false,
+                'message' => 'File Excel không có dữ liệu',
+                'errors' => ['File trống hoặc chỉ có dòng tiêu đề']
+            ];
+        }
+
+        // Header detection or standard indices
+        $headerRow = array_shift($rows);
+        
+        $codeIdx = 1;
+        $whIdx = 2;
+        $serialIdx = 3;
+        $noteIdx = 4;
+
+        foreach ($headerRow as $i => $h) {
+            $hLower = mb_strtolower(trim((string)$h), 'UTF-8');
+            if (str_contains($hLower, 'part') || str_contains($hLower, 'mã') || str_contains($hLower, 'fru') || str_contains($hLower, 'code')) {
+                $codeIdx = $i;
+            } elseif (str_contains($hLower, 'kho') || str_contains($hLower, 'warehouse')) {
+                $whIdx = $i;
+            } elseif (str_contains($hLower, 'serial') || str_contains($hLower, 'sn') || str_contains($hLower, 's/n')) {
+                $serialIdx = $i;
+            } elseif (str_contains($hLower, 'ghi chú') || str_contains($hLower, 'note') || str_contains($hLower, 'comment')) {
+                $noteIdx = $i;
+            }
+        }
+
+        // Pre-load warehouses and products
+        $warehouseCache = [];
+        foreach (Warehouse::all() as $wh) {
+            $warehouseCache[mb_strtolower(trim($wh->code), 'UTF-8')] = $wh;
+            $warehouseCache[mb_strtolower(trim($wh->name), 'UTF-8')] = $wh;
+        }
+        $fallbackWarehouse = $warehouseId ? Warehouse::find($warehouseId) : null;
+
+        $productCache = [];
+        foreach (Product::all() as $p) {
+            $productCache[mb_strtolower(trim($p->code), 'UTF-8')] = $p;
+        }
+
+        $errors = [];
+        $seenSerials = [];
+        // Group serial requests by product_id and warehouse_id
+        $groupUpdates = [];
+
+        foreach ($rows as $index => $row) {
+            $rowNumber = $index + 2;
+
+            if (empty(array_filter($row, fn($v) => $v !== null && $v !== ''))) {
+                continue;
+            }
+
+            $productCode = trim((string)($row[$codeIdx] ?? ''));
+            $warehouseInput = trim((string)($row[$whIdx] ?? ''));
+            $serialRaw = trim((string)($row[$serialIdx] ?? ''));
+            $note = trim((string)($row[$noteIdx] ?? ''));
+
+            if (empty($productCode)) {
+                $errors[] = "Dòng {$rowNumber}: Thiếu mã sản phẩm / Part Number.";
+                continue;
+            }
+
+            $productKey = mb_strtolower($productCode, 'UTF-8');
+            if (!isset($productCache[$productKey])) {
+                $errors[] = "Dòng {$rowNumber}: Không tìm thấy sản phẩm với mã '{$productCode}' trong hệ thống.";
+                continue;
+            }
+            $product = $productCache[$productKey];
+
+            // Resolve warehouse
+            $warehouse = null;
+            if (!empty($warehouseInput)) {
+                $whKey = mb_strtolower($warehouseInput, 'UTF-8');
+                $warehouse = $warehouseCache[$whKey] ?? null;
+                if (!$warehouse) {
+                    $errors[] = "Dòng {$rowNumber}: Không tìm thấy kho '{$warehouseInput}'.";
+                    continue;
+                }
+            } else {
+                $warehouse = $fallbackWarehouse;
+            }
+
+            if (!$warehouse) {
+                $errors[] = "Dòng {$rowNumber}: Chưa chỉ định kho cho sản phẩm '{$productCode}'.";
+                continue;
+            }
+
+            if (empty($serialRaw)) {
+                $errors[] = "Dòng {$rowNumber}: Chưa nhập số serial cho sản phẩm '{$productCode}'.";
+                continue;
+            }
+
+            // Split serials
+            $parts = preg_split('/[\r\n,;]+/', $serialRaw);
+            $rowSerials = [];
+            foreach ($parts as $p) {
+                $sn = trim($p);
+                if ($sn !== '') {
+                    $rowSerials[] = $sn;
+                }
+            }
+
+            if (empty($rowSerials)) {
+                $errors[] = "Dòng {$rowNumber}: Số serial không hợp lệ.";
+                continue;
+            }
+
+            // Check duplicate in file
+            foreach ($rowSerials as $sn) {
+                $snUpper = strtoupper($sn);
+                if (isset($seenSerials[$snUpper])) {
+                    $errors[] = "Dòng {$rowNumber}: Số serial '{$sn}' bị trùng lặp với dòng {$seenSerials[$snUpper]} trong file import.";
+                } else {
+                    $seenSerials[$snUpper] = $rowNumber;
+                }
+            }
+
+            $groupKey = $product->id . '_' . $warehouse->id;
+            if (!isset($groupUpdates[$groupKey])) {
+                $groupUpdates[$groupKey] = [
+                    'product' => $product,
+                    'warehouse' => $warehouse,
+                    'serials' => [],
+                    'notes' => [],
+                ];
+            }
+
+            foreach ($rowSerials as $sn) {
+                $groupUpdates[$groupKey]['serials'][] = $sn;
+                $groupUpdates[$groupKey]['notes'][] = $note;
+            }
+        }
+
+        if (!empty($errors)) {
+            return [
+                'success' => false,
+                'message' => 'Dữ liệu trong file Excel chưa hợp lệ',
+                'errors' => $errors
+            ];
+        }
+
+        if (empty($groupUpdates)) {
+            return [
+                'success' => false,
+                'message' => 'Không có dữ liệu serial nào để cập nhật',
+                'errors' => ['File không chứa dữ liệu serial hợp lệ']
+            ];
+        }
+
+        // Check duplicate serials in database and verify sufficient NOSERIAL items in stock
+        $plan = [];
+        foreach ($groupUpdates as $key => $group) {
+            $product = $group['product'];
+            $warehouse = $group['warehouse'];
+            $serials = $group['serials'];
+            $notes = $group['notes'];
+            $neededCount = count($serials);
+
+            // Check if any serial already exists in ProductItem
+            $existingSerials = ProductItem::whereIn('sku', $serials)->pluck('sku')->toArray();
+            if (!empty($existingSerials)) {
+                $errors[] = "Sản phẩm '{$product->code}': Các serial sau đã tồn tại trong hệ thống: " . implode(', ', $existingSerials);
+                continue;
+            }
+
+            // Query in-stock NOSERIAL items for this product and warehouse
+            $availableItems = ProductItem::where('product_id', $product->id)
+                ->where('warehouse_id', $warehouse->id)
+                ->where('status', ProductItem::STATUS_IN_STOCK)
+                ->noSerial()
+                ->orderBy('id', 'asc')
+                ->limit($neededCount)
+                ->get();
+
+            if ($availableItems->count() < $neededCount) {
+                $errors[] = "Sản phẩm '{$product->code}' tại kho '{$warehouse->name}': Yêu cầu cập nhật {$neededCount} serial nhưng hiện tại chỉ có {$availableItems->count()} sản phẩm chưa có serial trong kho.";
+                continue;
+            }
+
+            $plan[] = [
+                'items' => $availableItems,
+                'serials' => $serials,
+                'notes' => $notes,
+            ];
+        }
+
+        if (!empty($errors)) {
+            return [
+                'success' => false,
+                'message' => 'Không thể cập nhật serial do không đủ tồn kho hoặc serial đã tồn tại',
+                'errors' => $errors
+            ];
+        }
+
+        // Execute update in transaction
+        DB::beginTransaction();
+        try {
+            $updatedCount = 0;
+            foreach ($plan as $p) {
+                $items = $p['items'];
+                $serials = $p['serials'];
+                $notes = $p['notes'];
+
+                foreach ($serials as $i => $sn) {
+                    $item = $items[$i];
+                    $item->sku = $sn;
+                    if (!empty($notes[$i])) {
+                        $item->comments = !empty($item->comments) ? ($item->comments . ' | ' . $notes[$i]) : $notes[$i];
+                    }
+                    $item->save();
+                    $updatedCount++;
+                }
+            }
+
+            DB::commit();
+
+            return [
+                'success' => true,
+                'message' => "Cập nhật thành công {$updatedCount} serial cho các sản phẩm tồn kho.",
+                'errors' => []
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return [
+                'success' => false,
+                'message' => 'Lỗi khi cập nhật serial: ' . $e->getMessage(),
+                'errors' => [$e->getMessage()]
+            ];
+        }
     }
 }
