@@ -129,9 +129,25 @@ class Import extends Model
      */
     public static function generateCode(): string
     {
-        $lastImport = self::orderBy('id', 'desc')->first();
-        $nextNumber = $lastImport ? ((int) substr($lastImport->code, 3)) + 1 : 1;
-        return 'IMP' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $maxNum = 0;
+        $codes = self::where('code', 'LIKE', 'IMP%')->pluck('code');
+        foreach ($codes as $c) {
+            if (preg_match('/^IMP(\d+)$/i', $c, $m)) {
+                $num = (int) $m[1];
+                if ($num > $maxNum) {
+                    $maxNum = $num;
+                }
+            }
+        }
+        $nextNumber = $maxNum + 1;
+
+        do {
+            $code = 'IMP' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+            if (!self::where('code', $code)->exists()) {
+                return $code;
+            }
+            $nextNumber++;
+        } while (true);
     }
 
     /**

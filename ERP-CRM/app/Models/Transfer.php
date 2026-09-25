@@ -100,9 +100,25 @@ class Transfer extends Model
      */
     public static function generateCode(): string
     {
-        $lastTransfer = self::orderBy('id', 'desc')->first();
-        $nextNumber = $lastTransfer ? ((int) substr($lastTransfer->code, 3)) + 1 : 1;
-        return 'TRF' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $maxNum = 0;
+        $codes = self::where('code', 'LIKE', 'TRF%')->pluck('code');
+        foreach ($codes as $c) {
+            if (preg_match('/^TRF(\d+)$/i', $c, $m)) {
+                $num = (int) $m[1];
+                if ($num > $maxNum) {
+                    $maxNum = $num;
+                }
+            }
+        }
+        $nextNumber = $maxNum + 1;
+
+        do {
+            $code = 'TRF' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+            if (!self::where('code', $code)->exists()) {
+                return $code;
+            }
+            $nextNumber++;
+        } while (true);
     }
 
     /**

@@ -56,9 +56,12 @@
                 <div class="flex items-start">
                     <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
                     <div class="flex-1">
-                        <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu</h4>
-                        <p class="text-sm text-blue-700 mb-3">
+                        <h4 class="font-medium text-blue-900 mb-2">Tải file mẫu & Hướng dẫn</h4>
+                        <p class="text-sm text-blue-700 mb-2">
                             Tải file Excel mẫu để đảm bảo định dạng dữ liệu đúng. File mẫu bao gồm hướng dẫn chi tiết và ví dụ.
+                        </p>
+                        <p class="text-xs text-blue-600 mb-3">
+                            <i class="fas fa-lightbulb mr-1"></i> <strong>Mẹo nhập Serial (S/N):</strong> Bạn có thể điền <strong>mỗi SN trên 1 dòng</strong> HOẶC điền <strong>1 dòng cho sản phẩm và paste danh sách nhiều SN trong 1 ô</strong> (phân cách bằng xuống dòng <code>Alt + Enter</code>, dấu phẩy <code>,</code> hoặc chấm phẩy <code>;</code>).
                         </p>
                         <div class="flex gap-3">
                             <a href="{{ route('excel-import.template', 'products') }}" 

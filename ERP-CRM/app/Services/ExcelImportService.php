@@ -245,7 +245,7 @@ class ExcelImportService
                 
                 $productCode = trim($row[1] ?? '');
                 $quantity = $row[3] ?? 1;
-                $serial = trim($row[4] ?? '');
+                $serialRaw = trim((string)($row[4] ?? ''));
                 $dateRaw = $row[5] ?? date('Y-m-d');
                 $warehouseInput = trim($row[6] ?? '');
                 $supplierInput = trim($row[7] ?? '');
@@ -265,10 +265,13 @@ class ExcelImportService
                     continue;
                 }
                 
-                // Skip if no serial
-                if (empty($serial)) {
-                    $errors[] = "Dòng {$rowNumber}: Thiếu số Serial";
-                    continue;
+                // Parse serials (optional: single serial, multiple serials separated by newline/comma/semicolon, or empty)
+                $serialsInRow = [];
+                if (!empty($serialRaw)) {
+                    $serialsInRow = array_values(array_filter(
+                        array_map('trim', preg_split('/[\r\n,;]+/', $serialRaw)),
+                        fn($s) => $s !== ''
+                    ));
                 }
                 
                 // Parse date
@@ -362,9 +365,6 @@ class ExcelImportService
                 
                 $product = $productCache[$productCode];
                 
-                // Validate quantity
-                $quantity = is_numeric($quantity) && $quantity > 0 ? (int)$quantity : 1;
-                
                 // Group by date AND warehouse AND supplier
                 $groupKey = $importDate . '_' . $warehouse->id . '_' . ($supplier ? $supplier->id : '0');
                 if (!isset($groupedItems[$groupKey])) {
@@ -386,15 +386,31 @@ class ExcelImportService
                 $groupedItems[$groupKey]['inspection_cost'] = max($groupedItems[$groupKey]['inspection_cost'], $inspectionCost);
                 $groupedItems[$groupKey]['other_cost'] = max($groupedItems[$groupKey]['other_cost'], $otherCost);
                 
-                $groupedItems[$groupKey]['items'][] = [
-                    'product_id' => $product->id,
-                    'product_code' => $productCode,
-                    'quantity' => $quantity,
-                    'cost' => $cost,
-                    'serial' => $serial,
-                    'note' => $note,
-                    'row_number' => $rowNumber,
-                ];
+                if (!empty($serialsInRow)) {
+                    foreach ($serialsInRow as $sn) {
+                        $groupedItems[$groupKey]['items'][] = [
+                            'product_id' => $product->id,
+                            'product_code' => $productCode,
+                            'quantity' => 1,
+                            'cost' => $cost,
+                            'serial' => $sn,
+                            'note' => $note,
+                            'row_number' => $rowNumber,
+                        ];
+                    }
+                } else {
+                    // No serial provided - use row quantity
+                    $qty = (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) ? (int)$row[3] : ((isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) ? (int)$row[2] : 1);
+                    $groupedItems[$groupKey]['items'][] = [
+                        'product_id' => $product->id,
+                        'product_code' => $productCode,
+                        'quantity' => $qty,
+                        'cost' => $cost,
+                        'serial' => null,
+                        'note' => $note,
+                        'row_number' => $rowNumber,
+                    ];
+                }
             }
             
             if (!empty($errors)) {
@@ -409,6 +425,9 @@ class ExcelImportService
 
             foreach ($groupedItems as $groupKey => $group) {
                 foreach ($group['items'] as $item) {
+                    if (empty($item['serial'])) {
+                        continue;
+                    }
                     $key = "{$item['product_id']}:{$item['serial']}";
                     
                     // Check duplicate within file
@@ -424,6 +443,9 @@ class ExcelImportService
             $serialsByProduct = [];
             foreach ($groupedItems as $groupKey => $group) {
                 foreach ($group['items'] as $item) {
+                    if (empty($item['serial'])) {
+                        continue;
+                    }
                     if (!isset($serialsByProduct[$item['product_id']])) {
                         $serialsByProduct[$item['product_id']] = [
                             'serials' => [],
@@ -482,11 +504,13 @@ class ExcelImportService
                         ];
                     }
                     $productItems[$productId]['quantity'] += $item['quantity'];
-                    $productItems[$productId]['skus'][] = $item['serial'];
+                    if (!empty($item['serial'])) {
+                        $productItems[$productId]['skus'][] = $item['serial'];
+                    }
                     if (!empty($item['note'])) {
                         $productItems[$productId]['comments'][] = $item['note'];
                     }
-                    $itemsImported++;
+                    $itemsImported += $item['quantity'];
                 }
                 
                 // Build transaction items from grouped products
@@ -613,10 +637,14 @@ class ExcelImportService
                 // Validate quantity (default to 1)
                 $quantity = is_numeric($quantity) && $quantity > 0 ? (int)$quantity : 1;
                 
-                // Validate serial
-                if (empty($serial)) {
-                    $errors[] = "Dòng {$rowNumber}: Thiếu số Serial";
-                    continue;
+                // Validate serial (optional: single or multiple serials separated by newline, comma, semicolon)
+                $serialRaw = trim((string)($row[4] ?? ''));
+                $serialsInRow = [];
+                if (!empty($serialRaw)) {
+                    $serialsInRow = array_values(array_filter(
+                        array_map('trim', preg_split('/[\r\n,;]+/', $serialRaw)),
+                        fn($s) => $s !== ''
+                    ));
                 }
                 
                 // Validate and parse price_tiers JSON
@@ -636,17 +664,34 @@ class ExcelImportService
                     ];
                 }
                 
-                $groupedRows[$key]['items'][] = [
-                    'product_id' => $product->id,
-                    'product_code' => $productCode,
-                    'quantity' => $quantity,
-                    'sku' => $serial,
-                    'cost_usd' => (float)$costUsd,
-                    'price_tiers' => $priceTiers,
-                    'description' => null,
-                    'comments' => $comments,
-                    'row_number' => $rowNumber,
-                ];
+                if (!empty($serialsInRow)) {
+                    foreach ($serialsInRow as $sn) {
+                        $groupedRows[$key]['items'][] = [
+                            'product_id' => $product->id,
+                            'product_code' => $productCode,
+                            'quantity' => 1,
+                            'sku' => $sn,
+                            'cost_usd' => (float)$costUsd,
+                            'price_tiers' => $priceTiers,
+                            'description' => null,
+                            'comments' => $comments,
+                            'row_number' => $rowNumber,
+                        ];
+                    }
+                } else {
+                    $qty = (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) ? (int)$row[3] : ((isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) ? (int)$row[2] : 1);
+                    $groupedRows[$key]['items'][] = [
+                        'product_id' => $product->id,
+                        'product_code' => $productCode,
+                        'quantity' => $qty,
+                        'sku' => null,
+                        'cost_usd' => (float)$costUsd,
+                        'price_tiers' => $priceTiers,
+                        'description' => null,
+                        'comments' => $comments,
+                        'row_number' => $rowNumber,
+                    ];
+                }
             }
             
             if (!empty($errors)) {
@@ -654,13 +699,16 @@ class ExcelImportService
                 return ['success' => false, 'imported' => 0, 'errors' => $errors];
             }
 
-            // Check for duplicate serials in database and within the file
+            // Check for duplicate serials in database and within the file (only for items with serial)
             $allSerials = [];
             $duplicatesInFile = [];
             $duplicatesInDb = [];
 
             foreach ($groupedRows as $key => $group) {
                 foreach ($group['items'] as $item) {
+                    if (empty($item['sku'])) {
+                        continue;
+                    }
                     $serialKey = "{$item['product_id']}:{$item['sku']}";
                     
                     // Check duplicate within file
@@ -676,6 +724,9 @@ class ExcelImportService
             $serialsByProduct = [];
             foreach ($groupedRows as $key => $group) {
                 foreach ($group['items'] as $item) {
+                    if (empty($item['sku'])) {
+                        continue;
+                    }
                     if (!isset($serialsByProduct[$item['product_id']])) {
                         $serialsByProduct[$item['product_id']] = [
                             'serials' => [],

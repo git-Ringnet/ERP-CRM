@@ -162,9 +162,25 @@ class Export extends Model
      */
     public static function generateCode(): string
     {
-        $lastExport = self::orderBy('id', 'desc')->first();
-        $nextNumber = $lastExport ? ((int) substr($lastExport->code, 3)) + 1 : 1;
-        return 'EXP' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $maxNum = 0;
+        $codes = self::where('code', 'LIKE', 'EXP%')->pluck('code');
+        foreach ($codes as $c) {
+            if (preg_match('/^EXP(\d+)$/i', $c, $m)) {
+                $num = (int) $m[1];
+                if ($num > $maxNum) {
+                    $maxNum = $num;
+                }
+            }
+        }
+        $nextNumber = $maxNum + 1;
+
+        do {
+            $code = 'EXP' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+            if (!self::where('code', $code)->exists()) {
+                return $code;
+            }
+            $nextNumber++;
+        } while (true);
     }
 
     /**

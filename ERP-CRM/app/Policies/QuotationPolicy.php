@@ -15,6 +15,11 @@ class QuotationPolicy extends BasePolicy
      */
     public function viewAny(User $user): bool
     {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager', 'sales_staff', 'order_management', 'accountant']) || 
+            in_array($user->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh'])) {
+            return true;
+        }
+
         return $this->checkPermission($user, 'view_quotations') ||
                $this->checkPermission($user, 'view_all_quotations') ||
                $this->checkPermission($user, 'view_own_quotations');
@@ -29,12 +34,22 @@ class QuotationPolicy extends BasePolicy
      */
     public function view(User $user, Quotation $quotation): bool
     {
-        // If user has view_all_quotations, allow
-        if ($this->checkPermission($user, 'view_all_quotations')) {
+        // Super Admin, Admin, Director, Sales Manager, Accountant can view all
+        if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager', 'order_management', 'accountant']) || 
+            $this->checkPermission($user, 'view_all_quotations')) {
             return true;
         }
 
-        // If user has view_own_quotations or view_quotations, only allow if they own the quotation
+        // Creator or assigned sales can view
+        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+            return true;
+        }
+
+        // Project manager can view
+        if ($quotation->project_id && $quotation->project && $quotation->project->manager_id === $user->id) {
+            return true;
+        }
+
         if ($this->checkPermission($user, 'view_own_quotations') || $this->checkPermission($user, 'view_quotations')) {
             return $quotation->created_by === $user->id;
         }
@@ -50,6 +65,11 @@ class QuotationPolicy extends BasePolicy
      */
     public function create(User $user): bool
     {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'sales_staff', 'order_management']) || 
+            in_array($user->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh'])) {
+            return true;
+        }
+
         return $this->checkPermission($user, 'create_quotations');
     }
 
@@ -62,11 +82,23 @@ class QuotationPolicy extends BasePolicy
      */
     public function update(User $user, Quotation $quotation): bool
     {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'order_management'])) {
+            return true;
+        }
+
+        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+            return true;
+        }
+
         return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
     }
 
     public function delete(User $user, Quotation $quotation): bool
     {
+        if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
+            return true;
+        }
+
         return $this->checkPermission($user, 'delete_quotations');
     }
 }
