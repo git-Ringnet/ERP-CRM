@@ -177,7 +177,7 @@ class ExcelImportService
     {
         $spreadsheet = IOFactory::load($filePath);
         $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray();
+        $rows = $sheet->toArray(null, true, false, false);
         
         // Remove header row
         $headers = array_shift($rows);
@@ -365,8 +365,8 @@ class ExcelImportService
                 
                 $product = $productCache[$productCode];
                 
-                // Group by date AND warehouse AND supplier
-                $groupKey = $importDate . '_' . $warehouse->id . '_' . ($supplier ? $supplier->id : '0');
+                // Group by warehouse AND supplier (to create 1 unified import ticket per warehouse/supplier)
+                $groupKey = $warehouse->id . '_' . ($supplier ? $supplier->id : '0');
                 if (!isset($groupedItems[$groupKey])) {
                     $groupedItems[$groupKey] = [
                         'date' => $importDate,
@@ -386,6 +386,18 @@ class ExcelImportService
                 $groupedItems[$groupKey]['inspection_cost'] = max($groupedItems[$groupKey]['inspection_cost'], $inspectionCost);
                 $groupedItems[$groupKey]['other_cost'] = max($groupedItems[$groupKey]['other_cost'], $otherCost);
                 
+                $qtyInput = null;
+                if (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) {
+                    $qtyInput = (int)$row[3];
+                } elseif (isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) {
+                    $qtyInput = (int)$row[2];
+                }
+
+                $totalQty = max($qtyInput ?? count($serialsInRow), count($serialsInRow));
+                if ($totalQty <= 0) {
+                    $totalQty = 1;
+                }
+
                 if (!empty($serialsInRow)) {
                     foreach ($serialsInRow as $sn) {
                         $groupedItems[$groupKey]['items'][] = [
@@ -398,13 +410,25 @@ class ExcelImportService
                             'row_number' => $rowNumber,
                         ];
                     }
+
+                    $remainingQty = $totalQty - count($serialsInRow);
+                    if ($remainingQty > 0) {
+                        $groupedItems[$groupKey]['items'][] = [
+                            'product_id' => $product->id,
+                            'product_code' => $productCode,
+                            'quantity' => $remainingQty,
+                            'cost' => $cost,
+                            'serial' => null,
+                            'note' => $note,
+                            'row_number' => $rowNumber,
+                        ];
+                    }
                 } else {
-                    // No serial provided - use row quantity
-                    $qty = (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) ? (int)$row[3] : ((isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) ? (int)$row[2] : 1);
+                    // No serial provided - use specified quantity
                     $groupedItems[$groupKey]['items'][] = [
                         'product_id' => $product->id,
                         'product_code' => $productCode,
-                        'quantity' => $qty,
+                        'quantity' => $totalQty,
                         'cost' => $cost,
                         'serial' => null,
                         'note' => $note,
@@ -563,7 +587,7 @@ class ExcelImportService
     {
         $spreadsheet = IOFactory::load($filePath);
         $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray();
+        $rows = $sheet->toArray(null, true, false, false);
         
         // Remove header row
         $headers = array_shift($rows);
@@ -654,8 +678,8 @@ class ExcelImportService
                     continue;
                 }
                 
-                // Group by date and warehouse
-                $key = $transactionDate . '_' . $warehouse->id;
+                // Group by warehouse (to create 1 unified import ticket per warehouse)
+                $key = (string) $warehouse->id;
                 if (!isset($groupedRows[$key])) {
                     $groupedRows[$key] = [
                         'warehouse_id' => $warehouse->id,
@@ -664,6 +688,18 @@ class ExcelImportService
                     ];
                 }
                 
+                $qtyInput = null;
+                if (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) {
+                    $qtyInput = (int)$row[3];
+                } elseif (isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) {
+                    $qtyInput = (int)$row[2];
+                }
+
+                $totalQty = max($qtyInput ?? count($serialsInRow), count($serialsInRow));
+                if ($totalQty <= 0) {
+                    $totalQty = 1;
+                }
+
                 if (!empty($serialsInRow)) {
                     foreach ($serialsInRow as $sn) {
                         $groupedRows[$key]['items'][] = [
@@ -678,12 +714,26 @@ class ExcelImportService
                             'row_number' => $rowNumber,
                         ];
                     }
+
+                    $remainingQty = $totalQty - count($serialsInRow);
+                    if ($remainingQty > 0) {
+                        $groupedRows[$key]['items'][] = [
+                            'product_id' => $product->id,
+                            'product_code' => $productCode,
+                            'quantity' => $remainingQty,
+                            'sku' => null,
+                            'cost_usd' => (float)$costUsd,
+                            'price_tiers' => $priceTiers,
+                            'description' => null,
+                            'comments' => $comments,
+                            'row_number' => $rowNumber,
+                        ];
+                    }
                 } else {
-                    $qty = (isset($row[3]) && is_numeric($row[3]) && (int)$row[3] > 0) ? (int)$row[3] : ((isset($row[2]) && is_numeric($row[2]) && (int)$row[2] > 0) ? (int)$row[2] : 1);
                     $groupedRows[$key]['items'][] = [
                         'product_id' => $product->id,
                         'product_code' => $productCode,
-                        'quantity' => $qty,
+                        'quantity' => $totalQty,
                         'sku' => null,
                         'cost_usd' => (float)$costUsd,
                         'price_tiers' => $priceTiers,
@@ -794,35 +844,79 @@ class ExcelImportService
     
     /**
      * Parse date from various formats
-     * Supports: DD/MM/YYYY, D/M/YYYY, YYYY-MM-DD
+     * Supports: Excel numeric timestamps, DD/MM/YYYY, D/M/YYYY, YYYY-MM-DD, DD-MM-YYYY, DD.MM.YYYY
      */
     protected function parseDate($dateString): ?string
     {
         if (empty($dateString)) {
             return date('Y-m-d');
         }
-        
-        $dateString = trim($dateString);
-        
-        // Already in YYYY-MM-DD format
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateString)) {
-            return $dateString;
+
+        if ($dateString instanceof \DateTimeInterface) {
+            return $dateString->format('Y-m-d');
         }
-        
-        // DD/MM/YYYY or D/M/YYYY format
-        if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $dateString, $matches)) {
-            $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
-            $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
-            $year = $matches[3];
-            return "{$year}-{$month}-{$day}";
+
+        // Numeric Excel timestamp (days since 1900, e.g. 45000, 46290)
+        if (is_numeric($dateString) && (float)$dateString > 1000 && (float)$dateString < 200000) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$dateString)->format('Y-m-d');
+            } catch (\Exception $e) {
+                // fallback
+            }
         }
-        
-        // Try to parse with strtotime
+
+        $dateString = trim((string)$dateString);
+
+        // Year-Month-Day with any separators (e.g. 2026-09-25, 2026/09/25, 2026年9月25日, 1212122026年9月25日)
+        if (preg_match('/(\d{4})[^\d]+(\d{1,2})[^\d]+(\d{1,2})/u', $dateString, $matches)) {
+            return sprintf('%04d-%02d-%02d', (int)$matches[1], (int)$matches[2], (int)$matches[3]);
+        }
+
+        // Already in YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD format
+        if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/', $dateString, $matches)) {
+            return sprintf('%04d-%02d-%02d', $matches[1], $matches[2], $matches[3]);
+        }
+
+        // DD/MM/YYYY, D/M/YYYY, DD-MM-YYYY, DD.MM.YYYY format
+        if (preg_match('/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/', $dateString, $matches)) {
+            $p1 = (int)$matches[1];
+            $p2 = (int)$matches[2];
+            $year = (int)$matches[3];
+            if ($p1 > 12 && $p2 <= 12) {
+                // p1 is day, p2 is month
+                return sprintf('%04d-%02d-%02d', $year, $p2, $p1);
+            } elseif ($p2 > 12 && $p1 <= 12) {
+                // p2 is day, p1 is month
+                return sprintf('%04d-%02d-%02d', $year, $p1, $p2);
+            } else {
+                // Standard Vietnamese format DD/MM/YYYY
+                return sprintf('%04d-%02d-%02d', $year, $p2, $p1);
+            }
+        }
+
+        // DD/MM/YY format (2-digit year)
+        if (preg_match('/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2})$/', $dateString, $matches)) {
+            $year = 2000 + (int)$matches[3];
+            $day = (int)$matches[1];
+            $month = (int)$matches[2];
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+
+        // Try to parse with Carbon / strtotime
+        try {
+            $carbon = \Carbon\Carbon::parse($dateString);
+            if ($carbon) {
+                return $carbon->format('Y-m-d');
+            }
+        } catch (\Exception $e) {
+            // fallback
+        }
+
         $timestamp = strtotime($dateString);
         if ($timestamp !== false) {
             return date('Y-m-d', $timestamp);
         }
-        
+
         return null;
     }
 

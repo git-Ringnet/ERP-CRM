@@ -44,12 +44,12 @@
                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
                     <i class="fas fa-plus mr-1"></i> Tạo đơn hàng
                 </a>
-                @can('create', \App\Models\Quotation::class)
+                @if(auth()->user()->can('create', \App\Models\Quotation::class) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'sales_staff', 'order_management']) || in_array(auth()->user()->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh']) || auth()->user()->can('create_quotations'))
                     <a href="{{ route('quotations.create', ['project_id' => $project->id]) }}"
                        class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
                         <i class="fas fa-file-invoice mr-1"></i> Tạo báo giá
                     </a>
-                @endcan
+                @endif
                 @can('create_technical_tickets')
                     <a href="{{ route('technical-tickets.create', ['project_id' => $project->id]) }}"
                        class="inline-flex items-center px-3 py-1.5 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
@@ -622,12 +622,12 @@
                 </p>
             </div>
             <div class="flex items-center gap-2">
-                @can('create', \App\Models\Quotation::class)
+                @if(auth()->user()->can('create', \App\Models\Quotation::class) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'sales_manager', 'sales_staff', 'order_management']) || in_array(auth()->user()->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh']) || auth()->user()->can('create_quotations'))
                     <a href="{{ route('quotations.create', ['project_id' => $project->id]) }}" 
                        class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-xs shadow-xs">
                         <i class="fas fa-plus mr-1"></i> Tạo báo giá mới
                     </a>
-                @endcan
+                @endif
                 <a href="{{ route('sales.create', ['project_id' => $project->id]) }}" 
                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-xs shadow-xs">
                     <i class="fas fa-plus mr-1"></i> Tạo đơn hàng mới
