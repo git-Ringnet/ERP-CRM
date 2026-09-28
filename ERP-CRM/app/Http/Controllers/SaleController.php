@@ -209,12 +209,12 @@ class SaleController extends Controller
     {
         $this->authorize('create', Sale::class);
 
-        $customers = Customer::orderBy('name')->get();
+        $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
         
         // Không load sản phẩm nữa - sẽ dùng AJAX search
         $products = collect();
         
-        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $projects = Project::select('id', 'code', 'name', 'customer_id', 'status')->with(['customer:id,name,tax_code,abv_name'])->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         // Generate sale code
         $code = $this->generateSaleCode();
@@ -241,14 +241,14 @@ class SaleController extends Controller
             $selectedCustomerId = $effectiveCust?->id;
             // Ensure newly created customer is in the list
             if ($effectiveCust && !$customers->contains('id', $effectiveCust->id)) {
-                $customers = Customer::orderBy('name')->get();
+                $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
             }
         }
 
         // Multi-currency: load active currencies + today's VND base ID
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
-        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $suppliers = Supplier::select('id', 'code', 'name')->orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
         // Parse BOM data from selected projects if available
@@ -368,6 +368,7 @@ class SaleController extends Controller
             'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
             'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
@@ -557,6 +558,7 @@ class SaleController extends Controller
                     'contractor_tax_enabled' => isset($item['contractor_tax_enabled']) ? (bool) $item['contractor_tax_enabled'] : false,
                     'vat' => $itemVat,
                     'vat_amount' => $itemVatAmount,
+                    'is_from_stock' => !empty($item['is_from_stock']),
                 ]);
             }
 
@@ -709,9 +711,10 @@ class SaleController extends Controller
         $sale->load(['items.product', 'items.project', 'customer', 'expenses', 'project', 'orderRequests.items', 'orderRequests.attachments']);
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
-        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $suppliers = Supplier::select('id', 'code', 'name')->orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
-        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId', 'suppliers'));
+        return view('sales.show', compact('sale', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
     }
 
     /**
@@ -731,17 +734,22 @@ class SaleController extends Controller
 
         $this->authorize('update', $sale);
 
-        $sale->load(['items.product', 'expenses', 'orderRequests.items', 'orderRequests.attachments']);
-        $customers = Customer::orderBy('name')->get();
+        $sale->load([
+            'items.product:id,code,name,unit,warranty_months',
+            'expenses',
+            'customer:id,name,tax_code,abv_name,debt_days,payment_terms',
+            'project:id,code,name,customer_id',
+        ]);
+        $customers = Customer::select('id', 'name', 'tax_code', 'abv_name', 'debt_days', 'payment_terms')->orderBy('name')->get();
         
         // Không load sản phẩm nữa - sẽ dùng AJAX search như trang create
         $products = collect();
         
-        $projects = Project::with('customer')->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
+        $projects = Project::select('id', 'code', 'name', 'customer_id', 'status')->with(['customer:id,name,tax_code,abv_name'])->whereIn('status', ['planning', 'in_progress'])->orderBy('name')->get();
 
         $currencies = $this->currencyService->getActiveCurrencies();
         $baseCurrencyId = Currency::getBaseCurrencyId();
-        $suppliers = Supplier::orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
+        $suppliers = Supplier::select('id', 'code', 'name')->orderByRaw("CASE WHEN name = 'Other' THEN 1 ELSE 0 END, name")->get();
         $paymentTemplates = \App\Models\PaymentTemplate::with('items')->where('is_active', true)->get();
 
         return view('sales.edit', compact('sale', 'customers', 'products', 'projects', 'currencies', 'baseCurrencyId', 'suppliers', 'paymentTemplates'));
@@ -821,6 +829,7 @@ class SaleController extends Controller
             'multi_project_confirmed' => ['nullable', 'boolean'],
             'products.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
             'products.*.contractor_tax_enabled' => ['nullable', 'boolean'],
+            'products.*.is_from_stock' => ['nullable', 'boolean'],
             'expenses' => ['nullable', 'array'],
             'expenses.*.type' => ['nullable', 'string', 'max:100'],
             'expenses.*.input_mode' => ['nullable', 'in:percent,fixed'],
@@ -1188,6 +1197,7 @@ class SaleController extends Controller
                             : (isset($oldPnl['contractor_tax_enabled']) ? (bool) $oldPnl['contractor_tax_enabled'] : false)),
                     'supplier_id' => $getVal('supplier_id', 'supplier_id', null),
                     'is_service' => (bool)$getVal('is_service', 'is_service', false),
+                    'is_from_stock' => !empty($item['is_from_stock']) || (bool)$getVal('is_from_stock', 'is_from_stock', false),
                 ]);
             }
 
@@ -4165,6 +4175,405 @@ class SaleController extends Controller
     }
 
     /**
+     * Update BOM directly from sale detail page (show.blade.php)
+     */
+    public function updateBom(Request $request, Sale $sale)
+    {
+        if ($sale->hasPayment()) {
+            return back()->with('error', 'Đơn hàng đã có thanh toán, không thể điều chỉnh BOM.');
+        }
+
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'nullable',
+            'items.*.product_name' => 'nullable|string|max:255',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.price' => 'required|string',
+            'items.*.vat' => 'nullable',
+            'items.*.warranty_months' => 'nullable|integer',
+            'items.*.is_service' => 'nullable|boolean',
+            'items.*.is_from_stock' => 'nullable|boolean',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $isForeign = $sale->currency && !$sale->currency->is_base;
+            $rate = $sale->exchange_rate ?: 1;
+
+            $sale->items()->delete();
+
+            $subtotal = 0;
+            $vatAmount = 0;
+            $costTotal = 0;
+
+            foreach ($request->input('items') as $idx => $itemData) {
+                if (empty($itemData['product_id']) && empty($itemData['product_name'])) {
+                    continue;
+                }
+
+                $qty = (float)$itemData['quantity'];
+                $rawPrice = str_replace(['.', ','], ['', ''], (string)($itemData['price'] ?? 0));
+                $price = (float)$rawPrice;
+                $vatRate = isset($itemData['vat']) ? (float)$itemData['vat'] : 8;
+                $effectiveVatRate = $vatRate < 0 ? 0 : $vatRate;
+
+                $product = null;
+                if (!empty($itemData['product_id']) && is_numeric($itemData['product_id'])) {
+                    $product = \App\Models\Product::find($itemData['product_id']);
+                }
+
+                $productName = $itemData['product_name'] ?: ($product ? $product->name : 'Sản phẩm ' . ($idx + 1));
+                $unitCost = $product ? ($product->calculated_cost ?: ($product->cost ?: 0)) : 0;
+                $lineSubtotal = $qty * $price;
+                $lineVat = $lineSubtotal * ($effectiveVatRate / 100);
+
+                \App\Models\SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $product ? $product->id : null,
+                    'product_name' => $productName,
+                    'quantity' => $qty,
+                    'price' => $price,
+                    'cost' => $unitCost,
+                    'vat' => $vatRate,
+                    'vat_amount' => $lineVat,
+                    'warranty_months' => $itemData['warranty_months'] ?? ($product->warranty_months ?? 12),
+                    'is_service' => !empty($itemData['is_service']),
+                    'is_from_stock' => !empty($itemData['is_from_stock']),
+                ]);
+
+                $subtotal += $lineSubtotal;
+                $vatAmount += $lineVat;
+                $costTotal += ($qty * $unitCost);
+            }
+
+            $discountRate = (float)($sale->discount ?: 0);
+            $discountAmount = $subtotal * ($discountRate / 100);
+            $total = $subtotal - $discountAmount + $vatAmount;
+            $grossProfit = $subtotal - $discountAmount - $costTotal;
+            $grossProfitMargin = $subtotal > 0 ? round(($grossProfit / $subtotal) * 100, 2) : 0;
+
+            $sale->update([
+                'subtotal' => $subtotal,
+                'vat_amount' => $vatAmount,
+                'total' => $total,
+                'cost_total' => $costTotal,
+                'gross_profit' => $grossProfit,
+                'gross_profit_margin' => $grossProfitMargin,
+            ]);
+
+            $sale->updateDebt();
+
+            DB::commit();
+            return back()->with('success', 'Đã cập nhật BOM sản phẩm của đơn hàng thành công!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi khi cập nhật BOM: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Add manual milestone / payment term directly from show page
+     */
+    public function addMilestone(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'milestone_name' => 'required|string|max:255',
+            'percentage' => 'nullable|numeric|min:0|max:100',
+            'amount' => 'nullable|string',
+            'blocking_stage' => 'nullable|string|in:BLOCK_PO_SEND,BLOCK_WAREHOUSE_EXPORT,NONE',
+            'due_days' => 'nullable|integer|min:0',
+            'required_docs' => 'nullable|string|max:255',
+        ]);
+
+        $percentage = (float)($request->input('percentage') ?: 0);
+        $rawAmount = str_replace(['.', ','], ['', ''], (string)$request->input('amount'));
+        $amount = (float)$rawAmount;
+
+        if ($percentage > 0 && $amount <= 0) {
+            $amount = round($sale->total * ($percentage / 100));
+        } elseif ($amount > 0 && $percentage <= 0 && $sale->total > 0) {
+            $percentage = round(($amount / $sale->total) * 100, 2);
+        }
+
+        $nextSort = ($sale->paymentSchedules()->max('sort_order') ?: 0) + 1;
+
+        $schedule = \App\Models\SalePaymentSchedule::create([
+            'sale_id' => $sale->id,
+            'sort_order' => $nextSort,
+            'milestone_name' => $request->input('milestone_name'),
+            'percentage' => $percentage,
+            'amount' => $amount,
+            'trigger_type' => 'MANUAL',
+            'blocking_stage' => $request->input('blocking_stage') ?: 'NONE',
+            'due_base' => $request->input('due_base') ?: 'contract_date',
+            'due_days' => (int)($request->input('due_days') ?: 0),
+            'required_docs' => $request->input('required_docs') ?: 'UNC',
+            'status' => 'unpaid',
+        ]);
+
+        return back()->with('success', 'Đã thêm điều khoản thanh toán "' . $schedule->milestone_name . '" thành công!');
+    }
+
+    /**
+     * Add external expense directly from show page
+     */
+    public function addExpense(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'type' => 'required|string|max:255',
+            'description' => 'nullable|string|max:500',
+            'input_mode' => 'required|in:fixed,percent',
+            'percent_value' => 'nullable|numeric|min:0',
+            'amount' => 'nullable|string',
+        ]);
+
+        $rawAmount = str_replace(['.', ','], ['', ''], (string)$request->input('amount'));
+        $amount = (float)$rawAmount;
+        $percentValue = (float)$request->input('percent_value');
+
+        if ($request->input('input_mode') === 'percent' && $percentValue > 0) {
+            $amount = round($sale->subtotal * ($percentValue / 100));
+        }
+
+        \App\Models\SaleExpense::create([
+            'sale_id' => $sale->id,
+            'type' => $request->input('type'),
+            'description' => $request->input('description'),
+            'input_mode' => $request->input('input_mode'),
+            'percent_value' => $percentValue,
+            'amount' => $amount,
+        ]);
+
+        return back()->with('success', 'Đã thêm chi phí ngoài thành công!');
+    }
+
+    /**
+     * Apply predefined payment template to sale milestones
+     */
+    public function applyPaymentTemplate(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'template_id' => 'required|exists:payment_templates,id',
+        ]);
+
+        $template = \App\Models\PaymentTemplate::with('items')->findOrFail($request->template_id);
+        
+        $hasPaid = $sale->paymentSchedules()->where('status', 'paid')->exists();
+        if ($hasPaid) {
+            return back()->with('error', 'Đơn hàng đã có đợt thanh toán hoàn tất, không thể thay đổi toàn bộ mẫu lộ trình.');
+        }
+
+        $sale->paymentSchedules()->delete();
+
+        foreach ($template->items as $idx => $item) {
+            $percentage = (float) $item->percentage;
+            $amount = round($sale->total * ($percentage / 100));
+
+            \App\Models\SalePaymentSchedule::create([
+                'sale_id' => $sale->id,
+                'template_id' => $template->id,
+                'template_version' => $template->version ?? 1,
+                'sort_order' => $idx + 1,
+                'milestone_name' => $item->milestone_name,
+                'percentage' => $percentage,
+                'amount' => $amount,
+                'trigger_type' => $item->trigger_type ?? 'MANUAL',
+                'blocking_stage' => $item->blocking_stage ?? 'NONE',
+                'due_base' => $item->due_base ?: 'contract_date',
+                'due_days' => (int) ($item->due_days ?? 0),
+                'required_docs' => $item->required_docs ?? 'UNC',
+                'status' => 'unpaid',
+            ]);
+        }
+
+        $sale->update([
+            'payment_term_type' => 'template_' . $template->id,
+            'payment_term' => $template->name . ($template->description ? ': ' . $template->description : ''),
+        ]);
+
+        return back()->with('success', 'Đã áp dụng mẫu điều khoản thanh toán "' . $template->name . '" thành công!');
+    }
+
+    /**
+     * Save/Sync all milestones directly from show page
+     */
+    public function syncMilestones(Request $request, Sale $sale)
+    {
+        if ($sale->pl_status === 'approved') {
+            return back()->with('error', 'Đơn hàng đã được duyệt P&L, không thể thay đổi điều khoản thanh toán.');
+        }
+
+        $hasPaid = $sale->paymentSchedules()->where('status', 'paid')->exists();
+        if ($hasPaid) {
+            return back()->with('error', 'Đơn hàng đã có đợt thanh toán hoàn tất, không thể thay đổi toàn bộ mẫu lộ trình.');
+        }
+
+        $validated = $request->validate([
+            'template_id' => 'nullable|string',
+            'milestones' => 'required|array|min:1',
+            'milestones.*.milestone_name' => 'required|string|max:255',
+            'milestones.*.percentage' => 'nullable|numeric|min:0|max:100',
+            'milestones.*.amount' => 'nullable',
+            'milestones.*.timing' => 'nullable|string',
+            'milestones.*.required_before' => 'nullable|string',
+            'milestones.*.is_blocking' => 'nullable|string',
+            'milestones.*.due_days' => 'nullable|integer|min:0',
+            'milestones.*.required_docs' => 'nullable|string',
+        ]);
+
+        $milestones = $validated['milestones'];
+        
+        // Recalculate amounts if needed
+        foreach ($milestones as &$ms) {
+            $pct = (float)($ms['percentage'] ?? 0);
+            if ($pct > 0) {
+                $ms['amount'] = round($sale->total * ($pct / 100));
+            } else {
+                $rawAmount = str_replace(['.', ',', ' '], '', (string)($ms['amount'] ?? '0'));
+                $ms['amount'] = (float)$rawAmount;
+            }
+        }
+        unset($ms);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $sale->syncPaymentSchedules($milestones);
+
+            $templateId = $request->input('template_id');
+            if ($templateId && str_starts_with($templateId, 'template_')) {
+                $rawId = str_replace('template_', '', $templateId);
+                $tpl = \App\Models\PaymentTemplate::find($rawId);
+                if ($tpl) {
+                    $sale->update([
+                        'payment_term_type' => 'template_' . $tpl->id,
+                        'payment_term' => $tpl->name . ($tpl->description ? ': ' . $tpl->description : ''),
+                    ]);
+                }
+            } elseif ($templateId === 'customer_default') {
+                $sale->update(['payment_term_type' => 'customer_default']);
+            } else {
+                $sale->update(['payment_term_type' => 'custom']);
+            }
+
+            \Illuminate\Support\Facades\DB::commit();
+            return back()->with('success', 'Đã lưu và áp dụng điều khoản thanh toán thành công!');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Add default expenses to sale
+     */
+    public function addDefaultExpenses(Sale $sale)
+    {
+        $defaults = \App\Models\SaleExpense::defaultExpenses();
+        $added = 0;
+
+        foreach ($defaults as $def) {
+            $exists = $sale->expenses()->where('type', $def['type'])->exists();
+            if (!$exists) {
+                $sale->expenses()->create([
+                    'type' => $def['type'],
+                    'input_mode' => $def['input_mode'] ?? 'fixed',
+                    'percent_value' => $def['percent_value'] ?? null,
+                    'amount' => $def['amount'] ?? 0,
+                    'description' => $def['description'] ?? '',
+                ]);
+                $added++;
+            }
+        }
+
+        $sale->load('expenses');
+        $this->syncOrderExpensesToPnlItems($sale);
+        $sale->calculateMargin();
+        $sale->save();
+
+        return back()->with('success', "Đã thêm {$added} chi phí mặc định vào đơn hàng thành công!");
+    }
+
+    /**
+     * Update/sync all expenses directly from show page
+     */
+    public function syncExpenses(Request $request, Sale $sale)
+    {
+        $validated = $request->validate([
+            'expenses' => 'nullable|array',
+            'expenses.*.type' => 'required|string|max:255',
+            'expenses.*.input_mode' => 'required|in:fixed,percent',
+            'expenses.*.percent_value' => 'nullable|numeric|min:0',
+            'expenses.*.amount' => 'nullable|numeric|min:0',
+            'expenses.*.description' => 'nullable|string|max:500',
+        ]);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $oldExpenseTypes = $sale->expenses()->pluck('type', 'id')->toArray();
+            $sale->expenses()->delete();
+            $newExpensesMap = [];
+
+            if (!empty($validated['expenses'])) {
+                foreach ($validated['expenses'] as $expense) {
+                    if (empty($expense['type'])) continue;
+                    $inputMode = $expense['input_mode'] ?? 'fixed';
+                    $amount = $inputMode === 'percent'
+                        ? 0
+                        : round(floatval($expense['amount'] ?? 0), 2);
+                    $percentValue = $inputMode === 'percent'
+                        ? round(floatval($expense['percent_value'] ?? 0), 2)
+                        : null;
+
+                    $newExp = \App\Models\SaleExpense::create([
+                        'sale_id' => $sale->id,
+                        'type' => $expense['type'],
+                        'input_mode' => $inputMode,
+                        'percent_value' => $percentValue,
+                        'description' => $expense['description'] ?? '',
+                        'amount' => $amount,
+                    ]);
+
+                    $oldId = array_search($expense['type'], $oldExpenseTypes);
+                    if ($oldId !== false) {
+                        $newExpensesMap[$oldId] = $newExp->id;
+                        unset($oldExpenseTypes[$oldId]);
+                    }
+                }
+            }
+
+            // Sync order expenses to P&L items & calculate margin
+            $sale->load('expenses', 'items.product');
+            $this->syncOrderExpensesToPnlItems($sale);
+            $sale->calculateMargin();
+            $sale->save();
+
+            \Illuminate\Support\Facades\DB::commit();
+            return back()->with('success', 'Đã lưu và cập nhật toàn bộ chi phí đơn hàng thành công!');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return back()->with('error', 'Có lỗi khi cập nhật chi phí: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete an expense from sale
+     */
+    public function deleteExpense(Sale $sale, \App\Models\SaleExpense $expense)
+    {
+        if ((int)$expense->sale_id !== (int)$sale->id) {
+            abort(403);
+        }
+
+        $expense->delete();
+        $sale->load('expenses');
+        $this->syncOrderExpensesToPnlItems($sale);
+        $sale->calculateMargin();
+        $sale->save();
+
+        return back()->with('success', 'Đã xóa chi phí thành công!');
+    }
+
+    /**
      * BOD approves exception for a specific milestone
      */
     public function approveMilestoneException(Request $request, Sale $sale, $index)
@@ -4462,25 +4871,53 @@ class SaleController extends Controller
                     throw new \Exception("Số lượng xuất cho sản phẩm ID {$productId} ({$qty}) vượt quá số lượng còn lại có thể xuất ({$remaining}).");
                 }
 
-                if (!$sale->isProjectOrder() && $sale->type === 'retail') {
-                    $salespersonName = $sale->employee?->name ?? $sale->user?->name;
-                    if ($salespersonName) {
-                        $heldQty = \App\Models\ProductItem::where('product_id', $productId)
-                            ->where('warehouse_id', $request->warehouse_id)
-                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
-                            ->where('borrower', $salespersonName)
-                            ->count();
-
-                        if ($qty > $heldQty) {
-                            $productName = $saleItem ? $saleItem->product_name : "ID: {$productId}";
-                            throw new \Exception("Số lượng xuất cho sản phẩm '{$productName}' ({$qty}) vượt quá số lượng bạn đang giữ trong kho được chọn ({$heldQty}). Vui lòng gửi yêu cầu mượn hàng từ kho hoặc Sales khác trước!");
-                        }
-                    }
-                }
-
+                $salespersonName = $sale->employee?->name ?? $sale->user?->name;
                 $saleItem = \App\Models\SaleItem::where('sale_id', $sale->id)
                     ->where('product_id', $productId)
                     ->first();
+
+                $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+
+                if ($isFromStock) {
+                    $heldBySales = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('warehouse_id', $request->warehouse_id)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->where('borrower', $salespersonName)
+                        ->sum('quantity');
+
+                    if ($qty > $heldBySales) {
+                        $productName = $saleItem ? $saleItem->product_name : "ID: {$productId}";
+                        throw new \Exception("Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ/mượn {$heldBySales}/{$qty} cái trong kho này. Vui lòng tạo 'Yêu cầu mượn hàng' để giữ hàng trước khi xuất.");
+                    }
+                } else {
+                    $availableForSales = \App\Models\ProductItem::where('product_id', $productId)
+                        ->where('warehouse_id', $request->warehouse_id)
+                        ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                        ->where(function ($q) use ($salespersonName) {
+                            $q->whereNull('borrower')->orWhere('borrower', '');
+                            if ($salespersonName) {
+                                $q->orWhere('borrower', $salespersonName);
+                            }
+                        })
+                        ->sum('quantity');
+
+                    if ($qty > $availableForSales) {
+                        $productName = $saleItem ? $saleItem->product_name : "ID: {$productId}";
+                        $heldByOthersCount = \App\Models\ProductItem::where('product_id', $productId)
+                            ->where('warehouse_id', $request->warehouse_id)
+                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                            ->whereNotNull('borrower')
+                            ->where('borrower', '!=', '')
+                            ->when($salespersonName, fn($q) => $q->where('borrower', '!=', $salespersonName))
+                            ->sum('quantity');
+
+                        $msg = "Số lượng xuất cho sản phẩm '{$productName}' ({$qty}) vượt quá số lượng khả dụng trong kho được chọn ({$availableForSales}).";
+                        if ($heldByOthersCount > 0) {
+                            $msg .= " (Hiện có {$heldByOthersCount} sản phẩm đang được Sales khác giữ. Vui lòng tạo yêu cầu mượn hàng trước nếu cần xuất hàng này).";
+                        }
+                        throw new \Exception($msg);
+                    }
+                }
 
                 $itemsToExport[] = [
                     'product_id' => $productId,

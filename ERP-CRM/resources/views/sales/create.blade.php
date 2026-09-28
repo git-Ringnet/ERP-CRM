@@ -306,6 +306,14 @@
                                         <input type="hidden" name="products[{{ $idx }}][product_id]" required class="product-id-input" value="{{ old("products.{$idx}.product_id", $pid) }}">
                                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                         <input type="hidden" name="products[{{ $idx }}][is_liquidation]" value="{{ old("products.{$idx}.is_liquidation", 0) }}" class="is-liquidation-input">
+                                        <div class="mt-1.5 flex items-center">
+                                            <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                                                <input type="hidden" name="products[{{ $idx }}][is_from_stock]" value="0">
+                                                <input type="checkbox" name="products[{{ $idx }}][is_from_stock]" value="1" {{ old("products.{$idx}.is_from_stock", 0) ? 'checked' : '' }}
+                                                       class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox">
+                                                <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
+                                            </label>
+                                        </div>
                                     </div>
                                     <input type="hidden" name="products[{{ $idx }}][new_name]" class="new-name-input" value="{{ old("products.{$idx}.new_name", $pname) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_code]" class="new-code-input" value="{{ old("products.{$idx}.new_code", $pcode) }}">
@@ -366,10 +374,16 @@
                     @endforeach
                 </div>
 
-                <button type="button" onclick="addProductRow()" 
-                        class="mt-3 inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-plus mr-2"></i> Thêm sản phẩm
-                </button>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="addProductRow()" 
+                            class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                        <i class="fas fa-plus mr-2"></i> Thêm sản phẩm
+                    </button>
+                    <button type="button" onclick="openCreateStockPickerModal()" 
+                            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-xs">
+                        <i class="fas fa-boxes-stacked mr-2"></i> Chọn hàng có sẵn trong kho / Hàng đang giữ
+                    </button>
+                </div>
             </div>
 
             {{-- Expenses Section — Flexible P/L Cost Entry --}}
@@ -1546,24 +1560,42 @@ function setupMoneyInput(input) {
     });
 }
 
-function addProductRow() {
+function addProductRow(productData = null) {
     const productList = document.getElementById('productList');
     const newRow = document.createElement('div');
     newRow.className = `product-item ${productIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} p-4 border-b last:border-b-0 border-gray-100`;
+
+    const pid = productData ? (productData.id || '') : '';
+    const pcode = productData ? (productData.code || '') : '';
+    const pname = productData ? (productData.name || '') : '';
+    const punit = productData ? (productData.unit || 'Cái') : 'Cái';
+    const pprice = productData ? (productData.price ? formatMoney(productData.price) : '') : '';
+    const pwarranty = productData ? (productData.warranty_months || 12) : '';
+    const isFromStock = productData ? (productData.is_from_stock ? 1 : 0) : 0;
+    const displayText = productData ? ((pcode ? '[' + pcode + '] ' : '') + pname) : '';
+
     newRow.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
             <div class="md:col-span-3 product-name-col">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
                 <div class="searchable-select product-searchable" data-index="${productIndex}" data-ajax-url="{{ route('api.products.search') }}">
                     <input type="text" class="searchable-input w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" 
-                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off">
-                    <input type="hidden" name="products[${productIndex}][product_id]" required class="product-id-input">
+                           placeholder="Gõ để tìm sản phẩm..." autocomplete="off" value="${displayText}">
+                    <input type="hidden" name="products[${productIndex}][product_id]" value="${pid}" required class="product-id-input">
                     <input type="hidden" name="products[${productIndex}][is_liquidation]" value="0" class="is-liquidation-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                 </div>
-                <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input">
-                <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input">
-                <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="Cái">
+                <div class="mt-1.5 flex items-center">
+                    <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                        <input type="hidden" name="products[${productIndex}][is_from_stock]" value="0">
+                        <input type="checkbox" name="products[${productIndex}][is_from_stock]" value="1" ${isFromStock ? 'checked' : ''}
+                               class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox">
+                        <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
+                    </label>
+                </div>
+                <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${pname}">
+                <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${pcode}">
+                <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="${punit}">
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
@@ -1573,7 +1605,7 @@ function addProductRow() {
             </div>
             <div class="md:col-span-2">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Đơn giá (<span class="currency-symbol">₫</span>)</label>
-                <input type="text" name="products[${productIndex}][price]" min="0" required
+                <input type="text" name="products[${productIndex}][price]" min="0" required value="${pprice}"
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary price-input">
                 <small class="block text-xs text-gray-500 mt-1 base-price-reference"></small>
@@ -1593,7 +1625,7 @@ function addProductRow() {
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Bảo hành (tháng)</label>
-                <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value=""
+                <input type="number" name="products[${productIndex}][warranty_months]" min="0" max="120" value="${pwarranty}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary warranty-input"
                        placeholder="0">
             </div>
@@ -1625,6 +1657,7 @@ function addProductRow() {
     
     // Apply current contractor tax visibility state
     updateContractorTaxVisibility(window.hasContractorTaxActive);
+    calculateTotal();
 }
 
 function removeProductRow(btn) {
@@ -3211,6 +3244,82 @@ function applyBomItems(isAppend) {
 
 if (btnApplyBomAppend) btnApplyBomAppend.addEventListener('click', () => applyBomItems(true));
 if (btnApplyBomReplace) btnApplyBomReplace.addEventListener('click', () => applyBomItems(false));
+
+// Available Stock picker for Sales Order Create
+function openCreateStockPickerModal() {
+    document.getElementById('createStockPickerModal').classList.remove('hidden');
+    searchCreateAvailableStock('');
+}
+
+function closeCreateStockPickerModal() {
+    document.getElementById('createStockPickerModal').classList.add('hidden');
+}
+
+function searchCreateAvailableStock(query) {
+    const list = document.getElementById('createStockPickerList');
+    fetch(`/api/products/available-stock?q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Không tìm thấy sản phẩm sẵn kho phù hợp</div>';
+                return;
+            }
+            list.innerHTML = data.map(item => `
+                <div class="flex items-center justify-between p-3.5 hover:bg-emerald-50/60 rounded-xl border border-gray-100 mb-2.5 transition-colors">
+                    <div>
+                        <div class="font-bold text-xs text-gray-900">${item.name}</div>
+                        <div class="text-[11px] text-gray-500 font-mono">Mã: ${item.code} | ĐVT: ${item.unit}</div>
+                        <div class="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                            <i class="fas fa-warehouse mr-1"></i>Tồn khả dụng: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
+                        </div>
+                        <div class="text-[10px] text-indigo-700 font-medium mt-0.5">
+                            <i class="fas fa-info-circle mr-1"></i>${item.holding_summary || ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-gray-900">${new Intl.NumberFormat('vi-VN').format(item.price)} đ</div>
+                            <div class="text-[10px] text-gray-400">BH: ${item.warranty_months} tháng</div>
+                        </div>
+                        <button type="button" onclick="selectStockItemForCreate(${JSON.stringify(item).replace(/"/g, '&quot;')})"
+                                class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors">
+                            <i class="fas fa-plus mr-1"></i> Chọn
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        })
+        .catch(() => {
+            list.innerHTML = '<div class="text-center py-6 text-red-500 text-xs">Lỗi tải danh sách sản phẩm</div>';
+        });
+}
+
+function selectStockItemForCreate(item) {
+    item.is_from_stock = 1;
+    addProductRow(item);
+    closeCreateStockPickerModal();
+}
 </script>
+
+<!-- Modal Chọn Hàng Sẵn Kho khi Tạo Đơn hàng -->
+<div id="createStockPickerModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-emerald-50">
+            <h3 class="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                <i class="fas fa-boxes-stacked text-emerald-600"></i> Chọn hàng có sẵn trong kho / Hàng đang giữ
+            </h3>
+            <button onclick="closeCreateStockPickerModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <input type="text" id="createStockSearchInput" onkeyup="searchCreateAvailableStock(this.value)" placeholder="Tìm kiếm theo tên sản phẩm, mã part..."
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 max-h-96" id="createStockPickerList">
+            <div class="text-center py-6 text-gray-400 text-xs">Đang tải danh sách hàng sẵn kho...</div>
+        </div>
+    </div>
+</div>
 
 @endpush

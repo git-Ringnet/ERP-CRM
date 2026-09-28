@@ -198,7 +198,18 @@
                                 {{ $ticket->work_type_label }}
                             </td>
                             <td class="px-3 py-2 text-gray-700 font-medium leading-snug">
-                                {{ $ticket->assignedEngineers->pluck('name')->join(', ') ?: 'Chưa phân công' }}
+                                @if($ticket->activeEngineers->count() > 0)
+                                    <div>
+                                        {{ $ticket->activeEngineers->pluck('name')->join(', ') }}
+                                        @if($ticket->formerEngineers->count() > 0)
+                                            <div class="text-[11px] text-gray-400 mt-0.5 line-through">
+                                                {{ $ticket->formerEngineers->pluck('name')->join(', ') }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    {{ $ticket->assignedEngineers->pluck('name')->join(', ') ?: 'Chưa phân công' }}
+                                @endif
                             </td>
                             <td class="px-3 py-2 text-center whitespace-nowrap">
                                 <div class="inline-flex flex-col items-center gap-1">
@@ -258,12 +269,7 @@
 
                                     <!-- Cập nhật tiến độ -->
                                     @if(!in_array($ticket->status, ['open', 'completed', 'closed']))
-                                        @php
-                                            $canUpdateProgress = $ticket->assignedEngineers()->where('users.id', auth()->id())->exists()
-                                                || auth()->user()->hasRole('technical_lead')
-                                                || auth()->user()->hasAnyRole(['super_admin', 'director']);
-                                        @endphp
-                                        @if($canUpdateProgress)
+                                        @if($ticket->canUserUpdateProgress(auth()->user()))
                                             <button @click="progressActionUrl = '{{ route('technical-tickets.update-progress', $ticket->id) }}'; currentStatus = '{{ $ticket->status }}'; currentSolution = {{ json_encode($ticket->solution) }}; openProgressModal = true" 
                                                 title="Cập nhật tiến độ"
                                                 class="inline-flex items-center p-1.5 bg-emerald-600 text-white text-xs font-bold rounded hover:bg-emerald-700 transition-colors">

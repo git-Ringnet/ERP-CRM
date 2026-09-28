@@ -602,15 +602,13 @@
             $isBOD = $currentUser->hasRole('director') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
             $isFinance = $currentUser->hasRole('accountant') || $currentUser->hasRole('super_admin') || $currentUser->hasRole('admin');
             $hasCompletedExport = $sale->exports()->where('status', 'completed')->exists();
+            $hasPaidMilestone = collect($milestones)->contains(fn($m) => ($m['status'] ?? '') === 'paid');
         @endphp
 
-        <div class="mt-8 pt-6 border-t border-gray-100 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-gray-900 flex items-center">
-                    <i class="fas fa-hand-holding-usd mr-2 text-primary"></i>
-                    Lộ trình thanh toán & Kiểm soát quy trình
-                </h3>
-                <div class="flex items-center gap-2">
+        <div class="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
+            <h4 class="text-sm font-semibold text-gray-800 mb-3 flex flex-wrap items-center justify-between gap-3">
+                <span class="flex items-center"><i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Lộ trình thanh toán chi tiết & Kiểm soát quy trình</span>
+                <div class="flex items-center gap-2 flex-wrap">
                     @if($sale->delivery_date)
                         <span class="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full flex items-center gap-1">
                             <i class="fas fa-shipping-fast"></i> Đã giao hàng: {{ $sale->delivery_date->format('d/m/Y') }}
@@ -625,15 +623,66 @@
                             <i class="fas fa-calendar-alt"></i> Cập nhật ngày giao hàng
                         </button>
                     @endif
-                    @if($sale->has_bank_guarantee)
-                        <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full">
-                            <i class="fas fa-university mr-1"></i> Có bảo lãnh thanh toán
-                        </span>
-                    @endif
-                    @if($sale->payment_term_type)
-                        <span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">
-                            Loại: {{ $sale->payment_term_type === 'prepaid_100' ? '100% trước đặt hàng' : ($sale->payment_term_type === 'postpaid' ? 'Thanh toán sau giao hàng' : ($sale->payment_term_type === 'milestones' ? 'Thanh toán từng đợt' : ($sale->payment_term_type === 'bod_exception' ? 'Ngoại lệ duyệt BOD' : $sale->payment_term_type))) }}
-                        </span>
+                    <span class="text-xs font-normal text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fas fa-info-circle mr-1"></i>Chọn theo Điều khoản mẫu quy định</span>
+                </div>
+            </h4>
+
+            @if($sale->has_bank_guarantee)
+            <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div class="flex items-center gap-2 text-sm font-medium text-amber-900">
+                    <i class="fas fa-university text-amber-600"></i> Có bảo lãnh thanh toán (Bank Guarantee)
+                </div>
+                @if($sale->bank_guarantee_note)
+                    <div class="mt-1 text-xs text-amber-700 pl-6">{{ $sale->bank_guarantee_note }}</div>
+                @endif
+            </div>
+            @endif
+
+            <div class="grid grid-cols-1 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Điều khoản thanh toán</label>
+                    @if($sale->status !== 'cancelled' && $sale->pl_status !== 'approved' && isset($paymentTemplates) && $paymentTemplates->isNotEmpty())
+                    <div class="flex items-center gap-3">
+                        <select id="milestonePresetSelect" onchange="onPaymentTermPresetChange(this)"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white cursor-pointer shadow-xs">
+                            <option value="custom" {{ (!str_starts_with($sale->payment_term_type ?? '', 'template_') && $sale->payment_term_type !== 'customer_default') ? 'selected' : '' }}>-- Tùy chỉnh theo đơn hàng --</option>
+                            @foreach($paymentTemplates as $tpl)
+                                <option value="template_{{ $tpl->id }}" 
+                                        data-name="{{ $tpl->name }}"
+                                        data-items="{{ json_encode($tpl->items) }}" 
+                                        {{ $sale->payment_term_type === 'template_' . $tpl->id ? 'selected' : '' }}>
+                                    {{ $tpl->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @else
+                        @php
+                            $currentTermName = 'Tùy chỉnh theo đơn hàng';
+                            if ($sale->payment_term_type && isset($paymentTemplates)) {
+                                $tplId = str_replace('template_', '', $sale->payment_term_type);
+                                $matchedTpl = $paymentTemplates->firstWhere('id', $tplId);
+                                if ($matchedTpl) {
+                                    $currentTermName = $matchedTpl->name;
+                                } elseif ($sale->payment_term_type === 'customer_default') {
+                                    $currentTermName = 'Mặc định theo khách hàng';
+                                } else {
+                                    $currentTermName = $sale->payment_term_type;
+                                }
+                            }
+                        @endphp
+                        <div class="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                            <span>{{ $currentTermName }}</span>
+                            @if($sale->pl_status === 'approved')
+                                <span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                                    <i class="fas fa-lock text-[10px]"></i> Đã duyệt P&L (Khóa thay đổi)
+                                </span>
+                            @elseif($sale->status === 'cancelled')
+                                <span class="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                                    <i class="fas fa-ban text-[10px]"></i> Đơn đã hủy
+                                </span>
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>
@@ -762,14 +811,13 @@
                 @endphp
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="flex items-center space-x-2 text-blue-700 text-xs font-medium">
-                        <i class="fas fa-check-circle text-lg"></i>
-                        <span>Đơn hàng đã được duyệt ngoại lệ thanh toán.</span>
+                        <i class="fas fa-file-signature text-base text-blue-600"></i>
+                        <span>Đơn hàng đã được duyệt ngoại lệ thanh toán với {{ count($exceptionFiles) }} tài liệu đính kèm.</span>
                     </div>
-                    <div class="flex flex-wrap gap-2">
-                        @foreach($exceptionFiles as $index => $file)
-                            <a href="{{ asset('storage/' . $file) }}" target="_blank"
-                               class="btn-secondary text-xs py-1 px-3 bg-blue-100 hover:bg-blue-200 border-none text-blue-800 font-bold rounded-md flex items-center">
-                                <i class="fas fa-download mr-1"></i> Tải file {{ count($exceptionFiles) > 1 ? '#' . ($index + 1) : 'phê duyệt' }}
+                    <div class="flex flex-wrap items-center gap-2">
+                        @foreach($exceptionFiles as $index => $filePath)
+                            <a href="{{ asset('storage/' . $filePath) }}" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors">
+                                <i class="fas fa-paperclip mr-1.5"></i> File {{ $index + 1 }}
                             </a>
                         @endforeach
                     </div>
@@ -777,254 +825,61 @@
             @endif
 
             <!-- Bảng chi tiết đợt thanh toán (Milestones Table) -->
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-gray-50 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200">
-                            <th class="p-3">Đợt thanh toán</th>
-                            <th class="p-3 text-right">Tỷ lệ</th>
-                            <th class="p-3 text-right">Số tiền</th>
-                            <th class="p-3">Thời điểm</th>
-                            <th class="p-3">Giai đoạn chặn</th>
-                            <th class="p-3 text-center">Có chặn?</th>
-                            <th class="p-3">Hạn thanh toán</th>
-                            <th class="p-3">Trạng thái</th>
-                            <th class="p-3 text-center">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 text-sm">
-                        @foreach($milestones as $index => $ms)
-                            @php
-                                $status = $ms['status'] ?? 'unpaid';
-                                $requiredBefore = $ms['required_before'] ?? 'after_delivery';
-                                $canApproveMilestone = $isBOD || 
-                                                       (($ms['delegated_to_id'] ?? null) === $currentUser->id) || 
-                                                       ($sale->payment_exception_delegated_to === $currentUser->id);
-                                
-                                $statusLabel = 'Chưa thanh toán';
-                                $statusColor = 'bg-gray-100 text-gray-700';
-                                if ($status === 'paid') {
-                                    $statusLabel = 'Đã thanh toán';
-                                    $statusColor = 'bg-green-100 text-green-700';
-                                } elseif ($status === 'pending_finance') {
-                                    $statusLabel = 'Chờ Finance xác nhận';
-                                    $statusColor = 'bg-yellow-100 text-yellow-700';
-                                } elseif ($status === 'approved_preload') {
-                                    $statusLabel = 'Chưa thanh toán/Ngoại lệ';
-                                    $statusColor = 'bg-purple-100 text-purple-700 font-bold border border-purple-200';
-                                } elseif ($status === 'approved_export_before_payment') {
-                                    $statusLabel = 'Chưa thanh toán/Ngoại lệ';
-                                    $statusColor = 'bg-purple-100 text-purple-700 font-bold border border-purple-200';
-                                } elseif ($status === 'not_yet_due') {
-                                    $statusLabel = 'Chưa đến hạn';
-                                    $statusColor = 'bg-gray-100 text-gray-500 border border-gray-200';
-                                } elseif ($status === 'due') {
-                                    $statusLabel = 'Đến hạn';
-                                    $statusColor = 'bg-orange-100 text-orange-700';
-                                } elseif ($status === 'overdue') {
-                                    $statusLabel = 'Quá hạn (' . ($ms['overdue_days'] ?? 0) . ' ngày)';
-                                    $statusColor = 'bg-red-100 text-red-700 ring-1 ring-red-300';
-                                }
-                            @endphp
-                            <tr class="hover:bg-gray-50/50">
-                                <td class="p-3 font-medium text-gray-900">
-                                    {{ $ms['milestone_name'] }}
-                                    @if(isset($ms['delegated_to_id']) && $ms['delegated_to_id'])
-                                        @php $delUser = \App\Models\User::find($ms['delegated_to_id']); @endphp
-                                        @if($delUser)
-                                            <span class="text-[10px] text-indigo-600 font-normal block mt-1" title="Ủy quyền duyệt ngoại lệ">
-                                                <i class="fas fa-user-shield mr-1"></i> UQ: {{ $delUser->name }}
-                                            </span>
-                                        @endif
-                                    @endif
-                                </td>
-                                <td class="p-3 text-right font-semibold text-gray-700">{{ $ms['percentage'] }}%</td>
-                                <td class="p-3 text-right font-bold text-gray-900">{{ number_format($ms['amount']) }} ₫</td>
-                                <td class="p-3">
-                                    <span class="text-xs text-gray-600">
-                                        @if(($ms['timing'] ?? '') === 'after_contract') Sau khi ký HĐMB
-                                        @elseif(($ms['timing'] ?? '') === 'after_delivery_notice') Sau thông báo giao hàng
-                                        @elseif(($ms['timing'] ?? '') === 'before_export') Trước khi xuất hàng
-                                        @elseif(($ms['timing'] ?? '') === 'after_delivery') Sau khi giao hàng
-                                        @elseif(($ms['timing'] ?? '') === 'after_invoice') Sau khi xuất hóa đơn
-                                        @else {{ $ms['timing'] ?? '-' }}
-                                        @endif
-                                    </span>
-                                </td>
-                                <td class="p-3">
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $requiredBefore === 'before_order' ? 'bg-orange-50 text-orange-700 border border-orange-200' : ($requiredBefore === 'before_export' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-600') }}">
-                                        {{ $requiredBefore === 'before_order' ? 'Trước đặt hàng' : ($requiredBefore === 'before_export' ? 'Trước xuất kho' : 'Sau giao hàng') }}
-                                    </span>
-                                </td>
-                                <td class="p-3 text-center">
-                                    @if(($ms['is_blocking'] ?? 'yes') === 'yes')
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                            <i class="fas fa-lock mr-1"></i>Có
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                            <i class="fas fa-lock-open mr-1"></i>Không
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="p-3">
-                                    @if($ms['due_date'])
-                                        <span class="text-xs font-semibold text-gray-700">{{ \Carbon\Carbon::parse($ms['due_date'])->format('d/m/Y') }}</span>
-                                    @else
-                                        <span class="text-xs text-gray-400 italic">{{ $ms['due_days'] ?? 0 }} ngày</span>
-                                    @endif
-                                </td>
-                                <td class="p-3">
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-bold {{ $statusColor }}">
-                                        {{ $statusLabel }}
-                                    </span>
-                                </td>
-                                <td class="p-3 text-center">
-                                    <div class="flex items-center justify-center space-x-2">
-                                        <!-- Actions for unpaid milestones -->
-                                        @if(in_array($status, ['unpaid', 'due', 'overdue', 'not_yet_due']))
-                                            <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
-                                                    class="px-2.5 py-1 text-xs bg-primary text-white font-bold rounded-md hover:bg-primary-hover shadow-sm">
-                                                <i class="fas fa-upload mr-1"></i> Upload UNC
-                                            </button>
-                                            
-                                            @if($isFinance || $isBOD)
-                                                @if(!empty($ms['proof_file_path']))
-                                                    <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block">
-                                                        @csrf
-                                                        <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm"
-                                                                onclick="return confirm('Xác nhận khách hàng đã thanh toán đợt này?')">
-                                                            <i class="fas fa-check mr-1"></i> Xác nhận TT
-                                                        </button>
-                                                    </form>
-                                                @else
-                                                    <button type="button" disabled class="px-2 py-1 text-[11px] bg-gray-200 text-gray-400 font-semibold rounded cursor-not-allowed shadow-sm" title="Yêu cầu phải upload chứng từ UNC trước khi xác nhận thanh toán">
-                                                        <i class="fas fa-lock mr-1 text-[10px]"></i> Bắt buộc UNC
-                                                    </button>
-                                                @endif
-                                            @endif
-                                            
-                                            @if($canApproveMilestone)
-                                                <button onclick="openExceptionModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
-                                                        class="px-2.5 py-1 text-xs {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'bg-indigo-650 hover:bg-indigo-700 bg-indigo-600' : 'bg-red-600 hover:bg-red-700' }} text-white font-bold rounded-md shadow-sm">
-                                                    <i class="fas fa-shield-alt mr-1"></i> Duyệt {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'UQ' : 'BOD' }}
-                                                </button>
-                                            @endif
-                                            
-                                            @if($isBOD)
-                                                <form action="{{ route('sales.milestones.delegateException', [$sale->id, $index]) }}" method="POST" class="inline-block">
-                                                    @csrf
-                                                    <select name="delegate_user_id" onchange="this.form.submit()" class="text-[10px] border border-gray-300 rounded px-1.5 py-0.5 bg-white max-w-[100px]" title="Ủy quyền duyệt đợt này">
-                                                        <option value="">-- UQ --</option>
-                                                        @foreach(\App\Models\User::orderBy('name')->get() as $u)
-                                                            @if($u->id !== auth()->id())
-                                                                <option value="{{ $u->id }}" {{ ($ms['delegated_to_id'] ?? null) === $u->id ? 'selected' : '' }}>
-                                                                    {{ $u->name }}
-                                                                </option>
-                                                            @endif
-                                                        @endforeach
-                                                    </select>
-                                                </form>
-                                            @endif
-                                        @endif
+            <form action="{{ route('sales.milestones.sync', $sale->id) }}" method="POST" id="syncMilestonesForm" onsubmit="return validateMilestonesSubmit(event)">
+                @csrf
+                <input type="hidden" name="template_id" id="selectedTemplateId" value="{{ $sale->payment_term_type ?? 'custom' }}">
 
-                                        <!-- Finance confirmation action -->
-                                        @if($status === 'pending_finance')
-                                            @if($ms['proof_file_path'])
-                                                <a href="{{ asset('storage/' . $ms['proof_file_path']) }}" target="_blank"
-                                                   class="text-xs font-bold text-blue-600 hover:underline flex items-center mr-2">
-                                                    <i class="fas fa-file-download mr-1"></i> UNC
-                                                </a>
-                                            @endif
-                                            
-                                            @if($isFinance || $isBOD)
-                                                <form action="{{ route('sales.milestones.confirmPayment', [$sale->id, $index]) }}" method="POST" class="inline-block mr-2">
-                                                    @csrf
-                                                    <button type="submit" class="px-2.5 py-1 text-xs bg-green-600 text-white font-bold rounded-md hover:bg-green-700 shadow-sm">
-                                                        <i class="fas fa-check mr-1"></i> Xác nhận
-                                                    </button>
-                                                </form>
-                                            @endif
+                <!-- Preview / Alert Banner -->
+                <div id="milestonePreviewAlert" class="hidden mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-eye text-amber-600 text-sm"></i>
+                        <span>Đang xem trước mẫu điều khoản: <b id="previewTemplateNameLabel" class="text-amber-950 font-bold"></b>. Bạn có thể chỉnh sửa/thêm đợt, sau đó nhấn <b>Lưu điều khoản</b> để áp dụng.</span>
+                    </div>
+                    <button type="button" onclick="resetMilestonesToOriginal()" class="px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-900 font-semibold rounded-lg transition-colors flex items-center gap-1 shrink-0">
+                        <i class="fas fa-undo"></i> Hủy xem trước
+                    </button>
+                </div>
 
-                                            @if($isFinance)
-                                                <button type="button" onclick="openRejectPaymentModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
-                                                        class="px-2.5 py-1 text-xs bg-red-600 text-white font-bold rounded-md hover:bg-red-700 shadow-sm">
-                                                    <i class="fas fa-times mr-1"></i> Từ chối
-                                                </button>
-                                            @endif
-
-                                            @if($canApproveMilestone)
-                                                <button onclick="openExceptionModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
-                                                        class="px-2.5 py-1 text-xs {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'bg-indigo-650 hover:bg-indigo-700 bg-indigo-600' : 'bg-red-600 hover:bg-red-700' }} text-white font-bold rounded-md shadow-sm">
-                                                    <i class="fas fa-shield-alt mr-1"></i> Duyệt {{ (($ms['delegated_to_id'] ?? null) === $currentUser->id) ? 'UQ' : 'BOD' }}
-                                                </button>
-                                            @endif
-                                            
-                                            @if($isBOD)
-                                                <form action="{{ route('sales.milestones.delegateException', [$sale->id, $index]) }}" method="POST" class="inline-block">
-                                                    @csrf
-                                                    <select name="delegate_user_id" onchange="this.form.submit()" class="text-[10px] border border-gray-300 rounded px-1.5 py-0.5 bg-white max-w-[100px]" title="Ủy quyền duyệt đợt này">
-                                                        <option value="">-- UQ --</option>
-                                                        @foreach(\App\Models\User::orderBy('name')->get() as $u)
-                                                            @if($u->id !== auth()->id())
-                                                                <option value="{{ $u->id }}" {{ ($ms['delegated_to_id'] ?? null) === $u->id ? 'selected' : '' }}>
-                                                                    {{ $u->name }}
-                                                                </option>
-                                                            @endif
-                                                        @endforeach
-                                                    </select>
-                                                </form>
-                                            @endif
-                                        @endif
-
-                                        <!-- Exceptions display -->
-                                        @if(in_array($status, ['approved_preload', 'approved_export_before_payment']))
-                                            @if($ms['bod_approval_file_path'])
-                                                @php
-                                                    $msFiles = [];
-                                                    $decodedMs = json_decode($ms['bod_approval_file_path'], true);
-                                                    if (json_last_error() === JSON_ERROR_NONE && is_array($decodedMs)) {
-                                                        $msFiles = $decodedMs;
-                                                    } else {
-                                                        $msFiles = [$ms['bod_approval_file_path']];
-                                                    }
-                                                @endphp
-                                                @foreach($msFiles as $mIndex => $mFile)
-                                                    <a href="{{ asset('storage/' . $mFile) }}" target="_blank"
-                                                       class="text-xs font-bold text-red-600 hover:underline flex items-center mr-2 mb-1" title="{{ basename($mFile) }}">
-                                                        <i class="fas fa-file-signature mr-1"></i> File {{ count($msFiles) > 1 ? '#' . ($mIndex + 1) : 'BOD' }}
-                                                    </a>
-                                                @endforeach
-                                            @endif
-                                            <button onclick="openProofModal({{ $index }}, '{{ $ms['milestone_name'] }}')"
-                                                    class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded border hover:bg-gray-200">
-                                                Trả UNC bù
-                                            </button>
-                                        @endif
-
-                                        @if($status === 'paid')
-                                            <span class="text-[10px] text-gray-500 italic block">
-                                                Finance: {{ $ms['confirmed_by'] }} <br>
-                                                {{ \Carbon\Carbon::parse($ms['confirmed_at'])->format('d/m H:i') }}
-                                            </span>
-                                        @endif
-
-                                        @if(($ms['trigger_type'] ?? null) === 'MANUAL' && $status !== 'paid')
-                                            <form action="{{ route('sales.milestones.delete', [$sale->id, $index]) }}" method="POST" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mốc thanh toán thủ công này?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-bold border border-red-200 rounded shadow-sm inline-flex items-center" title="Xóa mốc thanh toán thủ công">
-                                                    <i class="fas fa-trash-alt mr-1"></i> Xóa mốc
-                                                </button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </td>
+                <div class="overflow-x-auto pb-2">
+                    <table class="w-full text-left border-collapse min-w-[1050px]">
+                        <thead>
+                            <tr class="bg-gray-100 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                                <th class="p-2.5 min-w-[220px] text-sm">Tên đợt thanh toán</th>
+                                <th class="p-2.5 min-w-[95px] text-sm text-right">Tỷ lệ (%)</th>
+                                <th class="p-2.5 min-w-[145px] text-sm text-right">Số tiền (Tự tính)</th>
+                                <th class="p-2.5 min-w-[160px] text-sm">Thời điểm thanh toán</th>
+                                <th class="p-2.5 min-w-[140px] text-sm">Giai đoạn kiểm soát</th>
+                                <th class="p-2.5 min-w-[85px] text-sm text-center">Có chặn?</th>
+                                <th class="p-2.5 min-w-[90px] text-sm">Hạn (ngày)</th>
+                                <th class="p-2.5 min-w-[150px] text-center text-sm">Trạng thái / Thao tác</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody id="milestonesTbody" class="divide-y divide-gray-100 bg-white text-sm">
+                            <!-- Populated dynamically by renderMilestonesTable() -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center mt-3 pt-3 border-t border-gray-200 gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        @if($sale->status !== 'cancelled' && !$hasPaidMilestone && $sale->pl_status !== 'approved')
+                        <button type="button" onclick="addManualPaymentMilestoneRow()"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark transition-colors shadow-xs">
+                            <i class="fas fa-plus"></i> Thêm đợt thanh toán
+                        </button>
+                        <button type="submit" id="btnSaveMilestones"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors shadow-xs">
+                            <i class="fas fa-save"></i> Lưu điều khoản
+                        </button>
+                        <button type="button" onclick="resetMilestonesToOriginal()" id="btnResetMilestones"
+                                class="hidden inline-flex items-center gap-1.5 rounded-lg bg-gray-200 hover:bg-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors shadow-xs">
+                            <i class="fas fa-undo"></i> Khôi phục ban đầu
+                        </button>
+                        @endif
+                    </div>
+                    <span id="milestonePercentSumIndicator" class="text-sm font-bold text-gray-700">Tổng tỷ lệ: 0%</span>
+                </div>
+            </form>
         </div>
 
         <!-- MODALS -->
@@ -1095,6 +950,393 @@
         </div>
 
         <script>
+            window._saleTotal = {{ (float)$sale->total }};
+            window._initialMilestones = @json($milestones);
+            window._initialPreset = "{{ $sale->payment_term_type ?? 'custom' }}";
+            window._isMilestonesLocked = {{ ($sale->status === 'cancelled' || $hasPaidMilestone || $sale->pl_status === 'approved') ? 'true' : 'false' }};
+            window._canApproveBOD = {{ $isBOD ? 'true' : 'false' }};
+            window._isFinance = {{ $isFinance ? 'true' : 'false' }};
+            window._currentUserId = {{ $currentUser->id }};
+            window._salePaymentDelegatedTo = {{ $sale->payment_exception_delegated_to ? (int)$sale->payment_exception_delegated_to : 'null' }};
+            window._allUsers = @json(\App\Models\User::orderBy('name')->get(['id', 'name']));
+            window._baseUrl = "{{ url('/') }}";
+            window._saleId = {{ $sale->id }};
+            window._csrfToken = '{{ csrf_token() }}';
+
+            let _currentMilestones = [];
+            let _milestoneCounter = 0;
+            let _isPreviewMode = false;
+
+            function formatMoneyVN(num) {
+                if (isNaN(num) || num === null || num === undefined) return '0';
+                return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
+
+            function unformatMoneyVN(str) {
+                if (typeof str === 'number') return str;
+                if (!str) return 0;
+                return parseFloat(str.toString().replace(/[^0-9.-]/g, '')) || 0;
+            }
+
+            function renderMilestonesTable(list, isPreview = false) {
+                _currentMilestones = JSON.parse(JSON.stringify(list || []));
+                _isPreviewMode = isPreview;
+                const tbody = document.getElementById('milestonesTbody');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                _milestoneCounter = 0;
+
+                if (_currentMilestones.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-gray-400 text-xs italic">Chưa có đợt thanh toán nào. Nhấn "+ Thêm đợt thanh toán" để thêm.</td></tr>`;
+                    updateTotalPercentIndicator();
+                    return;
+                }
+
+                _currentMilestones.forEach((ms, index) => {
+                    appendMilestoneRow(ms, index, isPreview);
+                });
+
+                updateTotalPercentIndicator();
+            }
+
+            function appendMilestoneRow(ms, idx, isPreview = false) {
+                const tbody = document.getElementById('milestonesTbody');
+                if (!tbody) return;
+
+                const rowIdx = _milestoneCounter++;
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-100 hover:bg-gray-50/50 transition-colors';
+                row.id = `ms-row-${rowIdx}`;
+
+                const name = ms.milestone_name || ms.label || '';
+                const pct = ms.percentage ?? ms.percent ?? 0;
+                let amt = ms.amount ? unformatMoneyVN(ms.amount) : 0;
+                if (!amt && pct > 0 && window._saleTotal > 0) {
+                    amt = Math.round(window._saleTotal * (pct / 100));
+                }
+                const timing = ms.timing || 'after_contract';
+                const reqBefore = ms.required_before || 'after_delivery';
+                const isBlock = ms.is_blocking || 'yes';
+                const dueDays = ms.due_days ?? ms.days ?? 0;
+                const status = ms.status || 'unpaid';
+                const isLocked = window._isMilestonesLocked || status === 'paid';
+                const isOriginal = !isPreview && ms.hasOwnProperty('status');
+
+                // Render Action Cell
+                let actionCellHtml = '';
+                if (isOriginal) {
+                    let statusLabel = 'Chưa thanh toán';
+                    let statusColor = 'bg-gray-100 text-gray-700';
+                    if (status === 'paid') {
+                        statusLabel = 'Đã thanh toán';
+                        statusColor = 'bg-green-100 text-green-700 font-bold';
+                    } else if (status === 'pending_finance') {
+                        statusLabel = 'Chờ Finance xác nhận';
+                        statusColor = 'bg-yellow-100 text-yellow-700 font-bold';
+                    } else if (status === 'approved_preload' || status === 'approved_export_before_payment') {
+                        statusLabel = 'Ngoại lệ BOD';
+                        statusColor = 'bg-purple-100 text-purple-700 font-bold border border-purple-200';
+                    } else if (status === 'not_yet_due') {
+                        statusLabel = 'Chưa đến hạn';
+                        statusColor = 'bg-gray-100 text-gray-500';
+                    } else if (status === 'due') {
+                        statusLabel = 'Đến hạn';
+                        statusColor = 'bg-orange-100 text-orange-700';
+                    } else if (status === 'overdue') {
+                        statusLabel = `Quá hạn (${ms.overdue_days || 0} ngày)`;
+                        statusColor = 'bg-red-100 text-red-700 ring-1 ring-red-300 font-bold';
+                    }
+
+                    actionCellHtml = `
+                        <div class="flex flex-col items-center gap-1.5 py-1">
+                            <span class="px-2 py-0.5 rounded-full text-[11px] ${statusColor}">${statusLabel}</span>
+                            <div class="flex items-center justify-center gap-1 flex-wrap">
+                                ${['unpaid', 'due', 'overdue', 'not_yet_due'].includes(status) ? `
+                                    <button type="button" onclick="openProofModal(${idx}, '${name.replace(/'/g, "\\'")}')"
+                                            class="px-2 py-0.5 text-[11px] bg-primary text-white font-bold rounded hover:bg-primary-hover shadow-xs">
+                                        <i class="fas fa-upload mr-0.5"></i> UNC
+                                    </button>
+                                    ${(window._isFinance || window._canApproveBOD) ? (
+                                        ms.proof_file_path ? `
+                                            <form action="${window._baseUrl}/sales/${window._saleId}/milestones/${idx}/confirm-payment" method="POST" class="inline-block">
+                                                <input type="hidden" name="_token" value="${window._csrfToken}">
+                                                <button type="submit" class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs" onclick="return confirm('Xác nhận thanh toán đợt này?')">
+                                                    <i class="fas fa-check mr-0.5"></i> Xác nhận
+                                                </button>
+                                            </form>
+                                        ` : `
+                                            <span class="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-400 font-semibold rounded" title="Yêu cầu UNC">Bắt buộc UNC</span>
+                                        `
+                                    ) : ''}
+                                    ${(window._canApproveBOD || ms.delegated_to_id === window._currentUserId || window._salePaymentDelegatedTo === window._currentUserId) ? `
+                                        <button type="button" onclick="openExceptionModal(${idx}, '${name.replace(/'/g, "\\'")}')"
+                                                class="px-2 py-0.5 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-xs">
+                                            <i class="fas fa-shield-alt mr-0.5"></i> Duyệt
+                                        </button>
+                                    ` : ''}
+                                ` : ''}
+                                ${status === 'pending_finance' ? `
+                                    ${ms.proof_file_path ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>` : ''}
+                                    ${(window._isFinance || window._canApproveBOD) ? `
+                                        <form action="${window._baseUrl}/sales/${window._saleId}/milestones/${idx}/confirm-payment" method="POST" class="inline-block">
+                                            <input type="hidden" name="_token" value="${window._csrfToken}">
+                                            <button type="submit" class="px-2 py-0.5 text-[11px] bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-xs" onclick="return confirm('Xác nhận thanh toán đợt này?')">
+                                                <i class="fas fa-check"></i> Xác nhận
+                                            </button>
+                                        </form>
+                                    ` : ''}
+                                    ${window._isFinance ? `
+                                        <button type="button" onclick="openRejectPaymentModal(${idx}, '${name.replace(/'/g, "\\'")}')" class="px-2 py-0.5 text-[11px] bg-red-600 text-white font-bold rounded hover:bg-red-700 shadow-xs">
+                                            <i class="fas fa-times"></i> Từ chối
+                                        </button>
+                                    ` : ''}
+                                ` : ''}
+                                ${!isLocked ? `
+                                    <button type="button" onclick="removeMilestoneRow(${rowIdx})" class="p-1 text-red-400 hover:text-red-600 rounded hover:bg-red-50" title="Xóa đợt"><i class="fas fa-trash-alt text-xs"></i></button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    actionCellHtml = `
+                        <div class="text-center">
+                            <button type="button" onclick="removeMilestoneRow(${rowIdx})" class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" title="Xóa đợt">
+                                <i class="fas fa-trash-alt text-sm"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <td class="p-2">
+                        <input type="text" name="milestones[${rowIdx}][milestone_name]" value="${name}" required
+                               class="w-full border border-gray-300 rounded px-2.5 py-1 text-xs bg-white text-gray-800 focus:ring-1 focus:ring-primary ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                               ${isLocked ? 'readonly' : ''} oninput="markMilestonesModified()">
+                    </td>
+                    <td class="p-2">
+                        <div class="flex items-center justify-end">
+                            <input type="number" step="any" min="0" max="100" name="milestones[${rowIdx}][percentage]" value="${pct}"
+                                   class="ms-percent-input w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right bg-white text-gray-800 focus:ring-1 focus:ring-primary ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                   ${isLocked ? 'readonly' : ''} oninput="onPercentInputChanged(${rowIdx})">
+                            <span class="ml-1 text-xs text-gray-500">%</span>
+                        </div>
+                    </td>
+                    <td class="p-2">
+                        <div class="flex items-center justify-end">
+                            <input type="text" name="milestones[${rowIdx}][amount]" value="${formatMoneyVN(amt)}"
+                                   class="ms-amount-input w-28 border border-gray-300 rounded px-2 py-1 text-xs text-right font-medium bg-white text-gray-800 focus:ring-1 focus:ring-primary ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                   ${isLocked ? 'readonly' : ''} oninput="onAmountInputChanged(${rowIdx})">
+                            <span class="ml-1 text-xs text-gray-500">₫</span>
+                        </div>
+                    </td>
+                    <td class="p-2">
+                        <select name="milestones[${rowIdx}][timing]" class="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-800 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                ${isLocked ? 'disabled' : ''} onchange="markMilestonesModified()">
+                            <option value="after_contract" ${timing === 'after_contract' ? 'selected' : ''}>Sau khi ký HĐMB</option>
+                            <option value="after_delivery_notice" ${timing === 'after_delivery_notice' ? 'selected' : ''}>Sau thông báo giao hàng</option>
+                            <option value="before_export" ${timing === 'before_export' ? 'selected' : ''}>Trước khi xuất hàng</option>
+                            <option value="after_delivery" ${timing === 'after_delivery' ? 'selected' : ''}>Sau khi giao hàng</option>
+                            <option value="after_invoice" ${timing === 'after_invoice' ? 'selected' : ''}>Sau khi xuất hóa đơn</option>
+                        </select>
+                        ${isLocked ? `<input type="hidden" name="milestones[${rowIdx}][timing]" value="${timing}">` : ''}
+                    </td>
+                    <td class="p-2">
+                        <select name="milestones[${rowIdx}][required_before]" class="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-800 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                ${isLocked ? 'disabled' : ''} onchange="markMilestonesModified()">
+                            <option value="before_order" ${reqBefore === 'before_order' ? 'selected' : ''}>Trước đặt hàng</option>
+                            <option value="before_export" ${reqBefore === 'before_export' ? 'selected' : ''}>Trước xuất kho</option>
+                            <option value="after_delivery" ${reqBefore === 'after_delivery' ? 'selected' : ''}>Sau giao hàng</option>
+                        </select>
+                        ${isLocked ? `<input type="hidden" name="milestones[${rowIdx}][required_before]" value="${reqBefore}">` : ''}
+                    </td>
+                    <td class="p-2 text-center">
+                        <select name="milestones[${rowIdx}][is_blocking]" class="w-20 border border-gray-300 rounded px-1.5 py-1 text-xs text-center bg-white text-gray-800 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                ${isLocked ? 'disabled' : ''} onchange="markMilestonesModified()">
+                            <option value="yes" ${isBlock === 'yes' ? 'selected' : ''}>Có</option>
+                            <option value="no" ${isBlock === 'no' ? 'selected' : ''}>Không</option>
+                        </select>
+                        ${isLocked ? `<input type="hidden" name="milestones[${rowIdx}][is_blocking]" value="${isBlock}">` : ''}
+                    </td>
+                    <td class="p-2">
+                        <div class="flex items-center">
+                            <input type="number" min="0" name="milestones[${rowIdx}][due_days]" value="${dueDays}"
+                                   class="w-16 border border-gray-300 rounded px-2 py-1 text-xs text-right bg-white text-gray-800 focus:ring-1 focus:ring-primary ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}"
+                                   ${isLocked ? 'readonly' : ''} oninput="markMilestonesModified()">
+                            <span class="ml-1 text-[11px] text-gray-500">ngày</span>
+                        </div>
+                        <input type="hidden" name="milestones[${rowIdx}][required_docs]" value="${ms.required_docs || 'none'}">
+                        <input type="hidden" name="milestones[${rowIdx}][status]" value="${status}">
+                        <input type="hidden" name="milestones[${rowIdx}][confirmed_by]" value="${ms.confirmed_by || ''}">
+                        <input type="hidden" name="milestones[${rowIdx}][confirmed_at]" value="${ms.confirmed_at || ''}">
+                        <input type="hidden" name="milestones[${rowIdx}][proof_file_path]" value="${ms.proof_file_path || ''}">
+                        <input type="hidden" name="milestones[${rowIdx}][bod_approval_file_path]" value="${ms.bod_approval_file_path || ''}">
+                        <input type="hidden" name="milestones[${rowIdx}][delegated_to_id]" value="${ms.delegated_to_id || ''}">
+                    </td>
+                    <td class="p-2 text-center">
+                        ${actionCellHtml}
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            }
+
+            function onPercentInputChanged(rowIdx) {
+                const row = document.getElementById(`ms-row-${rowIdx}`);
+                if (!row) return;
+                const pctInput = row.querySelector('.ms-percent-input');
+                const amtInput = row.querySelector('.ms-amount-input');
+                const pct = parseFloat(pctInput.value) || 0;
+                if (window._saleTotal > 0 && amtInput) {
+                    const calculatedAmt = Math.round(window._saleTotal * (pct / 100));
+                    amtInput.value = formatMoneyVN(calculatedAmt);
+                }
+                updateTotalPercentIndicator();
+                markMilestonesModified();
+            }
+
+            function onAmountInputChanged(rowIdx) {
+                const row = document.getElementById(`ms-row-${rowIdx}`);
+                if (!row) return;
+                const pctInput = row.querySelector('.ms-percent-input');
+                const amtInput = row.querySelector('.ms-amount-input');
+                const rawAmt = unformatMoneyVN(amtInput.value);
+                amtInput.value = formatMoneyVN(rawAmt);
+                if (window._saleTotal > 0 && pctInput) {
+                    const calculatedPct = (rawAmt / window._saleTotal * 100).toFixed(2);
+                    pctInput.value = calculatedPct;
+                }
+                updateTotalPercentIndicator();
+                markMilestonesModified();
+            }
+
+            function updateTotalPercentIndicator() {
+                const pctInputs = document.querySelectorAll('#milestonesTbody .ms-percent-input');
+                let total = 0;
+                pctInputs.forEach(input => {
+                    total += parseFloat(input.value) || 0;
+                });
+                const indicator = document.getElementById('milestonePercentSumIndicator');
+                if (indicator) {
+                    indicator.innerText = `Tổng tỷ lệ: ${total.toFixed(1)}%`;
+                    if (Math.abs(total - 100) < 0.01) {
+                        indicator.className = 'text-sm font-bold text-green-600';
+                    } else {
+                        indicator.className = 'text-sm font-bold text-red-600';
+                    }
+                }
+            }
+
+            function markMilestonesModified() {
+                const btnReset = document.getElementById('btnResetMilestones');
+                if (btnReset) btnReset.classList.remove('hidden');
+            }
+
+            function onPaymentTermPresetChange(selectEl) {
+                const val = selectEl.value;
+                const selectedOpt = selectEl.options[selectEl.selectedIndex];
+                const templateInput = document.getElementById('selectedTemplateId');
+                if (templateInput) templateInput.value = val;
+
+                if (val && val.startsWith('template_')) {
+                    const rawItems = selectedOpt.getAttribute('data-items');
+                    const templateName = selectedOpt.getAttribute('data-name') || selectedOpt.text;
+                    let items = [];
+                    try {
+                        items = JSON.parse(rawItems || '[]');
+                    } catch (e) {
+                        console.error('Error parsing template items:', e);
+                    }
+
+                    // Show preview banner
+                    const previewAlert = document.getElementById('milestonePreviewAlert');
+                    const previewLabel = document.getElementById('previewTemplateNameLabel');
+                    if (previewAlert && previewLabel) {
+                        previewLabel.innerText = templateName;
+                        previewAlert.classList.remove('hidden');
+                    }
+
+                    renderMilestonesTable(items, true);
+                    markMilestonesModified();
+                } else {
+                    const previewAlert = document.getElementById('milestonePreviewAlert');
+                    if (previewAlert) previewAlert.classList.add('hidden');
+                    renderMilestonesTable(window._initialMilestones, false);
+                    markMilestonesModified();
+                }
+            }
+
+            function addManualPaymentMilestoneRow() {
+                const pctInputs = document.querySelectorAll('#milestonesTbody .ms-percent-input');
+                let total = 0;
+                pctInputs.forEach(input => {
+                    total += parseFloat(input.value) || 0;
+                });
+                const remainingPct = Math.max(0, parseFloat((100 - total).toFixed(2)));
+                const newIdx = document.querySelectorAll('#milestonesTbody tr').length + 1;
+
+                appendMilestoneRow({
+                    milestone_name: `Đợt ${newIdx}`,
+                    percentage: remainingPct,
+                    amount: Math.round(window._saleTotal * (remainingPct / 100)),
+                    timing: 'after_contract',
+                    required_before: 'after_delivery',
+                    is_blocking: 'no',
+                    due_days: 0,
+                    required_docs: 'none',
+                    status: 'unpaid'
+                }, newIdx, true);
+
+                updateTotalPercentIndicator();
+                markMilestonesModified();
+            }
+
+            function removeMilestoneRow(rowIdx) {
+                const row = document.getElementById(`ms-row-${rowIdx}`);
+                if (row) {
+                    row.remove();
+                    updateTotalPercentIndicator();
+                    markMilestonesModified();
+                }
+            }
+
+            function resetMilestonesToOriginal() {
+                const select = document.getElementById('milestonePresetSelect');
+                if (select) select.value = window._initialPreset;
+                const templateInput = document.getElementById('selectedTemplateId');
+                if (templateInput) templateInput.value = window._initialPreset;
+
+                const previewAlert = document.getElementById('milestonePreviewAlert');
+                if (previewAlert) previewAlert.classList.add('hidden');
+
+                const btnReset = document.getElementById('btnResetMilestones');
+                if (btnReset) btnReset.classList.add('hidden');
+
+                renderMilestonesTable(window._initialMilestones, false);
+            }
+
+            function validateMilestonesSubmit(e) {
+                const rows = document.querySelectorAll('#milestonesTbody tr');
+                if (rows.length === 0) {
+                    alert('Vui lòng tạo ít nhất 1 đợt thanh toán.');
+                    e.preventDefault();
+                    return false;
+                }
+
+                const pctInputs = document.querySelectorAll('#milestonesTbody .ms-percent-input');
+                let total = 0;
+                pctInputs.forEach(input => {
+                    total += parseFloat(input.value) || 0;
+                });
+
+                if (Math.abs(total - 100) > 0.01) {
+                    if (!confirm(`Tổng tỷ lệ hiện tại là ${total.toFixed(1)}% (chưa bằng 100%). Bạn có chắc chắn muốn lưu điều khoản này không?`)) {
+                        e.preventDefault();
+                        return false;
+                    }
+                }
+                return true;
+            }
+
             function openProofModal(index, name) {
                 const modal = document.getElementById('proofModal');
                 const form = document.getElementById('proofForm');
@@ -1134,6 +1376,10 @@
             function closeRejectPaymentModal() {
                 document.getElementById('rejectPaymentModal').classList.add('hidden');
             }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                renderMilestonesTable(window._initialMilestones, false);
+            });
         </script>
     </div>
 
@@ -1214,6 +1460,16 @@
             @endphp
             
             <div class="bg-white rounded-b-lg shadow-sm overflow-hidden">
+                <div class="p-3.5 bg-gray-50/90 border-b border-gray-200 flex flex-wrap justify-between items-center gap-2">
+                    <div class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-cubes-stacked text-indigo-600"></i> Danh sách BOM sản phẩm ({{ $sale->items->count() }} mục)
+                    </div>
+                    @if(!$sale->hasPayment() && $sale->status !== 'cancelled')
+                        <button type="button" onclick="openAdjustBomModal()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-xs flex items-center gap-1.5">
+                            <i class="fas fa-edit"></i> Điều chỉnh BOM sản phẩm
+                        </button>
+                    @endif
+                </div>
                 <div class="overflow-x-auto overflow-y-hidden">
                     <table class="w-full text-left border-collapse">
                         <thead class="bg-gray-50">
@@ -1233,7 +1489,11 @@
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $index + 1 }}</td>
                                 <td class="px-4 py-3 text-sm font-medium text-gray-900">
                                     <div>{{ $item->product->code ?? $item->product_name }}</div>
-                                    @if($item->is_service)
+                                    @if($item->is_from_stock)
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 mt-1">
+                                            <i class="fas fa-warehouse mr-1"></i>Hàng sẵn kho (Không cần đặt hàng)
+                                        </span>
+                                    @elseif($item->is_service)
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 mt-1">
                                             <i class="fas fa-hand-holding-usd mr-1"></i>Dịch vụ (Không cần đặt hàng)
                                         </span>
@@ -1352,6 +1612,28 @@
                         </tfoot>
                     </table>
                 </div>
+
+                {{-- Order Expenses Section in Show View - Fully editable with direct save --}}
+                @php
+                    $expenseData = $sale->expenses->map(fn($e) => [
+                        'type' => $e->type,
+                        'input_mode' => $e->input_mode ?? 'fixed',
+                        'percent_value' => $e->percent_value,
+                        'amount' => $e->amount,
+                        'description' => $e->description ?? '',
+                    ])->toArray();
+                    $isExpenseLocked = ($sale->status === 'cancelled' || $sale->hasPayment());
+                @endphp
+                <form action="{{ route('sales.expenses.sync', $sale->id) }}" method="POST" class="mt-6 border-t border-gray-200 pt-5 px-4 pb-4">
+                    @csrf
+                    <script>window._saleSubtotal = {{ (float)$sale->subtotal }};</script>
+                    @include('sales.partials.expense-section', [
+                        'expenses' => $expenseData,
+                        'currencySymbol' => $sale->currency ? ($sale->currency->symbol ?? $sale->currency->code) : '₫',
+                        'isLocked' => $isExpenseLocked,
+                        'showSaveButton' => !$isExpenseLocked,
+                    ])
+                </form>
             </div>
         </div>
 
@@ -1540,56 +1822,6 @@
                         </div>
                     </div>
                 </div>
-                    
-                    @if(in_array($sale->status, ['approved', 'shipping']))
-                        @php
-                            $hasRemainingToExport = false;
-                            foreach($sale->items as $item) {
-                                $totalExported = \App\Models\ExportItem::whereHas('export', function ($q) use ($sale) {
-                                        $q->where('reference_type', 'sale')
-                                          ->where('reference_id', $sale->id)
-                                          ->where('status', '!=', 'cancelled');
-                                    })
-                                    ->where('product_id', $item->product_id)
-                                    ->sum('quantity');
-
-                                if (!$sale->isProjectOrder() && $sale->type === 'retail') {
-                                    // For retail/runrate orders: Sales can borrow from warehouse stock, limited to the ordered quantity on the SO
-                                    $remainingToExport = $item->quantity - $totalExported;
-                                } else {
-                                    // For project orders: Must match quantity received from linked POs
-                                    $totalReceived = 0;
-                                    $prItems = \App\Models\SaleOrderRequestItem::where('sale_item_id', $item->id)->get();
-                                    foreach ($prItems as $prItem) {
-                                        $totalReceived += $prItem->received_quantity_total;
-                                    }
-                                    $remainingToExport = $totalReceived - $totalExported;
-                                }
-
-                                if ($remainingToExport > 0) {
-                                    $hasRemainingToExport = true;
-                                    break;
-                                }
-                            }
-                        @endphp
-                        
-                        @php
-                            $hasConfirmedInvoice = $sale->invoiceRequests()->where('status', 'official_issued')->exists();
-                        @endphp
-                        
-                        @if($hasRemainingToExport)
-                            @if($hasConfirmedInvoice)
-                                <button type="button" onclick="openExportModal()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-md">
-                                    <i class="fas fa-file-export mr-2"></i> YÊU CẦU XUẤT HÀNG
-                                </button>
-                            @else
-                                <div class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-xs font-bold shadow-sm" title="Vui lòng xác nhận hóa đơn tại tab Quản lý Hóa đơn trước khi yêu cầu xuất hàng">
-                                    <i class="fas fa-lock text-amber-600"></i> Cần Sales xác nhận Hóa đơn trước khi Yêu cầu xuất hàng
-                                </div>
-                            @endif
-                        @endif
-                    @endif
-                </div>
 
                 <div class="overflow-x-auto mb-8 border border-gray-100 rounded-lg">
                     <table class="w-full text-left border-collapse">
@@ -1653,12 +1885,27 @@
                                     ))) {
                                         $isService = true;
                                     }
+
+                                    $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+                                    $isStockItem = $item->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail');
+                                    $heldByMe = 0;
+                                    if ($isStockItem && $item->product_id && $salespersonName) {
+                                        $heldByMe = \App\Models\ProductItem::where('product_id', $item->product_id)
+                                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                                            ->where('borrower', $salespersonName)
+                                            ->sum('quantity');
+                                    }
                                 @endphp
                                 <tr class="hover:bg-gray-50/50 transition-colors">
                                     <td class="px-4 py-3 text-gray-500">{{ $index + 1 }}</td>
                                     <td class="px-4 py-3 font-semibold text-gray-800">
                                         {{ $item->product?->code ?? $item->product_name }}
                                         <div class="text-xs font-normal text-gray-500 mt-0.5">{{ $item->product_name }}</div>
+                                        @if($isStockItem)
+                                            <span class="inline-block bg-teal-50 text-teal-700 text-[10px] font-bold px-1.5 py-0.2 rounded border border-teal-200 mt-0.5">
+                                                <i class="fas fa-boxes-stacked text-[9px] mr-0.5"></i> Hàng có sẵn trong kho
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3 text-center font-bold text-gray-800">{{ number_format($totalOrdered) }}</td>
                                     <td class="px-4 py-3 text-center">
@@ -1666,6 +1913,12 @@
                                             <span class="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full"><i class="fas fa-key mr-1"></i>License (K.Nhập)</span>
                                         @elseif($isService)
                                             <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-concierge-bell mr-1"></i>Dịch vụ (K.Nhập)</span>
+                                        @elseif($isStockItem)
+                                            <div class="flex flex-col items-center">
+                                                <span class="text-xs font-bold {{ $heldByMe >= $totalOrdered ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200' }} px-2 py-0.5 rounded border">
+                                                    <i class="fas fa-hand-holding mr-1"></i>Đang giữ: {{ $heldByMe }}
+                                                </span>
+                                            </div>
                                         @else
                                             <span class="font-semibold text-gray-600">{{ number_format($totalReceived) }}</span>
                                         @endif
@@ -1690,6 +1943,18 @@
                                             <span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-semibold border border-gray-200 cursor-not-allowed" title="Hàng dự án không được phép mượn hàng">
                                                 <i class="fas fa-lock mr-1 text-[10px] text-gray-400"></i> Hàng dự án (Không mượn)
                                             </span>
+                                        @elseif($isStockItem && $item->product_id)
+                                            @if($heldByMe >= $remainingToExport && $remainingToExport > 0)
+                                                <span class="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-xs font-semibold border border-emerald-200" title="Sales đã giữ đủ hàng trong kho để xuất">
+                                                    <i class="fas fa-check-circle mr-1 text-emerald-600"></i> Đã giữ đủ hàng
+                                                </span>
+                                            @elseif($remainingToExport > 0)
+                                                <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-600 text-white hover:bg-teal-700 rounded text-xs font-bold transition-all shadow-xs" title="Cần mượn thêm {{ max(0, $remainingToExport - $heldByMe) }} sản phẩm để có hàng xuất">
+                                                    <i class="fas fa-people-arrows mr-1"></i> Mượn hàng (Cần {{ max(0, $remainingToExport - $heldByMe) }})
+                                                </a>
+                                            @else
+                                                <span class="text-gray-400 text-xs">-</span>
+                                            @endif
                                         @elseif($item->product_id)
                                             <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn hàng cho sản phẩm này">
                                                 <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
@@ -2720,4 +2985,385 @@ function closeSaleCloseProjectModal() {
 }
 </script>
 @endif
+
+<!-- ================= MODALS FOR QUICK ACTIONS ================= -->
+
+<!-- 1. Modal Điều chỉnh BOM Sản phẩm -->
+<div id="adjustBomModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-indigo-50/80">
+            <div>
+                <h3 class="text-base font-bold text-indigo-900 flex items-center gap-2">
+                    <i class="fas fa-cubes-stacked text-indigo-600"></i> Điều chỉnh BOM sản phẩm đơn hàng #{{ $sale->code }}
+                </h3>
+                <p class="text-xs text-indigo-700 mt-0.5">Thêm, sửa, xóa sản phẩm, điều chỉnh số lượng, đơn giá, VAT, bảo hành trực tiếp</p>
+            </div>
+            <button onclick="closeAdjustBomModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ route('sales.updateBom', $sale->id) }}" method="POST" class="flex-1 flex flex-col overflow-hidden">
+            @csrf
+            <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">Danh sách dòng BOM sản phẩm</span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="openBomStockPickerModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5">
+                            <i class="fas fa-boxes-stacked"></i> Chọn hàng sẵn kho / Hàng giữ
+                        </button>
+                        <button type="button" onclick="addBomRow()" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                            <i class="fas fa-plus"></i> Thêm dòng sản phẩm
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                    <table class="w-full text-left border-collapse text-xs" id="adjustBomTable">
+                        <thead class="bg-gray-50 text-gray-700 font-bold uppercase border-b border-gray-200">
+                            <tr>
+                                <th class="p-3">Sản phẩm / Part Number</th>
+                                <th class="p-3 w-28 text-right">Số lượng</th>
+                                <th class="p-3 w-36 text-right">Đơn giá ({{ $sale->currency->code ?? 'VND' }})</th>
+                                <th class="p-3 w-24 text-center">VAT</th>
+                                <th class="p-3 w-24 text-center">Bảo hành</th>
+                                <th class="p-3 w-28 text-center">Loại nguồn</th>
+                                <th class="p-3 w-12 text-center"><i class="fas fa-trash"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white" id="adjustBomTableBody">
+                            @foreach($sale->items as $idx => $item)
+                                <tr class="bom-edit-row hover:bg-gray-50/60 transition-colors" data-idx="{{ $idx }}">
+                                    <td class="p-2.5">
+                                        <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $item->product_id }}" class="bom-product-id">
+                                        <input type="text" name="items[{{ $idx }}][product_name]" value="{{ $item->product_name ?: ($item->product->name ?? '') }}" required
+                                               class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" placeholder="Tên sản phẩm / Mã part">
+                                        @if($item->product)
+                                            <div class="text-[10px] text-gray-400 font-mono mt-0.5">Mã: {{ $item->product->code }}</div>
+                                        @endif
+                                    </td>
+                                    <td class="p-2.5">
+                                        <input type="number" step="any" min="0.01" name="items[{{ $idx }}][quantity]" value="{{ $item->quantity }}" required
+                                               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-indigo-500 font-bold">
+                                    </td>
+                                    <td class="p-2.5">
+                                        <input type="text" name="items[{{ $idx }}][price]" value="{{ number_format($item->price, 0, ',', '.') }}" required
+                                               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-indigo-500 font-bold price-format-input" onkeyup="formatCurrencyInput(this)">
+                                    </td>
+                                    <td class="p-2.5">
+                                        <select name="items[{{ $idx }}][vat]" class="w-full border border-gray-300 rounded px-1.5 py-1.5 text-xs bg-white text-center">
+                                            <option value="-1" {{ $item->vat == -1 ? 'selected' : '' }}>KCT</option>
+                                            <option value="0" {{ $item->vat == 0 ? 'selected' : '' }}>0%</option>
+                                            <option value="5" {{ $item->vat == 5 ? 'selected' : '' }}>5%</option>
+                                            <option value="8" {{ $item->vat == 8 ? 'selected' : '' }}>8%</option>
+                                            <option value="10" {{ $item->vat == 10 ? 'selected' : '' }}>10%</option>
+                                        </select>
+                                    </td>
+                                    <td class="p-2.5">
+                                        <input type="number" min="0" max="120" name="items[{{ $idx }}][warranty_months]" value="{{ $item->warranty_months ?? 12 }}"
+                                               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center">
+                                    </td>
+                                    <td class="p-2.5 text-center">
+                                        <label class="inline-flex items-center gap-1 cursor-pointer">
+                                            <input type="checkbox" name="items[{{ $idx }}][is_from_stock]" value="1" {{ $item->is_from_stock ? 'checked' : '' }}
+                                                   class="h-3.5 w-3.5 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
+                                            <span class="text-[10px] font-bold text-emerald-800">Sẵn kho</span>
+                                        </label>
+                                    </td>
+                                    <td class="p-2.5 text-center">
+                                        <button type="button" onclick="removeBomRow(this)" class="p-1 text-red-400 hover:text-red-600">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-200 bg-gray-50 flex justify-end items-center gap-3">
+                <button type="button" onclick="closeAdjustBomModal()" class="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 text-xs">HỦY BỎ</button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-xs shadow-md">
+                    <i class="fas fa-save mr-1.5"></i> LƯU ĐIỀU CHỈNH BOM
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Chọn Hàng Sẵn Kho cho BOM -->
+<div id="bomStockPickerModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-emerald-50">
+            <h3 class="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                <i class="fas fa-boxes-stacked text-emerald-600"></i> Chọn hàng có sẵn trong kho / Hàng đang giữ
+            </h3>
+            <button onclick="closeBomStockPickerModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <input type="text" id="bomStockSearchInput" onkeyup="searchBomAvailableStock(this.value)" placeholder="Tìm kiếm theo tên sản phẩm, mã part..."
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 max-h-96" id="bomStockPickerList">
+            <div class="text-center py-6 text-gray-400 text-xs">Đang tải danh sách hàng sẵn kho...</div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Modal Thêm điều khoản thanh toán -->
+<div id="addMilestoneModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-primary/10">
+            <h3 class="text-base font-bold text-primary flex items-center gap-2">
+                <i class="fas fa-hand-holding-usd"></i> Thêm đợt / Điều khoản thanh toán
+            </h3>
+            <button onclick="closeAddMilestoneModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form action="{{ route('sales.milestones.add', $sale->id) }}" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tên đợt thanh toán <span class="text-red-500">*</span></label>
+                <input type="text" name="milestone_name" required list="milestone-names" placeholder="VD: Đợt 1: Tạm ứng 30% khi ký HĐ, Đặt cọc..."
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                <datalist id="milestone-names">
+                    <option value="Đợt 1">
+                    <option value="Đợt 2">
+                    <option value="Đợt 3">
+                    <option value="Đặt cọc (Deposit)">
+                    <option value="Thanh toán trước xuất kho">
+                    <option value="Thanh toán cuối (Final Payment)">
+                </datalist>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tỷ lệ thanh toán (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" name="percentage" id="ms_percentage" placeholder="VD: 30"
+                           oninput="recalcMsAmount(this.value)"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số tiền ({{ $sale->currency->code ?? 'VND' }})</label>
+                    <input type="text" name="amount" id="ms_amount" placeholder="VD: 50.000.000"
+                           onkeyup="formatCurrencyInput(this)"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none font-bold">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Thời điểm thanh toán</label>
+                    <select name="timing" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none bg-white">
+                        <option value="after_contract">Sau khi ký HĐMB</option>
+                        <option value="after_delivery_notice">Sau thông báo giao hàng</option>
+                        <option value="before_export">Trước khi xuất hàng</option>
+                        <option value="after_delivery">Sau khi giao hàng</option>
+                        <option value="after_invoice">Sau khi xuất hóa đơn</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Giai đoạn kiểm soát chặn</label>
+                    <select name="blocking_stage" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none bg-white">
+                        <option value="NONE">Không chặn (Linh hoạt)</option>
+                        <option value="BLOCK_PO_SEND">Chặn Đặt hàng (PO)</option>
+                        <option value="BLOCK_WAREHOUSE_EXPORT">Chặn Xuất kho</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Thời hạn (Số ngày)</label>
+                    <input type="number" min="0" name="due_days" value="7"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Chứng từ bắt buộc</label>
+                    <input type="text" name="required_docs" value="UNC" list="suggested_docs"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                    <datalist id="suggested_docs">
+                        <option value="UNC">
+                        <option value="Biên bản nghiệm thu">
+                        <option value="Hóa đơn VAT">
+                        <option value="Bảo lãnh thanh toán">
+                    </datalist>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="closeAddMilestoneModal()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 text-xs">HỦY</button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-hover text-xs shadow-md">THÊM ĐỢT THANH TOÁN</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<script>
+const saleTotalAmount = {{ (float)$sale->total }};
+const saleSubtotalAmount = {{ (float)$sale->subtotal }};
+
+function formatCurrencyInput(input) {
+    let val = input.value.replace(/\D/g, '');
+    if (val) {
+        input.value = new Intl.NumberFormat('vi-VN').format(val);
+    } else {
+        input.value = '';
+    }
+}
+
+// Adjust BOM Modal
+function openAdjustBomModal() {
+    document.getElementById('adjustBomModal').classList.remove('hidden');
+}
+
+function closeAdjustBomModal() {
+    document.getElementById('adjustBomModal').classList.add('hidden');
+}
+
+let bomRowCounter = {{ $sale->items->count() + 10 }};
+
+function addBomRow(productData = null) {
+    const tbody = document.getElementById('adjustBomTableBody');
+    const idx = bomRowCounter++;
+    const tr = document.createElement('tr');
+    tr.className = 'bom-edit-row hover:bg-gray-50/60 transition-colors';
+    tr.dataset.idx = idx;
+
+    const pid = productData ? (productData.id || '') : '';
+    const pname = productData ? ((productData.code ? '[' + productData.code + '] ' : '') + productData.name) : '';
+    const pprice = productData ? (productData.price ? new Intl.NumberFormat('vi-VN').format(productData.price) : '0') : '';
+    const pwarranty = productData ? (productData.warranty_months || 12) : 12;
+    const isFromStock = productData ? (productData.is_from_stock ? 1 : 0) : 0;
+
+    tr.innerHTML = `
+        <td class="p-2.5">
+            <input type="hidden" name="items[${idx}][product_id]" value="${pid}" class="bom-product-id">
+            <input type="text" name="items[${idx}][product_name]" value="${pname}" required
+                   class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" placeholder="Tên sản phẩm / Mã part">
+        </td>
+        <td class="p-2.5">
+            <input type="number" step="any" min="0.01" name="items[${idx}][quantity]" value="1" required
+                   class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-indigo-500 font-bold">
+        </td>
+        <td class="p-2.5">
+            <input type="text" name="items[${idx}][price]" value="${pprice}" required
+                   class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-right focus:ring-1 focus:ring-indigo-500 font-bold price-format-input" onkeyup="formatCurrencyInput(this)">
+        </td>
+        <td class="p-2.5">
+            <select name="items[${idx}][vat]" class="w-full border border-gray-300 rounded px-1.5 py-1.5 text-xs bg-white text-center">
+                <option value="-1">KCT</option>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="8" selected>8%</option>
+                <option value="10">10%</option>
+            </select>
+        </td>
+        <td class="p-2.5">
+            <input type="number" min="0" max="120" name="items[${idx}][warranty_months]" value="${pwarranty}"
+                   class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center">
+        </td>
+        <td class="p-2.5 text-center">
+            <label class="inline-flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" name="items[${idx}][is_from_stock]" value="1" ${isFromStock ? 'checked' : ''}
+                       class="h-3.5 w-3.5 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
+                <span class="text-[10px] font-bold text-emerald-800">Sẵn kho</span>
+            </label>
+        </td>
+        <td class="p-2.5 text-center">
+            <button type="button" onclick="removeBomRow(this)" class="p-1 text-red-400 hover:text-red-600">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function removeBomRow(btn) {
+    const rows = document.querySelectorAll('#adjustBomTableBody .bom-edit-row');
+    if (rows.length > 1) {
+        btn.closest('.bom-edit-row').remove();
+    } else {
+        alert('Đơn hàng cần có ít nhất 1 dòng sản phẩm trong BOM.');
+    }
+}
+
+// Available Stock picker for BOM
+function openBomStockPickerModal() {
+    document.getElementById('bomStockPickerModal').classList.remove('hidden');
+    searchBomAvailableStock('');
+}
+
+function closeBomStockPickerModal() {
+    document.getElementById('bomStockPickerModal').classList.add('hidden');
+}
+
+function searchBomAvailableStock(query) {
+    const list = document.getElementById('bomStockPickerList');
+    fetch(`/api/products/available-stock?q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Không tìm thấy sản phẩm sẵn kho phù hợp</div>';
+                return;
+            }
+            list.innerHTML = data.map(item => `
+                <div class="flex items-center justify-between p-3.5 hover:bg-emerald-50/60 rounded-xl border border-gray-100 mb-2 transition-colors">
+                    <div>
+                        <div class="font-bold text-xs text-gray-800">${item.name}</div>
+                        <div class="text-[11px] text-gray-500 font-mono">Mã: ${item.code} | ĐVT: ${item.unit}</div>
+                        <div class="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                            <i class="fas fa-warehouse mr-1"></i>Tồn khả dụng: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
+                        </div>
+                        <div class="text-[10px] text-indigo-700 font-medium mt-0.5">
+                            <i class="fas fa-info-circle mr-1"></i>${item.holding_summary}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-gray-900">${new Intl.NumberFormat('vi-VN').format(item.price)} đ</div>
+                            <div class="text-[10px] text-gray-400">BH: ${item.warranty_months} tháng</div>
+                        </div>
+                        <button type="button" onclick="selectStockItemForBom(${JSON.stringify(item).replace(/"/g, '&quot;')})"
+                                class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs">
+                            <i class="fas fa-check mr-1"></i> Chọn
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        })
+        .catch(() => {
+            list.innerHTML = '<div class="text-center py-6 text-red-500 text-xs">Lỗi tải danh sách sản phẩm</div>';
+        });
+}
+
+function selectStockItemForBom(item) {
+    addBomRow(item);
+    closeBomStockPickerModal();
+}
+
+// Add Milestone Modal
+function openAddMilestoneModal() {
+    document.getElementById('addMilestoneModal').classList.remove('hidden');
+}
+
+function closeAddMilestoneModal() {
+    document.getElementById('addMilestoneModal').classList.add('hidden');
+}
+
+function recalcMsAmount(percent) {
+    if (percent && saleTotalAmount > 0) {
+        const amt = Math.round(saleTotalAmount * (parseFloat(percent) / 100));
+        document.getElementById('ms_amount').value = new Intl.NumberFormat('vi-VN').format(amt);
+    }
+}
+
+</script>
 @endpush
+

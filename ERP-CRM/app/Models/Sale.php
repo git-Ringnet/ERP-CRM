@@ -904,7 +904,7 @@ class Sale extends Model
         // Check if all physical items in the sale are available in stock
         $allInStock = true;
         foreach ($this->items as $item) {
-            if ($item->is_service) {
+            if ($item->is_service || $item->is_from_stock) {
                 continue;
             }
             $product = $item->product;
@@ -1722,4 +1722,97 @@ class Sale extends Model
         }
         return false;
     }
+
+    /**
+     * Check if a new invoice request can still be created (has remaining un-invoiced quantity)
+     */
+    public function getCanCreateInvoiceRequestAttribute(): bool
+    {
+        if ($this->items->isEmpty()) {
+            return false;
+        }
+
+        if ($this->invoiceRequests->isEmpty()) {
+            return true;
+        }
+
+        foreach ($this->items as $item) {
+            if ($item->remaining_invoicable_quantity > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if all items in this sale order have been fully invoiced
+     */
+    public function getIsFullyInvoicedAttribute(): bool
+    {
+        if ($this->items->isEmpty()) {
+            return false;
+        }
+
+        foreach ($this->items as $item) {
+            if ($item->remaining_invoicable_quantity > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if all physical goods have been fully exported from warehouse
+     */
+    public function getIsFullyExportedAttribute(): bool
+    {
+        $physicalItems = $this->items->where('is_service', false);
+        if ($physicalItems->isEmpty()) {
+            return true;
+        }
+
+        foreach ($physicalItems as $item) {
+            if ($item->remaining_exportable_quantity > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get overall invoice progress percentage
+     */
+    public function getTotalInvoicedPercentAttribute(): float
+    {
+        $totalQty = (float) $this->items->sum('quantity');
+        if ($totalQty <= 0) return 100;
+
+        $invoicedQty = 0;
+        foreach ($this->items as $item) {
+            $invoicedQty += $item->invoiced_quantity;
+        }
+
+        return min(100, round(($invoicedQty / $totalQty) * 100));
+    }
+
+    /**
+     * Get overall warehouse export progress percentage (physical goods only)
+     */
+    public function getTotalExportedPercentAttribute(): float
+    {
+        $physicalItems = $this->items->where('is_service', false);
+        $totalQty = (float) $physicalItems->sum('quantity');
+        if ($totalQty <= 0) return 100;
+
+        $exportedQty = 0;
+        foreach ($physicalItems as $item) {
+            $exportedQty += $item->exported_quantity;
+        }
+
+        return min(100, round(($exportedQty / $totalQty) * 100));
+    }
 }
+

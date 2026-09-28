@@ -34,10 +34,19 @@ class InvoiceRequest extends Model
         'delivery_phone',
         'payment_terms_note',
         'item_descriptions',
+        'requested_items',
+        'needs_draft',
+        'is_invoiced',
+        'invoice_number',
+        'invoiced_at',
     ];
 
     protected $casts = [
         'item_descriptions' => 'array',
+        'requested_items' => 'array',
+        'needs_draft' => 'boolean',
+        'is_invoiced' => 'boolean',
+        'invoiced_at' => 'datetime',
     ];
 
     /**
@@ -93,12 +102,23 @@ class InvoiceRequest extends Model
      */
     public function getStatusLabelAttribute(): string
     {
+        if ($this->needs_draft) {
+            return match($this->status) {
+                'pending' => 'Chờ KT import HĐ nháp',
+                'draft_issued' => 'Đã có HĐ nháp (Chờ Sales duyệt)',
+                'sales_confirmed' => 'Đã duyệt HĐ nháp',
+                'official_issued' => 'Đã hoàn tất xuất HĐ',
+                'rejected' => 'HĐ nháp chưa chính xác',
+                default => 'Chờ xử lý',
+            };
+        }
+
         return match($this->status) {
-            'pending' => 'Chờ KT import hóa đơn',
-            'draft_issued' => 'Đã đính kèm HĐ (Chờ Sales xác nhận)',
-            'sales_confirmed', 'official_issued' => 'Đã xác nhận hoàn tất',
-            'rejected' => 'Hóa đơn chưa chính xác',
-            default => 'Không xác định',
+            'pending' => 'Xuất trực tiếp (Chờ xuất hàng)',
+            'draft_issued' => 'Đã đính kèm HĐ',
+            'sales_confirmed', 'official_issued' => 'Đã hoàn tất xuất HĐ',
+            'rejected' => 'Hóa đơn bị từ chối',
+            default => 'Chờ xử lý',
         };
     }
 
@@ -108,11 +128,29 @@ class InvoiceRequest extends Model
     public function getStatusColorAttribute(): string
     {
         return match($this->status) {
-            'pending' => 'bg-amber-100 text-amber-800',
+            'pending' => $this->needs_draft ? 'bg-amber-100 text-amber-800' : 'bg-cyan-100 text-cyan-800',
             'draft_issued' => 'bg-blue-100 text-blue-800',
-            'sales_confirmed', 'official_issued' => 'bg-emerald-100 text-emerald-800',
+            'sales_confirmed' => 'bg-emerald-100 text-emerald-800',
+            'official_issued' => 'bg-emerald-100 text-emerald-800',
             'rejected' => 'bg-red-100 text-red-800',
             default => 'bg-gray-100 text-gray-800',
         };
     }
+
+    /**
+     * Get items list for this invoice request (supports partial invoicing)
+     */
+    public function getEffectiveItemsAttribute(): \Illuminate\Support\Collection
+    {
+        if (!empty($this->requested_items) && is_array($this->requested_items)) {
+            return collect($this->requested_items);
+        }
+
+        if ($this->export && $this->export->items->isNotEmpty()) {
+            return $this->export->items;
+        }
+
+        return $this->sale ? $this->sale->items : collect();
+    }
 }
+

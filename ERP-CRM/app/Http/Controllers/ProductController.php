@@ -424,4 +424,104 @@ class ProductController extends Controller
 
         return response()->json($products);
     }
+
+    /**
+     * Search products with available inventory or held stock
+     */
+    /**
+     * Search products with available inventory or held stock
+     */
+    public function apiSearchAvailableStock(Request $request)
+    {
+        $q = $request->get('q');
+        $currentUser = auth()->user();
+        $currentUserName = $currentUser ? $currentUser->name : null;
+
+        $runrateWarehouseIds = \App\Models\Warehouse::where('code', 'WH_RUNRATE')
+            ->orWhere('name', 'like', '%runrate%')
+            ->pluck('id')
+            ->toArray();
+
+        $query = Product::query();
+
+        if ($q) {
+            $query->search($q);
+        } else {
+            $query->orderBy('name');
+        }
+
+        // Only load products that have in_stock items in Kho runrate
+        $query->whereHas('items', function ($sq) use ($runrateWarehouseIds) {
+            $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK);
+            if (!empty($runrateWarehouseIds)) {
+                $sq->whereIn('warehouse_id', $runrateWarehouseIds);
+            }
+        });
+
+        $products = $query->with([
+            'items' => function ($sq) use ($runrateWarehouseIds) {
+                $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK);
+                if (!empty($runrateWarehouseIds)) {
+                    $sq->whereIn('warehouse_id', $runrateWarehouseIds);
+                }
+                $sq->with('warehouse');
+            },
+            'supplierPriceListItems.priceList'
+        ])
+        ->limit(40)
+        ->get()
+        ->map(function ($product) use ($currentUserName) {
+            $inStockItems = $product->items;
+            $totalInStock = (int) $inStockItems->sum('quantity');
+
+            // Count held by me vs unallocated vs others
+            $myHeld = $currentUserName
+                ? (int) $inStockItems->filter(fn($it) => $it->borrower === $currentUserName)->sum('quantity')
+                : 0;
+            $unallocated = (int) $inStockItems->filter(fn($it) => empty($it->borrower))->sum('quantity');
+            $heldByOthers = $totalInStock - $myHeld - $unallocated;
+
+            // Detail string by warehouse
+            $whGroups = $inStockItems->groupBy(fn($it) => $it->warehouse->name ?? 'Kho runrate');
+            $whParts = [];
+            foreach ($whGroups as $whName => $groupItems) {
+                $whParts[] = $whName . ': ' . $groupItems->sum('quantity');
+            }
+            $whDetail = implode(', ', $whParts);
+
+            $holdingNotes = [];
+            if ($myHeld > 0) {
+                $holdingNotes[] = "Bạn đang giữ: {$myHeld}";
+            }
+            if ($unallocated > 0) {
+                $holdingNotes[] = "Sẵn kho: {$unallocated}";
+            }
+            if ($heldByOthers > 0) {
+                $holdingNotes[] = "Sales khác giữ: {$heldByOthers}";
+            }
+            $holdingSummary = implode(' | ', $holdingNotes);
+
+            $sellingPrice = $product->calculated_selling_price ?: ($product->price ?? 0);
+            $costPrice = $product->calculated_cost ?: ($product->cost ?? 0);
+
+            return [
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'unit' => $product->unit ?? 'Cái',
+                'price' => (float) $sellingPrice,
+                'cost' => (float) $costPrice,
+                'warranty_months' => $product->warranty_months ?? 12,
+                'in_stock_quantity' => $totalInStock,
+                'my_held_quantity' => $myHeld,
+                'unallocated_quantity' => $unallocated,
+                'held_by_others_quantity' => $heldByOthers,
+                'warehouses_detail' => $whDetail ?: 'Kho runrate: ' . $totalInStock,
+                'holding_summary' => $holdingSummary ?: 'Có sẵn trong kho runrate',
+                'is_from_stock' => 1,
+            ];
+        });
+
+        return response()->json($products);
+    }
 }

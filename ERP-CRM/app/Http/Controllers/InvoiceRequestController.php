@@ -22,6 +22,7 @@ class InvoiceRequestController extends Controller
             'tax_code' => 'required|string|max:50',
             'billing_email' => 'nullable|email|max:255',
             'note' => 'nullable|string',
+            'needs_draft' => 'nullable|boolean',
             
             // New fields
             'seller_name' => 'required|string|max:255',
@@ -36,18 +37,80 @@ class InvoiceRequestController extends Controller
             'item_descriptions.*' => 'nullable|string',
         ]);
 
+        $validated['needs_draft'] = $request->boolean('needs_draft');
+
+        // Process partial items to invoice
+        $requestedItems = [];
+        $itemsInput = $request->input('items', []);
+
+        if (!empty($itemsInput) && is_array($itemsInput)) {
+            foreach ($sale->items as $saleItem) {
+                $qtyInput = (float)($itemsInput[$saleItem->id]['quantity'] ?? 0);
+                if ($qtyInput > 0) {
+                    $maxQty = $saleItem->remaining_invoicable_quantity;
+                    $actualQty = min($qtyInput, $maxQty > 0 ? $maxQty : $saleItem->quantity);
+                    $customDesc = $request->input("item_descriptions.{$saleItem->id}") ?: ($saleItem->product_name ?: ($saleItem->product->name ?? ''));
+
+                    $requestedItems[] = [
+                        'sale_item_id' => $saleItem->id,
+                        'product_id' => $saleItem->product_id,
+                        'product_name' => $saleItem->product_name ?: ($saleItem->product->name ?? ''),
+                        'product_code' => $saleItem->product->code ?? '',
+                        'quantity' => $actualQty,
+                        'price' => (float)$saleItem->price,
+                        'vat' => (float)$saleItem->vat,
+                        'is_service' => (bool)$saleItem->is_service,
+                        'is_from_stock' => (bool)$saleItem->is_from_stock,
+                        'custom_description' => $customDesc,
+                    ];
+                }
+            }
+        }
+
+        if (empty($requestedItems)) {
+            // Default to all items with their remaining invoicable quantities
+            foreach ($sale->items as $saleItem) {
+                $rem = $saleItem->remaining_invoicable_quantity;
+                if ($rem <= 0 && $sale->invoiceRequests->isNotEmpty()) continue;
+                $actualQty = $rem > 0 ? $rem : $saleItem->quantity;
+                $customDesc = $request->input("item_descriptions.{$saleItem->id}") ?: ($saleItem->product_name ?: ($saleItem->product->name ?? ''));
+
+                $requestedItems[] = [
+                    'sale_item_id' => $saleItem->id,
+                    'product_id' => $saleItem->product_id,
+                    'product_name' => $saleItem->product_name ?: ($saleItem->product->name ?? ''),
+                    'product_code' => $saleItem->product->code ?? '',
+                    'quantity' => $actualQty,
+                    'price' => (float)$saleItem->price,
+                    'vat' => (float)$saleItem->vat,
+                    'is_service' => (bool)$saleItem->is_service,
+                    'is_from_stock' => (bool)$saleItem->is_from_stock,
+                    'custom_description' => $customDesc,
+                ];
+            }
+        }
+
+        if (empty($requestedItems)) {
+            return back()->with('error', 'Tất cả các sản phẩm trong đơn hàng đã được xuất hóa đơn đầy đủ.');
+        }
+
         $invoiceRequest = new InvoiceRequest($validated);
         $invoiceRequest->sale_id = $sale->id;
         $invoiceRequest->requester_id = auth()->id();
         $invoiceRequest->status = 'pending';
+        $invoiceRequest->requested_items = $requestedItems;
         $invoiceRequest->save();
+
+        $itemSummary = implode(', ', array_map(function($i) {
+            return ($i['product_name'] ?? 'SP') . ' (SL: ' . ($i['quantity'] ?? 0) . ')';
+        }, $requestedItems));
 
         \App\Models\InvoiceRequestRevision::create([
             'invoice_request_id' => $invoiceRequest->id,
             'user_id' => auth()->id(),
             'version' => 1,
             'action' => 'created',
-            'note' => 'Khởi tạo yêu cầu xuất hóa đơn',
+            'note' => ($invoiceRequest->needs_draft ? 'Khởi tạo yêu cầu xuất HĐ (Cần HĐ nháp)' : 'Khởi tạo yêu cầu xuất HĐ (Xuất trực tiếp)') . ' - Chi tiết mặt hàng: ' . $itemSummary,
         ]);
 
         return back()->with('success', 'Đã gửi yêu cầu xuất hóa đơn thành công!');
@@ -434,5 +497,246 @@ class InvoiceRequestController extends Controller
         $warehouses = \App\Models\Warehouse::where('status', 'active')->get();
 
         return view('invoices.show', compact('invoiceRequest', 'sale', 'hdmbFiles', 'pnlFiles', 'uncFiles', 'licenseFiles', 'warehouses'));
+    }
+
+    /**
+     * Admin notifies Accountant to issue official invoice
+     */
+    public function notifyAccountant(Request $request, InvoiceRequest $invoiceRequest)
+    {
+        $sale = $invoiceRequest->sale;
+        $note = $request->input('note', 'Admin đã yêu cầu Kế toán tiến hành xuất hóa đơn.');
+
+        // Create revision log
+        \App\Models\InvoiceRequestRevision::create([
+            'invoice_request_id' => $invoiceRequest->id,
+            'user_id' => auth()->id(),
+            'version' => (int) $invoiceRequest->revisions()->max('version') ?: 1,
+            'action' => 'admin_notified_accountant',
+            'note' => $note,
+        ]);
+
+        // Send notifications to accountants
+        $accountants = \App\Models\User::whereHas('roles', fn($q) => $q->whereIn('slug', ['accountant', 'super_admin']))->get();
+        foreach ($accountants as $acc) {
+            \App\Models\Notification::create([
+                'user_id' => $acc->id,
+                'type' => 'invoice_alert',
+                'title' => 'Yêu cầu xuất hóa đơn cho đơn ' . $sale->code,
+                'message' => "Admin (" . auth()->user()->name . ") đã yêu cầu xuất hóa đơn cho đơn hàng {$sale->code}. {$note}",
+                'link' => route('invoice-requests.show', $invoiceRequest->id),
+                'icon' => 'fas fa-file-invoice-dollar',
+                'color' => 'indigo',
+            ]);
+        }
+
+        return back()->with('success', 'Đã gửi thông báo yêu cầu Kế toán xuất hóa đơn thành công!');
+    }
+
+    /**
+     * Admin notifies Warehouse to export goods and creates warehouse export slip if not yet created
+     */
+    public function notifyWarehouse(Request $request, InvoiceRequest $invoiceRequest)
+    {
+        $sale = $invoiceRequest->sale;
+        $note = $request->input('note', 'Admin đã thông báo bộ phận Kho thực hiện xuất hàng.');
+        $warehouseId = $request->input('warehouse_id') ?: (\App\Models\Warehouse::active()->value('id') ?: 1);
+
+        DB::beginTransaction();
+        try {
+            // Check if there are physical goods in this invoice request
+            $itemsToExport = [];
+            $customItemsInput = $request->input('items', []);
+
+            if (!empty($customItemsInput) && is_array($customItemsInput)) {
+                foreach ($customItemsInput as $pid => $itemData) {
+                    $qty = (int)($itemData['quantity'] ?? 0);
+                    if ($qty <= 0) continue;
+
+                    $saleItem = $sale->items->where('product_id', $pid)->first();
+                    if ($saleItem && $saleItem->is_service) continue; // Skip services
+
+                    $itemsToExport[] = [
+                        'product_id' => $pid,
+                        'quantity' => $qty,
+                        'unit_price' => $saleItem ? (float)$saleItem->price : 0,
+                        'calculated_total' => $saleItem ? ((float)$saleItem->price * $qty) : 0,
+                        'product_name' => $saleItem ? ($saleItem->product_name ?: ($saleItem->product->name ?? '')) : '',
+                    ];
+                }
+            } else {
+                $requestedItems = $invoiceRequest->requested_items ?: [];
+
+                if (!empty($requestedItems) && is_array($requestedItems)) {
+                    foreach ($requestedItems as $rItem) {
+                        if (!empty($rItem['is_service'])) {
+                            continue; // Skip services for physical warehouse export
+                        }
+                        $qty = (int)($rItem['quantity'] ?? 0);
+                        if ($qty > 0 && !empty($rItem['product_id'])) {
+                            $itemsToExport[] = [
+                                'product_id' => $rItem['product_id'],
+                                'quantity' => $qty,
+                                'unit_price' => (float)($rItem['price'] ?? 0),
+                                'calculated_total' => (float)($rItem['price'] ?? 0) * $qty,
+                                'product_name' => $rItem['product_name'] ?? '',
+                            ];
+                        }
+                    }
+                } else {
+                    foreach ($sale->items as $sItem) {
+                        if ($sItem->is_service) continue;
+                        $rem = $sItem->remaining_exportable_quantity;
+                        $qty = $rem > 0 ? $rem : $sItem->quantity;
+                        if ($qty > 0 && $sItem->product_id) {
+                            $itemsToExport[] = [
+                                'product_id' => $sItem->product_id,
+                                'quantity' => $qty,
+                                'unit_price' => (float)$sItem->price,
+                                'calculated_total' => (float)$sItem->price * $qty,
+                                'product_name' => $sItem->product_name ?: ($sItem->product->name ?? ''),
+                            ];
+                        }
+                    }
+                }
+            }
+
+            if (empty($itemsToExport)) {
+                return back()->with('error', 'Đợt yêu cầu này không có sản phẩm vật lý nào cần xuất kho (hoặc toàn bộ là hàng dịch vụ).');
+            }
+
+            // If no export is linked to this request and we have physical goods, create an Export slip
+            $exportCreated = null;
+            if (!$invoiceRequest->export_id && !empty($itemsToExport)) {
+                $exportCode = \App\Models\Export::generateCode();
+                $exportCreated = \App\Models\Export::create([
+                    'code' => $exportCode,
+                    'warehouse_id' => $warehouseId,
+                    'customer_id' => $sale->customer_id,
+                    'project_id' => $sale->project_id,
+                    'contact_id' => $sale->contact_id,
+                    'date' => now()->toDateString(),
+                    'employee_id' => auth()->id(),
+                    'total_qty' => array_sum(array_column($itemsToExport, 'quantity')),
+                    'reference_type' => 'sale',
+                    'reference_id' => $sale->id,
+                    'note' => "Xuất kho theo yêu cầu hóa đơn #{$invoiceRequest->id} của đơn hàng {$sale->code}. {$note}",
+                    'status' => 'pending', // Pending warehouse approval & stock reduction
+                ]);
+
+                foreach ($itemsToExport as $expItem) {
+                    \App\Models\ExportItem::create([
+                        'export_id' => $exportCreated->id,
+                        'product_id' => $expItem['product_id'],
+                        'quantity' => $expItem['quantity'],
+                        'unit_price' => $expItem['unit_price'],
+                        'total' => $expItem['calculated_total'],
+                    ]);
+                }
+
+                $invoiceRequest->update(['export_id' => $exportCreated->id]);
+            }
+
+            // Update linked exports to pending if pending_invoice
+            $linkedExports = \App\Models\Export::where('reference_type', 'sale')
+                ->where('reference_id', $sale->id)
+                ->where('status', 'pending_invoice')
+                ->get();
+            foreach ($linkedExports as $exp) {
+                $exp->update(['status' => 'pending']);
+            }
+
+            // Create revision log
+            \App\Models\InvoiceRequestRevision::create([
+                'invoice_request_id' => $invoiceRequest->id,
+                'user_id' => auth()->id(),
+                'version' => (int) $invoiceRequest->revisions()->max('version') ?: 1,
+                'action' => 'admin_notified_warehouse',
+                'note' => $note . ($exportCreated ? " (Đã tạo phiếu xuất kho {$exportCreated->code})" : ''),
+            ]);
+
+            // Notify warehouse staff
+            $warehouseStaff = \App\Models\User::whereHas('roles', fn($q) => $q->whereIn('slug', ['warehouse', 'logistics', 'super_admin']))->get();
+            foreach ($warehouseStaff as $wh) {
+                \App\Models\Notification::create([
+                    'user_id' => $wh->id,
+                    'type' => 'warehouse_alert',
+                    'title' => 'Thông báo chuẩn bị xuất hàng - ' . $sale->code,
+                    'message' => "Admin (" . auth()->user()->name . ") đã thông báo xuất hàng cho đơn {$sale->code}." . ($exportCreated ? " Phiếu xuất: {$exportCreated->code}." : '') . " {$note}",
+                    'link' => $exportCreated ? route('exports.index', ['search' => $exportCreated->code]) : route('sales.show', $sale->id),
+                    'icon' => 'fas fa-truck-loading',
+                    'color' => 'teal',
+                ]);
+            }
+
+            DB::commit();
+            return back()->with('success', 'Đã tạo yêu cầu xuất hàng & gửi thông báo tới bộ phận Kho thành công!' . ($exportCreated ? " Mã phiếu: {$exportCreated->code}" : ''));
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Accountant / Admin marks whether the invoice has been officially issued or not (1-click status update)
+     */
+    public function markInvoiced(Request $request, InvoiceRequest $invoiceRequest)
+    {
+        if (!auth()->user()->hasAnyRole(['super_admin', 'accountant', 'admin', 'director', 'sales_manager'])) {
+            return back()->with('error', 'Chỉ có Kế toán hoặc Quản trị viên mới được thực hiện thao tác này.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $isInvoiced = $request->has('is_invoiced') ? $request->boolean('is_invoiced') : true;
+
+            $invoiceRequest->is_invoiced = $isInvoiced;
+            if ($isInvoiced) {
+                $invoiceRequest->invoiced_at = now();
+                $invoiceRequest->status = 'official_issued';
+                $invoiceRequest->finance_id = auth()->id();
+
+                // Update sale invoice date
+                $sale = $invoiceRequest->sale;
+                $invDate = now()->toDateString();
+                $debtDays = (int)($sale->customer->debt_days ?? 30);
+                $sale->update([
+                    'invoice_date' => $invDate,
+                    'payment_due_date' => \Carbon\Carbon::parse($invDate)->addDays($debtDays)->toDateString(),
+                ]);
+            } else {
+                $invoiceRequest->status = $invoiceRequest->needs_draft ? 'draft_issued' : 'pending';
+            }
+            $invoiceRequest->save();
+
+            \App\Models\InvoiceRequestRevision::create([
+                'invoice_request_id' => $invoiceRequest->id,
+                'user_id' => auth()->id(),
+                'version' => ((int) $invoiceRequest->revisions()->max('version') ?: 1) + 1,
+                'action' => $isInvoiced ? 'accountant_marked_invoiced' : 'accountant_marked_uninvoiced',
+                'note' => $isInvoiced ? 'Ghi nhận trạng thái: ĐÃ XUẤT HÓA ĐƠN' : 'Chuyển trạng thái về: CHƯA XUẤT HĐ',
+            ]);
+
+            // Notify Sales & Admin
+            if ($invoiceRequest->requester_id) {
+                \App\Models\Notification::create([
+                    'user_id' => $invoiceRequest->requester_id,
+                    'type' => 'invoice_status_update',
+                    'title' => $isInvoiced ? 'Đã ghi nhận xuất hóa đơn' : 'Cập nhật trạng thái HĐ',
+                    'message' => $isInvoiced 
+                        ? "Đã ghi nhận xuất hóa đơn cho đợt #{$invoiceRequest->id} của đơn hàng {$invoiceRequest->sale->code}."
+                        : "Cập nhật đơn {$invoiceRequest->sale->code} chưa xuất hóa đơn.",
+                    'link' => route('sales.show', $invoiceRequest->sale_id),
+                    'icon' => $isInvoiced ? 'fas fa-check-circle' : 'fas fa-clock',
+                    'color' => $isInvoiced ? 'green' : 'amber',
+                ]);
+            }
+
+            DB::commit();
+            return back()->with('success', $isInvoiced ? 'Đã ghi nhận ĐÃ XUẤT HÓA ĐƠN thành công!' : 'Đã chuyển trạng thái về Chưa xuất HĐ.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 }

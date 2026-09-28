@@ -26,6 +26,7 @@
                 currentUserName: @json(Auth::user()->name),
                 openLogModal: false,
                 openProgressModal: false,
+                openHandoverModal: false,
                 logEditMode: false,
                 logActionUrl: '',
                 logData: {
@@ -48,6 +49,8 @@
                 custSearch: @json($ticket->customer->name ?? ''),
                 engTyping: false,
                 custTyping: false,
+                handoverSearch: '',
+                selectedHandoverEngineers: [],
                 openCreateLogModal() {
                     this.logEditMode = false;
                     this.logActionUrl = '{{ route('technical-tickets.support-logs.store', $ticket->id) }}';
@@ -92,6 +95,19 @@
     </script>
 
     <div x-data="ticketShowData()" class="space-y-6">
+        <!-- Read-Only Notice for General Technical Staff -->
+        @if($isReadOnly)
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between text-xs text-amber-800 shadow-xs">
+                <div class="flex items-center space-x-2">
+                    <span class="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold shrink-0">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                    <span>Bạn đang xem ticket này ở chế độ <strong>Chỉ đọc (View-Only)</strong> do chưa được phân công xử lý hoặc không thuộc Lead phụ trách.</span>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold uppercase tracking-wider text-[10px]">Chỉ xem</span>
+            </div>
+        @endif
+
         <!-- Breadcrumb & Actions -->
         <div
             class="flex flex-col md:flex-row md:justify-between md:items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200 gap-4">
@@ -108,17 +124,11 @@
             </div>
 
             @php
-                $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-                $isTechLeadRole = auth()->user()->hasRole('technical_lead');
-                $isTeamLead = $isTechLeadRole || $isManagerOrAdmin;
-                
                 $canPickup = $ticket->canUserPickup(auth()->user());
-                $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', auth()->id())->exists();
-                $canUpdateProgress = $isAssignedEngineer || $isTechLeadRole || auth()->user()->hasAnyRole(['super_admin', 'director']);
             @endphp
 
-            <div class="flex items-center space-x-2">
-                @if (empty($ticket->assigned_to))
+            <div class="flex items-center flex-wrap gap-2">
+                @if (empty($ticket->assigned_to) && $ticket->activeEngineers->isEmpty())
                     @if ($canPickup)
                         <form action="{{ route('technical-tickets.pickup', $ticket->id) }}" method="POST" class="inline">
                             @csrf
@@ -130,6 +140,13 @@
                     @endif
                 @endif
 
+                <!-- Handover Button -->
+                @if($canHandover && !in_array($ticket->status, ['completed', 'closed']))
+                    <button type="button" @click="openHandoverModal = true"
+                        class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                        <i class="fas fa-exchange-alt mr-2"></i> Bàn giao (Handover)
+                    </button>
+                @endif
 
                 @if(!in_array($ticket->status, ['open', 'completed', 'closed']))
                     @if($canUpdateProgress)
@@ -169,8 +186,6 @@
                             </button>
                         </form>
                     @endif
-
-
                 @endif
 
                 @if(in_array($ticket->status, ['open', 'assigned']))
@@ -235,14 +250,29 @@
                 <div>
                     <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Kỹ sư phụ trách</span>
                     <div class="flex flex-wrap gap-1 mt-2">
-                        @forelse($ticket->assignedEngineers as $eng)
+                        @forelse($ticket->activeEngineers as $eng)
                             <span
                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold border border-blue-200">
                                 <i class="fas fa-user-gear text-[10px] mr-1"></i> {{ $eng->name }}
                             </span>
                         @empty
-                            <span class="text-sm font-semibold text-gray-400 italic">Chưa phân công</span>
+                            @if($ticket->assignedTo)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold border border-blue-200">
+                                    <i class="fas fa-user-gear text-[10px] mr-1"></i> {{ $ticket->assignedTo->name }}
+                                </span>
+                            @else
+                                <span class="text-sm font-semibold text-gray-400 italic">Chưa phân công</span>
+                            @endif
                         @endforelse
+
+                        @foreach($ticket->formerEngineers as $fEng)
+                            <span
+                                class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-medium border border-gray-200 line-through"
+                                title="Đã bàn giao ngày {{ $fEng->pivot->handed_over_at ? \Carbon\Carbon::parse($fEng->pivot->handed_over_at)->format('d/m/Y H:i') : '' }}">
+                                <i class="fas fa-history text-[9px] mr-1"></i> {{ $fEng->name }} (Bàn giao)
+                            </span>
+                        @endforeach
                     </div>
                 </div>
                 <div>
@@ -273,12 +303,12 @@
                         <button @click="activeTab = 'documents'"
                             :class="activeTab === 'documents' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
-                            <i class="fas fa-folder-open mr-2"></i> Tài liệu phát sinh ({{ $ticket->attachments->count() }})
+                            <i class="fas fa-folder-open mr-2"></i> Tài liệu ({{ $ticket->attachments->count() }})
                         </button>
                         <button @click="activeTab = 'reports'"
                             :class="activeTab === 'reports' ? 'border-primary text-primary bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="px-6 py-4 border-b-2 font-bold text-sm transition-colors focus:outline-none flex items-center">
-                            <i class="fas fa-history mr-2"></i> Nhật ký Hỗ trợ / Report Tech
+                            <i class="fas fa-history mr-2"></i> Nhật ký Hỗ trợ
                             ({{ $ticket->supportLogs->count() }})
                         </button>
                         <button @click="activeTab = 'comments'"
@@ -292,7 +322,7 @@
                         <!-- Tab 1: Details -->
                         <div x-show="activeTab === 'details'" class="space-y-6">
                             <div
-                                class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
+                                class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
                                 <div>
                                     <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Loại
                                         Ticket</span>
@@ -300,10 +330,25 @@
                                             class="fas fa-tag text-primary mr-1"></i>{{ $ticket->work_type_label }}</span>
                                 </div>
                                 <div>
-                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Bộ phận yêu
-                                        cầu</span>
-                                    <span class="font-semibold text-gray-800 block mt-1"><i
-                                            class="fas fa-building-user text-primary mr-1"></i>{{ $ticket->department ?: 'N/A' }}</span>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Trưởng nhóm (Lead chính)</span>
+                                    <span class="font-semibold text-gray-800 block mt-1">
+                                        <i class="fas fa-user-tie text-purple-500 mr-1"></i>{{ $ticket->teamLead->name ?? 'Chưa chọn Lead' }}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Lead phối hợp</span>
+                                    @php
+                                        $coLeads = !empty($ticket->co_lead_ids) ? \App\Models\User::whereIn('id', (array)$ticket->co_lead_ids)->get() : collect();
+                                    @endphp
+                                    <div class="mt-1">
+                                        @forelse($coLeads as $cLead)
+                                            <span class="inline-block bg-teal-50 text-teal-800 text-[11px] font-semibold px-2 py-0.5 rounded border border-teal-200 mr-1 mb-1">
+                                                {{ $cLead->name }}
+                                            </span>
+                                        @empty
+                                            <span class="text-gray-400 text-xs italic">Không có</span>
+                                        @endforelse
+                                    </div>
                                 </div>
                             </div>
 
@@ -628,52 +673,55 @@
                                             </div>
                                         </div>
                                     @endif
-                                    <div
-                                        class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                        <i class="fas fa-handshake text-orange-500 text-lg w-6 text-center"></i>
-                                        <div>
-                                            <div class="text-xs text-gray-400">Hãng / Vendor</div>
-                                            <div class="font-semibold text-gray-800">{{ $ticket->supplier->name ?? 'N/A' }}
+                                    @if($ticket->supplier)
+                                        <div
+                                            class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                            <i class="fas fa-handshake text-orange-500 text-lg w-6 text-center"></i>
+                                            <div>
+                                                <div class="text-xs text-gray-400">Vendor / Đối tác</div>
+                                                <div class="font-semibold text-gray-800">{{ $ticket->supplier->name }}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
 
                         <!-- Tab 2: Documents Centralized Management -->
                         <div x-show="activeTab === 'documents'" class="space-y-6">
-                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                    <i class="fas fa-upload text-primary mr-2"></i> Tải lên tài liệu kỹ thuật
-                                </h4>
-                                <form action="{{ route('technical-tickets.attachments.upload', $ticket->id) }}"
-                                    method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-3">
-                                    @csrf
-                                    <div class="flex-1">
-                                        <select name="document_type" required
-                                            class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                            <option value="">-- Chọn loại tài liệu đính kèm --</option>
-                                            @foreach($documentTypes as $key => $val)
-                                                <option value="{{ $key }}">{{ $val }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="flex-1">
-                                        <input type="file" name="files[]" multiple required
-                                            class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90">
-                                    </div>
-                                    <button type="submit"
-                                        class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
-                                        Đính kèm
-                                    </button>
-                                </form>
-                            </div>
+                            @if($canAttachFile)
+                                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                                        <i class="fas fa-upload text-primary mr-2"></i> Tải lên tài liệu kỹ thuật
+                                    </h4>
+                                    <form action="{{ route('technical-tickets.attachments.upload', $ticket->id) }}"
+                                        method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-3">
+                                        @csrf
+                                        <div class="flex-1">
+                                            <select name="document_type" required
+                                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                                                <option value="">-- Chọn loại tài liệu đính kèm --</option>
+                                                @foreach($documentTypes as $key => $val)
+                                                    <option value="{{ $key }}">{{ $val }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="flex-1">
+                                            <input type="file" name="files[]" multiple required
+                                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90">
+                                        </div>
+                                        <button type="submit"
+                                            class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
+                                            Đính kèm
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
 
                             <!-- Documents list grouped by document type -->
                             <div class="space-y-4">
-                                <h4 class="text-sm font-bold text-gray-800 border-b border-gray-100 pb-2">Danh sách tài liệu
-                                    đã lưu trữ</h4>
+                                <h4 class="text-sm font-bold text-gray-800 border-b border-gray-100 pb-2">Danh sách tài liệu đã lưu trữ</h4>
 
                                 @php
                                     $groupedAttachments = $ticket->attachments->groupBy('document_type');
@@ -696,27 +744,17 @@
                                                             <span
                                                                 class="text-xs text-gray-400">({{ round($attach->file_size / 1024, 1) }}
                                                                 KB)</span>
+                                                            @if($attach->is_initial)
+                                                                <span class="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded font-medium">
+                                                                    <i class="fas fa-file-signature text-[9px] mr-0.5"></i> Yêu cầu gốc
+                                                                </span>
+                                                            @endif
                                                         </div>
                                                         <div class="flex items-center space-x-2">
                                                             <a href="{{ route('technical-tickets.attachments.download', [$ticket->id, $attach->id]) }}"
                                                                 class="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center">
                                                                 <i class="fas fa-download mr-1"></i> Tải về
                                                             </a>
-                                                            @if($attach->uploaded_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']))
-                                                                <span class="text-gray-300">|</span>
-                                                                <form
-                                                                    action="{{ route('technical-tickets.attachments.delete', [$ticket->id, $attach->id]) }}"
-                                                                    method="POST"
-                                                                    onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài liệu này?');"
-                                                                    class="inline">
-                                                                    @csrf
-                                                                    @method('DELETE')
-                                                                    <button type="submit"
-                                                                        class="text-red-500 hover:text-red-700 font-semibold text-xs">
-                                                                        <i class="fas fa-trash"></i> Xóa
-                                                                    </button>
-                                                                </form>
-                                                            @endif
                                                         </div>
                                                     </div>
                                                 @endforeach
@@ -737,13 +775,15 @@
                         <div x-show="activeTab === 'reports'" class="space-y-6">
                             <div class="flex justify-between items-center pb-2 border-b border-gray-100">
                                 <h4 class="text-sm font-bold text-gray-800">Nhật ký hỗ trợ kỹ thuật (Report Tech)</h4>
-                                @can('manage_technical_support_logs')
-                                    <button
-                                        @click="openCreateLogModal()"
-                                        class="inline-flex items-center px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/95 transition-colors shadow-sm">
-                                        <i class="fas fa-plus mr-1"></i> Viết Nhật ký (Report Tech)
-                                    </button>
-                                @endcan
+                                @if($canUpdateProgress)
+                                    @can('manage_technical_support_logs')
+                                        <button
+                                            @click="openCreateLogModal()"
+                                            class="inline-flex items-center px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/95 transition-colors shadow-sm">
+                                            <i class="fas fa-plus mr-1"></i> Viết Nhật ký (Report Tech)
+                                        </button>
+                                    @endcan
+                                @endif
                             </div>
 
                             <!-- Chronological logs listing -->
@@ -762,7 +802,7 @@
                                                 <div>
                                                     <span
                                                         class="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded mr-2"><i
-                                                            class="fas fa-calendar-alt mr-1"></i>{{ $log->log_date->format('d/m/Y') }}</span>
+                                                             class="fas fa-calendar-alt mr-1"></i>{{ $log->log_date->format('d/m/Y') }}</span>
                                                     <span class="text-sm font-bold text-gray-800">Kỹ sư:
                                                         {{ $log->user->name ?? 'N/A' }}</span>
                                                 </div>
@@ -772,26 +812,28 @@
                                                         {{ $log->status_label }}
                                                     </span>
 
-                                                    @can('manage_technical_support_logs')
-                                                        <span class="text-gray-300">|</span>
-                                                        <button @click="editLog({{ $log->id }})"
-                                                            class="text-blue-500 hover:text-blue-700 text-xs font-semibold">
-                                                            Sửa
-                                                        </button>
-                                                        <span class="text-gray-300">|</span>
-                                                        <form
-                                                            action="{{ route('technical-tickets.support-logs.destroy', [$ticket->id, $log->id]) }}"
-                                                            method="POST"
-                                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa nhật ký này?');"
-                                                            class="inline">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="submit"
-                                                                class="text-red-500 hover:text-red-700 text-xs font-semibold">
-                                                                Xóa
+                                                    @if($canUpdateProgress && ($log->user_id === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director'])))
+                                                        @can('manage_technical_support_logs')
+                                                            <span class="text-gray-300">|</span>
+                                                            <button @click="editLog({{ $log->id }})"
+                                                                class="text-blue-500 hover:text-blue-700 text-xs font-semibold">
+                                                                Sửa
                                                             </button>
-                                                        </form>
-                                                    @endcan
+                                                            <span class="text-gray-300">|</span>
+                                                            <form
+                                                                action="{{ route('technical-tickets.support-logs.destroy', [$ticket->id, $log->id]) }}"
+                                                                method="POST"
+                                                                onsubmit="return confirm('Bạn có chắc chắn muốn xóa nhật ký này?');"
+                                                                class="inline">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit"
+                                                                    class="text-red-500 hover:text-red-700 text-xs font-semibold">
+                                                                    Xóa
+                                                                </button>
+                                                            </form>
+                                                        @endcan
+                                                    @endif
                                                 </div>
                                             </div>
 
@@ -825,25 +867,32 @@
 
                         <!-- Tab 4: Trao đổi / Thảo luận (Discussion) -->
                         <div x-show="activeTab === 'comments'" class="space-y-6">
-                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                    <i class="fas fa-paper-plane text-primary mr-2"></i> Gửi nội dung trao đổi
-                                </h4>
-                                <form action="{{ route('technical-tickets.comments.store', $ticket->id) }}" method="POST" class="space-y-3">
-                                    @csrf
-                                    <div>
-                                        <textarea name="comment" required rows="3"
-                                            placeholder="Nhập nội dung câu hỏi, phản hồi hoặc trao đổi trực tiếp trên ticket này..."
-                                            class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
-                                    </div>
-                                    <div class="flex justify-end">
-                                        <button type="submit"
-                                            class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm flex items-center">
-                                            <i class="fas fa-paper-plane mr-1.5"></i> Gửi trao đổi
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
+                            @if($canComment)
+                                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                                        <i class="fas fa-paper-plane text-primary mr-2"></i> Gửi nội dung trao đổi
+                                    </h4>
+                                    <form action="{{ route('technical-tickets.comments.store', $ticket->id) }}" method="POST" class="space-y-3">
+                                        @csrf
+                                        <div>
+                                            <textarea name="comment" required rows="3"
+                                                placeholder="Nhập nội dung câu hỏi, phản hồi hoặc trao đổi trực tiếp trên ticket này..."
+                                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+                                        </div>
+                                        <div class="flex justify-end">
+                                            <button type="submit"
+                                                class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm flex items-center">
+                                                <i class="fas fa-paper-plane mr-1.5"></i> Gửi trao đổi
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            @else
+                                <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+                                    <i class="fas fa-info-circle text-blue-500 text-sm"></i>
+                                    <span>Bạn đang xem ticket ở chế độ chỉ đọc. Chỉ người yêu cầu, Leads và Kỹ sư được phân công mới có thể gửi nội dung trao đổi.</span>
+                                </div>
+                            @endif
 
                             <div class="space-y-4">
                                 <h4 class="text-sm font-bold text-gray-800 border-b border-gray-100 pb-2">Lịch sử trao đổi</h4>
@@ -1142,6 +1191,141 @@
                         <button type="submit"
                             class="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
                             Lưu cập nhật
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 6. Handover (Bàn giao) Modal -->
+        <div x-show="openHandoverModal"
+            class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs" x-cloak>
+            <div @click.away="openHandoverModal = false"
+                class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-gray-200 overflow-hidden transform transition-all my-auto">
+                <!-- Modal Header -->
+                <div class="px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50 flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900">Bàn giao Ticket Kỹ thuật (Handover)</h3>
+                            <p class="text-xs text-gray-500">Chuyển giao quyền phụ trách cho Kỹ sư / Team Lead mới</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="openHandoverModal = false"
+                        class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-colors focus:outline-none">
+                        <i class="fas fa-times text-base"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Form -->
+                <form action="{{ route('technical-tickets.handover', $ticket->id) }}" method="POST" class="flex flex-col flex-1 overflow-hidden">
+                    @csrf
+
+                    <!-- Scrollable Body -->
+                    <div class="p-5 space-y-4 overflow-y-auto flex-1">
+                        <!-- Notice banner -->
+                        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-start gap-2">
+                            <i class="fas fa-info-circle text-blue-600 mt-0.5 shrink-0"></i>
+                            <div>
+                                Sau khi bàn giao, các Kỹ sư cũ vẫn có quyền <strong>Xem và Trao đổi</strong> trong ticket, nhưng chỉ có Kỹ sư mới nhận bàn giao mới có quyền cập nhật tiến độ và nhật ký kỹ thuật.
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- New Team Lead (Optional) -->
+                            <div>
+                                <label for="handover_lead_id" class="block text-xs font-semibold text-gray-700 mb-1">
+                                    <i class="fas fa-user-tie text-purple-600 mr-1"></i> Trưởng nhóm phụ trách (Lead chính)
+                                </label>
+                                <select name="new_team_lead_id" id="handover_lead_id"
+                                    class="w-full border-gray-200 rounded-lg text-xs focus:border-primary focus:ring-primary">
+                                    @foreach($leads as $ld)
+                                        <option value="{{ $ld->id }}" {{ (old('new_team_lead_id', $ticket->team_lead_id) == $ld->id) ? 'selected' : '' }}>
+                                            {{ $ld->name }} ({{ $ld->email }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <!-- New Co-Leads (Checkbox list) -->
+                            @php
+                                $currentCoLeads = (array)($ticket->co_lead_ids ?? []);
+                            @endphp
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                    <i class="fas fa-handshake text-teal-600 mr-1"></i> Lead phối hợp (Nhóm khác)
+                                </label>
+                                <div class="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto p-1.5 bg-gray-50/70 rounded-lg border border-gray-200">
+                                    @foreach($leads as $ld)
+                                        @php
+                                            $isCoLead = in_array($ld->id, $currentCoLeads);
+                                        @endphp
+                                        <label class="flex items-center gap-2 p-1.5 bg-white rounded border border-gray-200 hover:border-teal-400 cursor-pointer text-xs transition-colors">
+                                            <input type="checkbox" name="new_co_lead_ids[]" value="{{ $ld->id }}" {{ $isCoLead ? 'checked' : '' }}
+                                                   class="rounded border-gray-300 text-teal-600 focus:ring-teal-500">
+                                            <span class="font-medium text-gray-800 truncate">{{ $ld->name }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Assign New Engineers -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fas fa-user-check text-indigo-600"></i> Chọn Kỹ sư mới tiếp nhận xử lý <span class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <i class="fas fa-search absolute left-2.5 top-2 text-gray-400 text-xs"></i>
+                                    <input type="text" x-model="handoverSearch" placeholder="Tìm kỹ sư..."
+                                           class="pl-7 pr-3 py-1 bg-white border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-primary focus:border-primary w-36 sm:w-44 outline-none">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-xl bg-gray-50/50">
+                                @foreach($engineers as $eng)
+                                    @php
+                                        $isCurrentlyActive = $ticket->activeEngineers->contains('id', $eng->id);
+                                    @endphp
+                                    <label class="flex items-start gap-2 p-2 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 cursor-pointer text-xs transition-colors"
+                                           x-show="!handoverSearch || '{{ mb_strtolower($eng->name) }}'.includes(handoverSearch.toLowerCase()) || '{{ mb_strtolower($eng->email) }}'.includes(handoverSearch.toLowerCase())">
+                                        <input type="checkbox" name="assigned_to[]" value="{{ $eng->id }}"
+                                               class="rounded border-gray-300 text-primary focus:ring-primary mt-0.5">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-gray-900 truncate">{{ $eng->name }}</div>
+                                            <div class="text-[11px] text-gray-400 truncate">{{ $eng->email }}</div>
+                                            @if($isCurrentlyActive)
+                                                <span class="text-[9px] bg-blue-100 text-blue-700 px-1 py-0.2 rounded font-semibold mt-0.5 inline-block">Đang phụ trách</span>
+                                            @endif
+                                        </div>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <!-- Handover Note -->
+                        <div>
+                            <label for="handover_note" class="block text-xs font-semibold text-gray-700 mb-1">
+                                Nội dung / Ghi chú bàn giao <span class="text-red-500">*</span>
+                            </label>
+                            <textarea name="handover_note" id="handover_note" required rows="3"
+                                placeholder="Mô tả lý do bàn giao, hiện trạng công việc, các lưu ý cần tiếp tục xử lý..."
+                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 shrink-0">
+                        <button type="button" @click="openHandoverModal = false"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors bg-white">
+                            Hủy bỏ
+                        </button>
+                        <button type="submit"
+                            class="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5">
+                            <i class="fas fa-check"></i> Xác nhận bàn giao
                         </button>
                     </div>
                 </form>

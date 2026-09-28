@@ -5,23 +5,32 @@
     $expenses = $expenses ?? \App\Models\SaleExpense::defaultExpenses();
     $currencySymbol = $currencySymbol ?? '₫';
     $isLocked = $isLocked ?? false;
+    $showSaveButton = $showSaveButton ?? false;
 @endphp
 
 <div class="border-t pt-4" x-data="expenseManager()">
-    <div class="flex justify-between items-center mb-4">
-        <h4 class="text-lg font-medium text-gray-900">
-            <i class="fas fa-file-invoice-dollar text-purple-500 mr-2"></i>Chi phí đơn hàng
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <h4 class="text-lg font-medium text-gray-900 flex items-center">
+            <i class="fas fa-file-invoice-dollar text-purple-500 mr-2"></i>
+            <span>Chi phí đơn hàng</span>
+            <span class="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700" x-text="expenses.length"></span>
         </h4>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             @if(!$isLocked)
             <button type="button" @click="addDefaultExpenses()"
-                    class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
+                    class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium shadow-2xs">
                 <i class="fas fa-magic mr-1.5"></i> Thêm chi phí mặc định
             </button>
             <button type="button" @click="addExpense()"
-                    class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium">
+                    class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium shadow-2xs">
                 <i class="fas fa-plus mr-1.5"></i> Thêm chi phí
             </button>
+            @if($showSaveButton)
+            <button type="submit"
+                    class="inline-flex items-center px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold shadow-xs transition-colors">
+                <i class="fas fa-save mr-1.5"></i> Lưu thay đổi chi phí
+            </button>
+            @endif
             @endif
         </div>
     </div>
@@ -217,6 +226,9 @@ function expenseManager() {
             const subtotalEl = document.getElementById('subtotal');
             if (subtotalEl) {
                 total = parseFloat(subtotalEl.value.replace(/[^0-9.]/g, '')) || 0;
+            }
+            if (!total && typeof window._saleSubtotal !== 'undefined') {
+                total = parseFloat(window._saleSubtotal) || 0;
             }
             return total;
         },

@@ -639,6 +639,30 @@ class ExportController extends Controller
             return back()->with('error', 'Chỉ có thể yêu cầu xuất kho cho phiếu nháp hoặc bị từ chối.');
         }
 
+        // Validate stock items: Sales must hold/borrow items first if selling from warehouse
+        if ($export->reference_type === 'sale' && $export->reference_id) {
+            $sale = \App\Models\Sale::with(['items', 'user', 'employee'])->find($export->reference_id);
+            if ($sale) {
+                $salespersonName = $sale->employee?->name ?? $sale->user?->name;
+                foreach ($export->items as $expItem) {
+                    $saleItem = $sale->items->firstWhere('product_id', $expItem->product_id);
+                    $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+
+                    if ($isFromStock && $salespersonName) {
+                        $heldQty = \App\Models\ProductItem::where('product_id', $expItem->product_id)
+                            ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                            ->where('borrower', $salespersonName)
+                            ->sum('quantity');
+
+                        if ($expItem->quantity > $heldQty) {
+                            $productName = $expItem->product?->name ?? "ID: {$expItem->product_id}";
+                            return back()->with('error', "Sản phẩm '{$productName}' là hàng bán có sẵn trong kho, nhưng Sales ({$salespersonName}) chỉ đang giữ/mượn {$heldQty}/{$expItem->quantity} cái. Vui lòng tạo 'Yêu cầu mượn hàng' để mượn hàng trước khi đề xuất xuất kho.");
+                        }
+                    }
+                }
+            }
+        }
+
         $export->update(['status' => 'pending_admin']);
 
         // Notify Admins

@@ -25,43 +25,67 @@
         </div>
         
         <div class="flex items-center gap-2">
-            {{-- Accountant: Import file hóa đơn / Import file mới --}}
-            @if(auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
+            @php
+                $isSalesOwner = (auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($sale->user_id ?? 0));
+                $isAdminRole = auth()->user()->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager', 'accountant']);
+            @endphp
+
+            {{-- Admin: Upload file HĐ nháp từ MISA --}}
+            @if($isAdminRole && $invoiceRequest->needs_draft)
                 @if($invoiceRequest->status === 'rejected')
-                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                        <i class="fas fa-file-import"></i> IMPORT LẠI FILE HÓA ĐƠN MỚI
+                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-sm flex items-center gap-2">
+                        <i class="fas fa-upload"></i> UPLOAD LẠI HĐ MỚI
                     </button>
                 @elseif($invoiceRequest->status === 'pending')
-                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                        <i class="fas fa-file-import"></i> IMPORT FILE HÓA ĐƠN
+                    <button onclick="openActionModal('draft')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-sm flex items-center gap-2">
+                        <i class="fas fa-upload"></i> UPLOAD HĐ NHÁP TỪ MISA
                     </button>
                 @endif
             @endif
 
             {{-- Sales: Confirm invoice OR Mark incorrect --}}
-            @if($invoiceRequest->status === 'draft_issued' && (auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])))
+            @if($invoiceRequest->status === 'draft_issued' && ($isSalesOwner || auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])))
                 <form action="{{ route('invoice-requests.confirm', $invoiceRequest->id) }}" method="POST" onsubmit="return confirm('Bạn đã kiểm tra và xác nhận file hóa đơn hoàn toàn chính xác?')">
                     @csrf
-                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-sm shadow-sm flex items-center gap-2">
-                        <i class="fas fa-check-circle"></i> XÁC NHẬN HÓA ĐƠN
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-xs shadow-sm flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> XÁC NHẬN HĐ ĐÚNG
                     </button>
                 </form>
 
-                <button onclick="openActionModal('reject')" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all font-bold text-sm flex items-center gap-2" title="Phản hồi file hóa đơn chưa chính xác">
-                    <i class="fas fa-times-circle"></i> CHƯA CHÍNH XÁC
+                <button onclick="openActionModal('reject')" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all font-bold text-xs flex items-center gap-2" title="Phản hồi file hóa đơn chưa chính xác">
+                    <i class="fas fa-times-circle"></i> BÁO CHƯA ĐÚNG
                 </button>
             @endif
 
-            @if(auth()->id() === (int)$invoiceRequest->requester_id || auth()->id() === (int)($invoiceRequest->sale->user_id ?? 0) || auth()->user()->hasAnyRole(['super_admin', 'sales_manager', 'accountant']))
-                <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-sm flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
-                    <i class="fas fa-pen-to-square"></i> SỬA NỘI DUNG HÓA ĐƠN
+            {{-- Admin: Ghi nhận đã xuất HĐ & Tạo phiếu xuất kho --}}
+            @if($isAdminRole)
+                @if(!$invoiceRequest->is_invoiced && $invoiceRequest->status !== 'official_issued')
+                    <form action="{{ route('invoice-requests.mark-invoiced', $invoiceRequest->id) }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="is_invoiced" value="1">
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-xs shadow-sm flex items-center gap-2" title="Ghi nhận kế toán đã xuất HĐ">
+                            <i class="fas fa-file-signature"></i> GHI NHẬN ĐÃ XUẤT HĐ
+                        </button>
+                    </form>
+                @endif
+
+                @if(($invoiceRequest->is_invoiced || $invoiceRequest->status === 'official_issued') && !$invoiceRequest->export_id)
+                    <button type="button" onclick="openCreateExportModal()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all font-bold text-xs shadow-sm flex items-center gap-2" title="Tạo phiếu xuất kho và gửi thông báo kho">
+                        <i class="fas fa-truck-loading"></i> TẠO YC XUẤT HÀNG
+                    </button>
+                @endif
+            @endif
+
+            @if($isSalesOwner || $isAdminRole)
+                <button onclick="openEditContentModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-bold text-xs flex items-center gap-1.5" title="Sửa nội dung xuất hóa đơn chung & từng part">
+                    <i class="fas fa-pen-to-square"></i> SỬA THÔNG TIN HĐ
                 </button>
             @endif
 
             {{-- Status Official Completed Badge --}}
-            @if($invoiceRequest->status === 'official_issued' || $invoiceRequest->status === 'sales_confirmed')
+            @if($invoiceRequest->is_invoiced || $invoiceRequest->status === 'official_issued')
                 <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5">
-                    <i class="fas fa-check-double"></i> ĐÃ XÁC NHẬN HOÀN TẤT
+                    <i class="fas fa-check-double"></i> ĐÃ XUẤT HÓA ĐƠN
                 </span>
             @endif
         </div>
@@ -256,40 +280,49 @@
                         <tbody class="divide-y divide-gray-100">
                             @php 
                                 $totalInvoiceAmount = 0; 
-                                $itemsToRender = $invoiceRequest->export ? $invoiceRequest->export->items : $sale->items;
+                                $itemsToRender = $invoiceRequest->effective_items;
                             @endphp
                             @foreach($itemsToRender as $index => $item)
                                 @php
-                                    $productId = $item->product_id;
-                                    $productCode = $item->product->code ?? $item->product_name;
+                                    $isArr = is_array($item);
+                                    $productId = $isArr ? ($item['product_id'] ?? null) : $item->product_id;
+                                    $productCode = $isArr ? ($item['product_code'] ?? ($item['product_name'] ?? '')) : ($item->product->code ?? $item->product_name);
+                                    $productName = $isArr ? ($item['product_name'] ?? '') : ($item->product->name ?? $item->product_name);
                                     
                                     // Tìm sale item tương ứng để lấy VAT và giá bán chính xác
                                     $saleItem = $sale->items->where('product_id', $productId)->first();
-                                    $qty = $item->quantity;
-                                    $price = $saleItem ? $saleItem->price : ($item->unit_price ?? 0);
-                                    $vat = $saleItem ? $saleItem->vat : 8.0;
+                                    $qty = $isArr ? ($item['quantity'] ?? 0) : $item->quantity;
+                                    $price = $isArr ? ($item['price'] ?? 0) : ($saleItem ? $saleItem->price : ($item->unit_price ?? 0));
+                                    $vat = $isArr ? ($item['vat'] ?? ($saleItem ? $saleItem->vat : 8.0)) : ($saleItem ? $saleItem->vat : 8.0);
                                     $effectiveVat = $vat < 0 ? 0 : (float)$vat;
                                     $subtotal = $qty * $price;
                                     $itemTotal = $subtotal * (1 + $effectiveVat / 100);
                                     $totalInvoiceAmount += $itemTotal;
+                                    $isService = $isArr ? !empty($item['is_service']) : ($saleItem ? $saleItem->is_service : false);
                                 @endphp
                                 <tr class="hover:bg-gray-50/50 transition-colors">
                                     <td class="px-4 py-3 text-gray-500">{{ $index + 1 }}</td>
                                     <td class="px-4 py-3 font-semibold text-gray-800">
-                                        {{ $productCode }}
+                                        <div class="flex items-center gap-1.5">
+                                            <span>{{ $productName }}</span>
+                                            @if($isService)
+                                                <span class="text-[9px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded">Dịch vụ</span>
+                                            @endif
+                                        </div>
+                                        @if($productCode)
+                                            <div class="text-xs font-mono text-indigo-600 font-normal">Mã: {{ $productCode }}</div>
+                                        @endif
                                         @php
                                             $customPartDesc = null;
                                             if (!empty($invoiceRequest->item_descriptions)) {
-                                                $sId = $saleItem ? $saleItem->id : $item->id;
+                                                $sId = $isArr ? ($item['sale_item_id'] ?? $productId) : ($saleItem ? $saleItem->id : $item->id);
                                                 $customPartDesc = $invoiceRequest->item_descriptions[$sId] ?? $invoiceRequest->item_descriptions[$productId] ?? null;
                                             }
                                         @endphp
-                                        @if($customPartDesc && $customPartDesc !== ($item->product->name ?? $saleItem->product_name ?? $item->product_name))
+                                        @if($customPartDesc && $customPartDesc !== $productName)
                                             <div class="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 mt-1 inline-block">
                                                 <i class="fas fa-file-signature text-[10px] mr-1"></i>Nội dung xuất HĐ: {{ $customPartDesc }}
                                             </div>
-                                        @else
-                                            <div class="text-xs font-normal text-gray-500 mt-0.5">{{ $item->product->name ?? $saleItem->product_name ?? $item->product_name }}</div>
                                         @endif
                                     </td>
                                     @if($sale->items->first() && array_key_exists('custom_fields', $sale->items->first()->toArray()))
@@ -707,7 +740,120 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
+@if(($invoiceRequest->is_invoiced || $invoiceRequest->status === 'official_issued') && !$invoiceRequest->export_id)
+    <!-- Modal Tạo YC Xuất hàng cho đợt #{{ $invoiceRequest->id }} -->
+    <div id="createExportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full transform transition-all overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-teal-50">
+                <h3 class="text-base font-bold text-teal-900 flex items-center gap-2">
+                    <i class="fas fa-truck-loading text-teal-600"></i> Tạo yêu cầu xuất hàng (Đợt HĐ #{{ $invoiceRequest->id }})
+                </h3>
+                <button onclick="closeCreateExportModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form action="{{ route('invoice-requests.notify-warehouse', $invoiceRequest->id) }}" method="POST" class="p-6 space-y-4 overflow-y-auto flex-1">
+                @csrf
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Kho xuất hàng <span class="text-red-500">*</span></label>
+                    <select name="warehouse_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                        @foreach($warehouses as $wh)
+                            <option value="{{ $wh->id }}">{{ $wh->name }} ({{ $wh->code }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>Danh sách hàng hóa đồng bộ từ Hóa đơn</span>
+                        <span class="text-[11px] font-normal text-teal-700 lowercase">(Bạn có thể điều chỉnh số lượng xuất kho nếu cần)</span>
+                    </label>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-gray-50 text-gray-700 font-bold border-b border-gray-200">
+                                <tr>
+                                    <th class="p-2.5">Sản phẩm / Part Number</th>
+                                    <th class="p-2.5 text-center w-28">SL trên HĐ</th>
+                                    <th class="p-2.5 text-center w-36">SL Xuất kho</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-150 bg-white">
+                                @php
+                                    $physicalItems = [];
+                                    if (!empty($invoiceRequest->requested_items) && is_array($invoiceRequest->requested_items)) {
+                                        foreach ($invoiceRequest->requested_items as $rItem) {
+                                            if (empty($rItem['is_service'])) {
+                                                $physicalItems[] = $rItem;
+                                            }
+                                        }
+                                    } else {
+                                        foreach ($sale->items as $sItem) {
+                                            if (!$sItem->is_service) {
+                                                $physicalItems[] = [
+                                                    'product_id' => $sItem->product_id,
+                                                    'product_name' => $sItem->product_name ?: ($sItem->product->name ?? ''),
+                                                    'quantity' => $sItem->quantity,
+                                                ];
+                                            }
+                                        }
+                                    }
+                                @endphp
+                                @forelse($physicalItems as $item)
+                                    @php
+                                        $pId = $item['product_id'] ?? 0;
+                                        $pName = $item['product_name'] ?? 'Sản phẩm';
+                                        $pQty = (int)($item['quantity'] ?? 1);
+                                    @endphp
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="p-2.5">
+                                            <div class="font-bold text-gray-900">{{ $pName }}</div>
+                                        </td>
+                                        <td class="p-2.5 text-center font-bold text-indigo-700">
+                                            {{ $pQty }}
+                                        </td>
+                                        <td class="p-2.5 text-center">
+                                            <input type="number" name="items[{{ $pId }}][quantity]" value="{{ $pQty }}" min="0" required
+                                                   class="w-24 border border-gray-300 rounded px-2 py-1 text-center text-sm font-bold text-teal-800 focus:ring-2 focus:ring-teal-500 outline-none">
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="p-4 text-center text-gray-500 italic">
+                                            Đợt này không có sản phẩm vật lý nào cần xuất kho (toàn bộ là hàng dịch vụ).
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ghi chú gửi bộ phận Kho</label>
+                    <textarea name="note" rows="2" placeholder="Ghi chú thêm về quy cách đóng gói, địa điểm hoặc lưu ý giao hàng..."
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none">Xuất kho theo yêu cầu hóa đơn #{{ $invoiceRequest->id }} của đơn hàng {{ $sale->code }}</textarea>
+                </div>
+
+                <div class="flex gap-3 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeCreateExportModal()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 text-xs">HỦY</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 text-xs shadow-md">
+                        <i class="fas fa-check-circle mr-1"></i> XÁC NHẬN TẠO PHIẾU XUẤT
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+@endif
+
 <script>
+function openCreateExportModal() {
+    const modal = document.getElementById('createExportModal');
+    if (modal) modal.classList.remove('hidden');
+}
+function closeCreateExportModal() {
+    const modal = document.getElementById('createExportModal');
+    if (modal) modal.classList.add('hidden');
+}
 function openEditContentModal() {
     document.getElementById('editContentModal').classList.remove('hidden');
 }
@@ -720,6 +866,7 @@ window.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeActionModal();
         closeEditContentModal();
+        closeCreateExportModal();
     }
 });
 </script>

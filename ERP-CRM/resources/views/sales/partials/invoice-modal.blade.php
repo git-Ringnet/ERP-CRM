@@ -43,6 +43,20 @@
                             placeholder="Chi tiết sản phẩm, nội dung đặc biệt khi xuất hóa đơn..."
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">Danh sách thiết bị theo đơn hàng {{ $sale->code }}</textarea>
                     </div>
+
+                    <div class="p-3 bg-amber-50/90 border border-amber-200 rounded-lg">
+                        <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                            <input type="checkbox" name="needs_draft" value="1" class="mt-0.5 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer">
+                            <div>
+                                <span class="text-xs font-bold text-amber-900 block">
+                                    <i class="fas fa-file-alt mr-1 text-amber-600"></i> Cần nhận Hóa đơn nháp (Draft Invoice)
+                                </span>
+                                <span class="text-[11px] text-amber-700 block mt-0.5">
+                                    Tick chọn nếu Sales cần nhận file nháp để kiểm tra/gửi khách trước. Nếu không tick, Sales chỉ nhập thông tin xuất HĐ và Admin sẽ báo Kế toán xuất thẳng HĐ chính thức.
+                                </span>
+                            </div>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Cột phải: Thông tin giao hàng & Bên mua -->
@@ -106,19 +120,33 @@
                 </div>
             </div>
 
-            <!-- Nội dung xuất HĐ chi tiết từng sản phẩm / Part (STT 7) -->
+            <!-- Nội dung xuất HĐ chi tiết từng sản phẩm / Part & Số lượng xuất đợt này -->
             <div class="mt-6 pt-4 border-t border-gray-100">
-                <label class="block text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <i class="fas fa-edit"></i> Nội dung xuất hóa đơn theo từng sản phẩm / Part (Tùy chỉnh nếu cần)
-                </label>
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                    <label class="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fas fa-boxes-stacked"></i> Danh sách mặt hàng & Số lượng xuất hóa đơn đợt này
+                    </label>
+                    <div class="flex items-center gap-2 text-[11px]">
+                        <button type="button" onclick="setInvoiceAllRemaining()" class="px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded font-semibold">
+                            <i class="fas fa-check-double mr-1"></i> Xuất hết số lượng còn lại
+                        </button>
+                        <button type="button" onclick="clearInvoiceQuantities()" class="px-2 py-0.5 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 rounded">
+                            <i class="fas fa-eraser mr-1"></i> Xóa số lượng
+                        </button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto border border-gray-200 rounded-lg">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead class="bg-gray-50 text-gray-600 font-bold uppercase">
                             <tr>
-                                <th class="p-2.5 w-12 text-center">STT</th>
+                                <th class="p-2.5 w-10 text-center">STT</th>
                                 <th class="p-2.5">Sản phẩm / Part Number</th>
-                                <th class="p-2.5 w-24 text-right">Số lượng</th>
-                                <th class="p-2.5">Nội dung xuất HĐ tùy chỉnh (cho Part này)</th>
+                                <th class="p-2.5 w-20 text-center">Loại</th>
+                                <th class="p-2.5 w-16 text-right">Tổng SL</th>
+                                <th class="p-2.5 w-20 text-right">Đã xuất</th>
+                                <th class="p-2.5 w-20 text-right text-indigo-700">Còn lại</th>
+                                <th class="p-2.5 w-28 text-right bg-indigo-50/50">SL xuất lần này</th>
+                                <th class="p-2.5">Nội dung xuất HĐ tùy chỉnh</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">
@@ -126,14 +154,41 @@
                                 @php
                                     $pCode = $item->product->code ?? $item->product_name;
                                     $pName = $item->product->name ?? $item->product_name;
+                                    $invoicedQty = $item->invoiced_quantity;
+                                    $remainingQty = $item->remaining_invoicable_quantity;
+                                    $isFullyInvoiced = ($invoicedQty >= $item->quantity && $sale->invoiceRequests->isNotEmpty());
+                                    $defaultQty = $isFullyInvoiced ? 0 : ($remainingQty > 0 ? $remainingQty : $item->quantity);
                                 @endphp
-                                <tr>
+                                <tr class="hover:bg-gray-50/70 transition-colors {{ $isFullyInvoiced ? 'opacity-60 bg-gray-50/30' : '' }}">
                                     <td class="p-2.5 text-center font-bold text-gray-500">{{ $idx + 1 }}</td>
                                     <td class="p-2.5">
                                         <div class="font-bold text-gray-800">{{ $pName }}</div>
                                         <div class="text-[11px] text-indigo-600 font-mono">PN: {{ $pCode }}</div>
+                                        @if($item->is_from_stock)
+                                            <span class="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">Hàng sẵn kho</span>
+                                        @endif
                                     </td>
-                                    <td class="p-2.5 text-right font-bold text-gray-800">{{ $item->quantity }}</td>
+                                    <td class="p-2.5 text-center">
+                                        @if($item->is_service)
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Dịch vụ</span>
+                                        @else
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Hàng hóa</span>
+                                        @endif
+                                    </td>
+                                    <td class="p-2.5 text-right font-bold text-gray-700">{{ $item->quantity }}</td>
+                                    <td class="p-2.5 text-right font-semibold {{ $invoicedQty > 0 ? 'text-emerald-600' : 'text-gray-400' }}">
+                                        {{ $invoicedQty }}
+                                    </td>
+                                    <td class="p-2.5 text-right font-bold {{ $remainingQty > 0 ? 'text-indigo-700' : 'text-gray-400' }}">
+                                        {{ $remainingQty }}
+                                    </td>
+                                    <td class="p-2.5 bg-indigo-50/30">
+                                        <input type="number" step="any" min="0" max="{{ $remainingQty > 0 ? $remainingQty : $item->quantity }}" 
+                                               name="items[{{ $item->id }}][quantity]" 
+                                               value="{{ $defaultQty }}" 
+                                               data-remaining="{{ $remainingQty > 0 ? $remainingQty : $item->quantity }}"
+                                               class="inv-item-qty-input w-full border border-indigo-200 rounded px-2 py-1.5 text-xs text-right font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    </td>
                                     <td class="p-2.5">
                                         <input type="text" name="item_descriptions[{{ $item->id }}]" 
                                             value="{{ $item->product_name ?: $pName }}" 
@@ -145,6 +200,9 @@
                         </tbody>
                     </table>
                 </div>
+                <p class="text-[11px] text-gray-500 mt-1.5 italic">
+                    <i class="fas fa-info-circle mr-1 text-indigo-500"></i> Bạn có thể xuất trước một phần số lượng (Partial Invoice) và tiếp tục tạo yêu cầu cho số lượng còn lại ở các lần sau. Đối với hàng dịch vụ, hệ thống không tính tồn kho khi xuất.
+                </p>
             </div>
 
             <!-- Dòng dưới cùng: Điều khoản thanh toán & Ghi chú thêm -->
@@ -486,6 +544,19 @@
 
     function closeEditInvoiceContentModal() {
         document.getElementById('editInvoiceContentModal').classList.add('hidden');
+    }
+
+    function setInvoiceAllRemaining() {
+        document.querySelectorAll('.inv-item-qty-input').forEach(input => {
+            const rem = parseFloat(input.dataset.remaining) || 0;
+            input.value = rem;
+        });
+    }
+
+    function clearInvoiceQuantities() {
+        document.querySelectorAll('.inv-item-qty-input').forEach(input => {
+            input.value = 0;
+        });
     }
 
     function openInvoiceRequestModal() {

@@ -54,6 +54,7 @@ class SaleItem extends Model
         'custom_fields',
         'supplier_id',
         'is_service',
+        'is_from_stock',
     ];
 
     protected $casts = [
@@ -63,6 +64,7 @@ class SaleItem extends Model
         'vat_amount' => 'decimal:2',
         'cost_price' => 'decimal:2',
         'total' => 'decimal:2',
+        'is_from_stock' => 'boolean',
         'cost_total' => 'decimal:2',
         'warranty_months' => 'integer',
         'warranty_start_date' => 'date',
@@ -360,4 +362,83 @@ class SaleItem extends Model
             return true;
         }
     }
+
+    /**
+     * Calculate quantity already invoiced across active invoice requests
+     */
+    public function getInvoicedQuantityAttribute(): float
+    {
+        $total = 0;
+        $invoiceRequests = $this->sale ? $this->sale->invoiceRequests : collect();
+        
+        foreach ($invoiceRequests as $req) {
+            if ($req->status === 'rejected') continue;
+            
+            if (!empty($req->requested_items) && is_array($req->requested_items)) {
+                foreach ($req->requested_items as $rItem) {
+                    $match = false;
+                    if (isset($rItem['sale_item_id']) && $rItem['sale_item_id'] == $this->id) {
+                        $match = true;
+                    } elseif (isset($rItem['product_id']) && $this->product_id && $rItem['product_id'] == $this->product_id) {
+                        $match = true;
+                    } elseif (isset($rItem['product_name']) && $rItem['product_name'] == $this->product_name) {
+                        $match = true;
+                    }
+                    if ($match) {
+                        $total += (float)($rItem['quantity'] ?? 0);
+                    }
+                }
+            } else {
+                // If requested_items is null, means whole sale was requested in single invoice
+                $total += (float)$this->quantity;
+            }
+        }
+
+        return min($this->quantity, $total);
+    }
+
+    /**
+     * Calculate remaining quantity that can be requested for invoicing
+     */
+    public function getRemainingInvoicableQuantityAttribute(): float
+    {
+        $rem = (float)$this->quantity - $this->invoiced_quantity;
+        return max(0, $rem);
+    }
+
+    /**
+     * Calculate quantity already exported from warehouse
+     */
+    public function getExportedQuantityAttribute(): float
+    {
+        if ($this->is_service) {
+            return 0;
+        }
+
+        return (float) \App\Models\ExportItem::whereHas('export', function ($q) {
+            $q->where('reference_type', 'sale')
+              ->where('reference_id', $this->sale_id)
+              ->where('status', '!=', 'cancelled');
+        })->where(function($q) {
+            if ($this->product_id) {
+                $q->where('product_id', $this->product_id);
+            } else {
+                $q->where('product_name', $this->product_name);
+            }
+        })->sum('quantity');
+    }
+
+    /**
+     * Calculate remaining quantity that needs warehouse export (0 for services)
+     */
+    public function getRemainingExportableQuantityAttribute(): float
+    {
+        if ($this->is_service) {
+            return 0; // Services do not require physical stock deduction
+        }
+
+        $rem = (float)$this->quantity - $this->exported_quantity;
+        return max(0, $rem);
+    }
 }
+

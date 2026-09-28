@@ -343,13 +343,21 @@ class SaleExportSyncService
                     }
                 }
 
-                // Priority 3: Real serial items in stock
-                if (count($allocatedIds) < $neededQty) {
+                $isFromStock = $saleItem ? ($saleItem->is_from_stock || (!$sale->isProjectOrder() && $sale->type === 'retail')) : false;
+
+                // Priority 3: Real serial items in stock (only for non-stock items or imported goods)
+                if (!$isFromStock && count($allocatedIds) < $neededQty) {
                     $remaining = $neededQty - count($allocatedIds);
                     $realSerialItems = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
                         ->hasSerial()
                         ->whereNotIn('id', $allocatedIds)
+                        ->where(function ($q) use ($salespersonName) {
+                            $q->whereNull('borrower')->orWhere('borrower', '');
+                            if ($salespersonName) {
+                                $q->orWhere('borrower', $salespersonName);
+                            }
+                        })
                         ->when($warehouseId, function ($q) use ($warehouseId) {
                             $q->orderByRaw("warehouse_id = {$warehouseId} DESC");
                         })
@@ -360,12 +368,18 @@ class SaleExportSyncService
                     $allocatedIds = array_merge($allocatedIds, $realSerialItems);
                 }
 
-                // Priority 4: Fallback to any in-stock items (including NOSERIAL)
-                if (count($allocatedIds) < $neededQty) {
+                // Priority 4: Fallback to any in-stock items (only for non-stock items or imported goods)
+                if (!$isFromStock && count($allocatedIds) < $neededQty) {
                     $remaining = $neededQty - count($allocatedIds);
                     $otherItems = \App\Models\ProductItem::where('product_id', $productId)
                         ->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
                         ->whereNotIn('id', $allocatedIds)
+                        ->where(function ($q) use ($salespersonName) {
+                            $q->whereNull('borrower')->orWhere('borrower', '');
+                            if ($salespersonName) {
+                                $q->orWhere('borrower', $salespersonName);
+                            }
+                        })
                         ->when($warehouseId, function ($q) use ($warehouseId) {
                             $q->orderByRaw("warehouse_id = {$warehouseId} DESC");
                         })

@@ -119,6 +119,42 @@ class User extends Authenticatable
     }
 
     /**
+     * Các nhóm mà người dùng này là thành viên
+     */
+    public function userGroups(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\UserGroup::class, 'user_group_members', 'user_id', 'user_group_id')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
+     * Các nhóm mà người dùng này là Team Lead
+     */
+    public function leadingGroups(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\UserGroup::class, 'leader_id');
+    }
+
+    /**
+     * Lấy danh sách ID các thành viên thuộc các nhóm mà User này đang làm Lead
+     */
+    public function getLeadGroupMemberIds(): array
+    {
+        $groupIds = $this->leadingGroups()->pluck('id')->toArray();
+        if (empty($groupIds)) {
+            return [$this->id];
+        }
+
+        $memberIds = \Illuminate\Support\Facades\DB::table('user_group_members')
+            ->whereIn('user_group_id', $groupIds)
+            ->pluck('user_id')
+            ->toArray();
+
+        return array_unique(array_merge([$this->id], $memberIds));
+    }
+
+    /**
      * Check if user is allowed to view sales commercial prices (selling price, quotation totals, margins).
      * Project Registration / PM / PO team members cannot view sales prices unless they are Admin, BOD, or Sales.
      */

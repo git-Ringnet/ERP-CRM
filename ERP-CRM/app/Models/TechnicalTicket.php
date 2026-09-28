@@ -33,6 +33,8 @@ class TechnicalTicket extends Model
         'resolved_at',
         'sales_owner_id',
         'team_lead_id',
+        'user_group_id',
+        'co_lead_ids',
         'department',
         'project_name',
         'solution',
@@ -51,6 +53,8 @@ class TechnicalTicket extends Model
         'created_by' => 'integer',
         'sales_owner_id' => 'integer',
         'team_lead_id' => 'integer',
+        'user_group_id' => 'integer',
+        'co_lead_ids' => 'array',
         'ticket_details' => 'array',
     ];
 
@@ -103,6 +107,28 @@ class TechnicalTicket extends Model
         return $this->belongsTo(User::class, 'team_lead_id');
     }
 
+    public function userGroup(): BelongsTo
+    {
+        return $this->belongsTo(UserGroup::class, 'user_group_id');
+    }
+
+    /**
+     * Get all lead user IDs (primary lead + co-leads)
+     */
+    public function getAllLeadIds(): array
+    {
+        $leads = [];
+        if ($this->team_lead_id) {
+            $leads[] = (int)$this->team_lead_id;
+        }
+        if (!empty($this->co_lead_ids) && is_array($this->co_lead_ids)) {
+            foreach ($this->co_lead_ids as $id) {
+                $leads[] = (int)$id;
+            }
+        }
+        return array_unique(array_filter($leads));
+    }
+
     public function supportLogs(): HasMany
     {
         return $this->hasMany(TechnicalSupportLog::class, 'technical_ticket_id');
@@ -120,7 +146,176 @@ class TechnicalTicket extends Model
 
     public function assignedEngineers()
     {
-        return $this->belongsToMany(User::class, 'technical_ticket_engineers', 'technical_ticket_id', 'user_id')->withTimestamps();
+        return $this->belongsToMany(User::class, 'technical_ticket_engineers', 'technical_ticket_id', 'user_id')
+            ->withPivot('is_active', 'handed_over_at', 'handed_over_by', 'handover_note')
+            ->withTimestamps();
+    }
+
+    public function activeEngineers()
+    {
+        return $this->belongsToMany(User::class, 'technical_ticket_engineers', 'technical_ticket_id', 'user_id')
+            ->wherePivot('is_active', true)
+            ->withPivot('is_active', 'handed_over_at', 'handed_over_by', 'handover_note')
+            ->withTimestamps();
+    }
+
+    public function formerEngineers()
+    {
+        return $this->belongsToMany(User::class, 'technical_ticket_engineers', 'technical_ticket_id', 'user_id')
+            ->wherePivot('is_active', false)
+            ->withPivot('is_active', 'handed_over_at', 'handed_over_by', 'handover_note')
+            ->withTimestamps();
+    }
+
+    /**
+     * Check if ticket has at least one active assigned engineer who is NOT a Lead of this ticket.
+     * If true, ticket is public/visible to all technical staff.
+     */
+    public function hasNonLeadAssignedEngineer(): bool
+    {
+        $leadIds = $this->getAllLeadIds();
+        $activeEngIds = $this->activeEngineers->pluck('id')->toArray();
+        if (empty($activeEngIds) && $this->assigned_to) {
+            $activeEngIds = [(int)$this->assigned_to];
+        }
+        
+        $nonLeadEngineers = array_diff($activeEngIds, $leadIds);
+        return !empty($nonLeadEngineers);
+    }
+
+    /**
+     * Check if a given user can view this ticket.
+     */
+    public function canUserView(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'director', 'sales_manager'])) {
+            return true;
+        }
+
+        $userId = (int)$user->id;
+        $leadIds = $this->getAllLeadIds();
+
+        // Creator, Sales Owner, Lead, Co-Leads
+        if ($this->created_by == $userId || $this->sales_owner_id == $userId || in_array($userId, $leadIds)) {
+            return true;
+        }
+
+        // Active assignees
+        $activeEngIds = $this->activeEngineers->pluck('id')->toArray();
+        if (empty($activeEngIds) && $this->assigned_to) {
+            $activeEngIds = [(int)$this->assigned_to];
+        }
+        if (in_array($userId, $activeEngIds)) {
+            return true;
+        }
+
+        // Former assignees (handed over)
+        $formerEngIds = $this->formerEngineers->pluck('id')->toArray();
+        if (in_array($userId, $formerEngIds)) {
+            return true;
+        }
+
+        // If assigned to non-lead engineer, visible to all technical staff
+        if ($user->hasAnyRole(['technical_engineer', 'technical_lead'])) {
+            if ($this->hasNonLeadAssignedEngineer()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a given user can comment/discuss on this ticket.
+     */
+    public function canUserComment(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'director', 'sales_manager'])) {
+            return true;
+        }
+
+        $userId = (int)$user->id;
+        $leadIds = $this->getAllLeadIds();
+
+        if ($this->created_by == $userId || $this->sales_owner_id == $userId || in_array($userId, $leadIds)) {
+            return true;
+        }
+
+        $activeEngIds = $this->activeEngineers->pluck('id')->toArray();
+        if (empty($activeEngIds) && $this->assigned_to) {
+            $activeEngIds = [(int)$this->assigned_to];
+        }
+        if (in_array($userId, $activeEngIds)) {
+            return true;
+        }
+
+        // Handed over assignees can still comment and view
+        $formerEngIds = $this->formerEngineers->pluck('id')->toArray();
+        if (in_array($userId, $formerEngIds)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user can update progress, technical solution, or create support logs.
+     */
+    public function canUserUpdateProgress(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'director'])) {
+            return true;
+        }
+
+        $userId = (int)$user->id;
+        $leadIds = $this->getAllLeadIds();
+
+        // Leads can update progress
+        if (in_array($userId, $leadIds)) {
+            return true;
+        }
+
+        // Only active assignees can update progress (former assignees CANNOT)
+        $activeEngIds = $this->activeEngineers->pluck('id')->toArray();
+        if (empty($activeEngIds) && $this->assigned_to) {
+            $activeEngIds = [(int)$this->assigned_to];
+        }
+        if (in_array($userId, $activeEngIds)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user can upload attachments.
+     */
+    public function canUserAttachFile(?User $user = null): bool
+    {
+        return $this->canUserComment($user);
+    }
+
+    /**
+     * Check if user can handover the ticket.
+     */
+    public function canUserHandover(?User $user = null): bool
+    {
+        return $this->canUserUpdateProgress($user);
     }
 
     // ===================================================================

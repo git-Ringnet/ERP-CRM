@@ -11,6 +11,7 @@ use App\Models\Opportunity;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\UserGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Gate;
@@ -38,50 +39,29 @@ class TechnicalTicketController extends Controller
             ->where('resolved_at', '<=', Carbon::now()->subDays(3))
             ->update(['status' => 'closed']);
 
-        $query = TechnicalTicket::with(['customer', 'project', 'assignedTo', 'creator', 'assignedEngineers'])
+        $query = TechnicalTicket::with(['customer', 'project', 'assignedTo', 'creator', 'assignedEngineers', 'activeEngineers', 'formerEngineers'])
             ->withCount(['comments', 'supportLogs', 'attachments']);
 
-        $currentUserId = auth()->id();
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+        $currentUser = auth()->user();
+        $currentUserId = $currentUser->id;
+        $isManagerOrAdmin = $currentUser->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+        $isTechStaff = $currentUser->hasAnyRole(['technical_engineer', 'technical_lead']);
 
-        if (!$isManagerOrAdmin && !$isTechLeadRole) {
-            $userRoleIds = auth()->user()->roles->pluck('id')->toArray();
-            $userRoleSlugs = auth()->user()->roles->pluck('slug')->toArray();
-            
-            // Find which work types the current user is allowed to view/pickup when unassigned
-            $allowedUnassignedTypes = [];
-            $allPerms = TechnicalTicket::getWorkTypePermissions();
-            foreach ($allPerms as $wKey => $wConfig) {
-                $scope = is_array($wConfig) ? ($wConfig['scope'] ?? 'leader') : $wConfig;
-                $customRoles = is_array($wConfig) ? ($wConfig['roles'] ?? []) : [];
-                
-                if ($scope === 'everyone') {
-                    $allowedUnassignedTypes[] = $wKey;
-                } elseif (($scope === 'all' || $scope === 'tech_all') && auth()->user()->hasAnyRole(['technical_engineer', 'technical_lead'])) {
-                    $allowedUnassignedTypes[] = $wKey;
-                } elseif ($scope === 'custom' && !empty($customRoles)) {
-                    $matched = !empty(array_intersect($userRoleIds, (array)$customRoles)) || !empty(array_intersect($userRoleSlugs, (array)$customRoles));
-                    if ($matched) {
-                        $allowedUnassignedTypes[] = $wKey;
-                    }
-                }
-            }
-
-            // Non-leads can only see tickets they are associated with, OR unassigned permitted types
-            $query->where(function ($q) use ($currentUserId, $allowedUnassignedTypes) {
+        if (!$isManagerOrAdmin) {
+            $query->where(function ($q) use ($currentUserId, $isTechStaff) {
                 $q->where('created_by', $currentUserId)
                   ->orWhere('sales_owner_id', $currentUserId)
-                  ->orWhere('assigned_to', $currentUserId)
                   ->orWhere('team_lead_id', $currentUserId)
+                  ->orWhereJsonContains('co_lead_ids', (int)$currentUserId)
+                  ->orWhereJsonContains('co_lead_ids', (string)$currentUserId)
                   ->orWhereHas('assignedEngineers', function ($sq) use ($currentUserId) {
                       $sq->where('users.id', $currentUserId);
                   });
                 
-                if (!empty($allowedUnassignedTypes)) {
-                    $q->orWhere(function ($sub) use ($allowedUnassignedTypes) {
-                        $sub->whereIn('work_type', $allowedUnassignedTypes)
-                            ->whereDoesntHave('assignedEngineers');
+                // If technical staff: can view tickets assigned to any non-lead engineer
+                if ($isTechStaff) {
+                    $q->orWhereHas('activeEngineers', function ($sq) {
+                        $sq->whereRaw('users.id != technical_tickets.team_lead_id');
                     });
                 }
             });
@@ -195,19 +175,104 @@ class TechnicalTicketController extends Controller
         $sales = Sale::orderBy('code')->get();
         $suppliers = Supplier::orderBy('name')->get(); // Vendors
         $engineers = User::where('status', 'active')
-            ->whereHas('roles', function($q) {
-                $q->whereIn('slug', ['technical_lead', 'technical_engineer']);
+            ->where(function($q) {
+                $q->whereHas('roles', function($rq) {
+                    $rq->whereIn('slug', ['technical_lead', 'technical_engineer']);
+                })->orWhereHas('userGroups');
             })
+            ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
             ->orderBy('name')
             ->get();
+        if ($engineers->isEmpty()) {
+            $engineers = User::where('status', 'active')->with(['userGroups:id,name,code', 'roles:id,name,slug'])->orderBy('name')->get();
+        }
         $users = User::where('status', 'active')->orderBy('name')->get();
         
+        $userGroups = UserGroup::where('status', 'active')->with(['leader', 'members'])->orderBy('name')->get();
+        $leads = $this->getTechnicalLeads();
+
         $departments = User::whereNotNull('department')
             ->where('department', '!=', '')
             ->distinct()
             ->pluck('department');
 
-        return view('technical.tickets.create', compact('customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'departments', 'selectedProjectId'));
+        $currentUser = auth()->user();
+        $isTechnicalLead = $currentUser->hasAnyRole(['super_admin', 'director', 'admin', 'technical_lead'])
+            || UserGroup::where('leader_id', $currentUser->id)->exists();
+
+        return view('technical.tickets.create', compact('customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'userGroups', 'leads', 'departments', 'selectedProjectId', 'isTechnicalLead'));
+    }
+
+    /**
+     * Check duplicate / existing tickets for a project or project name.
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $projectId = $request->input('project_id');
+        $projectName = trim((string) $request->input('project_name'));
+        $excludeId = $request->input('exclude_id');
+
+        if (!$projectId && mb_strlen($projectName) < 2) {
+            return response()->json([
+                'has_duplicate' => false,
+                'has_active' => false,
+                'count' => 0,
+                'duplicates' => []
+            ]);
+        }
+
+        $query = TechnicalTicket::with(['creator', 'assignedEngineers', 'customer', 'project']);
+
+        if ($projectId) {
+            $query->where(function ($q) use ($projectId, $projectName) {
+                $q->where('project_id', $projectId);
+                if (mb_strlen($projectName) >= 3) {
+                    $q->orWhere('project_name', 'like', "%{$projectName}%")
+                      ->orWhere('title', 'like', "%{$projectName}%");
+                }
+            });
+        } else {
+            $query->where(function ($q) use ($projectName) {
+                $q->where('project_name', 'like', "%{$projectName}%")
+                  ->orWhere('title', 'like', "%{$projectName}%");
+            });
+        }
+
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        $tickets = $query->latest()->limit(10)->get();
+
+        $duplicates = $tickets->map(function ($ticket) {
+            $engineers = $ticket->assignedEngineers->pluck('name')->join(', ');
+            return [
+                'id' => $ticket->id,
+                'code' => $ticket->code,
+                'title' => $ticket->title,
+                'work_type' => $ticket->work_type,
+                'work_type_label' => $ticket->work_type_label,
+                'status' => $ticket->status,
+                'status_label' => $ticket->status_label,
+                'status_color' => $ticket->status_color,
+                'is_active_status' => in_array($ticket->status, ['open', 'assigned', 'pending', 'escalate']),
+                'creator_name' => $ticket->creator ? $ticket->creator->name : '-',
+                'engineers' => $engineers ?: 'Chưa phân công',
+                'created_at' => $ticket->created_at ? $ticket->created_at->format('d/m/Y H:i') : '-',
+                'created_at_humans' => $ticket->created_at ? $ticket->created_at->diffForHumans() : '-',
+                'show_url' => route('technical-tickets.show', $ticket->id)
+            ];
+        });
+
+        $activeCount = $duplicates->where('is_active_status', true)->count();
+
+        return response()->json([
+            'has_duplicate' => $duplicates->isNotEmpty(),
+            'has_active' => $activeCount > 0,
+            'count' => $duplicates->count(),
+            'active_count' => $activeCount,
+            'duplicates' => $duplicates->values()
+        ]);
     }
 
     public function store(Request $request)
@@ -216,15 +281,34 @@ class TechnicalTicketController extends Controller
             abort(403, 'Bạn không có quyền tạo ticket kỹ thuật.');
         }
 
+        $currentUser = auth()->user();
+        $isManagerOrAdmin = $currentUser->hasAnyRole(['super_admin', 'director', 'admin', 'sales_manager']);
+        $isTechLeadRole = $currentUser->hasRole('technical_lead');
+        $isGroupLead = UserGroup::where('leader_id', $currentUser->id)->exists();
+        $isTechnicalLead = $isTechLeadRole || $isManagerOrAdmin || $isGroupLead;
+
+        // If creator is not technical lead, do not allow setting assigned_to or co_lead_ids
+        if (!$isTechnicalLead) {
+            $request->merge([
+                'assigned_to' => [],
+                'co_lead_ids' => []
+            ]);
+        }
+
         // Normalize assigned_to to array if single value
         if ($request->has('assigned_to') && !is_array($request->assigned_to)) {
             $request->merge(['assigned_to' => array_filter([$request->assigned_to])]);
+        }
+
+        if ($request->has('co_lead_ids') && !is_array($request->co_lead_ids)) {
+            $request->merge(['co_lead_ids' => array_filter([$request->co_lead_ids])]);
         }
 
         $request->validate([
             'title' => 'required|string|max:255',
             'work_type' => 'required|string',
             'priority' => 'required|string|in:high,medium',
+            'team_lead_id' => 'required|exists:users,id',
             'customer_id' => 'nullable|exists:customers,id',
             'project_id' => 'nullable|exists:projects,id',
             'opportunity_id' => 'nullable|exists:opportunities,id',
@@ -235,12 +319,17 @@ class TechnicalTicketController extends Controller
             'sla_deadline' => 'nullable|date',
             'description' => 'nullable|string',
             'sales_owner_id' => 'nullable|exists:users,id',
-            'team_lead_id' => 'nullable|exists:users,id',
+            'user_group_id' => 'nullable|exists:user_groups,id',
+            'co_lead_ids' => 'nullable|array',
+            'co_lead_ids.*' => 'exists:users,id',
             'department' => 'nullable|string|max:255',
             'project_name' => 'nullable|string|max:255',
             'solution' => 'nullable|string',
             'ticket_details' => 'nullable|array',
             'attachments.*' => 'nullable|file|max:20480', // 20MB max per file
+        ], [
+            'team_lead_id.required' => 'Vui lòng chọn Trưởng nhóm (Lead chính) phụ trách quản lý ticket này.',
+            'team_lead_id.exists' => 'Trưởng nhóm được chọn không hợp lệ.',
         ]);
 
         $data = $request->all();
@@ -255,9 +344,7 @@ class TechnicalTicketController extends Controller
 
         // Constraint 2: Self-Pickup & Assignment limits on creation
         $currentUserId = auth()->id();
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
-        $isTeamLead = $isTechLeadRole || $isManagerOrAdmin;
+        $isTeamLead = $isTechnicalLead;
 
         if (!$isTeamLead && !empty($assignedIds)) {
             if (count($assignedIds) > 1 || $assignedIds[0] != $currentUserId) {
@@ -320,18 +407,6 @@ class TechnicalTicketController extends Controller
                     $data['sales_owner_id'] = $project->manager_id;
                 }
             }
-
-            // Default ticket created for/from a project is assigned to Technical Lead
-            if (empty($assignedIds)) {
-                $techLead = $this->resolveTechnicalLead();
-                if ($techLead) {
-                    $assignedIds = [$techLead->id];
-                    $data['assigned_to'] = $techLead->id;
-                    if (!isset($data['status']) || $data['status'] === 'open') {
-                        $data['status'] = 'assigned';
-                    }
-                }
-            }
         }
         if (empty($data['customer_id']) && !empty($data['opportunity_id'])) {
             $opportunity = \App\Models\Opportunity::find($data['opportunity_id']);
@@ -350,6 +425,20 @@ class TechnicalTicketController extends Controller
 
         if (!empty($assignedIds)) {
             $ticket->assignedEngineers()->sync($assignedIds);
+        }
+
+        // Notify designated primary team lead
+        if (!empty($ticket->team_lead_id) && $ticket->team_lead_id != Auth::id()) {
+            \App\Models\Notification::create([
+                'user_id' => $ticket->team_lead_id,
+                'type' => 'technical_ticket',
+                'title' => 'Bạn được chỉ định phụ trách Ticket Kỹ thuật mới',
+                'message' => "Bạn là Lead chính phụ trách ticket: {$ticket->code} - {$ticket->title}. Vui lòng kiểm tra và phân công kỹ sư xử lý.",
+                'link' => route('technical-tickets.show', $ticket->id),
+                'icon' => 'user-tie',
+                'color' => 'purple',
+                'is_read' => false,
+            ]);
         }
 
         // Send notifications
@@ -427,7 +516,7 @@ class TechnicalTicketController extends Controller
             }
         }
 
-        // Handle file uploads if present
+        // Handle file uploads if present (Initial attachments created with ticket)
         if ($request->hasFile('attachments')) {
             foreach ($request->file('attachments') as $file) {
                 if ($file->isValid()) {
@@ -444,6 +533,7 @@ class TechnicalTicketController extends Controller
                         'file_size' => $file->getSize(),
                         'document_type' => 'Khác',
                         'uploaded_by' => Auth::id(),
+                        'is_initial' => true,
                     ]);
                 }
             }
@@ -491,46 +581,35 @@ class TechnicalTicketController extends Controller
     {
         $ticket = TechnicalTicket::with([
             'customer', 'project', 'opportunity', 'sale', 'supplier', 
-            'assignedTo', 'creator', 'supportLogs.user', 'attachments.uploader', 'assignedEngineers'
+            'assignedTo', 'creator', 'teamLead', 'supportLogs.user', 'attachments.uploader', 
+            'assignedEngineers', 'activeEngineers', 'formerEngineers'
         ])->findOrFail($id);
 
-        $currentUserId = auth()->id();
-        $isRequester = ($ticket->created_by === $currentUserId);
-
-        // A user who can create a ticket must be able to open the ticket they
-        // just created, even when their role is not allowed to browse all tickets.
-        if (!Gate::allows('view_technical_tickets') && !$isRequester) {
-            abort(403, 'Bạn không có quyền xem ticket kỹ thuật.');
+        if (!$ticket->canUserView(auth()->user())) {
+            abort(403, 'Bạn không có quyền xem ticket kỹ thuật này.');
         }
 
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-        $isTechLeadRole = auth()->user()->hasRole('technical_lead');
-        $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
-        $isTeamLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole;
-        $isSalesOwner = ($ticket->sales_owner_id === $currentUserId);
-        $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
-
-        if (!$isTeamLead) {
-            // Check if the user is associated with the ticket
-            $isAssociated = $isRequester || $isSalesOwner || $isAssignedEngineer || ($ticket->team_lead_id === $currentUserId);
-            
-            if (!$isAssociated) {
-                // If not associated, check if user is allowed to view/pickup this unassigned ticket
-                $canViewUnassigned = $ticket->canUserPickup(auth()->user())
-                    && !$ticket->assignedEngineers()->exists();
-
-                if (!$canViewUnassigned) {
-                    abort(403, 'Bạn không có quyền truy cập ticket kỹ thuật này.');
-                }
-            }
-        }
+        $canComment = $ticket->canUserComment(auth()->user());
+        $canUpdateProgress = $ticket->canUserUpdateProgress(auth()->user());
+        $canAttachFile = $ticket->canUserAttachFile(auth()->user());
+        $canHandover = $ticket->canUserHandover(auth()->user());
+        $isReadOnly = !$canComment && !$canUpdateProgress;
 
         $engineers = User::where('status', 'active')
-            ->whereHas('roles', function($q) {
-                $q->whereIn('slug', ['technical_lead', 'technical_engineer']);
+            ->where(function($q) {
+                $q->whereHas('roles', function($rq) {
+                    $rq->whereIn('slug', ['technical_lead', 'technical_engineer']);
+                })->orWhereHas('userGroups');
             })
+            ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
             ->orderBy('name')
             ->get();
+        if ($engineers->isEmpty()) {
+            $engineers = User::where('status', 'active')->with(['userGroups:id,name,code', 'roles:id,name,slug'])->orderBy('name')->get();
+        }
+
+        $leads = $this->getTechnicalLeads($ticket);
+
         $customers = Customer::orderBy('name')->get();
         
         // Categorized Document Types
@@ -552,7 +631,7 @@ class TechnicalTicketController extends Controller
             'Khác' => 'Tài liệu khác',
         ];
 
-        return view('technical.tickets.show', compact('ticket', 'engineers', 'documentTypes', 'customers'));
+        return view('technical.tickets.show', compact('ticket', 'engineers', 'leads', 'documentTypes', 'customers', 'canComment', 'canUpdateProgress', 'canAttachFile', 'canHandover', 'isReadOnly'));
     }
 
     public function edit($id)
@@ -568,10 +647,12 @@ class TechnicalTicketController extends Controller
         }
 
         $currentUserId = auth()->id();
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'admin', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+        $isGroupLead = UserGroup::where('leader_id', $currentUserId)->exists();
         $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
-        $isTeamLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole;
+        $isTechnicalLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole || $isGroupLead;
+        $isTeamLead = $isTechnicalLead;
         $isRequester = ($ticket->created_by === $currentUserId);
         $isSalesOwner = ($ticket->sales_owner_id === $currentUserId);
         $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
@@ -587,19 +668,28 @@ class TechnicalTicketController extends Controller
         $sales = Sale::orderBy('code')->get();
         $suppliers = Supplier::orderBy('name')->get(); // Vendors
         $engineers = User::where('status', 'active')
-            ->whereHas('roles', function($q) {
-                $q->whereIn('slug', ['technical_lead', 'technical_engineer']);
+            ->where(function($q) {
+                $q->whereHas('roles', function($rq) {
+                    $rq->whereIn('slug', ['technical_lead', 'technical_engineer']);
+                })->orWhereHas('userGroups');
             })
+            ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
             ->orderBy('name')
             ->get();
+        if ($engineers->isEmpty()) {
+            $engineers = User::where('status', 'active')->with(['userGroups:id,name,code', 'roles:id,name,slug'])->orderBy('name')->get();
+        }
         $users = User::where('status', 'active')->orderBy('name')->get();
         
+        $userGroups = UserGroup::where('status', 'active')->with(['leader', 'members'])->orderBy('name')->get();
+        $leads = $this->getTechnicalLeads($ticket);
+
         $departments = User::whereNotNull('department')
             ->where('department', '!=', '')
             ->distinct()
             ->pluck('department');
 
-        return view('technical.tickets.edit', compact('ticket', 'customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'departments'));
+        return view('technical.tickets.edit', compact('ticket', 'customers', 'projects', 'opportunities', 'sales', 'suppliers', 'engineers', 'users', 'userGroups', 'leads', 'departments', 'isTechnicalLead'));
     }
 
     public function update(Request $request, $id)
@@ -613,10 +703,15 @@ class TechnicalTicketController extends Controller
             $request->merge(['assigned_to' => array_filter([$request->assigned_to])]);
         }
 
+        if ($request->has('co_lead_ids') && !is_array($request->co_lead_ids)) {
+            $request->merge(['co_lead_ids' => array_filter([$request->co_lead_ids])]);
+        }
+
         $request->validate([
             'title' => 'required|string|max:255',
             'work_type' => 'required|string',
             'priority' => 'required|string|in:high,medium',
+            'team_lead_id' => 'required|exists:users,id',
             'status' => 'nullable|string',
             'customer_id' => 'nullable|exists:customers,id',
             'project_id' => 'nullable|exists:projects,id',
@@ -628,11 +723,16 @@ class TechnicalTicketController extends Controller
             'sla_deadline' => 'nullable|date',
             'description' => 'nullable|string',
             'sales_owner_id' => 'nullable|exists:users,id',
-            'team_lead_id' => 'nullable|exists:users,id',
+            'user_group_id' => 'nullable|exists:user_groups,id',
+            'co_lead_ids' => 'nullable|array',
+            'co_lead_ids.*' => 'exists:users,id',
             'department' => 'nullable|string|max:255',
             'project_name' => 'nullable|string|max:255',
             'solution' => 'nullable|string',
             'ticket_details' => 'nullable|array',
+        ], [
+            'team_lead_id.required' => 'Vui lòng chọn Trưởng nhóm (Lead chính) phụ trách quản lý ticket này.',
+            'team_lead_id.exists' => 'Trưởng nhóm được chọn không hợp lệ.',
         ]);
 
         $ticket = TechnicalTicket::findOrFail($id);
@@ -644,9 +744,11 @@ class TechnicalTicketController extends Controller
         $currentUserId = auth()->id();
         $isRequester = ($ticket->created_by === $currentUserId);
         $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
+        $isCoLead = is_array($ticket->co_lead_ids) && in_array($currentUserId, $ticket->co_lead_ids);
         $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
-        $isTeamLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole;
+        $isGroupLead = UserGroup::where('leader_id', $currentUserId)->exists();
+        $isTeamLead = $isTicketTeamLead || $isCoLead || $isManagerOrAdmin || $isTechLeadRole || $isGroupLead;
         $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
         $isTechStaff = auth()->user()->can('manage_technical_support_logs') || auth()->user()->can('edit_technical_tickets');
 
@@ -744,6 +846,14 @@ class TechnicalTicketController extends Controller
             }
         } else {
             $data['resolved_at'] = null;
+        }
+
+        if (!$isTeamLead) {
+            $data['co_lead_ids'] = $ticket->co_lead_ids;
+            if (empty($assignedIds)) {
+                $assignedIds = $ticket->assignedEngineers()->pluck('users.id')->toArray();
+                $data['assigned_to'] = $ticket->assigned_to;
+            }
         }
 
         $data['assigned_to'] = !empty($assignedIds) ? $assignedIds[0] : null;
@@ -847,13 +957,18 @@ class TechnicalTicketController extends Controller
 
     public function uploadAttachment(Request $request, $id)
     {
+        $ticket = TechnicalTicket::findOrFail($id);
+
+        if (!$ticket->canUserAttachFile(auth()->user())) {
+            abort(403, 'Bạn chỉ có quyền xem ticket này, không được phép tải lên tài liệu.');
+        }
+
         $request->validate([
             'files' => 'required|array',
             'files.*' => 'file|max:20480', // Max 20MB per file
             'document_type' => 'required|string',
         ]);
 
-        $ticket = TechnicalTicket::findOrFail($id);
         $uploadedCount = 0;
 
         if ($request->hasFile('files')) {
@@ -872,6 +987,7 @@ class TechnicalTicketController extends Controller
                         'file_size' => $file->getSize(),
                         'document_type' => $request->input('document_type'),
                         'uploaded_by' => Auth::id(),
+                        'is_initial' => false,
                     ]);
                     $uploadedCount++;
                 }
@@ -909,23 +1025,7 @@ class TechnicalTicketController extends Controller
      */
     public function deleteAttachment($ticketId, $attachmentId)
     {
-        $attachment = TechnicalTicketAttachment::where('technical_ticket_id', $ticketId)
-            ->findOrFail($attachmentId);
-
-        $currentUserId = auth()->id();
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
-        $isUploader = ($attachment->uploaded_by === $currentUserId);
-
-        // Technical engineers must not delete attachments uploaded by Sales / Requester
-        if (!$isUploader && !$isManagerOrAdmin) {
-            abort(403, 'Bạn không có quyền xóa tài liệu đính kèm này (Kỹ thuật không được phép xóa tài liệu từ yêu cầu của Sales).');
-        }
-
-        // Delete from storage
-        Storage::delete($attachment->file_path);
-        $attachment->delete();
-
-        return redirect()->back()->with('success', 'Đã xóa tài liệu đính kèm.');
+        abort(403, 'Tài liệu đính kèm trên ticket kỹ thuật không được phép xóa.');
     }
 
     /**
@@ -937,22 +1037,19 @@ class TechnicalTicketController extends Controller
 
         $currentUserId = auth()->id();
         $isRequester = ($ticket->created_by === $currentUserId);
-        $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
         $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
+        $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
         $isTeamLead = $isTicketTeamLead || $isManagerOrAdmin || $isTechLeadRole;
-        $isAssignedEngineer = $ticket->assignedEngineers()->where('users.id', $currentUserId)->exists();
-        $isTechStaff = auth()->user()->hasAnyRole(['technical_lead', 'technical_engineer', 'super_admin']);
 
         // Determine action first to apply correct permission check
         $action = $request->input('action', 'update_solution');
 
-        // For progress updates (update_solution), only tech staff can do it
+        // For progress updates (update_solution), only active assignees or leads can do it
         if ($action === 'update_solution') {
-            $canUpdateProgress = $isAssignedEngineer || $isTechLeadRole || auth()->user()->hasAnyRole(['super_admin', 'director']);
-            if (!$canUpdateProgress) {
+            if (!$ticket->canUserUpdateProgress(auth()->user())) {
                 return redirect()->back()
-                    ->withErrors(['general' => 'Chỉ Kỹ sư được phân công, Technical Lead hoặc Quản trị viên mới có quyền cập nhật tiến độ.']);
+                    ->withErrors(['general' => 'Bạn không có quyền cập nhật tiến độ cho ticket này (chỉ Kỹ sư đang thực hiện hoặc Lead mới có quyền).']);
             }
         } elseif ($action === 'confirm_complete') {
             // For confirm, requester or admin can do it
@@ -960,9 +1057,12 @@ class TechnicalTicketController extends Controller
                 return redirect()->back()
                     ->withErrors(['general' => 'Bạn không có quyền thực hiện hành động này.']);
             }
+        } elseif ($action === 'close_ticket') {
+            if (!$isTeamLead) {
+                abort(403, 'Chỉ Technical Team Lead hoặc Quản trị viên mới được phép Đóng ticket.');
+            }
         } else {
-            // Unknown action
-            if (!$isAssignedEngineer && !$isTeamLead && !$isTechStaff) {
+            if (!$ticket->canUserUpdateProgress(auth()->user())) {
                 return redirect()->back()
                     ->withErrors(['general' => 'Bạn không có quyền chỉnh sửa ticket này.']);
             }
@@ -1082,11 +1182,15 @@ class TechnicalTicketController extends Controller
      */
     public function storeComment(Request $request, $id)
     {
+        $ticket = TechnicalTicket::findOrFail($id);
+
+        if (!$ticket->canUserComment(auth()->user())) {
+            abort(403, 'Bạn chỉ có quyền xem ticket này, không được phép gửi trao đổi.');
+        }
+
         $request->validate([
             'comment' => 'required|string',
         ]);
-
-        $ticket = TechnicalTicket::findOrFail($id);
 
         TechnicalTicketComment::create([
             'technical_ticket_id' => $ticket->id,
@@ -1095,6 +1199,122 @@ class TechnicalTicketController extends Controller
         ]);
 
         return redirect()->back()->with('success_swal', 'Gửi ý kiến trao đổi thành công.');
+    }
+
+    /**
+     * Handover (Bàn giao) ticket to new engineers / leads.
+     */
+    public function handover(Request $request, $id)
+    {
+        $ticket = TechnicalTicket::findOrFail($id);
+
+        if (!$ticket->canUserHandover(auth()->user())) {
+            abort(403, 'Bạn không có quyền thực hiện bàn giao ticket này.');
+        }
+
+        $request->validate([
+            'assigned_to' => 'required|array|min:1',
+            'assigned_to.*' => 'exists:users,id',
+            'new_team_lead_id' => 'nullable|exists:users,id',
+            'new_co_lead_ids' => 'nullable|array',
+            'new_co_lead_ids.*' => 'exists:users,id',
+            'handover_note' => 'required|string',
+        ]);
+
+        $currentUserId = auth()->id();
+        $newAssignedIds = array_map('intval', (array)$request->assigned_to);
+
+        // Get current active engineer IDs
+        $currentActiveIds = $ticket->activeEngineers->pluck('id')->toArray();
+        if (empty($currentActiveIds) && $ticket->assigned_to) {
+            $currentActiveIds = [(int)$ticket->assigned_to];
+        }
+
+        // Deactivate current active engineers who are not in newAssignedIds
+        $toDeactivate = array_diff($currentActiveIds, $newAssignedIds);
+        foreach ($toDeactivate as $oldId) {
+            \DB::table('technical_ticket_engineers')
+                ->where('technical_ticket_id', $ticket->id)
+                ->where('user_id', $oldId)
+                ->update([
+                    'is_active' => false,
+                    'handed_over_at' => Carbon::now(),
+                    'handed_over_by' => $currentUserId,
+                    'handover_note' => $request->handover_note,
+                    'updated_at' => Carbon::now(),
+                ]);
+        }
+
+        // Attach or activate new assignees
+        foreach ($newAssignedIds as $newId) {
+            $exists = \DB::table('technical_ticket_engineers')
+                ->where('technical_ticket_id', $ticket->id)
+                ->where('user_id', $newId)
+                ->first();
+            
+            if ($exists) {
+                \DB::table('technical_ticket_engineers')
+                    ->where('technical_ticket_id', $ticket->id)
+                    ->where('user_id', $newId)
+                    ->update([
+                        'is_active' => true,
+                        'updated_at' => Carbon::now(),
+                    ]);
+            } else {
+                \DB::table('technical_ticket_engineers')->insert([
+                    'technical_ticket_id' => $ticket->id,
+                    'user_id' => $newId,
+                    'is_active' => true,
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
+                ]);
+            }
+        }
+
+        $updateData = [
+            'assigned_to' => $newAssignedIds[0] ?? null,
+        ];
+
+        if ($request->filled('new_team_lead_id')) {
+            $updateData['team_lead_id'] = $request->new_team_lead_id;
+        }
+        if ($request->has('new_co_lead_ids')) {
+            $updateData['co_lead_ids'] = array_map('intval', (array)$request->new_co_lead_ids);
+        }
+
+        $ticket->update($updateData);
+
+        $newUsers = User::whereIn('id', $newAssignedIds)->pluck('name')->toArray();
+        $oldUsers = User::whereIn('id', $toDeactivate)->pluck('name')->toArray();
+        $oldText = !empty($oldUsers) ? implode(', ', $oldUsers) : 'Kỹ sư cũ';
+        $newText = implode(', ', $newUsers);
+
+        // Log discussion comment
+        $commentText = "[Bàn giao Ticket] Bàn giao từ {$oldText} sang Kỹ sư phụ trách mới: {$newText}.\nNội dung / Ghi chú bàn giao: " . $request->handover_note;
+        TechnicalTicketComment::create([
+            'technical_ticket_id' => $ticket->id,
+            'user_id' => $currentUserId,
+            'comment' => $commentText,
+        ]);
+
+        // Notify new assignees
+        foreach ($newAssignedIds as $engId) {
+            if ($engId !== $currentUserId) {
+                \App\Models\Notification::create([
+                    'user_id' => $engId,
+                    'type' => 'technical_ticket_handover',
+                    'title' => 'Bàn giao Ticket Kỹ thuật',
+                    'message' => "Bạn đã nhận bàn giao ticket: {$ticket->code} - {$ticket->title}",
+                    'link' => route('technical-tickets.show', $ticket->id),
+                    'icon' => 'exchange-alt',
+                    'color' => 'blue',
+                    'is_read' => false,
+                ]);
+            }
+        }
+
+        return redirect()->route('technical-tickets.show', $ticket->id)
+            ->with('success_swal', 'Đã bàn giao ticket thành công cho Kỹ sư mới.');
     }
 
     /**
@@ -1126,19 +1346,64 @@ class TechnicalTicketController extends Controller
     }
 
     /**
-     * Resolve the Technical Lead user for routing and default assignment.
+     * Get list of technical leads (for primary lead and co-leads).
+     * Strictly restricted to technical roles and technical groups.
+     */
+    protected function getTechnicalLeads($ticket = null)
+    {
+        $leads = User::where('status', 'active')
+            ->where(function($q) {
+                $q->whereHas('roles', function($rq) {
+                    $rq->whereIn('slug', ['technical_lead']);
+                })->orWhereHas('leadingGroups', function($gq) {
+                    $gq->where(function($sq) {
+                        $sq->where('department', 'like', '%kỹ thuật%')
+                           ->orWhere('department', 'like', '%technical%')
+                           ->orWhere('name', 'like', '%kỹ thuật%')
+                           ->orWhere('name', 'like', '%technical%')
+                           ->orWhereHas('members.roles', function($mrq) {
+                               $mrq->whereIn('slug', ['technical_lead', 'technical_engineer']);
+                           });
+                    });
+                });
+            })
+            ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
+            ->orderBy('name')
+            ->get();
+
+        if ($leads->isEmpty()) {
+            $leads = User::where('status', 'active')
+                ->whereHas('roles', function($rq) {
+                    $rq->whereIn('slug', ['technical_lead']);
+                })
+                ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
+                ->orderBy('name')
+                ->get();
+        }
+
+        if ($ticket) {
+            $selectedLeadIds = array_filter(array_merge([$ticket->team_lead_id], is_array($ticket->co_lead_ids) ? $ticket->co_lead_ids : []));
+            if (!empty($selectedLeadIds)) {
+                $existingLeads = User::whereIn('id', $selectedLeadIds)
+                    ->with(['userGroups:id,name,code', 'roles:id,name,slug'])
+                    ->get();
+                $leads = $leads->merge($existingLeads)->unique('id')->sortBy('name')->values();
+            }
+        }
+
+        return $leads;
+    }
+
+    /**
+     * Resolve default Technical Lead user if needed.
      */
     protected function resolveTechnicalLead(): ?User
     {
         return User::where('status', 'active')
-            ->whereHas('roles', fn ($roles) => $roles->where('slug', 'technical_lead'))
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'technical_lead'))
             ->first()
             ?: User::where('status', 'active')
-                ->whereIn('department', ['Technical', 'Tech', 'Kỹ thuật'])
-                ->whereHas('roles', fn ($q) => $q->where('slug', 'like', '%lead%')->orWhere('slug', 'like', '%manager%'))
-                ->first()
-            ?: User::where('status', 'active')
-                ->whereHas('roles', fn ($roles) => $roles->whereIn('slug', ['technical_lead', 'technical_engineer']))
+                ->whereHas('leadingGroups', fn ($gq) => $gq->where('department', 'like', '%kỹ thuật%')->orWhere('name', 'like', '%kỹ thuật%'))
                 ->first();
     }
 }

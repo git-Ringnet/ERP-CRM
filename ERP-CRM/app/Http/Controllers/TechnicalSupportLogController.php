@@ -140,6 +140,10 @@ class TechnicalSupportLogController extends Controller
 
         $ticket = TechnicalTicket::findOrFail($ticketId);
 
+        if (!$ticket->canUserUpdateProgress(auth()->user())) {
+            abort(403, 'Bạn không có quyền thêm nhật ký hỗ trợ cho ticket này (chỉ Kỹ sư đang thực hiện hoặc Lead mới có quyền).');
+        }
+
         $request->validate([
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
@@ -185,6 +189,11 @@ class TechnicalSupportLogController extends Controller
         }
 
         $ticket = TechnicalTicket::findOrFail($ticketId);
+
+        if (!$ticket->canUserUpdateProgress(auth()->user())) {
+            abort(403, 'Bạn không có quyền chỉnh sửa nhật ký hỗ trợ của ticket này.');
+        }
+
         $log = TechnicalSupportLog::where('technical_ticket_id', $ticket->id)->findOrFail($id);
 
         $request->validate([
@@ -223,6 +232,12 @@ class TechnicalSupportLogController extends Controller
     {
         if (!Gate::allows('manage_technical_support_logs')) {
             abort(403, 'Bạn không có quyền quản lý nhật ký hỗ trợ.');
+        }
+
+        $ticket = TechnicalTicket::findOrFail($ticketId);
+
+        if (!$ticket->canUserUpdateProgress(auth()->user())) {
+            abort(403, 'Bạn không có quyền xóa nhật ký hỗ trợ của ticket này.');
         }
 
         $log = TechnicalSupportLog::where('technical_ticket_id', $ticketId)->findOrFail($id);

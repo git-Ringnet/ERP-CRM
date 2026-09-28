@@ -1364,9 +1364,16 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-center">
-                            <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="text-blue-600 hover:text-blue-800 font-medium text-xs">
-                                <i class="fas fa-eye mr-0.5"></i> Xem
-                            </a>
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{{ route('technical-tickets.show', $ticket->id) }}" class="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                                    <i class="fas fa-eye mr-0.5"></i> Xem
+                                </a>
+                                @can('edit_technical_tickets')
+                                <a href="{{ route('technical-tickets.edit', $ticket->id) }}" class="text-amber-600 hover:text-amber-800 font-medium text-xs">
+                                    <i class="fas fa-edit mr-0.5"></i> Sửa
+                                </a>
+                                @endcan
+                            </div>
                         </td>
                     </tr>
                     @empty

@@ -152,7 +152,12 @@ class TechnicalDashboardController extends Controller
         $activeUsers = User::where('status', 'active')->orderBy('name')->get();
         
         foreach ($activeUsers as $user) {
-            $engQuery = (clone $baseQuery)->where('assigned_to', $user->id);
+            $engQuery = (clone $baseQuery)->where(function ($q) use ($user) {
+                $q->where('assigned_to', $user->id)
+                  ->orWhereHas('assignedEngineers', function ($sq) use ($user) {
+                      $sq->where('users.id', $user->id);
+                  });
+            });
             $engAssigned = (clone $engQuery)->count();
             
             if ($engAssigned === 0) {

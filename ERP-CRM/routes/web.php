@@ -79,6 +79,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/{product}/items', [ProductController::class, 'items'])->name('products.items');
     Route::get('/ajax/products/search', [ProductController::class, 'ajaxSearch'])->name('products.ajax-search');
     Route::get('/api/products/search', [ProductController::class, 'apiSearch'])->name('api.products.search');
+    Route::get('/api/products/available-stock', [ProductController::class, 'apiSearchAvailableStock'])->name('api.products.available-stock');
 
     // Export routes
     Route::get('/customers/export/excel', [CustomerController::class, 'export'])->name('customers.export');
@@ -216,7 +217,14 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/sales/{sale}/pnl-attachments/{attachment}', [SaleController::class, 'deletePnlAttachment'])->name('sales.pnl-attachments.delete');
     Route::get('/sales/{sale}/pnl-attachments/{attachment}/download', [SaleController::class, 'downloadPnlAttachment'])->name('sales.pnl-attachments.download');
     Route::get('/sales/{sale}/pnl-attachments/{attachment}/preview', [SaleController::class, 'previewPnlAttachment'])->name('sales.pnl-attachments.preview');
-    Route::delete('/sales/{sale}/pnl-expenses/{expense}', [SaleController::class, 'deletePnlExpense'])->name('sales.deletePnlExpense');
+    Route::post('/sales/{sale}/update-bom', [SaleController::class, 'updateBom'])->name('sales.updateBom');
+    Route::post('/sales/{sale}/milestones/add', [SaleController::class, 'addMilestone'])->name('sales.milestones.add');
+    Route::post('/sales/{sale}/milestones/apply-template', [SaleController::class, 'applyPaymentTemplate'])->name('sales.milestones.applyTemplate');
+    Route::post('/sales/{sale}/milestones/sync', [SaleController::class, 'syncMilestones'])->name('sales.milestones.sync');
+    Route::post('/sales/{sale}/expenses/add', [SaleController::class, 'addExpense'])->name('sales.expenses.add');
+    Route::post('/sales/{sale}/expenses/add-default', [SaleController::class, 'addDefaultExpenses'])->name('sales.expenses.addDefault');
+    Route::post('/sales/{sale}/expenses/sync', [SaleController::class, 'syncExpenses'])->name('sales.expenses.sync');
+    Route::delete('/sales/{sale}/expenses/{expense}', [SaleController::class, 'deleteExpense'])->name('sales.expenses.delete');
 
     // Invoice Request routes
     Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');
@@ -226,6 +234,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/invoice-requests/{invoiceRequest}/confirm', [\App\Http\Controllers\InvoiceRequestController::class, 'confirm'])->name('invoice-requests.confirm');
     Route::post('/invoice-requests/{invoiceRequest}/reject', [\App\Http\Controllers\InvoiceRequestController::class, 'reject'])->name('invoice-requests.reject');
     Route::put('/invoice-requests/{invoiceRequest}/update-content', [\App\Http\Controllers\InvoiceRequestController::class, 'updateContent'])->name('invoice-requests.update-content');
+    Route::post('/invoice-requests/{invoiceRequest}/notify-accountant', [\App\Http\Controllers\InvoiceRequestController::class, 'notifyAccountant'])->name('invoice-requests.notify-accountant');
+    Route::post('/invoice-requests/{invoiceRequest}/notify-warehouse', [\App\Http\Controllers\InvoiceRequestController::class, 'notifyWarehouse'])->name('invoice-requests.notify-warehouse');
+    Route::post('/invoice-requests/{invoiceRequest}/mark-invoiced', [\App\Http\Controllers\InvoiceRequestController::class, 'markInvoiced'])->name('invoice-requests.mark-invoiced');
     Route::delete('/invoice-requests/{invoiceRequest}', [\App\Http\Controllers\InvoiceRequestController::class, 'cancel'])->name('invoice-requests.cancel');
 
     // Cost Formula routes
@@ -481,6 +492,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/users/{user}/activity-logs', [ActivityLogController::class, 'userLogs'])->name('users.activity-logs');
 
+    // User Group Management routes (Quản lý phân nhóm người dùng)
+    Route::get('/api/user-groups/members-by-lead', [\App\Http\Controllers\UserGroupController::class, 'getMembersByLead'])->name('api.user-groups.members-by-lead');
+    Route::resource('user-groups', \App\Http\Controllers\UserGroupController::class);
+
     // Role Management routes (Quản lý vai trò)
     Route::resource('roles', RoleController::class);
 
@@ -669,8 +684,10 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'updateCentralized'])->name('technical.support-logs.update-centralized');
     Route::delete('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroyCentralized'])->name('technical.support-logs.destroy-centralized');
     
+    Route::get('/technical-tickets/check-duplicate', [\App\Http\Controllers\TechnicalTicketController::class, 'checkDuplicate'])->name('technical-tickets.check-duplicate');
     Route::post('/technical-tickets/{ticket}/pickup', [\App\Http\Controllers\TechnicalTicketController::class, 'pickup'])->name('technical-tickets.pickup');
     Route::put('/technical-tickets/{ticket}/progress', [\App\Http\Controllers\TechnicalTicketController::class, 'updateProgress'])->name('technical-tickets.update-progress');
+    Route::post('/technical-tickets/{ticket}/handover', [\App\Http\Controllers\TechnicalTicketController::class, 'handover'])->name('technical-tickets.handover');
     Route::resource('technical-tickets', \App\Http\Controllers\TechnicalTicketController::class);
     
     Route::post('/technical-tickets/{ticket}/comments', [\App\Http\Controllers\TechnicalTicketController::class, 'storeComment'])->name('technical-tickets.comments.store');

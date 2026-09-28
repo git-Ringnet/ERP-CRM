@@ -5,9 +5,42 @@
 
 @section('content')
     @push('styles')
+        <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
         <style>
             [x-cloak] {
                 display: none !important;
+            }
+            .ts-wrapper .ts-control {
+                border-radius: 0.5rem;
+                border-color: #e5e7eb;
+                font-size: 0.875rem;
+                padding: 0.5rem 0.75rem;
+                min-height: 42px;
+                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            }
+            .ts-wrapper.focus .ts-control {
+                border-color: var(--primary, #3b82f6);
+                box-shadow: 0 0 0 1px var(--primary, #3b82f6);
+            }
+            .ts-dropdown {
+                border-radius: 0.5rem;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                border-color: #e5e7eb;
+                font-size: 0.875rem;
+                z-index: 60;
+            }
+            .ts-dropdown .option {
+                padding: 8px 12px;
+            }
+            .ts-dropdown .option.active {
+                background-color: #eff6ff;
+                color: #1e40af;
+            }
+            .ts-wrapper.multi .ts-control .item {
+                background-color: #3b82f6;
+                color: white;
+                border-radius: 4px;
+                padding: 2px 8px;
             }
         </style>
     @endpush
@@ -93,7 +126,8 @@
                             <input type="text" name="title" id="title" required
                                 placeholder="Ví dụ: Triển khai tường lửa Fortigate cho Khách hàng A"
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary @error('title') border-red-500 @enderror"
-                                value="{{ old('title') }}">
+                                value="{{ old('title') }}"
+                                oninput="debouncedCheckDuplicate()">
                             @error('title')
                                 <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
                             @enderror
@@ -192,12 +226,12 @@
                             <input type="hidden" name="sales_owner_id" :value="salesOwnerId">
                         </div>
 
-                        <!-- Vendor Relation -->
+                        <!-- Vendor Relation (Searchable) -->
                         <div>
-                            <label for="supplier_id" class="block text-sm font-semibold text-gray-700 mb-1">Vendor (Hãng
-                                liên quan)</label>
-                            <select name="supplier_id" id="supplier_id"
-                                class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
+                            <label for="supplier_id" class="block text-sm font-semibold text-gray-700 mb-1">
+                                <i class="fas fa-building text-gray-400 mr-1"></i> Vendor (Hãng liên quan)
+                            </label>
+                            <select name="supplier_id" id="supplier_id" class="w-full">
                                 <option value="">-- Không chọn / Không có --</option>
                                 @foreach($suppliers as $sup)
                                     <option value="{{ $sup->id }}" {{ old('supplier_id') == $sup->id ? 'selected' : '' }}>
@@ -207,48 +241,262 @@
                             </select>
                         </div>
 
+                        <!-- System Project Link (Searchable with duplicate detection) -->
+                        <div>
+                            <label for="project_id" class="block text-sm font-semibold text-gray-700 mb-1">
+                                <i class="fas fa-diagram-project text-blue-500 mr-1"></i> Dự án Hệ thống (ERP/CRM Project)
+                            </label>
+                            <select name="project_id" id="project_id" class="w-full">
+                                <option value="">-- Chọn hoặc tìm kiếm dự án hệ thống --</option>
+                                @foreach($projects as $proj)
+                                    <option value="{{ $proj->id }}" {{ (old('project_id', $selectedProjectId ?? request('project_id')) == $proj->id) ? 'selected' : '' }}>
+                                        {{ $proj->code ? '[' . $proj->code . '] ' : '' }}{{ $proj->name }}{{ $proj->customer_name ? ' (' . $proj->customer_name . ')' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
                         <!-- Project / Partner / EU Name -->
                         <div>
-                            <label for="project_name" class="block text-sm font-semibold text-gray-700 mb-1">Dự án (Tên dự
-                                án/Partner/EU)</label>
+                            <label for="project_name" class="block text-sm font-semibold text-gray-700 mb-1">
+                                <i class="fas fa-tag text-gray-400 mr-1"></i> Dự án (Tên dự án/Partner/EU)
+                            </label>
                             <input type="text" name="project_name" id="project_name"
                                 placeholder="Nhập tên dự án, đối tác hoặc người dùng cuối..."
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
-                                value="{{ old('project_name') }}">
+                                value="{{ old('project_name') }}"
+                                oninput="debouncedCheckDuplicate()">
                         </div>
 
                         <!-- Due Date (Thời gian yêu cầu xử lý) -->
                         <div>
-                            <label for="sla_deadline" class="block text-sm font-semibold text-gray-700 mb-1">Due Date (Thời
-                                gian yêu cầu xử lý)</label>
+                            <label for="sla_deadline" class="block text-sm font-semibold text-gray-700 mb-1">Due Date (Thời gian yêu cầu xử lý)</label>
                             <input type="datetime-local" name="sla_deadline" id="sla_deadline"
                                 class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"
                                 value="{{ old('sla_deadline') }}">
-                            <span class="text-xs text-gray-400 mt-1 block">Để trống để hệ thống tự động tính toán SLA (4h
-                                hành chính cho High, 8h hành chính cho Medium).</span>
+                            <span class="text-xs text-gray-400 mt-1 block">Để trống để hệ thống tự động tính toán SLA (4h hành chính cho High, 8h hành chính cho Medium).</span>
                         </div>
+
+                        <!-- Duplicate Ticket Warning Container -->
+                        <div id="duplicateWarningContainer" class="hidden md:col-span-2"></div>
                     </div>
 
-                    <!-- Group: Liên kết CRM (Grouped for neatness) -->
-                    <div class="border-t border-gray-150 pt-4 space-y-4"
-                        x-show="workType && workType !== 'event' && workType !== 'other'" x-cloak>
-                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Liên kết nhanh CRM</h4>
-                        <div class="grid grid-cols-1 gap-6">
-                            <!-- Project Link -->
-                            <div>
-                                <label for="project_id" class="block text-xs font-semibold text-gray-600 mb-1">Liên kết Dự
-                                    án (System Project)</label>
-                                <select name="project_id" id="project_id"
-                                    class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary">
-                                    <option value="">-- Không chọn / Không có --</option>
-                                    @foreach($projects as $proj)
-                                        <option value="{{ $proj->id }}" {{ (old('project_id', $selectedProjectId ?? request('project_id')) == $proj->id) ? 'selected' : '' }}>
-                                            {{ $proj->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                    <!-- CARD 1.2: PHÂN NHÓM & LEAD PHỤ TRÁCH -->
+                    <div class="border-t border-gray-150 pt-5 mt-4 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                                <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Phân nhóm & Team Lead Phụ Trách</h4>
                             </div>
                         </div>
+
+                        @if($isTechnicalLead)
+                            <!-- Dành cho Trưởng nhóm kỹ thuật / Quản lý / Quản trị viên -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <!-- Team Lead chính -->
+                                <div class="md:col-span-1">
+                                    <label for="team_lead_id" class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <i class="fas fa-user-tie text-purple-600"></i> Trưởng nhóm (Lead chính) <span class="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <select name="team_lead_id" id="team_lead_id" required
+                                        class="w-full border-gray-200 rounded-lg text-xs focus:border-primary focus:ring-primary shadow-2xs @error('team_lead_id') border-red-500 @enderror"
+                                        onchange="handlePrimaryLeadChange()">
+                                        <option value="">-- Bắt buộc chọn Lead chính * --</option>
+                                        @foreach($leads as $ld)
+                                            <option value="{{ $ld->id }}" {{ old('team_lead_id') == $ld->id ? 'selected' : '' }}>
+                                                {{ $ld->name }} ({{ $ld->email }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('team_lead_id')
+                                        <p class="text-[11px] text-red-500 mt-1 font-semibold">{{ $message }}</p>
+                                    @enderror
+
+                                    <!-- Exclamation Note Banner -->
+                                    <div class="mt-2.5 p-2 rounded-lg bg-purple-50 border border-purple-150 flex items-start gap-2 text-[11px] text-purple-900 leading-snug">
+                                        <i class="fas fa-exclamation-circle text-purple-600 mt-0.5 shrink-0 text-xs"></i>
+                                        <span>Lead chính phụ trách tiếp nhận, trực tiếp phân công và kiểm soát ticket này.</span>
+                                    </div>
+                                </div>
+
+                                <!-- Co-Leads (Lead phối hợp nhóm khác - Checkbox Cards) -->
+                                <div class="md:col-span-2">
+                                    <div class="flex items-center justify-between gap-2 mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                <i class="fas fa-handshake text-teal-600"></i> Lead phối hợp (Nhóm khác)
+                                            </label>
+                                            <span id="coLeadsCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                                                0 đã chọn
+                                            </span>
+                                        </div>
+                                        <div class="relative">
+                                            <i class="fas fa-search absolute left-2 top-1.5 text-gray-400 text-[10px]"></i>
+                                            <input type="text" id="coLeadSearchInput" oninput="filterCoLeadsList()" placeholder="Tìm lead..."
+                                                   class="pl-6 pr-2 py-0.5 bg-white border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary focus:border-primary w-32 sm:w-40 outline-none">
+                                        </div>
+                                    </div>
+
+                                    <div id="coLeadsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1 bg-gray-50/70 rounded-lg border border-gray-200">
+                                        @foreach($leads as $ld)
+                                            @php
+                                                $isCoLead = is_array(old('co_lead_ids')) && in_array($ld->id, old('co_lead_ids'));
+                                                $isPrimary = old('team_lead_id') == $ld->id;
+                                            @endphp
+                                            <div class="co-lead-card p-2 rounded-lg border transition-all cursor-pointer flex items-start gap-2.5 bg-white hover:border-teal-400 {{ $isCoLead ? 'border-teal-500 bg-teal-50/50 shadow-2xs' : 'border-gray-200' }} {{ $isPrimary ? 'opacity-40 pointer-events-none' : '' }}"
+                                                 id="co_lead_card_{{ $ld->id }}"
+                                                 onclick="toggleCoLeadCheckbox('{{ $ld->id }}', event)">
+                                                <input type="checkbox" 
+                                                       name="co_lead_ids[]" 
+                                                       value="{{ $ld->id }}" 
+                                                       id="co_lead_cb_{{ $ld->id }}"
+                                                       {{ $isCoLead ? 'checked' : '' }}
+                                                       {{ $isPrimary ? 'disabled' : '' }}
+                                                       onchange="updateCoLeadCardStyle(this)"
+                                                       class="rounded border-gray-300 text-teal-600 focus:ring-teal-500 mt-0.5 co-lead-checkbox pointer-events-auto">
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center justify-between gap-1">
+                                                        <span class="font-bold text-xs text-gray-900 truncate" title="{{ $ld->name }}">{{ $ld->name }}</span>
+                                                        <span class="text-[9px] font-extrabold px-1.5 py-0.2 bg-teal-100 text-teal-700 rounded flex-shrink-0">Lead</span>
+                                                    </div>
+                                                    <div class="text-[11px] text-gray-500 truncate" title="{{ $ld->email }}">{{ $ld->email }}</div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Multi-assignee Engineers Section -->
+                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                <!-- Control bar above checkbox cards -->
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                            <i class="fas fa-user-gear text-blue-600"></i> Phân công Kỹ sư thực hiện
+                                        </label>
+                                        <span id="selectedCountBadge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                            0 đã chọn
+                                        </span>
+                                    </div>
+
+                                    <!-- Quick tools: Search & Selection buttons -->
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <div class="relative">
+                                            <i class="fas fa-search absolute left-2.5 top-2 text-gray-400 text-xs"></i>
+                                            <input type="text" id="engineerSearchInput" oninput="filterEngineersList()" placeholder="Tìm tên, email..."
+                                                   class="pl-7 pr-3 py-1 bg-white border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-primary focus:border-primary w-40 sm:w-48 outline-none">
+                                        </div>
+
+                                        <div class="flex items-center gap-1">
+                                            <button type="button" onclick="selectAllVisibleEngineers()" class="px-2.5 py-1 text-[11px] font-semibold bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-100 transition-colors shadow-2xs">
+                                                <i class="fas fa-check-double text-blue-500 mr-1"></i> Chọn tất cả
+                                            </button>
+                                            <button type="button" onclick="deselectAllEngineers()" class="px-2.5 py-1 text-[11px] font-semibold bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-100 transition-colors shadow-2xs">
+                                                <i class="fas fa-times text-gray-400 mr-1"></i> Bỏ chọn
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Filter status notice banner (if filtered by lead/group) -->
+                                <div id="filterNoticeBanner" class="hidden mb-2.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5">
+                                        <i class="fas fa-filter text-blue-600"></i>
+                                        <span id="filterNoticeText">Đang lọc kỹ sư theo Lead / Nhóm đã chọn</span>
+                                    </div>
+                                    <button type="button" onclick="toggleShowAllEngineers()" id="toggleAllBtn" class="text-xs font-bold text-blue-700 hover:underline">
+                                        Hiển thị tất cả kỹ sư
+                                    </button>
+                                </div>
+
+                                <!-- Grid of Checkbox Cards -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto p-2.5 border border-gray-200 rounded-lg bg-gray-50/50" id="engineerListContainer">
+                                    @foreach($engineers as $eng)
+                                        @php
+                                            $isAssigned = is_array(old('assigned_to')) && in_array($eng->id, old('assigned_to'));
+                                            $groupNames = $eng->userGroups->pluck('name')->toArray();
+                                            $groupIds = $eng->userGroups->pluck('id')->toArray();
+                                            $leadIds = $eng->userGroups->pluck('leader_id')->filter()->toArray();
+                                        @endphp
+                                        <div class="eng-card relative flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all duration-150 {{ $isAssigned ? 'border-primary bg-indigo-50/40 ring-1 ring-primary shadow-xs' : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-gray-50/70' }}"
+                                             data-eng-id="{{ $eng->id }}"
+                                             data-name="{{ mb_strtolower($eng->name) }}"
+                                             data-email="{{ mb_strtolower($eng->email) }}"
+                                             data-groups="{{ implode(',', $groupIds) }}"
+                                             data-leads="{{ implode(',', $leadIds) }}"
+                                             onclick="toggleEngineerCard(this, event)">
+                                            
+                                            <input type="checkbox" name="assigned_to[]" value="{{ $eng->id }}"
+                                                   {{ $isAssigned ? 'checked' : '' }}
+                                                   onchange="updateEngineerCardStyle(this)"
+                                                   class="rounded border-gray-300 text-primary focus:ring-primary mt-1 eng-checkbox pointer-events-auto">
+                                            
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center justify-between gap-1">
+                                                    <span class="font-bold text-xs text-gray-900 truncate" title="{{ $eng->name }}">
+                                                        {{ $eng->name }}
+                                                    </span>
+                                                    @if($eng->hasRole('technical_lead'))
+                                                        <span class="text-[9px] font-extrabold px-1.5 py-0.2 bg-purple-100 text-purple-700 rounded flex-shrink-0">
+                                                            Lead
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                                <div class="text-[11px] text-gray-500 truncate" title="{{ $eng->email }}">
+                                                    {{ $eng->email }}
+                                                </div>
+                                                @if(!empty($groupNames))
+                                                    <div class="flex flex-wrap gap-1 mt-1">
+                                                        @foreach($groupNames as $gName)
+                                                            <span class="text-[9px] px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded border border-gray-200 truncate max-w-[120px]">
+                                                                <i class="fas fa-users text-[8px] mr-0.5 text-gray-400"></i>{{ $gName }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <!-- Giao diện dành cho Người tạo ticket thông thường (Sale / Nhân viên khác) -->
+                            <div class="max-w-2xl bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
+                                <div>
+                                    <label for="team_lead_id" class="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <i class="fas fa-user-tie text-purple-600"></i> Trưởng nhóm (Lead chính) <span class="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <select name="team_lead_id" id="team_lead_id" required
+                                        class="w-full border-gray-300 rounded-lg text-xs sm:text-sm focus:border-primary focus:ring-primary bg-white shadow-2xs @error('team_lead_id') border-red-500 @enderror">
+                                        <option value="">-- Bắt buộc chọn Trưởng nhóm (Lead chính) phụ trách * --</option>
+                                        @foreach($leads as $ld)
+                                            <option value="{{ $ld->id }}" {{ old('team_lead_id') == $ld->id ? 'selected' : '' }}>
+                                                {{ $ld->name }} ({{ $ld->email }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('team_lead_id')
+                                        <p class="text-[11px] text-red-500 mt-1 font-semibold">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <!-- Note with Exclamation Icon -->
+                                <div class="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+                                    <span class="w-5 h-5 rounded-full bg-amber-200/80 flex items-center justify-center text-amber-700 font-bold shrink-0 mt-0.5">
+                                        <i class="fas fa-exclamation text-xs"></i>
+                                    </span>
+                                    <div class="space-y-1">
+                                        <div class="font-bold text-amber-950">
+                                            Bắt buộc chỉ định Trưởng nhóm (Lead chính) phụ trách
+                                        </div>
+                                        <p class="text-[11px] text-amber-800 leading-relaxed">
+                                            Vui lòng chọn Trưởng nhóm kỹ thuật quản lý ticket này. Sau khi tạo ticket, Trưởng nhóm được chọn sẽ nhận thông báo, tiếp nhận yêu cầu và chủ động phân công Kỹ sư kỹ thuật phù hợp để thực hiện.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -602,6 +850,412 @@
             window.createTicketUsers = @json($users->map(fn($u) => ['id' => $u->id, 'name' => $u->name]));
             window.createTicketCustomers = @json($customers->map(fn($c) => ['id' => $c->id, 'name' => $c->name]));
 
+            let currentAllowedUserIds = null;
+            let forceShowAll = false;
+
+            function updateSelectedCount() {
+                const checkboxes = document.querySelectorAll('.eng-checkbox:checked');
+                const badge = document.getElementById('selectedCountBadge');
+                if (badge) {
+                    badge.innerText = `${checkboxes.length} đã chọn`;
+                    if (checkboxes.length > 0) {
+                        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+                    } else {
+                        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200';
+                    }
+                }
+            }
+
+            function toggleEngineerCard(cardEl, event) {
+                if (event && event.target && event.target.type === 'checkbox') {
+                    return;
+                }
+                const checkbox = cardEl.querySelector('.eng-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    updateEngineerCardStyle(checkbox);
+                }
+            }
+
+            function updateEngineerCardStyle(checkbox) {
+                const card = checkbox.closest('.eng-card');
+                if (card) {
+                    if (checkbox.checked) {
+                        card.classList.add('border-primary', 'bg-indigo-50/40', 'ring-1', 'ring-primary', 'shadow-xs');
+                        card.classList.remove('border-gray-200', 'bg-white');
+                    } else {
+                        card.classList.remove('border-primary', 'bg-indigo-50/40', 'ring-1', 'ring-primary', 'shadow-xs');
+                        card.classList.add('border-gray-200', 'bg-white');
+                    }
+                }
+                updateSelectedCount();
+            }
+
+            function selectAllVisibleEngineers() {
+                document.querySelectorAll('.eng-card').forEach(card => {
+                    if (card.style.display !== 'none') {
+                        const chk = card.querySelector('.eng-checkbox');
+                        if (chk && !chk.checked) {
+                            chk.checked = true;
+                            updateEngineerCardStyle(chk);
+                        }
+                    }
+                });
+            }
+
+            function deselectAllEngineers() {
+                document.querySelectorAll('.eng-checkbox').forEach(chk => {
+                    if (chk.checked) {
+                        chk.checked = false;
+                        updateEngineerCardStyle(chk);
+                    }
+                });
+            }
+
+            function filterEngineersList() {
+                const search = (document.getElementById('engineerSearchInput')?.value || '').trim().toLowerCase();
+                
+                document.querySelectorAll('.eng-card').forEach(card => {
+                    const engId = card.getAttribute('data-eng-id');
+                    const name = card.getAttribute('data-name') || '';
+                    const email = card.getAttribute('data-email') || '';
+                    const chk = card.querySelector('.eng-checkbox');
+                    const isChecked = chk && chk.checked;
+
+                    const matchesSearch = !search || name.includes(search) || email.includes(search);
+                    
+                    let matchesGroupOrLead = true;
+                    if (!forceShowAll && currentAllowedUserIds !== null && currentAllowedUserIds.length > 0) {
+                        matchesGroupOrLead = currentAllowedUserIds.includes(engId) || isChecked;
+                    }
+
+                    if (matchesSearch && matchesGroupOrLead) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+
+            function toggleShowAllEngineers() {
+                forceShowAll = !forceShowAll;
+                const btn = document.getElementById('toggleAllBtn');
+                const noticeText = document.getElementById('filterNoticeText');
+                if (btn) {
+                    btn.innerText = forceShowAll ? 'Chỉ hiện theo Lead' : 'Hiển thị tất cả kỹ sư';
+                }
+                if (noticeText) {
+                    noticeText.innerText = forceShowAll ? 'Đang hiển thị toàn bộ kỹ sư' : 'Đang lọc kỹ sư theo Lead đã chọn';
+                }
+                filterEngineersList();
+            }
+
+            function handleLeadChange() {
+                fetchAndFilterMembers();
+            }
+
+            function handlePrimaryLeadChange() {
+                const leadSelect = document.getElementById('team_lead_id');
+                const selectedLeadId = leadSelect ? leadSelect.value : '';
+
+                // Disable / uncheck if selected as primary lead
+                document.querySelectorAll('.co-lead-checkbox').forEach(cb => {
+                    const card = document.getElementById('co_lead_card_' + cb.value);
+                    if (cb.value === selectedLeadId && selectedLeadId !== '') {
+                        cb.checked = false;
+                        cb.disabled = true;
+                        if (card) {
+                            card.classList.add('opacity-40', 'pointer-events-none');
+                            card.classList.remove('border-teal-500', 'bg-teal-50/50', 'shadow-2xs');
+                            card.classList.add('border-gray-200');
+                        }
+                    } else {
+                        cb.disabled = false;
+                        if (card) {
+                            card.classList.remove('opacity-40', 'pointer-events-none');
+                        }
+                    }
+                });
+                updateCoLeadsCount();
+                handleLeadChange();
+            }
+
+            function toggleCoLeadCheckbox(id, event) {
+                if (event.target.tagName === 'INPUT') return;
+                const cb = document.getElementById('co_lead_cb_' + id);
+                if (cb && !cb.disabled) {
+                    cb.checked = !cb.checked;
+                    updateCoLeadCardStyle(cb);
+                }
+            }
+
+            function updateCoLeadCardStyle(cb) {
+                const card = document.getElementById('co_lead_card_' + cb.value);
+                if (card) {
+                    if (cb.checked) {
+                        card.classList.add('border-teal-500', 'bg-teal-50/50', 'shadow-2xs');
+                        card.classList.remove('border-gray-200');
+                    } else {
+                        card.classList.remove('border-teal-500', 'bg-teal-50/50', 'shadow-2xs');
+                        card.classList.add('border-gray-200');
+                    }
+                }
+                updateCoLeadsCount();
+                handleLeadChange();
+            }
+
+            function updateCoLeadsCount() {
+                const checked = document.querySelectorAll('.co-lead-checkbox:checked');
+                const badge = document.getElementById('coLeadsCountBadge');
+                if (badge) {
+                    badge.innerText = `${checked.length} đã chọn`;
+                }
+            }
+
+            function filterCoLeadsList() {
+                const query = (document.getElementById('coLeadSearchInput')?.value || '').toLowerCase().trim();
+                const cards = document.querySelectorAll('.co-lead-card');
+                cards.forEach(card => {
+                    const text = card.innerText.toLowerCase();
+                    if (!query || text.includes(query)) {
+                        card.classList.remove('hidden');
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                });
+            }
+
+            async function fetchAndFilterMembers() {
+                const leadSelect = document.getElementById('team_lead_id');
+                const primaryLeadId = leadSelect ? leadSelect.value : '';
+                const selectedCoLeadIds = Array.from(document.querySelectorAll('.co-lead-checkbox:checked')).map(cb => cb.value);
+
+                const leadIds = [];
+                if (primaryLeadId) leadIds.push(primaryLeadId);
+                selectedCoLeadIds.forEach(id => { if (id && !leadIds.includes(id)) leadIds.push(id); });
+
+                if (leadIds.length === 0) {
+                    currentAllowedUserIds = null;
+                    updateNoticeBanner(false);
+                    filterEngineersList();
+                    return;
+                }
+
+                try {
+                    const params = new URLSearchParams();
+                    leadIds.forEach(id => params.append('lead_ids[]', id));
+
+                    const res = await fetch(`{{ route('api.user-groups.members-by-lead') }}?${params.toString()}`);
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        if (data.allowed_user_ids && data.allowed_user_ids.length > 0) {
+                            currentAllowedUserIds = data.allowed_user_ids.map(id => id.toString());
+                        } else {
+                            currentAllowedUserIds = null;
+                        }
+                        
+                        forceShowAll = false;
+                        updateNoticeBanner(true);
+                        filterEngineersList();
+                    }
+                } catch (e) {
+                    console.error('Error fetching group members:', e);
+                    currentAllowedUserIds = null;
+                    updateNoticeBanner(false);
+                    filterEngineersList();
+                }
+            }
+
+            function updateNoticeBanner(hasLeadFilter) {
+                const banner = document.getElementById('filterNoticeBanner');
+                const noticeText = document.getElementById('filterNoticeText');
+                const btn = document.getElementById('toggleAllBtn');
+
+                if (!banner) return;
+
+                if (hasLeadFilter) {
+                    banner.classList.remove('hidden');
+                    if (noticeText) {
+                        noticeText.innerText = 'Đã tự động tải danh sách kỹ sư theo Lead được chọn';
+                    }
+                    if (btn) {
+                        btn.innerText = 'Hiển thị tất cả kỹ sư';
+                    }
+                } else {
+                    banner.classList.add('hidden');
+                }
+            }
+
+            // Duplicate Ticket Checking Logic
+            let debounceTimer = null;
+
+            function debouncedCheckDuplicate() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    checkProjectDuplicate();
+                }, 400);
+            }
+
+            function checkProjectDuplicate() {
+                const projectId = document.getElementById('project_id') ? document.getElementById('project_id').value : '';
+                const projectName = document.getElementById('project_name') ? document.getElementById('project_name').value.trim() : '';
+
+                if (!projectId && projectName.length < 2) {
+                    hideDuplicateWarning();
+                    return;
+                }
+
+                const url = new URL('{{ route("technical-tickets.check-duplicate") }}', window.location.origin);
+                if (projectId) url.searchParams.append('project_id', projectId);
+                if (projectName) url.searchParams.append('project_name', projectName);
+
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.has_duplicate && data.duplicates && data.duplicates.length > 0) {
+                            renderDuplicateWarning(data);
+                        } else {
+                            hideDuplicateWarning();
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error checking duplicate ticket:', err);
+                    });
+            }
+
+            function hideDuplicateWarning() {
+                const container = document.getElementById('duplicateWarningContainer');
+                if (container) {
+                    container.classList.add('hidden');
+                    container.innerHTML = '';
+                }
+            }
+
+            function renderDuplicateWarning(data) {
+                const container = document.getElementById('duplicateWarningContainer');
+                if (!container) return;
+
+                let itemsHtml = data.duplicates.map(t => {
+                    let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-${t.status_color}-100 text-${t.status_color}-800 border border-${t.status_color}-200">${t.status_label}</span>`;
+                    return `
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-white rounded-lg border border-amber-200 hover:border-amber-300 shadow-2xs gap-2 transition-all">
+                            <div class="space-y-0.5">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-bold text-xs text-amber-900 font-mono">${t.code}</span>
+                                    ${statusBadge}
+                                    <span class="text-xs font-semibold text-gray-800">${t.title}</span>
+                                </div>
+                                <div class="text-[11px] text-gray-500 flex items-center gap-3 flex-wrap">
+                                    <span><i class="far fa-user text-gray-400 mr-1"></i>Tạo bởi: <b>${t.creator_name}</b></span>
+                                    <span><i class="fas fa-user-gear text-gray-400 mr-1"></i>Kỹ sư: <b>${t.engineers}</b></span>
+                                    <span><i class="far fa-clock text-gray-400 mr-1"></i>${t.created_at} (${t.created_at_humans})</span>
+                                </div>
+                            </div>
+                            <div class="shrink-0 flex items-center">
+                                <a href="${t.show_url}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors shadow-2xs">
+                                    <span>Xem ticket</span>
+                                    <i class="fas fa-arrow-up-right-from-square text-[10px]"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = `
+                    <div class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 shadow-sm space-y-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">
+                                <i class="fas fa-triangle-exclamation text-sm animate-pulse"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between flex-wrap gap-1">
+                                    <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                                        Cảnh báo: Phát hiện ${data.count} Ticket liên quan đến Dự án này!
+                                    </h4>
+                                    <span class="text-[11px] font-semibold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                                        ${data.active_count} ticket đang hoạt động / xử lý
+                                    </span>
+                                </div>
+                                <p class="text-xs text-amber-800 mt-1">
+                                    Dự án này đã có ticket kỹ thuật được tạo trước đó. Vui lòng kiểm tra danh sách dưới đây trước khi tạo mới để tránh trùng lặp công việc:
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                            ${itemsHtml}
+                        </div>
+
+                        <div class="text-[11px] text-amber-700 italic flex items-center gap-1.5 pt-1 border-t border-amber-200/60">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Mẹo: Bạn có thể bấm vào ticket đã có để trao đổi thêm hoặc cập nhật tiếp nếu đây là cùng một yêu cầu kỹ thuật.</span>
+                        </div>
+                    </div>
+                `;
+
+                container.classList.remove('hidden');
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                updateSelectedCount();
+                updateCoLeadsCount();
+
+                // Initialize TomSelect for project_id
+                if (document.getElementById('project_id')) {
+                    new TomSelect('#project_id', {
+                        placeholder: '-- Tìm kiếm và chọn dự án hệ thống --',
+                        allowEmptyOption: true,
+                        maxOptions: 100,
+                        create: false,
+                        onChange: function(value) {
+                            if (value) {
+                                const projNameInput = document.getElementById('project_name');
+                                const item = this.options[value];
+                                if (projNameInput && (!projNameInput.value || projNameInput.value.trim() === '')) {
+                                    if (item && item.text) {
+                                        projNameInput.value = item.text.trim();
+                                    }
+                                }
+                            }
+                            checkProjectDuplicate();
+                        }
+                    });
+                }
+
+                // Initialize TomSelect for supplier_id
+                if (document.getElementById('supplier_id')) {
+                    new TomSelect('#supplier_id', {
+                        placeholder: '-- Tìm kiếm Vendor / Hãng --',
+                        allowEmptyOption: true,
+                        maxOptions: 100,
+                        create: false
+                    });
+                }
+
+                // Initialize TomSelect for team_lead_id (searchable select)
+                if (document.getElementById('team_lead_id')) {
+                    new TomSelect('#team_lead_id', {
+                        placeholder: '-- Tìm kiếm và chọn Lead chính phụ trách * --',
+                        allowEmptyOption: true,
+                        maxOptions: 100,
+                        create: false,
+                        onChange: function(value) {
+                            handlePrimaryLeadChange();
+                        }
+                    });
+                }
+
+                const leadSelect = document.getElementById('team_lead_id');
+                const coLeadsChecked = document.querySelectorAll('.co-lead-checkbox:checked');
+                if ((leadSelect && leadSelect.value) || coLeadsChecked.length > 0) {
+                    fetchAndFilterMembers();
+                }
+
+                // Initial duplicate check if pre-filled
+                checkProjectDuplicate();
+            });
+
             document.addEventListener('click', function(e) {
                 if (e.target && (e.target.type === 'datetime-local' || e.target.type === 'date')) {
                     try {
@@ -617,5 +1271,6 @@
                 }
             });
         </script>
+        <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     @endpush
 @endsection

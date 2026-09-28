@@ -194,6 +194,11 @@
                                 <!-- 7. Thao tác -->
                                 <td class="px-4 py-3 text-center whitespace-nowrap">
                                     <div class="flex justify-center gap-1">
+                                        <a href="{{ route('technical-tickets.index', ['project_id' => $project->id]) }}"
+                                            class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                                            title="Ticket Kỹ thuật của dự án">
+                                            <i class="fas fa-ticket-alt"></i>
+                                        </a>
                                         <a href="{{ route('projects.show', $project->id) }}"
                                             class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-colors"
                                             title="Xem chi tiết">
