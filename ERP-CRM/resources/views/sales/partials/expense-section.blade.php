@@ -161,6 +161,7 @@
 
 @push('scripts')
 <script>
+function expenseManager() {
     // Parse existing expenses from server and ensure uniqueness by type
     const rawExisting = @json($expenses) || [];
     const seenTypes = new Set();
