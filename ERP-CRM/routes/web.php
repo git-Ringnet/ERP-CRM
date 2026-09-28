@@ -91,6 +91,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/employees/export/excel', [EmployeeController::class, 'export'])->name('employees.export');
     Route::get('/employees/import/template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
     Route::post('/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
+    Route::post('/employees/bulk-assign-roles', [EmployeeController::class, 'bulkAssignRoles'])->name('employees.bulk-assign-roles');
     Route::post('/employees/{employee}/toggle-lock', [EmployeeController::class, 'toggleLock'])->name('employees.toggle-lock');
     Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
     Route::get('/products/import/template', [ProductController::class, 'importTemplate'])->name('products.import.template');

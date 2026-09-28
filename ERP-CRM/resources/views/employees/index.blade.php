@@ -64,11 +64,34 @@
         </div>
     </div>
 
+    <!-- Bulk Actions Bar -->
+    <div id="bulkActionBar" class="hidden bg-indigo-50 border-b border-indigo-200 px-4 py-3 flex items-center justify-between transition-all">
+        <div class="flex items-center gap-2 text-sm text-indigo-900 font-medium">
+            <i class="fas fa-check-circle text-indigo-600 text-base"></i>
+            <span>Đã chọn <strong id="selectedCount" class="text-indigo-700 font-bold">0</strong> nhân viên</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="button" onclick="openBulkRoleModal()"
+                    class="inline-flex items-center px-3.5 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 shadow-sm transition-colors">
+                <i class="fas fa-user-tag mr-2"></i>
+                Gán vai trò hàng loạt
+            </button>
+            <button type="button" onclick="clearSelection()"
+                    class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                <i class="fas fa-times mr-1.5"></i> Bỏ chọn
+            </button>
+        </div>
+    </div>
+
     <!-- Table -->
     <div class="overflow-x-auto">
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-3 py-3 text-center w-10">
+                        <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
+                               class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer">
+                    </th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã NV</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhân viên</th>
@@ -84,7 +107,12 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($employees as $employee)
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 transition-colors" id="employee-row-{{ $employee->id }}">
+                    <td class="px-3 py-3 whitespace-nowrap text-center">
+                        <input type="checkbox" name="selected_employees[]" value="{{ $employee->id }}"
+                               onchange="updateSelectionState()"
+                               class="employee-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer">
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                         {{ ($employees->currentPage() - 1) * $employees->perPage() + $loop->iteration }}
                     </td>
@@ -196,7 +224,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="12" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu nhân viên</p>
                     </td>
@@ -214,11 +242,110 @@
     @endif
 </div>
 
+<!-- Bulk Role Assignment Modal -->
+<div id="bulkRoleModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-12 mx-auto p-6 border w-full max-w-lg shadow-xl rounded-2xl bg-white">
+        <div class="flex justify-between items-center pb-3 border-b border-gray-100">
+            <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                <span class="p-2 bg-purple-100 text-purple-700 rounded-xl mr-2.5">
+                    <i class="fas fa-user-tag text-lg"></i>
+                </span>
+                Gán vai trò hàng loạt
+            </h3>
+            <button type="button" onclick="closeBulkRoleModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <form id="bulkRoleForm" action="{{ route('employees.bulk-assign-roles') }}" method="POST" onsubmit="return validateBulkRoleForm(event)" class="mt-4">
+            @csrf
+            <!-- Hidden container for selected employee IDs -->
+            <div id="selectedEmployeeInputs"></div>
+
+            <div class="mb-4 p-3.5 bg-purple-50 rounded-xl text-sm text-purple-900 border border-purple-100 flex items-center gap-2">
+                <i class="fas fa-info-circle text-purple-600 text-base"></i>
+                <span>Đang áp dụng vai trò cho <strong id="modalSelectedCount" class="font-bold text-purple-800">0</strong> nhân viên đã chọn.</span>
+            </div>
+
+            <!-- Action Type Selection -->
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    Phương thức gán
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="relative flex flex-col p-3.5 border-2 border-purple-600 bg-purple-50/50 rounded-xl cursor-pointer hover:bg-purple-50 transition" id="card-append">
+                        <input type="radio" name="action_type" value="append" checked class="sr-only" onchange="updateActionTypeCards()">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i class="fas fa-plus-circle text-purple-600"></i>
+                            <span class="font-semibold text-gray-900 text-sm">Thêm vai trò</span>
+                        </div>
+                        <p class="text-xs text-gray-500">Giữ nguyên vai trò hiện tại và bổ sung thêm các vai trò mới</p>
+                    </label>
+                    <label class="relative flex flex-col p-3.5 border-2 border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition" id="card-replace">
+                        <input type="radio" name="action_type" value="replace" class="sr-only" onchange="updateActionTypeCards()">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i class="fas fa-sync-alt text-orange-500"></i>
+                            <span class="font-semibold text-gray-900 text-sm">Ghi đè tất cả</span>
+                        </div>
+                        <p class="text-xs text-gray-500">Thay thế toàn bộ vai trò cũ bằng các vai trò được chọn bên dưới</p>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Roles List -->
+            <div class="mb-5">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Chọn vai trò cần áp dụng <span class="text-red-500">*</span>
+                    </label>
+                    <span id="roleSelectionCount" class="text-xs text-gray-500 font-medium">Đã chọn: 0</span>
+                </div>
+                <div class="max-h-56 overflow-y-auto space-y-2 border border-gray-200 rounded-xl p-3 bg-gray-50">
+                    @forelse($availableRoles ?? [] as $role)
+                        <label class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50/30 cursor-pointer transition">
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox" name="role_ids[]" value="{{ $role->id }}" onchange="updateRoleSelectionCount()"
+                                       class="bulk-role-checkbox rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4">
+                                <div>
+                                    <span class="font-medium text-sm text-gray-900">{{ $role->name }}</span>
+                                    @if($role->description)
+                                        <p class="text-xs text-gray-500">{{ $role->description }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                            <span class="text-xs px-2.5 py-0.5 rounded-full font-medium {{ $role->slug == 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
+                                {{ $role->slug }}
+                            </span>
+                        </label>
+                    @empty
+                        <p class="text-sm text-gray-500 text-center py-4">Không tìm thấy vai trò nào trong hệ thống.</p>
+                    @endforelse
+                </div>
+                <p id="bulkRoleError" class="hidden mt-1.5 text-xs text-red-600 font-medium">
+                    <i class="fas fa-exclamation-triangle mr-1"></i> Vui lòng chọn ít nhất một vai trò.
+                </p>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <button type="button" onclick="closeBulkRoleModal()"
+                        class="px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium">
+                    Hủy
+                </button>
+                <button type="submit" id="btnSubmitBulkRole"
+                        class="px-5 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors text-sm font-medium shadow-sm inline-flex items-center">
+                    <i class="fas fa-check mr-1.5"></i>
+                    Xác nhận gán
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Import Modal -->
 <div id="importModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-lg bg-white">
+    <div class="relative top-16 mx-auto p-5 border w-full max-w-md shadow-lg rounded-2xl bg-white">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                 <i class="fas fa-file-import mr-2 text-blue-600"></i>
                 Import Nhân viên từ Excel
             </h3>
@@ -240,33 +367,34 @@
                 <p class="mt-1 text-xs text-gray-500">Dung lượng tối đa: 10MB</p>
             </div>
 
-            <div class="mb-4 p-3 bg-blue-50 rounded-lg">
-                <p class="text-sm text-blue-800 mb-2">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    Hướng dẫn:
+            <div class="mb-4 p-3.5 bg-blue-50 rounded-xl">
+                <p class="text-sm font-medium text-blue-900 mb-2 flex items-center">
+                    <i class="fas fa-info-circle mr-1.5 text-blue-600"></i>
+                    Hướng dẫn & Cột dữ liệu:
                 </p>
-                <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
-                    <li>Tải file mẫu để xem định dạng chuẩn</li>
-                    <li>Các cột bắt buộc: Mã NV, Tên, Email, SĐT, Phòng ban, Chức vụ</li>
-                    <li>Nếu mã NV đã tồn tại, thông tin sẽ được cập nhật</li>
+                <ul class="text-xs text-blue-800 list-disc list-inside space-y-1">
+                    <li>Tải file mẫu để xem chuẩn định dạng các cột.</li>
+                    <li>Cột bắt buộc: <strong>Mã NV, Tên, Email, SĐT, Phòng ban, Chức vụ</strong>.</li>
+                    <li>Hỗ trợ cột <strong>Vai trò</strong>: Điền tên hoặc mã vai trò (vd: <code>Kinh doanh, Kế toán</code>) để tự động gán vai trò khi import.</li>
+                    <li>Nếu mã NV đã tồn tại, thông tin sẽ được cập nhật.</li>
                 </ul>
             </div>
 
             <div class="flex justify-between items-center">
                 <a href="{{ route('employees.import.template') }}" 
-                   class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800">
-                    <i class="fas fa-download mr-1"></i>
+                   class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    <i class="fas fa-download mr-1.5"></i>
                     Tải file mẫu
                 </a>
                 
                 <div class="flex gap-2">
                     <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')"
-                            class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">
+                            class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium">
                         Hủy
                     </button>
                     <button type="submit"
-                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        <i class="fas fa-upload mr-1"></i>
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm inline-flex items-center">
+                        <i class="fas fa-upload mr-1.5"></i>
                         Import
                     </button>
                 </div>
@@ -274,4 +402,128 @@
         </form>
     </div>
 </div>
+
+<script>
+    function getSelectedEmployees() {
+        const checkboxes = document.querySelectorAll('.employee-checkbox:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function updateSelectionState() {
+        const allCheckboxes = document.querySelectorAll('.employee-checkbox');
+        const checkedCheckboxes = document.querySelectorAll('.employee-checkbox:checked');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const bulkActionBar = document.getElementById('bulkActionBar');
+        const selectedCount = document.getElementById('selectedCount');
+
+        const totalSelected = checkedCheckboxes.length;
+        if (selectedCount) {
+            selectedCount.textContent = totalSelected;
+        }
+
+        if (totalSelected > 0) {
+            bulkActionBar.classList.remove('hidden');
+        } else {
+            bulkActionBar.classList.add('hidden');
+        }
+
+        if (selectAllCheckbox) {
+            if (allCheckboxes.length > 0 && totalSelected === allCheckboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else if (totalSelected > 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+        }
+    }
+
+    function toggleSelectAll(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.employee-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+        });
+        updateSelectionState();
+    }
+
+    function clearSelection() {
+        const checkboxes = document.querySelectorAll('.employee-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+        updateSelectionState();
+    }
+
+    function updateActionTypeCards() {
+        const appendRadio = document.querySelector('input[name="action_type"][value="append"]');
+        const cardAppend = document.getElementById('card-append');
+        const cardReplace = document.getElementById('card-replace');
+
+        if (appendRadio && appendRadio.checked) {
+            cardAppend.className = 'relative flex flex-col p-3.5 border-2 border-purple-600 bg-purple-50/50 rounded-xl cursor-pointer hover:bg-purple-50 transition';
+            cardReplace.className = 'relative flex flex-col p-3.5 border-2 border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition';
+        } else {
+            cardAppend.className = 'relative flex flex-col p-3.5 border-2 border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition';
+            cardReplace.className = 'relative flex flex-col p-3.5 border-2 border-orange-500 bg-orange-50/50 rounded-xl cursor-pointer hover:bg-orange-50 transition';
+        }
+    }
+
+    function updateRoleSelectionCount() {
+        const count = document.querySelectorAll('.bulk-role-checkbox:checked').length;
+        const countEl = document.getElementById('roleSelectionCount');
+        if (countEl) {
+            countEl.textContent = `Đã chọn: ${count}`;
+        }
+        if (count > 0) {
+            document.getElementById('bulkRoleError').classList.add('hidden');
+        }
+    }
+
+    function openBulkRoleModal() {
+        const selectedIds = getSelectedEmployees();
+        if (selectedIds.length === 0) {
+            alert('Vui lòng chọn ít nhất một nhân viên.');
+            return;
+        }
+
+        const container = document.getElementById('selectedEmployeeInputs');
+        container.innerHTML = '';
+        selectedIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'employee_ids[]';
+            input.value = id;
+            container.appendChild(input);
+        });
+
+        document.getElementById('modalSelectedCount').textContent = selectedIds.length;
+        document.getElementById('bulkRoleError').classList.add('hidden');
+        updateActionTypeCards();
+        updateRoleSelectionCount();
+        document.getElementById('bulkRoleModal').classList.remove('hidden');
+    }
+
+    function closeBulkRoleModal() {
+        document.getElementById('bulkRoleModal').classList.add('hidden');
+    }
+
+    function validateBulkRoleForm(event) {
+        const selectedRoles = document.querySelectorAll('.bulk-role-checkbox:checked');
+        if (selectedRoles.length === 0) {
+            event.preventDefault();
+            document.getElementById('bulkRoleError').classList.remove('hidden');
+            return false;
+        }
+        return true;
+    }
+</script>
 @endsection
+

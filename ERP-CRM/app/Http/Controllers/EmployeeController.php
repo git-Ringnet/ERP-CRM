@@ -53,7 +53,9 @@ class EmployeeController extends Controller
             ->distinct()
             ->pluck('department');
 
-        return view('employees.index', compact('employees', 'departments'));
+        $availableRoles = \App\Models\Role::active()->orderBy('name')->get();
+
+        return view('employees.index', compact('employees', 'departments', 'availableRoles'));
     }
 
     /**
@@ -262,8 +264,9 @@ class EmployeeController extends Controller
             (object)[
                 'employee_code' => 'NV001',
                 'name' => 'Nguyễn Văn A',
-                'position' => 'Nhân viên',
+                'position' => 'Nhân viên kinh doanh',
                 'department' => 'Kinh doanh',
+                'roles' => collect([(object)['name' => 'Kinh doanh']]),
                 'email' => 'nguyenvana@company.com',
                 'phone' => '0901234567',
                 'password' => 'password123',
@@ -350,5 +353,65 @@ class EmployeeController extends Controller
 
         return redirect()->route('employees.index')
             ->with('success', $message);
+    }
+
+    /**
+     * Bulk assign roles to multiple selected employees
+     */
+    public function bulkAssignRoles(Request $request)
+    {
+        $this->authorize('viewAny', User::class);
+
+        $validated = $request->validate([
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => ['integer', 'exists:users,id'],
+            'role_ids' => ['required', 'array', 'min:1'],
+            'role_ids.*' => ['integer', 'exists:roles,id'],
+            'action_type' => ['required', 'in:append,replace'],
+        ], [
+            'employee_ids.required' => 'Vui lòng chọn ít nhất một nhân viên.',
+            'employee_ids.min' => 'Vui lòng chọn ít nhất một nhân viên.',
+            'role_ids.required' => 'Vui lòng chọn ít nhất một vai trò cần gán.',
+            'role_ids.min' => 'Vui lòng chọn ít nhất một vai trò cần gán.',
+            'action_type.required' => 'Vui lòng chọn phương thức gán vai trò.',
+        ]);
+
+        $employeeIds = $validated['employee_ids'];
+        $roleIds = $validated['role_ids'];
+        $actionType = $validated['action_type']; // 'append' hoặc 'replace'
+        $authId = auth()->id();
+
+        $syncData = [];
+        foreach ($roleIds as $roleId) {
+            $syncData[$roleId] = [
+                'assigned_by' => $authId,
+                'assigned_at' => now(),
+            ];
+        }
+
+        DB::transaction(function () use ($employeeIds, $syncData, $actionType) {
+            $employees = User::whereIn('id', $employeeIds)->get();
+            foreach ($employees as $employee) {
+                if ($actionType === 'replace') {
+                    $employee->roles()->sync($syncData);
+                } else {
+                    $employee->roles()->syncWithoutDetaching($syncData);
+                }
+
+                try {
+                    if (interface_exists(\App\Services\PermissionServiceInterface::class) && app()->bound(\App\Services\PermissionServiceInterface::class)) {
+                        app(\App\Services\PermissionServiceInterface::class)->invalidateUserCache($employee->id);
+                    }
+                } catch (\Throwable $e) {
+                    // Ignore cache invalidation failure
+                }
+            }
+        });
+
+        $count = count($employeeIds);
+        $actionText = $actionType === 'replace' ? 'thay thế' : 'bổ sung';
+
+        return redirect()->route('employees.index')
+            ->with('success', "Đã {$actionText} vai trò thành công cho {$count} nhân viên được chọn.");
     }
 }

@@ -39,6 +39,7 @@ class EmployeesExport implements FromCollection, WithHeadings, WithMapping
             'Tên nhân viên',
             'Chức vụ',
             'Phòng ban',
+            'Vai trò',
             'Email',
             'Số điện thoại',
             'Mật khẩu',
@@ -59,11 +60,22 @@ class EmployeesExport implements FromCollection, WithHeadings, WithMapping
      */
     public function map($employee): array
     {
+        // Format roles
+        $rolesStr = '';
+        if (isset($employee->roles)) {
+            if ($employee->roles instanceof \Illuminate\Support\Collection || is_array($employee->roles)) {
+                $rolesStr = collect($employee->roles)->pluck('name')->implode(', ');
+            }
+        } elseif (isset($employee->vai_tro)) {
+            $rolesStr = (string) $employee->vai_tro;
+        }
+
         return [
             $employee->employee_code ?? '',
             $employee->name ?? '',
             $employee->position ?? '',
             $employee->department ?? '',
+            $rolesStr,
             $employee->email ?? '',
             $employee->phone ?? '',
             '', // Password - để trống khi export (không export password thật)

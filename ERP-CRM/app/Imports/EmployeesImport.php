@@ -63,6 +63,8 @@ class EmployeesImport implements ToCollection, WithHeadingRow
             'tai_khoan_ngan_hang' => ['tai_khoan_ngan_hang', 'taikhoannganh', 'taikhoannganang', 'tk_ngan_hang', 'stk'],
             // Tên ngân hàng
             'ten_ngan_hang' => ['ten_ngan_hang', 'tennganh', 'tennganang', 'ngan_hang', 'nganhang'],
+            // Vai trò
+            'vai_tro' => ['vai_tro', 'vaitro', 'role', 'roles', 'vai_tro_he_thong', 'quyen', 'chuc_danh_he_thong'],
             // Ghi chú
             'ghi_chu' => ['ghi_chu', 'ghichu'],
         ];
@@ -185,6 +187,8 @@ class EmployeesImport implements ToCollection, WithHeadingRow
 
             // Use the $existing check from before validation
 
+            $userId = null;
+
             if ($existing) {
                 // Update existing employee
                 // Only update password if provided in Excel
@@ -195,6 +199,7 @@ class EmployeesImport implements ToCollection, WithHeadingRow
                 DB::table('users')
                     ->where('id', $existing->id)
                     ->update($employeeData);
+                $userId = $existing->id;
                 $this->updated++;
             } else {
                 // Create new employee
@@ -206,10 +211,72 @@ class EmployeesImport implements ToCollection, WithHeadingRow
                 }
                 
                 $employeeData['created_at'] = now();
-                DB::table('users')->insert($employeeData);
+                $userId = DB::table('users')->insertGetId($employeeData);
                 $this->imported++;
             }
+
+            // Gán vai trò nếu có trong file Excel
+            if ($userId && !empty($data['vai_tro'])) {
+                $roleIds = $this->resolveRoleIds($data['vai_tro']);
+                if (!empty($roleIds)) {
+                    $syncData = [];
+                    $authId = auth()->id();
+                    foreach ($roleIds as $rId) {
+                        $syncData[$rId] = [
+                            'assigned_by' => $authId,
+                            'assigned_at' => now(),
+                        ];
+                    }
+                    $user = \App\Models\User::find($userId);
+                    if ($user) {
+                        $user->roles()->sync($syncData);
+                        try {
+                            if (interface_exists(\App\Services\PermissionServiceInterface::class) && app()->bound(\App\Services\PermissionServiceInterface::class)) {
+                                app(\App\Services\PermissionServiceInterface::class)->invalidateUserCache($userId);
+                            }
+                        } catch (\Throwable $e) {
+                            // Bỏ qua lỗi cache
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /**
+     * Resolve role IDs from a role string (comma/semicolon/pipe separated)
+     */
+    protected function resolveRoleIds(?string $roleStr): array
+    {
+        if (empty($roleStr)) {
+            return [];
+        }
+
+        $rawRoles = preg_split('/[,;|]/u', (string) $roleStr);
+        $matchedIds = [];
+        $allRoles = \App\Models\Role::all();
+
+        foreach ($rawRoles as $raw) {
+            $clean = trim($raw);
+            if ($clean === '') {
+                continue;
+            }
+
+            $cleanLower = mb_strtolower($clean);
+
+            // Find by ID, slug, or name
+            $matched = $allRoles->first(function ($r) use ($clean, $cleanLower) {
+                return (string) $r->id === $clean
+                    || mb_strtolower($r->slug) === $cleanLower
+                    || mb_strtolower($r->name) === $cleanLower;
+            });
+
+            if ($matched) {
+                $matchedIds[] = $matched->id;
+            }
+        }
+
+        return array_values(array_unique($matchedIds));
     }
 
     /**
