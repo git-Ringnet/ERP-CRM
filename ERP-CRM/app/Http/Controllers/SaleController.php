@@ -3823,7 +3823,9 @@ class SaleController extends Controller
         $isAuthorized = $user->hasRole('director') || 
                         $user->hasRole('super_admin') || 
                         $user->hasRole('admin') || 
-                        ($sale->payment_exception_delegated_to === $user->id);
+                        ($sale->payment_exception_delegated_to === $user->id) ||
+                        ($sale->user_id === $user->id) ||
+                        $user->hasRole('sales');
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');
@@ -4483,6 +4485,12 @@ class SaleController extends Controller
             'milestones.*.is_blocking' => 'nullable|string',
             'milestones.*.due_days' => 'nullable|integer|min:0',
             'milestones.*.required_docs' => 'nullable|string',
+            'milestones.*.status' => 'nullable|string',
+            'milestones.*.confirmed_by' => 'nullable|string',
+            'milestones.*.confirmed_at' => 'nullable|string',
+            'milestones.*.proof_file_path' => 'nullable|string',
+            'milestones.*.bod_approval_file_path' => 'nullable|string',
+            'milestones.*.delegated_to_id' => 'nullable|integer',
         ]);
 
         $milestones = $validated['milestones'];
@@ -4657,7 +4665,9 @@ class SaleController extends Controller
                         $user->hasRole('super_admin') || 
                         $user->hasRole('admin') || 
                         ($schedule->delegated_to_id === $user->id) ||
-                        ($sale->payment_exception_delegated_to === $user->id);
+                        ($sale->payment_exception_delegated_to === $user->id) ||
+                        ($sale->user_id === $user->id) ||
+                        $user->hasRole('sales');
 
         if (!$isAuthorized) {
             return back()->with('error', 'Bạn không có quyền duyệt ngoại lệ thanh toán.');

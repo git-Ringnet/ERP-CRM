@@ -336,6 +336,8 @@ class Sale extends Model
             $newStatus = 'pending';
             if ($status === 'paid') {
                 $newStatus = 'paid';
+            } elseif ($status === 'pending_finance') {
+                $newStatus = 'pending_finance';
             } elseif ($status === 'approved_preload' || $status === 'approved_export_before_payment' || $status === 'exception_approved') {
                 $newStatus = 'exception_approved';
             } elseif ($status === 'overdue') {
@@ -358,6 +360,7 @@ class Sale extends Model
                 'bod_approval_file_path' => $bodApprovalFilePath,
                 'confirmed_by' => $confirmedBy,
                 'confirmed_at' => $confirmedAt,
+                'delegated_to_id' => $ms['delegated_to_id'] ?? null,
             ]);
         }
     }
@@ -1655,12 +1658,12 @@ class Sale extends Model
             // Check eligibility blocks
             $isBlocking = ($ms['is_blocking'] ?? 'yes') === 'yes';
             if ($requiredBefore === 'before_order' && $isBlocking) {
-                if ($status !== 'paid' && $status !== 'approved_preload') {
+                if ($status !== 'paid' && $status !== 'approved_preload' && $status !== 'exception_approved') {
                     $eligibleForOrder = false;
                     $pendingOrderMilestones[] = $name;
                 }
             } elseif ($requiredBefore === 'before_export' && $isBlocking) {
-                if ($status !== 'paid' && $status !== 'approved_export_before_payment' && $status !== 'approved_preload') {
+                if ($status !== 'paid' && $status !== 'approved_export_before_payment' && $status !== 'approved_preload' && $status !== 'exception_approved') {
                     $eligibleForExport = false;
                     $pendingExportMilestones[] = $name;
                 }

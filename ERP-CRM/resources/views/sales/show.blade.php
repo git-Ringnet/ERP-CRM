@@ -744,7 +744,7 @@
 
             <!-- Phê duyệt ngoại lệ cấp Đơn hàng bởi Giám đốc (BOD) -->
             @php
-                $canApproveSaleException = $isBOD || ($sale->payment_exception_delegated_to === auth()->id());
+                $canApproveSaleException = $isBOD || ($sale->payment_exception_delegated_to === auth()->id()) || ($sale->user_id === auth()->id()) || auth()->user()->hasRole('sales');
             @endphp
             @if((!$payStatus['eligible_for_order'] || !$payStatus['eligible_for_export']) && $canApproveSaleException && !$sale->is_payment_exception)
                 <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
@@ -1014,9 +1014,27 @@
                 if (!amt && pct > 0 && window._saleTotal > 0) {
                     amt = Math.round(window._saleTotal * (pct / 100));
                 }
-                const timing = ms.timing || 'after_contract';
-                const reqBefore = ms.required_before || 'after_delivery';
-                const isBlock = ms.is_blocking || 'yes';
+                
+                let timing = ms.timing || 'after_contract';
+                if (!ms.timing && ms.trigger_type) {
+                    if (ms.trigger_type === 'ON_GOODS_DELIVERED') timing = 'after_delivery';
+                    else if (ms.trigger_type === 'ON_INVOICE_ISSUED') timing = 'after_invoice';
+                    else if (ms.trigger_type === 'ON_DELIVERY_NOTICE') timing = 'after_delivery_notice';
+                    else if (ms.trigger_type === 'BEFORE_EXPORT') timing = 'before_export';
+                }
+
+                let reqBefore = ms.required_before || 'after_delivery';
+                let isBlock = ms.is_blocking !== undefined ? ms.is_blocking : (ms.blocking_stage ? 'yes' : (ms.hasOwnProperty('blocking_stage') && !ms.blocking_stage ? 'no' : 'yes'));
+                if (!ms.required_before && ms.blocking_stage) {
+                    if (ms.blocking_stage === 'BLOCK_PO_SEND') {
+                        reqBefore = 'before_order';
+                        isBlock = 'yes';
+                    } else if (ms.blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                        reqBefore = 'before_export';
+                        isBlock = 'yes';
+                    }
+                }
+
                 const dueDays = ms.due_days ?? ms.days ?? 0;
                 const status = ms.status || 'unpaid';
                 const isLocked = window._isMilestonesLocked || status === 'paid';
@@ -1068,12 +1086,10 @@
                                             <span class="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-400 font-semibold rounded" title="Yêu cầu UNC">Bắt buộc UNC</span>
                                         `
                                     ) : ''}
-                                    ${(window._canApproveBOD || ms.delegated_to_id === window._currentUserId || window._salePaymentDelegatedTo === window._currentUserId) ? `
-                                        <button type="button" onclick="openExceptionModal(${idx}, '${name.replace(/'/g, "\\'")}')"
-                                                class="px-2 py-0.5 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-xs">
-                                            <i class="fas fa-shield-alt mr-0.5"></i> Duyệt
-                                        </button>
-                                    ` : ''}
+                                    <button type="button" onclick="openExceptionModal(${idx}, '${name.replace(/'/g, "\\'")}')"
+                                            class="px-2 py-0.5 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-xs" title="Phê duyệt ngoại lệ BOD">
+                                        <i class="fas fa-shield-alt mr-0.5"></i> Duyệt
+                                    </button>
                                 ` : ''}
                                 ${status === 'pending_finance' ? `
                                     ${ms.proof_file_path ? `<a href="${window._baseUrl}/storage/${ms.proof_file_path}" target="_blank" class="text-[11px] font-bold text-blue-600 hover:underline"><i class="fas fa-file-download"></i> UNC</a>` : ''}
@@ -1247,6 +1263,39 @@
                         console.error('Error parsing template items:', e);
                     }
 
+                    const formattedItems = items.map(item => {
+                        let requiredBefore = item.required_before || 'after_delivery';
+                        let isBlocking = item.is_blocking || (item.blocking_stage ? 'yes' : 'no');
+                        if (!item.required_before && item.blocking_stage) {
+                            if (item.blocking_stage === 'BLOCK_PO_SEND') {
+                                requiredBefore = 'before_order';
+                                isBlocking = 'yes';
+                            } else if (item.blocking_stage === 'BLOCK_WAREHOUSE_EXPORT') {
+                                requiredBefore = 'before_export';
+                                isBlocking = 'yes';
+                            }
+                        }
+
+                        let timing = item.timing || 'after_contract';
+                        if (!item.timing && item.trigger_type) {
+                            if (item.trigger_type === 'ON_GOODS_DELIVERED') timing = 'after_delivery';
+                            else if (item.trigger_type === 'ON_INVOICE_ISSUED') timing = 'after_invoice';
+                            else if (item.trigger_type === 'ON_DELIVERY_NOTICE') timing = 'after_delivery_notice';
+                            else if (item.trigger_type === 'BEFORE_EXPORT') timing = 'before_export';
+                        }
+
+                        return {
+                            milestone_name: item.milestone_name,
+                            percentage: item.percentage,
+                            timing: timing,
+                            required_before: requiredBefore,
+                            is_blocking: isBlocking,
+                            required_docs: item.required_docs || 'none',
+                            due_days: item.due_days || 0,
+                            status: 'unpaid'
+                        };
+                    });
+
                     // Show preview banner
                     const previewAlert = document.getElementById('milestonePreviewAlert');
                     const previewLabel = document.getElementById('previewTemplateNameLabel');
@@ -1255,7 +1304,7 @@
                         previewAlert.classList.remove('hidden');
                     }
 
-                    renderMilestonesTable(items, true);
+                    renderMilestonesTable(formattedItems, true);
                     markMilestonesModified();
                 } else {
                     const previewAlert = document.getElementById('milestonePreviewAlert');
