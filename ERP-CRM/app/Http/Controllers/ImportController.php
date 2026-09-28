@@ -139,8 +139,10 @@ class ImportController extends Controller
 
             $import = $this->transactionService->processImport($data);
 
-            // Tạo thông báo cho tất cả users (trừ người tạo)
+            // Tạo thông báo cho users có quyền xem/duyệt nhập kho (trừ người tạo)
             $recipientIds = User::where('id', '!=', $import->employee_id)
+                ->where('status', 'active')
+                ->withPermission(['view_imports', 'approve_imports'])
                 ->pluck('id')
                 ->toArray();
             if (!empty($recipientIds)) {

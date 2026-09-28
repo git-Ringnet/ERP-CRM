@@ -14,9 +14,12 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         $filter = $request->get('filter', 'all');
-        $userId = Auth::id();
+        $user = Auth::user();
+        if (!$user) {
+            return redirect()->route('login');
+        }
         
-        $query = Notification::where('user_id', $userId)->recent();
+        $query = Notification::where('user_id', $user->id)->recent();
         
         if ($filter === 'unread') {
             $query->unread();
@@ -24,7 +27,20 @@ class NotificationController extends Controller
             $query->where('is_read', true);
         }
         
-        $notifications = $query->paginate(20);
+        $allNotifications = $query->get();
+        $accessibleNotifications = $allNotifications->filter(fn($n) => $n->isAccessibleBy($user))->values();
+        
+        $perPage = 20;
+        $page = (int) $request->get('page', 1);
+        $paginatedItems = $accessibleNotifications->slice(($page - 1) * $perPage, $perPage)->all();
+        
+        $notifications = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedItems,
+            $accessibleNotifications->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
         
         return view('notifications.index', compact('notifications', 'filter'));
     }
@@ -34,9 +50,16 @@ class NotificationController extends Controller
      */
     public function unreadCount()
     {
-        $count = Notification::where('user_id', Auth::id())
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['count' => 0]);
+        }
+
+        $unreadNotifications = Notification::where('user_id', $user->id)
             ->unread()
-            ->count();
+            ->get();
+
+        $count = $unreadNotifications->filter(fn($n) => $n->isAccessibleBy($user))->count();
         
         return response()->json(['count' => $count]);
     }
@@ -46,17 +69,31 @@ class NotificationController extends Controller
      */
     public function recent()
     {
-        $notifications = Notification::where('user_id', Auth::id())
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json([
+                'notifications' => [],
+                'unreadCount' => 0,
+            ]);
+        }
+
+        $notifications = Notification::where('user_id', $user->id)
             ->recent()
-            ->limit(10)
+            ->limit(50)
             ->get();
         
-        $unreadCount = Notification::where('user_id', Auth::id())
+        $accessibleNotifications = $notifications->filter(fn($n) => $n->isAccessibleBy($user))
+            ->values()
+            ->slice(0, 10);
+        
+        $unreadCount = Notification::where('user_id', $user->id)
             ->unread()
+            ->get()
+            ->filter(fn($n) => $n->isAccessibleBy($user))
             ->count();
         
         return response()->json([
-            'notifications' => $notifications,
+            'notifications' => $accessibleNotifications,
             'unreadCount' => $unreadCount,
         ]);
     }

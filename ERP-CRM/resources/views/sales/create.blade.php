@@ -797,13 +797,17 @@
             </div>
 
             <div class="p-6 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                    <div class="flex items-center space-x-2">
-                        <i class="fas fa-lightbulb text-amber-500 text-base flex-shrink-0"></i>
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900">
+                    <div class="flex items-center space-x-2.5 flex-1 min-w-[280px]">
+                        <i class="fas fa-lightbulb text-amber-500 text-lg flex-shrink-0"></i>
                         <div>
-                            <strong>Hướng dẫn:</strong> Copy trực tiếp các cột từ Excel (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá) hoặc dán danh sách theo dòng. Hệ thống tự động nhận diện và khớp với sản phẩm trong kho.
+                            <strong>Hướng dẫn:</strong> Tải file mẫu Excel để nhập số lượng lớn, hoặc kéo thả file Excel vào ô bên dưới, hoặc copy/paste trực tiếp các cột (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá).
                         </div>
                     </div>
+                    <a href="{{ route('sales.bom-template') }}" 
+                       class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors whitespace-nowrap">
+                        <i class="fas fa-download mr-1.5"></i> Tải file mẫu Excel
+                    </a>
                 </div>
 
                 @if(isset($projects) && $projects->count() > 0)
@@ -818,20 +822,43 @@
                 </div>
                 @endif
 
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nội dung BOM / Dữ liệu Excel</label>
-                    <textarea id="bomInputText" rows="6" 
-                        class="w-full font-mono text-xs border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner"
-                        placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                <!-- Upload File & Paste Area Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Option 1: File Upload -->
+                    <div class="border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 rounded-xl p-4 text-center transition flex flex-col justify-center items-center relative cursor-pointer group" id="bomDropZone">
+                        <input type="file" id="bomFileInput" accept=".xlsx,.xls,.csv,.txt" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" onchange="handleBomFileUpload(this)">
+                        <div class="p-3 bg-white shadow-xs text-emerald-600 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-excel text-2xl"></i>
+                        </div>
+                        <p class="text-xs font-bold text-gray-800 mb-1">Cách 1: Import file Excel (.xlsx, .xls, .csv)</p>
+                        <p class="text-[11px] text-gray-500">Kéo thả file vào đây hoặc <span class="text-indigo-600 font-semibold underline">bấm để chọn file</span></p>
+                        <div id="bomUploadedFileName" class="hidden mt-2 px-3 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-xs">
+                            <i class="fas fa-check-circle text-emerald-600"></i>
+                            <span class="truncate max-w-[200px]" id="bomFileNameText"></span>
+                            <button type="button" onclick="clearBomFile(event)" class="text-gray-400 hover:text-red-500 ml-1 p-0.5" title="Xóa file">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Option 2: Paste Textarea -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-gray-700 uppercase">Cách 2: Hoặc dán bảng từ Excel</label>
+                            <button type="button" id="btnClearBomText" class="text-xs text-gray-500 hover:text-red-600 cursor-pointer">
+                                <i class="fas fa-eraser mr-1"></i> Xóa
+                            </button>
+                        </div>
+                        <textarea id="bomInputText" rows="4" 
+                            class="w-full font-mono text-xs border border-gray-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner flex-1"
+                            placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                    </div>
                 </div>
 
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between pt-1">
                     <div class="flex space-x-2">
                         <button type="button" id="btnParseBom" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
                             <i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu
-                        </button>
-                        <button type="button" id="btnClearBomText" class="inline-flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors cursor-pointer">
-                            <i class="fas fa-eraser mr-1.5"></i> Xóa
                         </button>
                     </div>
                     <div id="bomParseStatus" class="text-xs text-gray-500"></div>
@@ -3022,6 +3049,7 @@ const btnApplyBomReplace = document.getElementById('btnApplyBomReplace');
 const bomParseStatus = document.getElementById('bomParseStatus');
 
 let parsedBomItems = [];
+let selectedBomFile = null;
 
 function openBomModal() {
     if (bomModal) bomModal.classList.remove('hidden');
@@ -3036,9 +3064,30 @@ if (closeBomModal) closeBomModal.addEventListener('click', hideBomModal);
 if (closeBomModalFooter) closeBomModalFooter.addEventListener('click', hideBomModal);
 if (bomModalOverlay) bomModalOverlay.addEventListener('click', hideBomModal);
 
+function handleBomFileUpload(input) {
+    if (input.files && input.files[0]) {
+        selectedBomFile = input.files[0];
+        document.getElementById('bomFileNameText').textContent = selectedBomFile.name;
+        document.getElementById('bomUploadedFileName').classList.remove('hidden');
+        triggerParseBom();
+    }
+}
+
+function clearBomFile(e) {
+    if (e) e.stopPropagation();
+    selectedBomFile = null;
+    const input = document.getElementById('bomFileInput');
+    if (input) input.value = '';
+    const uploadedEl = document.getElementById('bomUploadedFileName');
+    if (uploadedEl) uploadedEl.classList.add('hidden');
+    const fileNameEl = document.getElementById('bomFileNameText');
+    if (fileNameEl) fileNameEl.textContent = '';
+}
+
 if (btnClearBomText) {
     btnClearBomText.addEventListener('click', () => {
         bomInputText.value = '';
+        clearBomFile();
         bomPreviewArea.classList.add('hidden');
         btnApplyBomAppend.classList.add('hidden');
         btnApplyBomReplace.classList.add('hidden');
@@ -3047,23 +3096,34 @@ if (btnClearBomText) {
     });
 }
 
-if (btnParseBom) {
-    btnParseBom.addEventListener('click', async () => {
-        const text = bomInputText.value.trim();
-        if (!text) {
-            alert('Vui lòng dán hoặc nhập nội dung BOM cần phân tích.');
-            return;
-        }
+async function triggerParseBom() {
+    const text = bomInputText.value.trim();
+    if (!selectedBomFile && !text) {
+        alert('Vui lòng chọn file Excel hoặc dán nội dung BOM cần phân tích.');
+        return;
+    }
 
-        const projectSelect = document.getElementById('bomModalProjectSelect');
-        const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('projectSelect')?.value || '');
+    const projectSelect = document.getElementById('bomModalProjectSelect');
+    const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('projectSelect')?.value || '');
 
-        btnParseBom.disabled = true;
-        btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
-        bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang tra cứu cơ sở dữ liệu sản phẩm...</span>';
+    btnParseBom.disabled = true;
+    btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
+    bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang đọc dữ liệu và tra cứu sản phẩm trong kho...</span>';
 
-        try {
-            const res = await fetch('{{ route("sales.parse-bom") }}', {
+    try {
+        let res;
+        if (selectedBomFile) {
+            const formData = new FormData();
+            formData.append('file', selectedBomFile);
+            if (selectedProjId) formData.append('project_id', selectedProjId);
+            formData.append('_token', '{{ csrf_token() }}');
+
+            res = await fetch('{{ route("sales.parse-bom") }}', {
+                method: 'POST',
+                body: formData
+            });
+        } else {
+            res = await fetch('{{ route("sales.parse-bom") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -3074,28 +3134,33 @@ if (btnParseBom) {
                     project_id: selectedProjId
                 })
             });
-
-            const data = await res.json();
-            if (data.success && data.items && data.items.length > 0) {
-                parsedBomItems = data.items;
-                renderBomPreview(data.items);
-                btnApplyBomAppend.classList.remove('hidden');
-                btnApplyBomReplace.classList.remove('hidden');
-                bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã phân tích thành công ${data.items.length} dòng hàng</span>`;
-            } else {
-                bomPreviewArea.classList.add('hidden');
-                btnApplyBomAppend.classList.add('hidden');
-                btnApplyBomReplace.classList.add('hidden');
-                bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong nội dung đã nhập.</span>';
-            }
-        } catch (err) {
-            console.error(err);
-            bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
-        } finally {
-            btnParseBom.disabled = false;
-            btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
         }
-    });
+
+        const data = await res.json();
+        if (data.success && data.items && data.items.length > 0) {
+            parsedBomItems = data.items;
+            renderBomPreview(data.items);
+            btnApplyBomAppend.classList.remove('hidden');
+            btnApplyBomReplace.classList.remove('hidden');
+            const sourceInfo = data.filename ? ` từ file "${data.filename}"` : '';
+            bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã nhận diện ${data.items.length} sản phẩm${sourceInfo}</span>`;
+        } else {
+            bomPreviewArea.classList.add('hidden');
+            btnApplyBomAppend.classList.add('hidden');
+            btnApplyBomReplace.classList.add('hidden');
+            bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong dữ liệu. Vui lòng kiểm tra lại file hoặc nội dung.</span>';
+        }
+    } catch (err) {
+        console.error(err);
+        bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
+    } finally {
+        btnParseBom.disabled = false;
+        btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
+    }
+}
+
+if (btnParseBom) {
+    btnParseBom.addEventListener('click', triggerParseBom);
 }
 
 function renderBomPreview(items) {

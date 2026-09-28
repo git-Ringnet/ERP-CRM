@@ -161,9 +161,18 @@
 
 @push('scripts')
 <script>
-function expenseManager() {
-    // Parse existing expenses from server
-    const existingExpenses = @json($expenses);
+    // Parse existing expenses from server and ensure uniqueness by type
+    const rawExisting = @json($expenses) || [];
+    const seenTypes = new Set();
+    const existingExpenses = [];
+    rawExisting.forEach(e => {
+        const t = (e.type || '').trim().toLowerCase();
+        if (t && seenTypes.has(t)) {
+            return; // Skip duplicate
+        }
+        if (t) seenTypes.add(t);
+        existingExpenses.push(e);
+    });
 
     return {
         expenses: existingExpenses.map(e => ({
@@ -182,7 +191,10 @@ function expenseManager() {
         defaultExpensesTemplates: @json(\App\Models\SaleExpense::defaultExpenses()),
 
         addDefaultExpenses() {
-            const defaults = this.defaultExpensesTemplates.map(e => ({
+            const currentTypes = this.expenses.map(e => (e.type || '').trim().toLowerCase());
+            const missingDefaults = this.defaultExpensesTemplates.filter(def => {
+                return !currentTypes.includes((def.type || '').trim().toLowerCase());
+            }).map(e => ({
                 type: e.type || '',
                 input_mode: e.input_mode || 'fixed',
                 _modeBeforeFocus: e.input_mode || 'fixed',
@@ -194,8 +206,21 @@ function expenseManager() {
                 return e;
             });
 
-            // Append default expenses
-            this.expenses.push(...defaults);
+            if (missingDefaults.length === 0) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Thông báo',
+                        text: 'Tất cả các chi phí mặc định đã có trong danh sách!',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+                return;
+            }
+
+            // Append only missing default expenses
+            this.expenses.push(...missingDefaults);
             this.recalcAll();
         },
 

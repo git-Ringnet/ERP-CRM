@@ -178,6 +178,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Sales routes
     Route::get('/sales/export/excel', [SaleController::class, 'export'])->name('sales.export');
+    Route::get('/sales/bom-template', [SaleController::class, 'downloadBomTemplate'])->name('sales.bom-template');
     Route::get('/sales/order-tracking', [SaleController::class, 'orderTracking'])->name('sales.order-tracking');
     Route::post('/sales/parse-bom', [SaleController::class, 'parseBom'])->name('sales.parse-bom');
     Route::resource('sales', SaleController::class);

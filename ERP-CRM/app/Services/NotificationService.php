@@ -176,7 +176,7 @@ class NotificationService
     }
 
     /**
-     * Helper: Tạo thông báo chung
+     * Helper: Tạo thông báo chung (chỉ tạo khi người dùng có quyền xem tài nguyên tương ứng)
      */
     private function createNotification(
         int $userId,
@@ -187,8 +187,13 @@ class NotificationService
         ?string $icon,
         ?string $color,
         array $data = []
-    ): Notification {
-        return Notification::create([
+    ): ?Notification {
+        $user = \App\Models\User::find($userId);
+        if (!$user || $user->status !== 'active' || $user->is_locked) {
+            return null;
+        }
+
+        $notification = new Notification([
             'user_id' => $userId,
             'type' => $type,
             'title' => $title,
@@ -198,6 +203,13 @@ class NotificationService
             'color' => $color,
             'data' => $data,
         ]);
+
+        if (!$notification->isAccessibleBy($user)) {
+            return null;
+        }
+
+        $notification->save();
+        return $notification;
     }
 
     /**
@@ -455,16 +467,15 @@ class NotificationService
 
         // Find users in target department or admin users
         $dept = $project->assigned_team === 'po_team' ? 'PO' : 'PM';
-        $targetUserIds = \App\Models\User::where('department', $dept)
-            ->orWhere('department', 'PM Team')
-            ->orWhere('department', 'PO Team')
+        $targetUserIds = \App\Models\User::where('status', 'active')
+            ->where(function ($q) use ($dept) {
+                $q->where('department', $dept)
+                  ->orWhere('department', 'PM Team')
+                  ->orWhere('department', 'PO Team')
+                  ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director', 'purchase_manager']));
+            })
             ->pluck('id')
             ->toArray();
-
-        if (empty($targetUserIds)) {
-            // Fallback to all admins or system managers
-            $targetUserIds = \App\Models\User::pluck('id')->toArray();
-        }
 
         foreach (array_unique($targetUserIds) as $userId) {
             $this->createNotification(

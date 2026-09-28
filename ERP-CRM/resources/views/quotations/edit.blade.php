@@ -6,27 +6,41 @@
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
+        .select2-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
         .select2-container .select2-selection--single {
-            height: 42px !important;
+            height: 38px !important;
             border-color: #d1d5db !important;
             border-radius: 0.5rem !important;
-            padding-top: 5px !important;
+            display: flex !important;
+            align-items: center !important;
         }
-
         .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 40px !important;
+            height: 36px !important;
+            right: 6px !important;
         }
-
         .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 30px !important;
+            line-height: normal !important;
+            padding-left: 8px !important;
+            padding-right: 26px !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            color: #1f2937 !important;
+            font-size: 0.875rem !important;
         }
-
         .suggestions-list::-webkit-scrollbar {
             width: 6px;
         }
         .suggestions-list::-webkit-scrollbar-thumb {
             background-color: #cbd5e1;
             border-radius: 3px;
+        }
+        #quotationTable td {
+            vertical-align: top;
         }
     </style>
 @endpush
@@ -275,56 +289,56 @@
             </div>
 
             <div class="p-4">
-                <div class="overflow-x-auto border border-gray-200 rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-200 table-fixed" id="quotationTable">
+                <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-2xs">
+                    <table class="min-w-[1150px] w-full divide-y divide-gray-200 table-fixed" id="quotationTable">
                         <thead class="bg-gray-50">
                             <tr>
                                 @foreach($allColumns as $colName)
                                     @if($colName === 'product_id')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[320px] draggable-col" draggable="true" data-column-id="product_id">
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[320px] draggable-col" draggable="true" data-column-id="product_id">
                                             <span class="flex items-center gap-1 cursor-move select-none">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 Sản phẩm / Dịch vụ / Mô tả
                                             </span>
                                         </th>
                                     @elseif($colName === 'quantity')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px] draggable-col" draggable="true" data-column-id="quantity">
-                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                        <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px] min-w-[90px] draggable-col" draggable="true" data-column-id="quantity">
+                                            <span class="flex items-center justify-center gap-1 cursor-move select-none">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 SL
                                             </span>
                                         </th>
                                     @elseif($colName === 'price')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[150px] draggable-col" draggable="true" data-column-id="price">
-                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                        <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[155px] min-w-[155px] draggable-col" draggable="true" data-column-id="price">
+                                            <span class="flex items-center justify-end gap-1 cursor-move select-none">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 Đơn giá (<span class="currency-symbol">₫</span>)
                                             </span>
                                         </th>
                                     @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px] draggable-col" draggable="true" data-column-id="pricelist">
-                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                        <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[125px] min-w-[125px] draggable-col" draggable="true" data-column-id="pricelist">
+                                            <span class="flex items-center justify-end gap-1 cursor-move select-none">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 Pricelist ($)
                                             </span>
                                         </th>
                                     @elseif($colName === 'vat')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px] draggable-col" draggable="true" data-column-id="vat">
-                                            <span class="flex items-center gap-1 cursor-move select-none">
+                                        <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[100px] min-w-[100px] draggable-col" draggable="true" data-column-id="vat">
+                                            <span class="flex items-center justify-center gap-1 cursor-move select-none">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 VAT (%)
                                             </span>
                                         </th>
                                     @elseif($colName === 'row_total')
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[200px] row-total-header draggable-col whitespace-nowrap" draggable="true" data-column-id="row_total">
-                                            <span class="flex items-center gap-1 cursor-move select-none whitespace-nowrap">
+                                        <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[185px] min-w-[185px] row-total-header draggable-col whitespace-nowrap" draggable="true" data-column-id="row_total">
+                                            <span class="flex items-center justify-end gap-1 cursor-move select-none whitespace-nowrap">
                                                 <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                 Thành tiền (gồm VAT) (<span class="currency-symbol">₫</span>)
                                             </span>
                                         </th>
                                     @else
                                         {{-- Custom Column --}}
-                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="{{ $colName }}" data-column-name="{{ $colName }}">
+                                        <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] min-w-[150px] draggable-col" draggable="true" data-column-id="{{ $colName }}" data-column-name="{{ $colName }}">
                                             <span class="flex items-center justify-between gap-1 select-none">
                                                 <span class="flex items-center gap-1 cursor-move">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
@@ -337,7 +351,7 @@
                                         </th>
                                     @endif
                                 @endforeach
-                                <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px]">
+                                <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[105px] min-w-[105px]">
                                     <button type="button" onclick="addCustomColumnPrompt()" class="text-primary hover:text-primary-dark" title="Thêm cột tùy chỉnh">
                                         <i class="fas fa-plus-circle text-lg"></i>
                                     </button>
@@ -387,15 +401,15 @@
                                             <input type="number" name="products[{{ $index }}][quantity]"
                                                 value="{{ $item->quantity }}" min="1" required
                                                 onchange="calculateRowTotal({{ $index }})"
-                                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                         </td>
-                                        @elseif($colName === 'price')
+                                    @elseif($colName === 'price')
                                         <td class="px-3 py-2 align-top">
                                             <input type="text" name="products[{{ $index }}][price]"
                                                 value="{{ is_numeric($item->price) ? number_format($item->price, $decimals, '.', ',') : $item->price }}" required
                                                 onchange="calculateRowTotal({{ $index }})"
-                                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                                            <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none">
+                                                class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                            <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right">
                                                 @if(isset($item->product) && !$isManual)
                                                     Giá gốc kho: {{ number_format($item->product->calculated_selling_price ?? $item->product->price, 0, '.', ',') }} ₫
                                                 @endif
@@ -451,7 +465,7 @@
                                         @endphp
                                         <td class="px-3 py-2 align-top pricelist-cell text-sm">
                                             <input type="number" step="any" min="0" name="products[{{ $index }}][custom_fields][pricelist]" 
-                                                   class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                   class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                                    value="{{ $plPrice !== null ? (float)$plPrice : 0 }}"
                                                    placeholder="0">
                                         </td>
@@ -462,7 +476,7 @@
                                             @endphp
                                             <select name="products[{{ $index }}][vat]"
                                                     onchange="handleVatChange(this)"
-                                                    class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                                    class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                                                 <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
                                                 <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
                                                 <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
@@ -477,7 +491,7 @@
                                     @elseif($colName === 'row_total')
                                         <td class="px-3 py-2 align-top row-total-cell">
                                             <input type="text" readonly
-                                                class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total"
+                                                class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total"
                                                 value="{{ is_numeric($item->total) ? number_format($item->total, $decimals, '.', ',') : $item->total }}">
                                         </td>
                                     @else
@@ -1256,7 +1270,7 @@
             
             // Add TH to header before the Row Total header
             const th = `
-                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="${colName}" data-column-name="${colName}">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] min-w-[150px] draggable-col" draggable="true" data-column-id="${colName}" data-column-name="${colName}">
                     <span class="flex items-center justify-between gap-1 select-none">
                         <span class="flex items-center gap-1 cursor-move">
                             <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
@@ -1447,21 +1461,21 @@
                     <td class="px-3 py-2 align-top">
                         <input type="number" name="products[${rowIndex}][quantity]" value="1" min="1" required
                                onchange="calculateRowTotal(${rowIndex})"
-                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                     </td>
                 `,
                 price: `
                     <td class="px-3 py-2 align-top">
                         <input type="text" name="products[${rowIndex}][price]" value="0" required
                                onchange="calculateRowTotal(${rowIndex})"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right"></small>
                     </td>
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
                         <input type="number" step="any" min="0" name="products[${rowIndex}][custom_fields][pricelist]" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                value="0" placeholder="0">
                     </td>
                 `,
@@ -1469,7 +1483,7 @@
                     <td class="px-3 py-2 align-top">
                         <select name="products[${rowIndex}][vat]"
                                 onchange="handleVatChange(this)"
-                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                             <option value="-1">KCT</option>
                             <option value="0">0%</option>
                             <option value="5">5%</option>
@@ -1482,7 +1496,7 @@
                 row_total: `
                     <td class="px-3 py-2 align-top row-total-cell">
                         <input type="text" readonly
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total" value="0">
                     </td>
                 `
             };
@@ -1583,21 +1597,21 @@
                     <td class="px-3 py-2 align-top">
                         <input type="number" name="products[${rowIndex}][quantity]" value="1" min="1" required
                                onchange="calculateRowTotal(this)"
-                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                     </td>
                 `,
                 price: `
                     <td class="px-3 py-2 align-top">
                         <input type="text" name="products[${rowIndex}][price]" value="0" required
                                onchange="calculateRowTotal(this)"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right"></small>
                     </td>
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
                         <input type="number" step="any" min="0" name="products[${rowIndex}][custom_fields][pricelist]" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                value="0" placeholder="0">
                     </td>
                 `,
@@ -1605,7 +1619,7 @@
                     <td class="px-3 py-2 align-top">
                         <select name="products[${rowIndex}][vat]"
                                 onchange="handleVatChange(this)"
-                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                             <option value="-1">KCT</option>
                             <option value="0">0%</option>
                             <option value="5">5%</option>
@@ -1618,7 +1632,7 @@
                 row_total: `
                     <td class="px-3 py-2 align-top row-total-cell">
                         <input type="text" readonly
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total" value="0">
                     </td>
                 `
             };

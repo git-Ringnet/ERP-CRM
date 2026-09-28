@@ -264,20 +264,42 @@ class SaleController extends Controller
     }
 
     /**
-     * API/AJAX endpoint to parse BOM text into structured products
+     * API/AJAX endpoint to parse BOM text or uploaded Excel file into structured products
      */
     public function parseBom(Request $request)
     {
-        $bomText = $request->input('bom_data', '');
         $projectId = $request->input('project_id');
         $bomParser = app(BomParserService::class);
-        $items = $bomParser->parse($bomText, $projectId ? (int)$projectId : null);
+        $fileName = null;
+
+        if ($request->hasFile('file') || $request->hasFile('bom_file')) {
+            $file = $request->file('file') ?? $request->file('bom_file');
+            $request->validate([
+                'file' => 'nullable|file|mimes:xlsx,xls,csv,txt|max:10240',
+                'bom_file' => 'nullable|file|mimes:xlsx,xls,csv,txt|max:10240',
+            ]);
+            $items = $bomParser->parseSpreadsheetFile($file, $projectId ? (int)$projectId : null);
+            $fileName = $file->getClientOriginalName();
+        } else {
+            $bomText = $request->input('bom_data', '');
+            $items = $bomParser->parse($bomText, $projectId ? (int)$projectId : null);
+        }
 
         return response()->json([
             'success' => true,
             'count' => count($items),
             'items' => $items,
+            'filename' => $fileName,
         ]);
+    }
+
+    /**
+     * Download Excel template for quick BOM import
+     */
+    public function downloadBomTemplate()
+    {
+        $filename = 'mau_nhap_nhanh_bom_' . date('Y-m-d') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\BomTemplateExport(), $filename);
     }
 
     /**
@@ -564,8 +586,12 @@ class SaleController extends Controller
 
             // Create sale expenses
             if (!empty($validated['expenses'])) {
-                foreach ($validated['expenses'] as $expense) {
-                    if (empty($expense['type'])) continue;
+                $uniqueExpenses = collect($validated['expenses'])
+                    ->filter(fn($e) => !empty(trim($e['type'] ?? '')))
+                    ->unique(fn($e) => trim($e['type']))
+                    ->values();
+
+                foreach ($uniqueExpenses as $expense) {
                     $inputMode = $expense['input_mode'] ?? 'fixed';
                     $amount = $inputMode === 'percent'
                         ? 0
@@ -576,7 +602,7 @@ class SaleController extends Controller
 
                     SaleExpense::create([
                         'sale_id' => $sale->id,
-                        'type' => $expense['type'],
+                        'type' => trim($expense['type']),
                         'input_mode' => $inputMode,
                         'percent_value' => $percentValue,
                         'description' => $expense['description'] ?? '',
@@ -1023,8 +1049,13 @@ class SaleController extends Controller
             $newExpensesMap = []; // oldId => newId
             
             if (!empty($validated['expenses'])) {
-                foreach ($validated['expenses'] as $expense) {
-                    if (empty($expense['type'])) continue;
+                $uniqueExpenses = collect($validated['expenses'])
+                    ->filter(fn($e) => !empty(trim($e['type'] ?? '')))
+                    ->unique(fn($e) => trim($e['type']))
+                    ->values();
+
+                foreach ($uniqueExpenses as $expense) {
+                    $type = trim($expense['type']);
                     $inputMode = $expense['input_mode'] ?? 'fixed';
                     $amount = $inputMode === 'percent'
                         ? 0
@@ -1035,14 +1066,14 @@ class SaleController extends Controller
 
                     $newExp = SaleExpense::create([
                         'sale_id' => $sale->id,
-                        'type' => $expense['type'],
+                        'type' => $type,
                         'input_mode' => $inputMode,
                         'percent_value' => $percentValue,
                         'description' => $expense['description'] ?? '',
                         'amount' => $amount,
                     ]);
                     
-                    $oldId = array_search($expense['type'], $oldExpenseTypes);
+                    $oldId = array_search($type, $oldExpenseTypes);
                     if ($oldId !== false) {
                         $newExpensesMap[$oldId] = $newExp->id;
                         unset($oldExpenseTypes[$oldId]); // Đã map xong thì xóa đi để tránh trùng
@@ -4514,8 +4545,13 @@ class SaleController extends Controller
             $newExpensesMap = [];
 
             if (!empty($validated['expenses'])) {
-                foreach ($validated['expenses'] as $expense) {
-                    if (empty($expense['type'])) continue;
+                $uniqueExpenses = collect($validated['expenses'])
+                    ->filter(fn($e) => !empty(trim($e['type'] ?? '')))
+                    ->unique(fn($e) => trim($e['type']))
+                    ->values();
+
+                foreach ($uniqueExpenses as $expense) {
+                    $type = trim($expense['type']);
                     $inputMode = $expense['input_mode'] ?? 'fixed';
                     $amount = $inputMode === 'percent'
                         ? 0
@@ -4526,14 +4562,14 @@ class SaleController extends Controller
 
                     $newExp = \App\Models\SaleExpense::create([
                         'sale_id' => $sale->id,
-                        'type' => $expense['type'],
+                        'type' => $type,
                         'input_mode' => $inputMode,
                         'percent_value' => $percentValue,
                         'description' => $expense['description'] ?? '',
                         'amount' => $amount,
                     ]);
 
-                    $oldId = array_search($expense['type'], $oldExpenseTypes);
+                    $oldId = array_search($type, $oldExpenseTypes);
                     if ($oldId !== false) {
                         $newExpensesMap[$oldId] = $newExp->id;
                         unset($oldExpenseTypes[$oldId]);

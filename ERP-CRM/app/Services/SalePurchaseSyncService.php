@@ -118,12 +118,18 @@ class SalePurchaseSyncService
         $usersToNotify = array_filter(array_unique([$sale->user_id, auth()->id()]));
         
         foreach ($usersToNotify as $userId) {
+            $user = \App\Models\User::find($userId);
+            if (!$user) continue;
+
+            $canViewPo = \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $po);
+            $link = $canViewPo ? route('purchase-orders.show', $po->id) : route('sales.show', $sale->id);
+
             Notification::create([
                 'user_id' => $userId,
                 'type'    => 'purchase_order',
                 'title'   => 'Đã tự động tạo PO nháp',
                 'message' => "Đơn hàng {$sale->code} đã được duyệt. Một bản nháp PO {$po->code} đã được tạo tự động cho bộ phận mua hàng.",
-                'link'    => route('purchase-orders.show', $po->id),
+                'link'    => $link,
                 'icon'    => 'fas fa-file-invoice-dollar',
                 'color'   => 'blue',
                 'data'    => ['po_id' => $po->id, 'po_code' => $po->code, 'sale_id' => $sale->id],

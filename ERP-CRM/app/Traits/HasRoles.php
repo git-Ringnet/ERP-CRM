@@ -26,7 +26,7 @@ trait HasRoles
      */
     public function hasRole(string $roleName): bool
     {
-        return $this->roles()->where('slug', $roleName)->exists();
+        return $this->roles->contains('slug', $roleName);
     }
 
     /**
@@ -37,7 +37,7 @@ trait HasRoles
      */
     public function hasAnyRole(array $roleNames): bool
     {
-        return $this->roles()->whereIn('slug', $roleNames)->exists();
+        return $this->roles->contains(fn($role) => in_array($role->slug, $roleNames));
     }
 
     /**
@@ -48,7 +48,8 @@ trait HasRoles
      */
     public function hasAllRoles(array $roleNames): bool
     {
-        return $this->roles()->whereIn('slug', $roleNames)->count() === count($roleNames);
+        $userRoleSlugs = $this->roles->pluck('slug')->toArray();
+        return count(array_intersect($roleNames, $userRoleSlugs)) === count($roleNames);
     }
 
     /**

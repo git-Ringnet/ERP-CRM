@@ -109,9 +109,11 @@ class TransferController extends Controller
 
             $transfer = $this->transactionService->processTransfer($data);
 
-            // Tạo thông báo cho tất cả users (trừ người tạo)
+            // Tạo thông báo cho users có quyền xem/duyệt chuyển kho (trừ người tạo)
             try {
                 $recipientIds = User::where('id', '!=', $transfer->employee_id)
+                    ->where('status', 'active')
+                    ->withPermission(['view_transfers', 'approve_transfers'])
                     ->pluck('id')
                     ->toArray();
                 if (!empty($recipientIds)) {

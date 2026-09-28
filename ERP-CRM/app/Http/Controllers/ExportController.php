@@ -157,8 +157,10 @@ class ExportController extends Controller
 
             $export = $this->transactionService->processExport($data);
 
-            // Tạo thông báo cho tất cả users (trừ người tạo)
+            // Tạo thông báo cho users có quyền xem/duyệt xuất kho (trừ người tạo)
             $recipientIds = User::where('id', '!=', $export->employee_id)
+                ->where('status', 'active')
+                ->withPermission(['view_exports', 'approve_exports'])
                 ->pluck('id')
                 ->toArray();
             if (!empty($recipientIds)) {

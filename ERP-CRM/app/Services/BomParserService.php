@@ -76,6 +76,200 @@ class BomParserService
     }
 
     /**
+     * Parse BOM from an uploaded Excel / CSV file
+     *
+     * @param \Illuminate\Http\UploadedFile $file
+     * @param int|null $projectId
+     * @return array
+     */
+    public function parseSpreadsheetFile($file, ?int $projectId = null): array
+    {
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('BOM parseSpreadsheetFile Error: ' . $e->getMessage());
+            return [];
+        }
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        // Find the header row (scan first 10 rows)
+        $headerRowIdx = null;
+        $colMap = [
+            'pn' => null,
+            'model' => null,
+            'unit' => null,
+            'qty' => null,
+            'price' => null,
+            'warranty' => null,
+            'note' => null,
+        ];
+
+        foreach ($rows as $rIdx => $row) {
+            if ($rIdx > 10) break;
+            
+            $detected = $this->detectHeaderColumns($row);
+            if ($detected['match_count'] >= 2) {
+                $headerRowIdx = $rIdx;
+                $colMap = $detected['map'];
+                break;
+            }
+        }
+
+        $rawItems = [];
+
+        if ($headerRowIdx !== null) {
+            // Process data rows starting from $headerRowIdx + 1
+            for ($i = $headerRowIdx + 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                if (empty(array_filter($row, fn($v) => $v !== null && trim((string)$v) !== ''))) {
+                    continue;
+                }
+
+                $pn = $colMap['pn'] !== null ? trim((string)($row[$colMap['pn']] ?? '')) : '';
+                $model = $colMap['model'] !== null ? trim((string)($row[$colMap['model']] ?? '')) : '';
+                $unit = $colMap['unit'] !== null ? trim((string)($row[$colMap['unit']] ?? 'Cái')) : 'Cái';
+                $qtyVal = $colMap['qty'] !== null ? $this->cleanNumber($row[$colMap['qty']] ?? 1) : 1;
+                $priceVal = $colMap['price'] !== null ? $this->cleanNumber($row[$colMap['price']] ?? 0) : 0;
+                $warrantyVal = $colMap['warranty'] !== null ? (int)$this->cleanNumber($row[$colMap['warranty']] ?? 12) : 12;
+
+                if (empty($pn) && empty($model)) {
+                    continue;
+                }
+
+                if (empty($pn)) $pn = $model;
+                if (empty($model)) $model = $pn;
+
+                $rawItems[] = [
+                    'pn' => $pn,
+                    'model' => $model,
+                    'unit' => !empty($unit) ? $unit : 'Cái',
+                    'qty' => max(1, (int)$qtyVal),
+                    'price' => max(0, (float)$priceVal),
+                    'warranty' => $warrantyVal ?: 12,
+                    'original_line' => implode(" \t ", array_filter($row, fn($v) => $v !== null && $v !== '')),
+                ];
+            }
+        } else {
+            // Fallback: convert rows to TSV string and parse with extractRawLines
+            $textLines = [];
+            foreach ($rows as $row) {
+                $cleanRow = array_map(fn($v) => trim((string)$v), $row);
+                if (!empty(array_filter($cleanRow))) {
+                    $textLines[] = implode("\t", $cleanRow);
+                }
+            }
+            $rawItems = $this->extractRawLines(implode("\n", $textLines));
+        }
+
+        // Convert $rawItems to parsed items with product matching
+        $parsedItems = [];
+        foreach ($rawItems as $raw) {
+            $matchedProduct = $this->findMatchingProduct($raw['pn'], $raw['model']);
+
+            if ($matchedProduct) {
+                $price = $raw['price'] > 0 
+                    ? $raw['price'] 
+                    : (float)($matchedProduct->calculated_selling_price ?? 0);
+
+                $parsedItems[] = [
+                    'product_id' => $matchedProduct->id,
+                    'is_new' => false,
+                    'is_matched' => true,
+                    'code' => $matchedProduct->code,
+                    'name' => $matchedProduct->name,
+                    'display_text' => '[' . $matchedProduct->code . '] ' . $matchedProduct->name,
+                    'quantity' => $raw['qty'],
+                    'price' => $price,
+                    'vat' => 8,
+                    'warranty_months' => $raw['warranty'] ?? ($matchedProduct->warranty_months ?? 12),
+                    'unit' => $raw['unit'] ?? ($matchedProduct->unit ?? 'Cái'),
+                    'project_id' => $projectId,
+                    'raw_text' => $raw['original_line'] ?? '',
+                ];
+            } else {
+                $code = !empty($raw['pn']) ? $raw['pn'] : (!empty($raw['model']) ? $raw['model'] : 'SP-MOI');
+                $name = !empty($raw['model']) ? $raw['model'] : (!empty($raw['pn']) ? $raw['pn'] : 'Sản phẩm mới');
+
+                $parsedItems[] = [
+                    'product_id' => 'new',
+                    'is_new' => true,
+                    'is_matched' => false,
+                    'new_code' => $code,
+                    'new_name' => $name,
+                    'code' => $code,
+                    'name' => $name,
+                    'display_text' => '[SP Mới] ' . $name,
+                    'quantity' => $raw['qty'],
+                    'price' => $raw['price'] ?? 0,
+                    'vat' => 8,
+                    'warranty_months' => $raw['warranty'] ?? 12,
+                    'new_unit' => $raw['unit'] ?? 'Cái',
+                    'unit' => $raw['unit'] ?? 'Cái',
+                    'project_id' => $projectId,
+                    'raw_text' => $raw['original_line'] ?? '',
+                ];
+            }
+        }
+
+        return $parsedItems;
+    }
+
+    /**
+     * Detect header column indices from a row array
+     */
+    protected function detectHeaderColumns(array $row): array
+    {
+        $map = [
+            'pn' => null,
+            'model' => null,
+            'unit' => null,
+            'qty' => null,
+            'price' => null,
+            'warranty' => null,
+            'note' => null,
+        ];
+        $matchCount = 0;
+
+        foreach ($row as $colIdx => $val) {
+            if ($val === null) continue;
+            $header = mb_strtolower(trim((string)$val));
+            if ($header === '') continue;
+
+            if ($map['pn'] === null && (str_contains($header, 'part number') || str_contains($header, 'mã') || str_contains($header, 'sku') || str_contains($header, 'p/n') || $header === 'pn' || $header === 'code')) {
+                $map['pn'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['model'] === null && (str_contains($header, 'tên') || str_contains($header, 'model') || str_contains($header, 'mô tả') || str_contains($header, 'description') || str_contains($header, 'diễn giải') || str_contains($header, 'hàng hóa') || str_contains($header, 'name'))) {
+                $map['model'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['unit'] === null && (str_contains($header, 'đơn vị') || str_contains($header, 'đvt') || str_contains($header, 'unit'))) {
+                $map['unit'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['qty'] === null && (str_contains($header, 'số lượng') || str_contains($header, 'sl') || str_contains($header, 'qty') || str_contains($header, 'quantity'))) {
+                $map['qty'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['price'] === null && (str_contains($header, 'đơn giá') || str_contains($header, 'giá') || str_contains($header, 'price') || str_contains($header, 'unit price'))) {
+                $map['price'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['warranty'] === null && (str_contains($header, 'bảo hành') || str_contains($header, 'warranty'))) {
+                $map['warranty'] = $colIdx;
+                $matchCount++;
+            } elseif ($map['note'] === null && (str_contains($header, 'ghi chú') || str_contains($header, 'note') || str_contains($header, 'remark'))) {
+                $map['note'] = $colIdx;
+            }
+        }
+
+        return [
+            'match_count' => $matchCount,
+            'map' => $map,
+        ];
+    }
+
+    /**
      * Parse BOM text for multiple projects
      *
      * @param Collection|array $projects

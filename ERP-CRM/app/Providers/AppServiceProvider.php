@@ -47,11 +47,14 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.tailwind');
         \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.simple-tailwind');
 
-        // Apply email settings from database
+        // Apply email settings from database (cached to avoid DB check on every request)
         try {
-            if (Schema::hasTable('settings')) {
-                Setting::applyEmailConfig();
-            }
+            \Illuminate\Support\Facades\Cache::remember('system.mail_config_loaded', 3600, function () {
+                if (Schema::hasTable('settings')) {
+                    Setting::applyEmailConfig();
+                }
+                return true;
+            });
         } catch (\Throwable $e) {
             // Ignore database query errors during application boot (e.g. fresh migration or missing tables)
         }

@@ -111,6 +111,25 @@ class User extends Authenticatable
     }
 
     /**
+     * Scope for querying users who have specific permission(s) or super_admin.
+     */
+    public function scopeWithPermission(Builder $query, string|array $permissions): Builder
+    {
+        $permissions = (array) $permissions;
+        return $query->where(function ($q) use ($permissions) {
+            $q->whereHas('roles.permissions', function ($pq) use ($permissions) {
+                $pq->whereIn('slug', $permissions);
+            })
+            ->orWhereHas('directPermissions', function ($pq) use ($permissions) {
+                $pq->whereIn('slug', $permissions);
+            })
+            ->orWhereHas('roles', function ($rq) {
+                $rq->where('slug', 'super_admin');
+            });
+        });
+    }
+
+    /**
      * Tài sản / dụng cụ được cấp phát cho nhân viên này.
      */
     public function assetAssignments(): \Illuminate\Database\Eloquent\Relations\HasMany

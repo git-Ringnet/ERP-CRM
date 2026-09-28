@@ -132,9 +132,13 @@ class DamagedGoodController extends Controller
             $damagedGood->items()->attach($request->product_item_id);
         }
 
-        // Gửi thông báo cho tất cả users (trừ người tạo)
+        // Gửi thông báo cho users có quyền xem/duyệt hàng hư hỏng (trừ người tạo)
         $currentUserId = auth()->id();
-        $recipientIds = User::where('id', '!=', $currentUserId)->pluck('id')->toArray();
+        $recipientIds = User::where('id', '!=', $currentUserId)
+            ->where('status', 'active')
+            ->withPermission(['view_damaged_goods', 'approve_damaged_goods'])
+            ->pluck('id')
+            ->toArray();
 
         if (!empty($recipientIds)) {
             $damagedGood->load(['product', 'discoveredBy']);

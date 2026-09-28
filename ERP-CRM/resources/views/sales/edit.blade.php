@@ -337,13 +337,16 @@
 
             {{-- Expenses Section — Flexible P/L Cost Entry --}}
             @php
-                $expenseData = $sale->expenses->map(fn($e) => [
-                    'type' => $e->type,
-                    'input_mode' => $e->input_mode ?? 'fixed',
-                    'percent_value' => $e->percent_value,
-                    'amount' => $e->amount,
-                    'description' => $e->description ?? '',
-                ])->toArray();
+                $expenseData = $sale->expenses
+                    ->unique('type')
+                    ->values()
+                    ->map(fn($e) => [
+                        'type' => $e->type,
+                        'input_mode' => $e->input_mode ?? 'fixed',
+                        'percent_value' => $e->percent_value,
+                        'amount' => $e->amount,
+                        'description' => $e->description ?? '',
+                    ])->toArray();
                 // Không tự động load expenses mặc định nếu rỗng - cho phép user xóa hết
             @endphp
             @include('sales.partials.expense-section', [

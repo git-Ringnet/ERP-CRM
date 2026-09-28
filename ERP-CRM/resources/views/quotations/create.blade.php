@@ -6,27 +6,41 @@
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
+        .select2-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
         .select2-container .select2-selection--single {
-            height: 42px !important;
+            height: 38px !important;
             border-color: #d1d5db !important;
             border-radius: 0.5rem !important;
-            padding-top: 5px !important;
+            display: flex !important;
+            align-items: center !important;
         }
-
         .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 40px !important;
+            height: 36px !important;
+            right: 6px !important;
         }
-
         .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 30px !important;
+            line-height: normal !important;
+            padding-left: 8px !important;
+            padding-right: 26px !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            color: #1f2937 !important;
+            font-size: 0.875rem !important;
         }
-
         .suggestions-list::-webkit-scrollbar {
             width: 6px;
         }
         .suggestions-list::-webkit-scrollbar-thumb {
             background-color: #cbd5e1;
             border-radius: 3px;
+        }
+        #quotationTable td {
+            vertical-align: top;
         }
     </style>
 @endpush
@@ -272,56 +286,56 @@
                         @endforeach
                     </div>
 
-                    <div class="overflow-x-auto border border-gray-200 rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-200 table-fixed" id="quotationTable">
+                    <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-2xs">
+                        <table class="min-w-[1150px] w-full divide-y divide-gray-200 table-fixed" id="quotationTable">
                             <thead class="bg-gray-50">
                                 <tr>
                                     @foreach($allColumns as $colName)
                                         @if($colName === 'product_id')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[320px] draggable-col" draggable="true" data-column-id="product_id">
+                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[320px] draggable-col" draggable="true" data-column-id="product_id">
                                                 <span class="flex items-center gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Sản phẩm / Dịch vụ / Mô tả
                                                 </span>
                                             </th>
                                         @elseif($colName === 'quantity')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px] draggable-col" draggable="true" data-column-id="quantity">
-                                                <span class="flex items-center gap-1 cursor-move select-none">
+                                            <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px] min-w-[90px] draggable-col" draggable="true" data-column-id="quantity">
+                                                <span class="flex items-center justify-center gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     SL
                                                 </span>
                                             </th>
                                         @elseif($colName === 'price')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[150px] draggable-col" draggable="true" data-column-id="price">
-                                                <span class="flex items-center gap-1 cursor-move select-none">
+                                            <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[155px] min-w-[155px] draggable-col" draggable="true" data-column-id="price">
+                                                <span class="flex items-center justify-end gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Đơn giá (<span class="currency-symbol">₫</span>)
                                                 </span>
                                             </th>
                                         @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px] draggable-col" draggable="true" data-column-id="pricelist">
-                                                <span class="flex items-center gap-1 cursor-move select-none">
+                                            <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[125px] min-w-[125px] draggable-col" draggable="true" data-column-id="pricelist">
+                                                <span class="flex items-center justify-end gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Pricelist ($)
                                                 </span>
                                             </th>
                                         @elseif($colName === 'vat')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[90px] draggable-col" draggable="true" data-column-id="vat">
-                                                <span class="flex items-center gap-1 cursor-move select-none">
+                                            <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[100px] min-w-[100px] draggable-col" draggable="true" data-column-id="vat">
+                                                <span class="flex items-center justify-center gap-1 cursor-move select-none">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     VAT (%)
                                                 </span>
                                             </th>
                                         @elseif($colName === 'row_total')
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[200px] row-total-header draggable-col whitespace-nowrap" draggable="true" data-column-id="row_total">
-                                                <span class="flex items-center gap-1 cursor-move select-none whitespace-nowrap">
+                                            <th scope="col" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider w-[185px] min-w-[185px] row-total-header draggable-col whitespace-nowrap" draggable="true" data-column-id="row_total">
+                                                <span class="flex items-center justify-end gap-1 cursor-move select-none whitespace-nowrap">
                                                     <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
                                                     Thành tiền (gồm VAT) (<span class="currency-symbol">₫</span>)
                                                 </span>
                                             </th>
                                         @else
                                             {{-- Custom Column --}}
-                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="{{ $colName }}" data-column-name="{{ $colName }}">
+                                            <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] min-w-[150px] draggable-col" draggable="true" data-column-id="{{ $colName }}" data-column-name="{{ $colName }}">
                                                 <span class="flex items-center justify-between gap-1 select-none">
                                                     <span class="flex items-center gap-1 cursor-move">
                                                         <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
@@ -334,7 +348,7 @@
                                             </th>
                                         @endif
                                     @endforeach
-                                    <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px]">
+                                    <th scope="col" class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[105px] min-w-[105px]">
                                         <button type="button" onclick="addCustomColumnPrompt()" class="text-primary hover:text-primary-dark" title="Thêm cột tùy chỉnh">
                                             <i class="fas fa-plus-circle text-lg"></i>
                                         </button>
@@ -351,7 +365,33 @@
                             @if(!empty($initialProducts))
                                 @foreach($initialProducts as $index => $item)
                                 @php
-                                    $isManual = empty($item['product_id']) || (isset($item['product_id']) && !str_starts_with($item['product_id'], 'p-') && !str_starts_with($item['product_id'], 'c-') && !is_numeric($item['product_id']));
+                                    $rawPid = $item['product_id'] ?? '';
+                                    $isManual = empty($rawPid) || $rawPid === 'new' || (!str_starts_with((string)$rawPid, 'p-') && !str_starts_with((string)$rawPid, 'c-') && !is_numeric($rawPid));
+                                    
+                                    $productIdVal = $rawPid;
+                                    if (is_numeric($productIdVal)) {
+                                        $productIdVal = 'p-' . $productIdVal;
+                                    }
+
+                                    $displayName = $item['display_text'] ?? ($item['product_name'] ?? ($item['name'] ?? ''));
+                                    if (!$isManual && !empty($productIdVal)) {
+                                        if (str_starts_with((string)$productIdVal, 'p-')) {
+                                            $prod = \App\Models\Product::find(substr($productIdVal, 2));
+                                            if ($prod) {
+                                                $displayName = '[' . $prod->code . '] ' . $prod->name;
+                                            }
+                                        } elseif (str_starts_with((string)$productIdVal, 'c-')) {
+                                            $cat = \App\Models\SupplierPriceListItem::find(substr($productIdVal, 2));
+                                            if ($cat) {
+                                                $displayName = '[' . $cat->sku . '] ' . ($cat->item_name ?: $cat->name);
+                                            }
+                                        }
+                                    }
+                                    
+                                    $manualName = $item['product_name'] ?? ($item['new_name'] ?? ($item['name'] ?? ($item['code'] ?? '')));
+                                    $description = $item['description'] ?? ($item['raw_text'] ?? ($item['name'] ?? ($item['new_name'] ?? '')));
+                                    $priceRaw = $item['price'] ?? 0;
+                                    $formattedPrice = is_numeric($priceRaw) ? number_format((float)$priceRaw, 0, '.', ',') : $priceRaw;
                                 @endphp
                                 <tr class="product-item" data-index="{{ $index }}">
                                     @foreach($allColumns as $colName)
@@ -365,62 +405,52 @@
                                                 </div>
                                                 <div class="select2-wrapper {{ $isManual ? 'hidden' : '' }}">
                                                     <select name="products[{{ $index }}][product_id]" class="w-full product-select" data-placeholder="Tìm mã hoặc tên sản phẩm...">
-                                                        @if(!$isManual && isset($item['product_id']) && $item['product_id'])
-                                                            @php
-                                                                $displayName = $item['product_name'] ?? '';
-                                                                if (str_starts_with($item['product_id'], 'p-')) {
-                                                                    $prod = \App\Models\Product::find(substr($item['product_id'], 2));
-                                                                    if ($prod) $displayName = $prod->code;
-                                                                } elseif (str_starts_with($item['product_id'], 'c-')) {
-                                                                    $cat = \App\Models\SupplierPriceListItem::find(substr($item['product_id'], 2));
-                                                                    if ($cat) $displayName = $cat->sku;
-                                                                }
-                                                            @endphp
-                                                            <option value="{{ $item['product_id'] }}" selected>{{ $displayName }}</option>
+                                                        @if(!$isManual && !empty($productIdVal))
+                                                            <option value="{{ $productIdVal }}" selected>{{ $displayName }}</option>
                                                         @endif
                                                     </select>
                                                 </div>
                                                 <div class="manual-wrapper {{ $isManual ? '' : 'hidden' }}">
                                                     <input type="text" name="products[{{ $index }}][product_name]" class="manual-name-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                                                            placeholder="Nhập tên dịch vụ/sản phẩm ngoài..." 
-                                                           value="{{ $isManual ? ($item['product_name'] ?? '') : '' }}">
+                                                           value="{{ $isManual ? $manualName : '' }}">
                                                 </div>
                                                 <div class="mt-2">
                                                     <label class="block text-[11px] font-medium text-gray-400 mb-0.5">Mô tả</label>
                                                     <textarea name="products[{{ $index }}][description]" 
                                                            class="description-input w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
-                                                           placeholder="Mô tả chi tiết sản phẩm/dịch vụ..." rows="2">{{ $item['description'] ?? '' }}</textarea>
+                                                           placeholder="Mô tả chi tiết sản phẩm/dịch vụ..." rows="2">{{ $description }}</textarea>
                                                 </div>
                                             </td>
                                         @elseif($colName === 'quantity')
                                             <td class="px-3 py-2 align-top">
                                                 <input type="number" name="products[{{ $index }}][quantity]"
-                                                       value="{{ $item['quantity'] }}" min="1" required
+                                                       value="{{ $item['quantity'] ?? 1 }}" min="1" required
                                                        onchange="calculateRowTotal({{ $index }})"
-                                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                             </td>
                                         @elseif($colName === 'price')
                                             <td class="px-3 py-2 align-top">
                                                 <input type="text" name="products[{{ $index }}][price]"
-                                                       value="{{ $item['price'] }}" required
+                                                       value="{{ $formattedPrice }}" required
                                                        onchange="calculateRowTotal({{ $index }})"
-                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                                                <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                                                       class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                                <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right"></small>
                                             </td>
                                         @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                             @php
-                                                $oldPricelistVal = $item['custom_fields']['pricelist'] ?? null;
+                                                $oldPricelistVal = $item['custom_fields']['pricelist'] ?? ($item['cost_price'] ?? ($item['pricelist_price'] ?? null));
                                                 $oldPricelistPrice = 0;
                                                 if ($oldPricelistVal !== null && $oldPricelistVal !== '') {
                                                     $oldPricelistPrice = (float) str_replace(['$', ','], '', (string)$oldPricelistVal);
                                                 } else {
-                                                    $oldProductId = $item['product_id'] ?? null;
+                                                    $oldProductId = $productIdVal;
                                                     if ($oldProductId) {
                                                         $oldSku = null;
-                                                        if (str_starts_with($oldProductId, 'p-')) {
+                                                        if (str_starts_with((string)$oldProductId, 'p-')) {
                                                             $oldP = \App\Models\Product::find(substr($oldProductId, 2));
                                                             if ($oldP) $oldSku = $oldP->code;
-                                                        } elseif (str_starts_with($oldProductId, 'c-')) {
+                                                        } elseif (str_starts_with((string)$oldProductId, 'c-')) {
                                                             $oldC = \App\Models\SupplierPriceListItem::find(substr($oldProductId, 2));
                                                             if ($oldC) $oldSku = $oldC->sku;
                                                         }
@@ -451,7 +481,7 @@
                                             @endphp
                                             <td class="px-3 py-2 align-top pricelist-cell text-sm">
                                                 <input type="number" step="any" min="0" name="products[{{ $index }}][custom_fields][pricelist]" 
-                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                                        value="{{ $oldPricelistPrice !== null ? (float)$oldPricelistPrice : 0 }}"
                                                        placeholder="0">
                                             </td>
@@ -462,7 +492,7 @@
                                                 @endphp
                                                 <select name="products[{{ $index }}][vat]"
                                                         onchange="handleVatChange(this)"
-                                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                                                     <option value="-1" {{ $vatVal == -1 ? 'selected' : '' }}>KCT</option>
                                                     <option value="0" {{ $vatVal == 0 ? 'selected' : '' }}>0%</option>
                                                     <option value="5" {{ $vatVal == 5 ? 'selected' : '' }}>5%</option>
@@ -477,7 +507,7 @@
                                         @elseif($colName === 'row_total')
                                             <td class="px-3 py-2 align-top row-total-cell">
                                                 <input type="text" readonly
-                                                       class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total" value="0">
                                             </td>
                                         @else
                                             <td class="px-3 py-2 align-top custom-col-cell" data-column-name="{{ $colName }}">
@@ -537,26 +567,26 @@
                                             <td class="px-3 py-2 align-top">
                                                 <input type="number" name="products[0][quantity]" value="1" min="1" required
                                                        onchange="calculateRowTotal(0)"
-                                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                                             </td>
                                         @elseif($colName === 'price')
                                             <td class="px-3 py-2 align-top">
                                                 <input type="text" name="products[0][price]" value="0" required
                                                        onchange="calculateRowTotal(0)"
-                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                                                <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                                                       class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                                                <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right"></small>
                                             </td>
                                         @elseif(strtolower(str_replace(['_', ' '], '', $colName)) === 'pricelist')
                                             <td class="px-3 py-2 align-top pricelist-cell text-sm">
                                                 <input type="number" step="any" min="0" name="products[0][custom_fields][pricelist]" 
-                                                       class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                                                       class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                                        value="0" placeholder="0">
                                             </td>
                                         @elseif($colName === 'vat')
                                             <td class="px-3 py-2 align-top">
                                                 <select name="products[0][vat]"
                                                         onchange="handleVatChange(this)"
-                                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                                        class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                                                     <option value="-1">KCT</option>
                                                     <option value="0">0%</option>
                                                     <option value="5">5%</option>
@@ -568,7 +598,7 @@
                                         @elseif($colName === 'row_total')
                                             <td class="px-3 py-2 align-top row-total-cell">
                                                 <input type="text" readonly
-                                                       class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                                                       class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total" value="0">
                                             </td>
                                         @else
                                             <td class="px-3 py-2 align-top custom-col-cell" data-column-name="{{ $colName }}">
@@ -989,13 +1019,17 @@
             </div>
 
             <div class="p-6 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                    <div class="flex items-center space-x-2">
-                        <i class="fas fa-lightbulb text-amber-500 text-base flex-shrink-0"></i>
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900">
+                    <div class="flex items-center space-x-2.5 flex-1 min-w-[280px]">
+                        <i class="fas fa-lightbulb text-amber-500 text-lg flex-shrink-0"></i>
                         <div>
-                            <strong>Hướng dẫn:</strong> Copy trực tiếp các cột từ Excel (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá) hoặc dán danh sách theo dòng. Toàn bộ đơn giá do Sales quyết định độc lập.
+                            <strong>Hướng dẫn:</strong> Tải file mẫu Excel để nhập số lượng lớn, hoặc kéo thả file Excel vào ô bên dưới, hoặc copy/paste trực tiếp các cột (STT, Mã Part Number, Tên/Model, Số lượng, Đơn giá).
                         </div>
                     </div>
+                    <a href="{{ route('sales.bom-template') }}" 
+                       class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors whitespace-nowrap">
+                        <i class="fas fa-download mr-1.5"></i> Tải file mẫu Excel
+                    </a>
                 </div>
 
                 @if(isset($projects) && $projects->count() > 0)
@@ -1010,20 +1044,43 @@
                 </div>
                 @endif
 
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nội dung BOM / Dữ liệu Excel</label>
-                    <textarea id="bomInputText" rows="6" 
-                        class="w-full font-mono text-xs border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner"
-                        placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                <!-- Upload File & Paste Area Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Option 1: File Upload -->
+                    <div class="border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 rounded-xl p-4 text-center transition flex flex-col justify-center items-center relative cursor-pointer group" id="bomDropZone">
+                        <input type="file" id="bomFileInput" accept=".xlsx,.xls,.csv,.txt" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" onchange="handleBomFileUpload(this)">
+                        <div class="p-3 bg-white shadow-xs text-emerald-600 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-excel text-2xl"></i>
+                        </div>
+                        <p class="text-xs font-bold text-gray-800 mb-1">Cách 1: Import file Excel (.xlsx, .xls, .csv)</p>
+                        <p class="text-[11px] text-gray-500">Kéo thả file vào đây hoặc <span class="text-indigo-600 font-semibold underline">bấm để chọn file</span></p>
+                        <div id="bomUploadedFileName" class="hidden mt-2 px-3 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-xs">
+                            <i class="fas fa-check-circle text-emerald-600"></i>
+                            <span class="truncate max-w-[200px]" id="bomFileNameText"></span>
+                            <button type="button" onclick="clearBomFile(event)" class="text-gray-400 hover:text-red-500 ml-1 p-0.5" title="Xóa file">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Option 2: Paste Textarea -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-gray-700 uppercase">Cách 2: Hoặc dán bảng từ Excel</label>
+                            <button type="button" id="btnClearBomText" class="text-xs text-gray-500 hover:text-red-600 cursor-pointer">
+                                <i class="fas fa-eraser mr-1"></i> Xóa
+                            </button>
+                        </div>
+                        <textarea id="bomInputText" rows="4" 
+                            class="w-full font-mono text-xs border border-gray-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-inner flex-1"
+                            placeholder="Ví dụ dán từ Excel:&#10;AW210040&#9;AirEngine 5760-51&#9;2&#9;15000000&#10;FG-60F-BDL&#9;FortiGate 60F Hardware&#9;1&#9;12500000&#10;&#10;Hoặc định dạng tự do:&#10;2x FG-60F-BDL&#10;AW210040 - Huawei AirEngine - 5 cái @ 14,000,000"></textarea>
+                    </div>
                 </div>
 
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between pt-1">
                     <div class="flex space-x-2">
                         <button type="button" id="btnParseBom" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer">
                             <i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu
-                        </button>
-                        <button type="button" id="btnClearBomText" class="inline-flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors cursor-pointer">
-                            <i class="fas fa-eraser mr-1.5"></i> Xóa
                         </button>
                     </div>
                     <div id="bomParseStatus" class="text-xs text-gray-500"></div>
@@ -1185,6 +1242,14 @@
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     return false;
+                }
+            });
+
+            // Calculate row totals for initial rows
+            $('.product-item').each(function() {
+                const idx = $(this).attr('data-index');
+                if (idx !== undefined) {
+                    calculateRowTotal(idx);
                 }
             });
 
@@ -1441,7 +1506,7 @@
             
             // Add TH to header before the Row Total header
             const th = `
-                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] draggable-col" draggable="true" data-column-id="${colName}" data-column-name="${colName}">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider custom-col-header w-[150px] min-w-[150px] draggable-col" draggable="true" data-column-id="${colName}" data-column-name="${colName}">
                     <span class="flex items-center justify-between gap-1 select-none">
                         <span class="flex items-center gap-1 cursor-move">
                             <i class="fas fa-grip-vertical text-gray-400 mr-1"></i>
@@ -1632,21 +1697,21 @@
                     <td class="px-3 py-2 align-top">
                         <input type="number" name="products[${productIndex}][quantity]" value="1" min="1" required
                                onchange="calculateRowTotal(${productIndex})"
-                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
+                               class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
                     </td>
                 `,
                 price: `
                     <td class="px-3 py-2 align-top">
                         <input type="text" name="products[${productIndex}][price]" value="0" required
                                onchange="calculateRowTotal(${productIndex})"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary price-input">
-                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none"></small>
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary price-input">
+                        <small class="block text-[10px] text-gray-400 mt-1 base-price-reference leading-none text-right"></small>
                     </td>
                 `,
                 pricelist: `
                     <td class="px-3 py-2 align-top pricelist-cell text-sm">
                         <input type="number" step="any" min="0" name="products[${productIndex}][custom_fields][pricelist]" 
-                               class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
+                               class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm text-right pricelist-display text-blue-600 font-semibold focus:outline-none focus:ring-2 focus:ring-primary" 
                                value="0" placeholder="0">
                     </td>
                 `,
@@ -1654,7 +1719,7 @@
                     <td class="px-3 py-2 align-top">
                         <select name="products[${productIndex}][vat]"
                                 onchange="handleVatChange(this)"
-                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary vat-input">
+                                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-primary vat-input">
                             <option value="-1">KCT</option>
                             <option value="0">0%</option>
                             <option value="5">5%</option>
@@ -1667,7 +1732,7 @@
                 row_total: `
                     <td class="px-3 py-2 align-top row-total-cell">
                         <input type="text" readonly
-                               class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-1.5 text-sm row-total" value="0">
+                               class="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold text-gray-800 row-total" value="0">
                     </td>
                 `
             };
@@ -2573,6 +2638,7 @@
         const bomParseStatus = document.getElementById('bomParseStatus');
 
         let parsedBomItems = [];
+        let selectedBomFile = null;
 
         function openBomModal() {
             if (bomModal) bomModal.classList.remove('hidden');
@@ -2587,9 +2653,30 @@
         if (closeBomModalFooter) closeBomModalFooter.addEventListener('click', hideBomModal);
         if (bomModalOverlay) bomModalOverlay.addEventListener('click', hideBomModal);
 
+        window.handleBomFileUpload = function(input) {
+            if (input.files && input.files[0]) {
+                selectedBomFile = input.files[0];
+                document.getElementById('bomFileNameText').textContent = selectedBomFile.name;
+                document.getElementById('bomUploadedFileName').classList.remove('hidden');
+                triggerParseBom();
+            }
+        };
+
+        window.clearBomFile = function(e) {
+            if (e) e.stopPropagation();
+            selectedBomFile = null;
+            const input = document.getElementById('bomFileInput');
+            if (input) input.value = '';
+            const uploadedEl = document.getElementById('bomUploadedFileName');
+            if (uploadedEl) uploadedEl.classList.add('hidden');
+            const fileNameEl = document.getElementById('bomFileNameText');
+            if (fileNameEl) fileNameEl.textContent = '';
+        };
+
         if (btnClearBomText) {
             btnClearBomText.addEventListener('click', () => {
                 bomInputText.value = '';
+                clearBomFile();
                 bomPreviewArea.classList.add('hidden');
                 btnApplyBomAppend.classList.add('hidden');
                 btnApplyBomReplace.classList.add('hidden');
@@ -2598,27 +2685,38 @@
             });
         }
 
-        if (btnParseBom) {
-            btnParseBom.addEventListener('click', async () => {
-                const text = bomInputText.value.trim();
-                if (!text) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Thông báo',
-                        text: 'Vui lòng dán hoặc nhập nội dung BOM cần phân tích.',
+        async function triggerParseBom() {
+            const text = bomInputText.value.trim();
+            if (!selectedBomFile && !text) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Thông báo',
+                    text: 'Vui lòng chọn file Excel hoặc dán nội dung BOM cần phân tích.',
+                });
+                return;
+            }
+
+            const projectSelect = document.getElementById('bomModalProjectSelect');
+            const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('project_id')?.value || '');
+
+            btnParseBom.disabled = true;
+            btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
+            bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang đọc dữ liệu và tra cứu sản phẩm trong kho...</span>';
+
+            try {
+                let res;
+                if (selectedBomFile) {
+                    const formData = new FormData();
+                    formData.append('file', selectedBomFile);
+                    if (selectedProjId) formData.append('project_id', selectedProjId);
+                    formData.append('_token', '{{ csrf_token() }}');
+
+                    res = await fetch('{{ route("sales.parse-bom") }}', {
+                        method: 'POST',
+                        body: formData
                     });
-                    return;
-                }
-
-                const projectSelect = document.getElementById('bomModalProjectSelect');
-                const selectedProjId = projectSelect ? projectSelect.value : (document.getElementById('project_id')?.value || '');
-
-                btnParseBom.disabled = true;
-                btnParseBom.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Đang phân tích...';
-                bomParseStatus.innerHTML = '<span class="text-indigo-600">Đang tra cứu cơ sở dữ liệu sản phẩm...</span>';
-
-                try {
-                    const res = await fetch('{{ route("sales.parse-bom") }}', {
+                } else {
+                    res = await fetch('{{ route("sales.parse-bom") }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -2629,28 +2727,33 @@
                             project_id: selectedProjId
                         })
                     });
-
-                    const data = await res.json();
-                    if (data.success && data.items && data.items.length > 0) {
-                        parsedBomItems = data.items;
-                        renderBomPreview(data.items);
-                        btnApplyBomAppend.classList.remove('hidden');
-                        btnApplyBomReplace.classList.remove('hidden');
-                        bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã phân tích thành công ${data.items.length} dòng hàng</span>`;
-                    } else {
-                        bomPreviewArea.classList.add('hidden');
-                        btnApplyBomAppend.classList.add('hidden');
-                        btnApplyBomReplace.classList.add('hidden');
-                        bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong nội dung đã nhập.</span>';
-                    }
-                } catch (err) {
-                    console.error(err);
-                    bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
-                } finally {
-                    btnParseBom.disabled = false;
-                    btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
                 }
-            });
+
+                const data = await res.json();
+                if (data.success && data.items && data.items.length > 0) {
+                    parsedBomItems = data.items;
+                    renderBomPreview(data.items);
+                    btnApplyBomAppend.classList.remove('hidden');
+                    btnApplyBomReplace.classList.remove('hidden');
+                    const sourceInfo = data.filename ? ` từ file "${data.filename}"` : '';
+                    bomParseStatus.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>Đã nhận diện ${data.items.length} sản phẩm${sourceInfo}</span>`;
+                } else {
+                    bomPreviewArea.classList.add('hidden');
+                    btnApplyBomAppend.classList.add('hidden');
+                    btnApplyBomReplace.classList.add('hidden');
+                    bomParseStatus.innerHTML = '<span class="text-amber-600">Không tìm thấy sản phẩm hợp lệ trong dữ liệu. Vui lòng kiểm tra lại file hoặc nội dung.</span>';
+                }
+            } catch (err) {
+                console.error(err);
+                bomParseStatus.innerHTML = '<span class="text-red-600">Có lỗi xảy ra khi kết nối máy chủ.</span>';
+            } finally {
+                btnParseBom.disabled = false;
+                btnParseBom.innerHTML = '<i class="fas fa-wand-magic-sparkles mr-2"></i> Phân tích dữ liệu';
+            }
+        }
+
+        if (btnParseBom) {
+            btnParseBom.addEventListener('click', triggerParseBom);
         }
 
         function renderBomPreview(items) {

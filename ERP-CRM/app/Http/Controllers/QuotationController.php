@@ -93,6 +93,18 @@ class QuotationController extends Controller
                 if (!empty($selectedProject->bom_data)) {
                     $bomParser = app(BomParserService::class);
                     $prefilledProducts = $bomParser->parse($selectedProject->bom_data, $selectedProject->id);
+                    foreach ($prefilledProducts as &$pItem) {
+                        if (!empty($pItem['is_matched']) && !empty($pItem['product_id']) && is_numeric($pItem['product_id'])) {
+                            $pItem['product_id'] = 'p-' . $pItem['product_id'];
+                            $pItem['product_name'] = $pItem['name'] ?? ($pItem['display_text'] ?? '');
+                        } else {
+                            $pItem['product_name'] = $pItem['name'] ?? ($pItem['new_name'] ?? ($pItem['code'] ?? ''));
+                        }
+                        if (empty($pItem['description'])) {
+                            $pItem['description'] = $pItem['raw_text'] ?? ($pItem['name'] ?? ($pItem['new_name'] ?? ''));
+                        }
+                    }
+                    unset($pItem);
                 }
             }
         }

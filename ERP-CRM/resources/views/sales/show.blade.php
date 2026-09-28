@@ -1615,13 +1615,16 @@
 
                 {{-- Order Expenses Section in Show View - Fully editable with direct save --}}
                 @php
-                    $expenseData = $sale->expenses->map(fn($e) => [
-                        'type' => $e->type,
-                        'input_mode' => $e->input_mode ?? 'fixed',
-                        'percent_value' => $e->percent_value,
-                        'amount' => $e->amount,
-                        'description' => $e->description ?? '',
-                    ])->toArray();
+                    $expenseData = $sale->expenses
+                        ->unique('type')
+                        ->values()
+                        ->map(fn($e) => [
+                            'type' => $e->type,
+                            'input_mode' => $e->input_mode ?? 'fixed',
+                            'percent_value' => $e->percent_value,
+                            'amount' => $e->amount,
+                            'description' => $e->description ?? '',
+                        ])->toArray();
                     $isExpenseLocked = ($sale->status === 'cancelled' || $sale->hasPayment());
                 @endphp
                 <form action="{{ route('sales.expenses.sync', $sale->id) }}" method="POST" class="mt-6 border-t border-gray-200 pt-5 px-4 pb-4">
