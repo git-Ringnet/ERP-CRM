@@ -3038,9 +3038,17 @@ function closeSaleCloseProjectModal() {
                             @foreach($sale->items as $idx => $item)
                                 <tr class="bom-edit-row hover:bg-gray-50/60 transition-colors" data-idx="{{ $idx }}">
                                     <td class="p-2.5">
-                                        <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $item->product_id }}" class="bom-product-id">
-                                        <input type="text" name="items[{{ $idx }}][product_name]" value="{{ $item->product_name ?: ($item->product->name ?? '') }}" required
-                                               class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" placeholder="Tên sản phẩm / Mã part">
+                                        <div class="searchable-select bom-product-searchable relative" data-index="{{ $idx }}" data-ajax-url="{{ route('api.products.search') }}">
+                                            <input type="text" class="searchable-input w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" 
+                                                   placeholder="Gõ để tìm hoặc tạo sản phẩm mới..." autocomplete="off"
+                                                   value="{{ $item->product ? ($item->product->code ? '[' . $item->product->code . '] ' . $item->product->name : $item->product->name) : ($item->product_name ?? '') }}">
+                                            <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $item->product_id }}" class="bom-product-id product-id-input">
+                                            <input type="hidden" name="items[{{ $idx }}][product_name]" value="{{ $item->product_name ?: ($item->product->name ?? '') }}" class="product-name-input">
+                                            <input type="hidden" name="items[{{ $idx }}][new_name]" class="new-name-input" value="{{ !$item->product_id ? ($item->product_name ?? '') : '' }}">
+                                            <input type="hidden" name="items[{{ $idx }}][new_code]" class="new-code-input" value="{{ $item->product?->code ?? '' }}">
+                                            <input type="hidden" name="items[{{ $idx }}][new_unit]" class="new-unit-input" value="{{ $item->product?->unit ?? 'Cái' }}">
+                                            <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-xl text-left left-0 mt-1"></div>
+                                        </div>
                                         @if($item->product)
                                             <div class="text-[10px] text-gray-400 font-mono mt-0.5">Mã: {{ $item->product->code }}</div>
                                         @endif
@@ -3064,7 +3072,7 @@ function closeSaleCloseProjectModal() {
                                     </td>
                                     <td class="p-2.5">
                                         <input type="number" min="0" max="120" name="items[{{ $idx }}][warranty_months]" value="{{ $item->warranty_months ?? 12 }}"
-                                               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center">
+                                               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center warranty-input">
                                     </td>
                                     <td class="p-2.5 text-center">
                                         <label class="inline-flex items-center gap-1 cursor-pointer">
@@ -3224,6 +3232,7 @@ function formatCurrencyInput(input) {
 // Adjust BOM Modal
 function openAdjustBomModal() {
     document.getElementById('adjustBomModal').classList.remove('hidden');
+    initBomSearchableSelects();
 }
 
 function closeAdjustBomModal() {
@@ -3240,16 +3249,27 @@ function addBomRow(productData = null) {
     tr.dataset.idx = idx;
 
     const pid = productData ? (productData.id || '') : '';
-    const pname = productData ? ((productData.code ? '[' + productData.code + '] ' : '') + productData.name) : '';
+    const pcode = productData ? (productData.code || '') : '';
+    const pname = productData ? (productData.name || '') : '';
+    const displayText = productData ? ((pcode ? '[' + pcode + '] ' : '') + pname) : '';
     const pprice = productData ? (productData.price ? new Intl.NumberFormat('vi-VN').format(productData.price) : '0') : '';
     const pwarranty = productData ? (productData.warranty_months || 12) : 12;
     const isFromStock = productData ? (productData.is_from_stock ? 1 : 0) : 0;
+    const punit = productData ? (productData.unit || 'Cái') : 'Cái';
 
     tr.innerHTML = `
         <td class="p-2.5">
-            <input type="hidden" name="items[${idx}][product_id]" value="${pid}" class="bom-product-id">
-            <input type="text" name="items[${idx}][product_name]" value="${pname}" required
-                   class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" placeholder="Tên sản phẩm / Mã part">
+            <div class="searchable-select bom-product-searchable relative" data-index="${idx}" data-ajax-url="{{ route('api.products.search') }}">
+                <input type="text" class="searchable-input w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 font-medium" 
+                       placeholder="Gõ để tìm hoặc tạo sản phẩm mới..." autocomplete="off"
+                       value="${displayText}">
+                <input type="hidden" name="items[${idx}][product_id]" value="${pid}" class="bom-product-id product-id-input">
+                <input type="hidden" name="items[${idx}][product_name]" value="${pname}" class="product-name-input">
+                <input type="hidden" name="items[${idx}][new_name]" class="new-name-input" value="${pname}">
+                <input type="hidden" name="items[${idx}][new_code]" class="new-code-input" value="${pcode}">
+                <input type="hidden" name="items[${idx}][new_unit]" class="new-unit-input" value="${punit}">
+                <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-xl text-left left-0 mt-1"></div>
+            </div>
         </td>
         <td class="p-2.5">
             <input type="number" step="any" min="0.01" name="items[${idx}][quantity]" value="1" required
@@ -3270,7 +3290,7 @@ function addBomRow(productData = null) {
         </td>
         <td class="p-2.5">
             <input type="number" min="0" max="120" name="items[${idx}][warranty_months]" value="${pwarranty}"
-                   class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center">
+                   class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center warranty-input">
         </td>
         <td class="p-2.5 text-center">
             <label class="inline-flex items-center gap-1 cursor-pointer">
@@ -3286,7 +3306,139 @@ function addBomRow(productData = null) {
         </td>
     `;
     tbody.appendChild(tr);
+    initBomSearchableSelects();
 }
+
+function initBomSearchableSelects() {
+    document.querySelectorAll('.bom-product-searchable').forEach(container => {
+        if (container.dataset.initialized) return;
+        container.dataset.initialized = 'true';
+
+        const input = container.querySelector('.searchable-input');
+        const productIdInput = container.querySelector('.product-id-input');
+        const productNameInput = container.querySelector('.product-name-input');
+        const newNameInput = container.querySelector('.new-name-input');
+        const newCodeInput = container.querySelector('.new-code-input');
+        const newUnitInput = container.querySelector('.new-unit-input');
+        const dropdown = container.querySelector('.searchable-dropdown');
+        const row = container.closest('.bom-edit-row');
+        const priceInput = row ? row.querySelector('.price-format-input') : null;
+        const warrantyInput = row ? row.querySelector('.warranty-input') : null;
+
+        const ajaxUrl = container.dataset.ajaxUrl;
+        let debounceTimer;
+
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        input.addEventListener('focus', () => {
+            if (input.value.trim().length > 0) {
+                fetchAjaxOptions(input.value.trim());
+            }
+        });
+
+        input.addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (productNameInput) productNameInput.value = query;
+            if (newNameInput) newNameInput.value = query;
+            if (newCodeInput) newCodeInput.value = query;
+
+            clearTimeout(debounceTimer);
+            if (query.trim().length === 0) {
+                dropdown.innerHTML = '';
+                dropdown.classList.add('hidden');
+                if (productIdInput) productIdInput.value = '';
+                return;
+            }
+            debounceTimer = setTimeout(() => {
+                fetchAjaxOptions(query);
+            }, 250);
+        });
+
+        async function fetchAjaxOptions(query) {
+            dropdown.innerHTML = '<div class="px-3 py-2 text-gray-500 italic text-xs"><i class="fas fa-spinner fa-spin mr-1"></i> Đang tìm kiếm...</div>';
+            dropdown.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${ajaxUrl}?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                renderOptions(data, query);
+            } catch (error) {
+                console.error('Search error:', error);
+                dropdown.innerHTML = '<div class="px-3 py-2 text-red-500 text-xs">Lỗi khi tìm kiếm</div>';
+            }
+        }
+
+        function renderOptions(data, query) {
+            dropdown.innerHTML = '';
+
+            data.forEach(item => {
+                const opt = document.createElement('div');
+                opt.className = 'searchable-option px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 text-xs transition-colors';
+                const codeStr = item.code ? `[${item.code}] ` : '';
+                const displayPrice = item.price ? new Intl.NumberFormat('vi-VN').format(item.price) + ' đ' : '';
+                
+                opt.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="font-bold text-gray-800">${codeStr}${item.name}</div>
+                        ${displayPrice ? `<span class="text-[11px] font-semibold text-indigo-600">${displayPrice}</span>` : ''}
+                    </div>
+                    <div class="text-[10px] text-gray-400 font-mono">ĐVT: ${item.unit || 'Cái'} ${item.warranty_months ? `| BH: ${item.warranty_months}T` : ''}</div>
+                `;
+
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    input.value = `${codeStr}${item.name}`;
+                    if (productIdInput) productIdInput.value = item.id;
+                    if (productNameInput) productNameInput.value = item.name;
+                    if (newNameInput) newNameInput.value = '';
+                    if (newCodeInput) newCodeInput.value = '';
+                    if (newUnitInput) newUnitInput.value = item.unit || 'Cái';
+
+                    if (priceInput && (!priceInput.value || priceInput.value === '0') && item.price) {
+                        priceInput.value = new Intl.NumberFormat('vi-VN').format(item.price);
+                    }
+                    if (warrantyInput && item.warranty_months) {
+                        warrantyInput.value = item.warranty_months;
+                    }
+                    dropdown.classList.add('hidden');
+                });
+
+                dropdown.appendChild(opt);
+            });
+
+            // Quick create option
+            if (query.trim().length > 0) {
+                const addOpt = document.createElement('div');
+                addOpt.className = 'searchable-option px-3 py-2.5 hover:bg-emerald-50 text-emerald-700 font-bold border-t border-gray-200 cursor-pointer text-xs bg-emerald-50/50';
+                addOpt.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><i class="fas fa-plus-circle text-emerald-600"></i> Tạo sản phẩm mới: "${query}"</span>
+                        <span class="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">Tạo mới</span>
+                    </div>
+                `;
+                addOpt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    input.value = query;
+                    if (productIdInput) productIdInput.value = 'new';
+                    if (productNameInput) productNameInput.value = query;
+                    if (newNameInput) newNameInput.value = query;
+                    if (newCodeInput) newCodeInput.value = query;
+                    if (newUnitInput) newUnitInput.value = 'Cái';
+                    dropdown.classList.add('hidden');
+                });
+                dropdown.appendChild(addOpt);
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initBomSearchableSelects();
+});
 
 function removeBomRow(btn) {
     const rows = document.querySelectorAll('#adjustBomTableBody .bom-edit-row');

@@ -4217,9 +4217,12 @@ class SaleController extends Controller
         $request->validate([
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable',
-            'items.*.product_name' => 'nullable|string|max:255',
+            'items.*.product_name' => 'nullable|string|max:2000',
+            'items.*.new_name' => 'nullable|string|max:2000',
+            'items.*.new_code' => 'nullable|string|max:100',
+            'items.*.new_unit' => 'nullable|string|max:50',
             'items.*.quantity' => 'required|numeric|min:0.01',
-            'items.*.price' => 'required|string',
+            'items.*.price' => 'required',
             'items.*.vat' => 'nullable',
             'items.*.warranty_months' => 'nullable|integer',
             'items.*.is_service' => 'nullable|boolean',
@@ -4238,7 +4241,7 @@ class SaleController extends Controller
             $costTotal = 0;
 
             foreach ($request->input('items') as $idx => $itemData) {
-                if (empty($itemData['product_id']) && empty($itemData['product_name'])) {
+                if (empty($itemData['product_id']) && empty($itemData['product_name']) && empty($itemData['new_name'])) {
                     continue;
                 }
 
@@ -4253,7 +4256,34 @@ class SaleController extends Controller
                     $product = \App\Models\Product::find($itemData['product_id']);
                 }
 
-                $productName = $itemData['product_name'] ?: ($product ? $product->name : 'Sản phẩm ' . ($idx + 1));
+                $rawProductName = trim($itemData['product_name'] ?? '');
+                $newName = trim($itemData['new_name'] ?? '');
+                $newCode = trim($itemData['new_code'] ?? '');
+
+                // If product not found by numeric ID, check or create new product
+                if (!$product && (($itemData['product_id'] ?? '') === 'new' || !empty($rawProductName) || !empty($newName) || !empty($newCode))) {
+                    $searchCode = preg_replace('/^\[SP Mới\]\s*/u', '', $newCode ?: $rawProductName);
+                    $searchName = preg_replace('/^\[SP Mới\]\s*/u', '', $newName ?: $rawProductName);
+
+                    if (!empty($searchCode) || !empty($searchName)) {
+                        $product = \App\Models\Product::where('code', $searchCode)
+                            ->orWhere('name', $searchName)
+                            ->first();
+
+                        if (!$product) {
+                            $product = \App\Models\Product::create([
+                                'code' => $searchCode ?: ('SP-' . strtoupper(\Illuminate\Support\Str::random(6))),
+                                'name' => $searchName ?: $searchCode,
+                                'unit' => $itemData['new_unit'] ?? 'Cái',
+                                'category' => 'A',
+                                'price' => $price,
+                                'warranty_months' => $itemData['warranty_months'] ?? 12,
+                            ]);
+                        }
+                    }
+                }
+
+                $productName = $product ? $product->name : ($rawProductName ?: 'Sản phẩm ' . ($idx + 1));
                 $unitCost = $product ? ($product->calculated_cost ?: ($product->cost ?: 0)) : 0;
                 $lineSubtotal = $qty * $price;
                 $lineVat = $lineSubtotal * ($effectiveVatRate / 100);
@@ -4264,10 +4294,13 @@ class SaleController extends Controller
                     'product_name' => $productName,
                     'quantity' => $qty,
                     'price' => $price,
-                    'cost' => $unitCost,
+                    'cost_price' => $unitCost,
+                    'total' => $lineSubtotal,
+                    'cost_total' => $qty * $unitCost,
                     'vat' => $vatRate,
                     'vat_amount' => $lineVat,
                     'warranty_months' => $itemData['warranty_months'] ?? ($product->warranty_months ?? 12),
+                    'warranty_start_date' => (!empty($itemData['warranty_months']) || ($product && $product->warranty_months)) ? $sale->date : null,
                     'is_service' => !empty($itemData['is_service']),
                     'is_from_stock' => !empty($itemData['is_from_stock']),
                 ]);

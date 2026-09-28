@@ -422,8 +422,13 @@ class SaleItem extends Model
         })->where(function($q) {
             if ($this->product_id) {
                 $q->where('product_id', $this->product_id);
+            } elseif ($this->product_name) {
+                $q->whereHas('product', function($pq) {
+                    $pq->where('name', $this->product_name)
+                       ->orWhere('code', $this->product_name);
+                });
             } else {
-                $q->where('product_name', $this->product_name);
+                $q->whereRaw('1 = 0');
             }
         })->sum('quantity');
     }
