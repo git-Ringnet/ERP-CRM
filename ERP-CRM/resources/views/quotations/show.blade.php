@@ -76,26 +76,19 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Chi tiết sản phẩm</h3>
             
         @php
-            $allColumns = $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'];
+            $allColumns = $quotation->custom_columns ?? ['product_id', 'quantity', 'price', 'vat', 'row_total'];
             if (!is_array($allColumns)) {
                 $allColumns = [];
             }
+            $allColumns = array_values(array_filter($allColumns, fn($col) => strtolower(str_replace(['_', ' '], '', $col)) !== 'pricelist'));
             if (!in_array('product_id', $allColumns)) {
-                $allColumns = array_merge(['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'], $allColumns);
+                $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $allColumns);
             } else {
-                if (!in_array('pricelist', $allColumns)) {
-                    $priceIdx = array_search('price', $allColumns);
-                    if ($priceIdx !== false) {
-                        array_splice($allColumns, $priceIdx + 1, 0, ['pricelist']);
-                    } else {
-                        $allColumns[] = 'pricelist';
-                    }
-                }
                 if (!in_array('row_total', $allColumns)) {
                     $allColumns[] = 'row_total';
                 }
             }
-            $customColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'])));
+            $customColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
         @endphp
         <!-- Desktop Table -->
         <div class="hidden md:block overflow-x-auto">
@@ -212,7 +205,6 @@
                         @else
                             SL: {{ $item->quantity }} x {{ number_format($item->price) }} đ
                         @endif
-                        <span class="text-xs text-gray-400 block mt-0.5">Pricelist: ${{ number_format($item->pricelist_price ?? 0, 2) }}</span>
                     </span>
                     <span class="text-blue-600">VAT: {{ $item->vat == -1 ? 'KCT' : (float)$item->vat . '%' }}</span>
                 </div>

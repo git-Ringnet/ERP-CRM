@@ -257,26 +257,19 @@
                     </div>
 
                     @php
-                        $allColumns = old('custom_columns', ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total']);
+                        $allColumns = old('custom_columns', ['product_id', 'quantity', 'price', 'vat', 'row_total']);
                         if (!is_array($allColumns)) {
                             $allColumns = [];
                         }
+                        $allColumns = array_values(array_filter($allColumns, fn($col) => strtolower(str_replace(['_', ' '], '', $col)) !== 'pricelist'));
                         if (!in_array('product_id', $allColumns)) {
                             $legacyCustomColumns = $allColumns;
-                            $allColumns = array_merge(['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'], $legacyCustomColumns);
+                            $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $legacyCustomColumns);
                         } else {
-                            if (!in_array('pricelist', $allColumns)) {
-                                $priceIdx = array_search('price', $allColumns);
-                                if ($priceIdx !== false) {
-                                    array_splice($allColumns, $priceIdx + 1, 0, ['pricelist']);
-                                } else {
-                                    $allColumns[] = 'pricelist';
-                                }
-                            }
                             if (!in_array('row_total', $allColumns)) {
                                 $allColumns[] = 'row_total';
                             }
-                            $legacyCustomColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'pricelist', 'vat', 'row_total'])));
+                            $legacyCustomColumns = array_values(array_filter($allColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
                         }
                     @endphp
 
