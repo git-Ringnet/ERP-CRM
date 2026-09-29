@@ -7,30 +7,11 @@
     [x-cloak] { display: none !important; }
 </style>
 
-<div class="space-y-6" x-data="{ 
-    showAddItemModal: false,
-    showImportModal: false,
-    showExportModal: false,
-    selectedItem: null,
-    editItem: null,
-    importForm: { marketing_item_id: '', quantity: 1, unit_cost: 0, note: '', reference_code: '' },
-    exportForm: { marketing_item_id: '', quantity: 1, opportunity_id: '', marketing_event_id: '', note: '', reference_code: '' },
-    openImport(item) {
-        this.selectedItem = item;
-        this.importForm.marketing_item_id = item.id;
-        this.importForm.unit_cost = item.unit_cost;
-        this.showImportModal = true;
-    },
-    openExport(item) {
-        this.selectedItem = item;
-        this.exportForm.marketing_item_id = item.id;
-        this.showExportModal = true;
-    },
-    openEdit(item) {
-        this.editItem = item;
-        this.showAddItemModal = true;
-    }
-}">
+<div class="space-y-6" x-data="marketingItemsManager({ 
+    allItems: {{ Js::from($allItems) }},
+    opportunities: {{ Js::from($opportunities) }},
+    marketingEvents: {{ Js::from($marketingEvents) }}
+})">
 
     {{-- Tabs Navigation --}}
     <div class="bg-white rounded-xl shadow-sm p-2 flex border border-gray-100 flex-wrap gap-1">
@@ -425,14 +406,44 @@
 
             <form action="{{ route('marketing-items.import') }}" method="POST" class="space-y-4">
                 @csrf
-                <div>
+                {{-- Searchable Item Select --}}
+                <div class="relative" @click.away="importItemDropdownOpen = false">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Chọn vật phẩm <span class="text-red-500">*</span></label>
-                    <select name="marketing_item_id" x-model="importForm.marketing_item_id" required class="w-full text-xs rounded-lg border-gray-300 focus:border-green-500 focus:ring-green-500 px-3 py-2">
-                        <option value="">-- Chọn vật phẩm --</option>
-                        @foreach($items as $it)
-                            <option value="{{ $it->id }}">{{ $it->code }} - {{ $it->name }} (Hiện có: {{ $it->stock_quantity }} {{ $it->unit }})</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text"
+                            x-model="importItemSearch"
+                            @focus="importItemDropdownOpen = true"
+                            @input="importItemDropdownOpen = true"
+                            placeholder="Gõ mã hoặc tên vật phẩm để tìm..."
+                            class="w-full text-xs rounded-lg border-gray-300 pl-8 pr-8 py-2 focus:border-green-500 focus:ring-green-500">
+                        <button type="button" x-show="importItemSearch || importForm.marketing_item_id"
+                            @click="clearImportItem()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times-circle text-xs"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="marketing_item_id" :value="importForm.marketing_item_id" required>
+
+                    <div x-show="importItemDropdownOpen" x-cloak
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                        <template x-for="item in filteredImportItems" :key="item.id">
+                            <div @click="selectImportItem(item)"
+                                class="p-2.5 hover:bg-green-50/60 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                :class="{'bg-green-50 text-green-900 font-semibold': importForm.marketing_item_id == item.id}">
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-[11px]" x-text="item.code"></span>
+                                        <span class="text-gray-900 font-medium" x-text="item.name"></span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium" x-text="'Hiện có: ' + item.stock_quantity + ' ' + item.unit"></span>
+                            </div>
+                        </template>
+                        <div x-show="filteredImportItems.length === 0" class="p-3 text-center text-xs text-gray-400">
+                            Không tìm thấy vật phẩm phù hợp
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -480,14 +491,51 @@
 
             <form action="{{ route('marketing-items.export') }}" method="POST" class="space-y-4">
                 @csrf
-                <div>
+                {{-- Searchable Item Select --}}
+                <div class="relative" @click.away="exportItemDropdownOpen = false">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Chọn vật phẩm <span class="text-red-500">*</span></label>
-                    <select name="marketing_item_id" x-model="exportForm.marketing_item_id" required class="w-full text-xs rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2">
-                        <option value="">-- Chọn vật phẩm xuất --</option>
-                        @foreach($items as $it)
-                            <option value="{{ $it->id }}">{{ $it->code }} - {{ $it->name }} (Tồn khả dụng: {{ $it->stock_quantity }} {{ $it->unit }})</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text"
+                            x-model="exportItemSearch"
+                            @focus="exportItemDropdownOpen = true"
+                            @input="exportItemDropdownOpen = true"
+                            placeholder="Gõ mã hoặc tên quà tặng để tìm..."
+                            class="w-full text-xs rounded-lg border-gray-300 pl-8 pr-8 py-2 focus:border-blue-500 focus:ring-blue-500">
+                        <button type="button" x-show="exportItemSearch || exportForm.marketing_item_id"
+                            @click="clearExportItem()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times-circle text-xs"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="marketing_item_id" :value="exportForm.marketing_item_id" required>
+
+                    <div x-show="exportItemDropdownOpen" x-cloak
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                        <template x-for="item in filteredExportItems" :key="item.id">
+                            <div @click="selectExportItem(item)"
+                                class="p-2.5 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                :class="{
+                                    'bg-gray-50 opacity-50 cursor-not-allowed': item.stock_quantity <= 0,
+                                    'hover:bg-blue-50/60': item.stock_quantity > 0,
+                                    'bg-blue-50 text-blue-900 font-semibold': exportForm.marketing_item_id == item.id
+                                }">
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-[11px]" x-text="item.code"></span>
+                                        <span class="text-gray-900 font-medium" x-text="item.name"></span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                                    :class="item.stock_quantity <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'"
+                                    x-text="item.stock_quantity <= 0 ? 'Hết hàng (0 ' + item.unit + ')' : ('Tồn: ' + item.stock_quantity + ' ' + item.unit)">
+                                </span>
+                            </div>
+                        </template>
+                        <div x-show="filteredExportItems.length === 0" class="p-3 text-center text-xs text-gray-400">
+                            Không tìm thấy vật phẩm phù hợp
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -495,24 +543,88 @@
                     <input type="number" name="quantity" x-model="exportForm.quantity" min="1" required class="w-full text-xs rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2">
                 </div>
 
-                <div>
+                {{-- Searchable Opportunity Select --}}
+                <div class="relative" @click.away="exportOppDropdownOpen = false">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Gắn với Cơ hội (nếu có)</label>
-                    <select name="opportunity_id" class="w-full text-xs rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2">
-                        <option value="">-- Không gắn Cơ hội --</option>
-                        @foreach($opportunities as $opp)
-                            <option value="{{ $opp->id }}">{{ $opp->name }} (KH: {{ $opp->customer_display_name }})</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <i class="fas fa-handshake absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text"
+                            x-model="exportOppSearch"
+                            @focus="exportOppDropdownOpen = true"
+                            @input="exportOppDropdownOpen = true"
+                            placeholder="Gõ tìm theo tên cơ hội hoặc khách hàng..."
+                            class="w-full text-xs rounded-lg border-gray-300 pl-8 pr-8 py-2 focus:border-blue-500 focus:ring-blue-500">
+                        <button type="button" x-show="exportOppSearch || exportForm.opportunity_id"
+                            @click="clearExportOpp()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times-circle text-xs"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="opportunity_id" :value="exportForm.opportunity_id">
+
+                    <div x-show="exportOppDropdownOpen" x-cloak
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                        <div @click="selectExportOpp(null)"
+                            class="p-2.5 hover:bg-gray-100 cursor-pointer text-xs text-gray-500 italic flex items-center gap-2">
+                            <i class="fas fa-ban text-gray-400"></i> -- Không gắn Cơ hội --
+                        </div>
+                        <template x-for="opp in filteredOpportunities" :key="opp.id">
+                            <div @click="selectExportOpp(opp)"
+                                class="p-2.5 hover:bg-blue-50/60 cursor-pointer text-xs transition-colors"
+                                :class="{'bg-blue-50 text-blue-900 font-semibold': exportForm.opportunity_id == opp.id}">
+                                <div class="font-medium text-gray-900" x-text="opp.name"></div>
+                                <div class="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500">
+                                    <span class="text-blue-600"><i class="fas fa-building mr-1"></i><span x-text="opp.customer_name"></span></span>
+                                    <span class="text-gray-400" x-show="opp.status_label" x-text="'• ' + opp.status_label"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="filteredOpportunities.length === 0" class="p-3 text-center text-xs text-gray-400">
+                            Không tìm thấy cơ hội phù hợp
+                        </div>
+                    </div>
                 </div>
 
-                <div>
+                {{-- Searchable Marketing Event Select --}}
+                <div class="relative" @click.away="exportEventDropdownOpen = false">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Gắn với Sự kiện Marketing (nếu có)</label>
-                    <select name="marketing_event_id" class="w-full text-xs rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2">
-                        <option value="">-- Không gắn Sự kiện --</option>
-                        @foreach($marketingEvents as $ev)
-                            <option value="{{ $ev->id }}">{{ $ev->name }}</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <i class="fas fa-calendar-alt absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text"
+                            x-model="exportEventSearch"
+                            @focus="exportEventDropdownOpen = true"
+                            @input="exportEventDropdownOpen = true"
+                            placeholder="Gõ tìm theo mã hoặc tên sự kiện MKT..."
+                            class="w-full text-xs rounded-lg border-gray-300 pl-8 pr-8 py-2 focus:border-blue-500 focus:ring-blue-500">
+                        <button type="button" x-show="exportEventSearch || exportForm.marketing_event_id"
+                            @click="clearExportEvent()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times-circle text-xs"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="marketing_event_id" :value="exportForm.marketing_event_id">
+
+                    <div x-show="exportEventDropdownOpen" x-cloak
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                        <div @click="selectExportEvent(null)"
+                            class="p-2.5 hover:bg-gray-100 cursor-pointer text-xs text-gray-500 italic flex items-center gap-2">
+                            <i class="fas fa-ban text-gray-400"></i> -- Không gắn Sự kiện --
+                        </div>
+                        <template x-for="ev in filteredMarketingEvents" :key="ev.id">
+                            <div @click="selectExportEvent(ev)"
+                                class="p-2.5 hover:bg-purple-50/60 cursor-pointer text-xs transition-colors"
+                                :class="{'bg-purple-50 text-purple-900 font-semibold': exportForm.marketing_event_id == ev.id}">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded text-[11px]" x-text="ev.code"></span>
+                                    <span class="text-gray-900 font-medium" x-text="ev.title"></span>
+                                </div>
+                                <div class="text-[11px] text-gray-400 mt-0.5 pl-0.5" x-show="ev.event_date" x-text="'📅 Ngày: ' + ev.event_date"></div>
+                            </div>
+                        </template>
+                        <div x-show="filteredMarketingEvents.length === 0" class="p-3 text-center text-xs text-gray-400">
+                            Không tìm thấy sự kiện phù hợp
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -532,4 +644,171 @@
         </div>
     </div>
 </div>
+
+<script>
+function marketingItemsManager(config) {
+    return {
+        showAddItemModal: false,
+        showImportModal: false,
+        showExportModal: false,
+        selectedItem: null,
+        editItem: null,
+
+        allItems: config.allItems || [],
+        opportunities: config.opportunities || [],
+        marketingEvents: config.marketingEvents || [],
+
+        importForm: {
+            marketing_item_id: '',
+            quantity: 1,
+            unit_cost: 0,
+            note: '',
+            reference_code: ''
+        },
+        importItemSearch: '',
+        importItemDropdownOpen: false,
+
+        exportForm: {
+            marketing_item_id: '',
+            quantity: 1,
+            opportunity_id: '',
+            marketing_event_id: '',
+            note: '',
+            reference_code: ''
+        },
+        exportItemSearch: '',
+        exportItemDropdownOpen: false,
+
+        exportOppSearch: '',
+        exportOppDropdownOpen: false,
+
+        exportEventSearch: '',
+        exportEventDropdownOpen: false,
+
+        openImport(item) {
+            this.selectedItem = item;
+            this.importForm.marketing_item_id = item ? item.id : '';
+            this.importForm.unit_cost = item ? item.unit_cost : 0;
+            this.importForm.quantity = 1;
+            this.importItemSearch = item ? (item.code + ' - ' + item.name) : '';
+            this.importItemDropdownOpen = false;
+            this.showImportModal = true;
+        },
+
+        selectImportItem(item) {
+            this.importForm.marketing_item_id = item.id;
+            this.importForm.unit_cost = item.unit_cost || 0;
+            this.importItemSearch = item.code + ' - ' + item.name;
+            this.importItemDropdownOpen = false;
+        },
+
+        clearImportItem() {
+            this.importForm.marketing_item_id = '';
+            this.importItemSearch = '';
+        },
+
+        openExport(item) {
+            this.selectedItem = item;
+            this.exportForm.marketing_item_id = item ? item.id : '';
+            this.exportForm.quantity = 1;
+            this.exportForm.opportunity_id = '';
+            this.exportForm.marketing_event_id = '';
+            this.exportForm.note = '';
+            this.exportItemSearch = item ? (item.code + ' - ' + item.name) : '';
+            this.exportOppSearch = '';
+            this.exportEventSearch = '';
+            this.exportItemDropdownOpen = false;
+            this.exportOppDropdownOpen = false;
+            this.exportEventDropdownOpen = false;
+            this.showExportModal = true;
+        },
+
+        selectExportItem(item) {
+            if (item.stock_quantity <= 0) return;
+            this.exportForm.marketing_item_id = item.id;
+            this.exportItemSearch = item.code + ' - ' + item.name;
+            this.exportItemDropdownOpen = false;
+        },
+
+        clearExportItem() {
+            this.exportForm.marketing_item_id = '';
+            this.exportItemSearch = '';
+        },
+
+        selectExportOpp(opp) {
+            if (opp) {
+                this.exportForm.opportunity_id = opp.id;
+                this.exportOppSearch = opp.name + (opp.customer_name ? ' (' + opp.customer_name + ')' : '');
+            } else {
+                this.exportForm.opportunity_id = '';
+                this.exportOppSearch = '';
+            }
+            this.exportOppDropdownOpen = false;
+        },
+
+        clearExportOpp() {
+            this.exportForm.opportunity_id = '';
+            this.exportOppSearch = '';
+        },
+
+        selectExportEvent(ev) {
+            if (ev) {
+                this.exportForm.marketing_event_id = ev.id;
+                this.exportEventSearch = ev.code + ' - ' + ev.title;
+            } else {
+                this.exportForm.marketing_event_id = '';
+                this.exportEventSearch = '';
+            }
+            this.exportEventDropdownOpen = false;
+        },
+
+        clearExportEvent() {
+            this.exportForm.marketing_event_id = '';
+            this.exportEventSearch = '';
+        },
+
+        openEdit(item) {
+            this.editItem = item;
+            this.showAddItemModal = true;
+        },
+
+        get filteredImportItems() {
+            const q = this.importItemSearch.trim().toLowerCase();
+            if (!q) return this.allItems;
+            return this.allItems.filter(i => 
+                (i.name && i.name.toLowerCase().includes(q)) || 
+                (i.code && i.code.toLowerCase().includes(q))
+            );
+        },
+
+        get filteredExportItems() {
+            const q = this.exportItemSearch.trim().toLowerCase();
+            if (!q) return this.allItems;
+            return this.allItems.filter(i => 
+                (i.name && i.name.toLowerCase().includes(q)) || 
+                (i.code && i.code.toLowerCase().includes(q))
+            );
+        },
+
+        get filteredOpportunities() {
+            const q = this.exportOppSearch.trim().toLowerCase();
+            if (!q) return this.opportunities;
+            return this.opportunities.filter(o => 
+                (o.name && o.name.toLowerCase().includes(q)) || 
+                (o.customer_name && o.customer_name.toLowerCase().includes(q))
+            );
+        },
+
+        get filteredMarketingEvents() {
+            const q = this.exportEventSearch.trim().toLowerCase();
+            if (!q) return this.marketingEvents;
+            return this.marketingEvents.filter(e => 
+                (e.title && e.title.toLowerCase().includes(q)) || 
+                (e.code && e.code.toLowerCase().includes(q)) ||
+                (e.event_date && e.event_date.toLowerCase().includes(q))
+            );
+        }
+    };
+}
+</script>
 @endsection

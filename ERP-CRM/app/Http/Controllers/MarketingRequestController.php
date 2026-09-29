@@ -424,6 +424,13 @@ class MarketingRequestController extends Controller
                     return back()->with('error', 'Bạn không có quyền cập nhật trạng thái cho yêu cầu quà tặng này.');
                 }
 
+                if ($targetStatus === 'completed') {
+                    $allocatedExportCount = $marketingRequest->allocated_item_transactions->where('type', 'export')->count();
+                    if ($allocatedExportCount === 0) {
+                        return back()->with('error', 'Ticket chưa được phân bổ quà tặng từ kho. Vui lòng thực hiện phân bổ quà trước khi bàn giao cho Sales!');
+                    }
+                }
+
                 $marketingRequest->update([
                     'status' => $targetStatus,
                     'completed_at' => $targetStatus === 'completed' ? now() : null,

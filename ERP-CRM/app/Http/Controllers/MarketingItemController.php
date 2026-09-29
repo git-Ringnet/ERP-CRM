@@ -50,8 +50,35 @@ class MarketingItemController extends Controller
         $lowStockCount = MarketingItem::whereColumn('stock_quantity', '<=', 'min_stock_alert')->count();
 
         $categories = MarketingItem::CATEGORIES;
-        $opportunities = Opportunity::whereIn('status', ['planned', 'confirmed', 'in_progress'])->latest('id')->take(30)->get();
-        $marketingEvents = MarketingEvent::latest('id')->take(20)->get();
+        $allItems = MarketingItem::where('status', 'active')->orWhereNull('status')->orderBy('name')->get(['id', 'code', 'name', 'stock_quantity', 'unit', 'unit_cost']);
+        
+        $opportunities = Opportunity::with('customer')
+            ->whereNotIn('status', ['cancelled'])
+            ->latest('id')
+            ->take(100)
+            ->get()
+            ->map(function ($opp) {
+                $customerName = $opp->customer ? $opp->customer->name : ($opp->eu_company_name ?: 'Khách hàng vãng lai');
+                return [
+                    'id' => $opp->id,
+                    'name' => $opp->name,
+                    'customer_name' => $customerName,
+                    'status_label' => $opp->status_label,
+                ];
+            });
+
+        $marketingEvents = MarketingEvent::latest('id')
+            ->take(100)
+            ->get()
+            ->map(function ($ev) {
+                return [
+                    'id' => $ev->id,
+                    'code' => $ev->code,
+                    'title' => $ev->title,
+                    'event_date' => $ev->event_date ? $ev->event_date->format('d/m/Y') : null,
+                    'status' => $ev->status,
+                ];
+            });
 
         // Recent transactions
         $recentTransactions = MarketingItemTransaction::with(['marketingItem', 'creator', 'opportunity', 'marketingEvent'])
@@ -61,6 +88,7 @@ class MarketingItemController extends Controller
 
         return view('marketing.items.index', compact(
             'items',
+            'allItems',
             'totalTypes',
             'totalQuantity',
             'totalValue',

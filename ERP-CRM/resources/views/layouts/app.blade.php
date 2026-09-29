@@ -12,7 +12,9 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400;1,500;1,700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400;1,500;1,700&display=swap"
+        rel="stylesheet">
 
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -512,13 +514,13 @@
                                 </a>
                             @endcan
 
-                            @if(!auth()->user()->hasRole('accountant'))
+                            @canany(['view_sales', 'view_all_sales', 'view_own_sales'])
                                 <a href="{{ route('sales.order-tracking') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-map-marked-alt w-6 text-emerald-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Theo dõi hàng về</span>
                                 </a>
-                            @endif
+                            @endcanany
 
                             @can('view_sales_revenues')
                                 <a href="{{ route('sales-revenues.index') }}"
@@ -633,12 +635,12 @@
                             @endcan
 
                             <!-- @can('view_shipping_allocations')
-                                                                                            <a href="{{ route('shipping-allocations.index') }}"
-                                                                                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                                <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                                <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                            </a>
-                                                                                        @endcan -->
+                                                                                                    <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                                    </a>
+                                                                                                @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -803,6 +805,15 @@
                         </div>
                     </div>
                 @endcan
+
+                <!-- Hướng Dẫn Sử Dụng / Help Center Item -->
+                <div class="mt-4 pt-3 border-t border-gray-700 hidden">
+                    <a href="{{ route('user-guide.index') }}"
+                        class="flex items-center px-4 py-3 text-cyan-300 hover:bg-blue-600 hover:text-white rounded-xl transition-all font-semibold {{ request()->routeIs('user-guide.*') ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 bg-opacity-40' }}">
+                        <i class="fas fa-book-open w-6 text-cyan-400 flex-shrink-0 text-lg"></i>
+                        <span class="ml-3 sidebar-text whitespace-nowrap">Hướng dẫn sử dụng</span>
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -819,15 +830,13 @@
                 </div>
 
                 <div class="flex items-center space-x-2 sm:space-x-4">
-                    <!-- Quick Attendance Link -->
-                    @if(false)
-                        <a href="{{ route('attendance.index') }}"
-                            class="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                            title="Chấm công GPS">
-                            <i class="fas fa-map-marker-alt mr-1.5 sm:mr-2"></i>
-                            <span class="whitespace-nowrap">Chấm công</span>
-                        </a>
-                    @endif
+                    <!-- User Guide / Help Center Button -->
+                    <a href="{{ route('user-guide.index') }}"
+                        class="inline-flex items-center hidden px-3 py-1.5 sm:px-3.5 sm:py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm font-semibold rounded-lg border border-blue-200 shadow-sm transition-all hover:shadow"
+                        title="Trung tâm Hướng dẫn & Quy trình vận hành">
+                        <i class="fas fa-book-open mr-1.5 text-blue-600"></i>
+                        <span class="whitespace-nowrap hidden sm:inline">Hướng dẫn sử dụng</span>
+                    </a>
 
                     <!-- Notification Bell -->
                     <div class="relative" x-data="notificationBell()" x-init="init()">

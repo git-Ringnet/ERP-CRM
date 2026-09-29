@@ -3347,6 +3347,8 @@ class SaleController extends Controller
 
     public function orderTracking(Request $request)
     {
+        $this->authorize('viewAny', Sale::class);
+
         $query = SaleOrderRequestItem::where('is_cancelled', false)
             ->whereHas('saleOrderRequest', function($q) {
                 $q->whereIn('status', [

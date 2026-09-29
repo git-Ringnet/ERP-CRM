@@ -700,6 +700,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/technical-tickets/{ticket}/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'store'])->name('technical-tickets.support-logs.store');
     Route::put('/technical-tickets/{ticket}/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'update'])->name('technical-tickets.support-logs.update');
     Route::delete('/technical-tickets/{ticket}/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroy'])->name('technical-tickets.support-logs.destroy');
+
+    // =========================================================================
+    // User Guide / Help Center Routes
+    // =========================================================================
+    Route::get('/user-guide', [\App\Http\Controllers\UserGuideController::class, 'index'])->name('user-guide.index');
+    Route::get('/user-guide/download', [\App\Http\Controllers\UserGuideController::class, 'download'])->name('user-guide.download');
+    Route::post('/user-guide/upload', [\App\Http\Controllers\UserGuideController::class, 'upload'])->name('user-guide.upload');
 });
 
 // Auth routes (login, logout, etc.)

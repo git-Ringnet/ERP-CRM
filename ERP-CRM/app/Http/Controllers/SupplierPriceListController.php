@@ -421,48 +421,27 @@ class SupplierPriceListController extends Controller
             $highestColumn = $worksheet->getHighestColumn();
             $highestRow = $worksheet->getHighestRow();
 
+            $extracted = $this->extractSheetHeaders($worksheet, $headerRow, $highestRow, $highestColumn);
+            $fileHeaders = $extracted['fileHeaders'];
+            $realHeaders = $extracted['realHeaders'];
+            $dataStartRow = $extracted['dataStartRow'];
+
             $headers = [];
-            $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-            $maxColToProcess = min($highestColIndex, 100); // Giới hạn tối đa 100 cột
-            
-            // Row-level decision: is headerRow+1 a header continuation or data?
-            $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
-            
-            for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
-                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
-                $value = $worksheet->getCell($col . $headerRow)->getValue();
-                $trimVal = trim($value ?? '');
-                
-                // Multi-row header: combine with next row ONLY if row-level check confirmed it
-                if ($isMultiRowHeader && $headerRow < $highestRow) {
-                    $nextRowVal = $worksheet->getCell($col . ($headerRow + 1))->getValue();
-                    $nextVal = trim($nextRowVal ?? '');
-                    
-                    if ($nextVal !== '') {
-                        $trimVal = ($trimVal !== '') ? $trimVal . ' ' . $nextVal : $nextVal;
-                    }
-                }
-                
-                // Clean newlines in header values
-                $trimVal = preg_replace('/[\r\n]+/', ' ', $trimVal);
-                $trimVal = preg_replace('/\s+/', ' ', $trimVal);
-                $trimVal = trim($trimVal);
-                
-                // Chỉ thêm các cột có header không rỗng
-                if ($trimVal !== '') {
-                    $headers[] = [
-                        'column' => $col,
-                        'index' => $colIdx - 1,
-                        'name' => $trimVal,
-                    ];
-                }
+            foreach ($realHeaders as $colIdx0 => $name) {
+                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx0 + 1);
+                $headers[] = [
+                    'column' => $col,
+                    'index' => $colIdx0,
+                    'name' => $name,
+                ];
             }
 
             $previewData = [];
-            for ($row = $headerRow + 1; $row <= min($headerRow + 20, $highestRow); $row++) {
+            $maxColToPreview = min(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn), 100);
+            for ($row = $dataStartRow; $row <= min($dataStartRow + 20, $highestRow); $row++) {
                 $rowData = [];
-                for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
-                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                for ($colIdx = 1; $colIdx <= $maxColToPreview; $colIdx++) {
+                    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                     $rowData[] = $worksheet->getCell($col . $row)->getValue();
                 }
                 $previewData[] = $rowData;
@@ -472,7 +451,7 @@ class SupplierPriceListController extends Controller
                 'success' => true,
                 'headers' => $headers,
                 'preview' => $previewData,
-                'totalRows' => $highestRow - $headerRow,
+                'totalRows' => max(0, $highestRow - $dataStartRow + 1),
             ]);
 
         } catch (\Exception $e) {
@@ -741,11 +720,18 @@ class SupplierPriceListController extends Controller
                 if (empty($batchItems)) return;
                 
                 $now = now();
-                $chunkSkus = array_unique(array_filter(array_column($batchItems, 'sku')));
+                $chunkSkus = [];
+                foreach ($batchItems as $item) {
+                    $c = $this->cleanSku($item['sku'] ?? '');
+                    if (!empty($c)) {
+                        $chunkSkus[] = mb_substr($c, 0, 150);
+                    }
+                }
+                $chunkSkus = array_values(array_unique(array_filter($chunkSkus)));
                 
                 if ($importMode === 'update') {
                     $existingItems = SupplierPriceListItem::where('supplier_price_list_id', $priceListId)
-                        ->whereIn('sku', $chunkSkus)
+                        ->whereIn('sku', array_unique(array_filter(array_column($batchItems, 'sku'))))
                         ->get()
                         ->keyBy('sku');
                         
@@ -801,36 +787,41 @@ class SupplierPriceListController extends Controller
                     
                     $newProductsToInsert = [];
                     foreach ($batchItems as $item) {
-                        $sku = $this->cleanSku($item['sku']);
+                        $sku = $this->cleanSku($item['sku'] ?? '');
                         if (empty($sku)) continue;
-                        $sku = mb_substr($sku, 0, 191);
+                        $sku = mb_substr($sku, 0, 150);
                         
-                        if (isset($existingProductsCache[$sku]) && $existingProductsCache[$sku] instanceof Product) {
-                            // Product exists - update description if needed
-                            $p = $existingProductsCache[$sku];
-                            if ($item['description'] && empty($p->description)) {
-                                $p->update(['description' => mb_substr($item['description'], 0, 65000)]);
+                        $cached = $existingProductsCache[$sku] ?? false;
+                        
+                        if ($cached instanceof Product) {
+                            // Product exists in DB - update description if needed
+                            if ($item['description'] && empty($cached->description)) {
+                                $cached->update(['description' => mb_substr($item['description'], 0, 65000)]);
                             }
-                        } elseif (!isset($newProductsToInsert[$sku])) {
-                            $cat = $item['category'] ?? 'Z';
-                            if (empty($cat) || strlen($cat) > 1) {
-                                $cat = 'Z';
+                        } elseif ($cached === false) {
+                            // Product not in DB and not yet queued in earlier batch
+                            if (!isset($newProductsToInsert[$sku])) {
+                                $cat = $item['category'] ?? 'Z';
+                                if (empty($cat) || strlen($cat) > 1) {
+                                    $cat = 'Z';
+                                }
+                                $newProductsToInsert[$sku] = [
+                                    'code' => $sku,
+                                    'name' => mb_substr($item['product_name'] ?: $sku, 0, 255),
+                                    'description' => $item['description'] ? mb_substr($item['description'], 0, 65000) : null,
+                                    'unit' => 'Bộ',
+                                    'category' => $cat,
+                                    'created_at' => $now,
+                                    'updated_at' => $now,
+                                ];
+                                // Mark as true so subsequent items in this or future batches don't try to insert it again
+                                $existingProductsCache[$sku] = true;
                             }
-                            $newProductsToInsert[$sku] = [
-                                'code' => $sku,
-                                'name' => mb_substr($item['product_name'] ?: $sku, 0, 255),
-                                'description' => $item['description'] ? mb_substr($item['description'], 0, 65000) : null,
-                                'unit' => 'Bộ',
-                                'category' => $cat,
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ];
-                            $existingProductsCache[$sku] = true;
                         }
                     }
                     
                     if (!empty($newProductsToInsert)) {
-                        Product::insert(array_values($newProductsToInsert));
+                        Product::insertOrIgnore(array_values($newProductsToInsert));
                     }
                 }
                 
@@ -876,39 +867,11 @@ class SupplierPriceListController extends Controller
                    continue;
                 }
 
-                // Get File Headers (Real names) - support multi-row headers
-                $fileHeaders = [];
-                $realHeaders = []; // Store Original Case headers for Labeling
-                $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-                $maxColToProcess = min($highestColIndex, 100);
-                
-                // Row-level decision: is headerRow+1 a header continuation or data?
-                $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
-                
-                for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
-                    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
-                    $value = $this->getCellValue($worksheet, $col, $headerRow);
-                    $trimVal = trim($value ?? '');
-                    
-                    if ($isMultiRowHeader && $headerRow < $highestRow) {
-                        $nextRowVal = $this->getCellValue($worksheet, $col, $headerRow + 1);
-                        $nextVal = trim($nextRowVal ?? '');
-                        
-                        if ($nextVal !== '') {
-                            $trimVal = ($trimVal !== '') ? $trimVal . ' ' . $nextVal : $nextVal;
-                        }
-                    }
-                    
-                    // Clean newlines in header values
-                    $trimVal = preg_replace('/[\r\n]+/', ' ', $trimVal);
-                    $trimVal = preg_replace('/\s+/', ' ', $trimVal);
-                    $trimVal = trim($trimVal);
-                    
-                    if ($trimVal !== '') {
-                        $fileHeaders[$colIdx - 1] = strtolower($trimVal);
-                        $realHeaders[$colIdx - 1] = $trimVal;
-                    }
-                }
+                // Extract headers and determine data start row
+                $extracted = $this->extractSheetHeaders($worksheet, $headerRow, $highestRow, $highestColumn);
+                $fileHeaders = $extracted['fileHeaders'];
+                $realHeaders = $extracted['realHeaders'];
+                $dataStartRow = $extracted['dataStartRow'];
 
                 Log::debug("Processing sheet: {$sheetConfig['name']}, headers:", $fileHeaders);
 
@@ -982,9 +945,6 @@ class SupplierPriceListController extends Controller
 
                 $currentCategory = null;
                 $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-
-                // Determine data start row
-                $dataStartRow = $isMultiRowHeader ? $headerRow + 2 : $headerRow + 1;
                 
                 $batchItems = [];
                 $batchSize = 500;
@@ -1566,6 +1526,88 @@ class SupplierPriceListController extends Controller
         Log::debug("isNextRowHeaderContinuation: headerRow={$headerRow}, headerLike={$headerLikeCount}, dataLike={$dataLikeCount}, result=" . ($isHeader ? 'true' : 'false'));
 
         return $isHeader;
+    }
+
+    /**
+     * Extract headers from a worksheet supporting single-row and multi-row/merged header blocks
+     */
+    private function extractSheetHeaders($worksheet, int $headerRow, int $highestRow, string $highestColumn): array
+    {
+        $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+        $maxColToProcess = min($highestColIndex, 100);
+
+        $fileHeaders = [];
+        $realHeaders = [];
+
+        // First determine data start row
+        $dataStartRow = $headerRow + 1;
+        for ($r = $headerRow + 1; $r <= min($headerRow + 4, $highestRow); $r++) {
+            $isDataRow = false;
+            for ($colIdx = 1; $colIdx <= min($maxColToProcess, 25); $colIdx++) {
+                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                $val = trim((string)$this->getCellValue($worksheet, $col, $r));
+                if ($val === '') continue;
+                
+                // Strong SKU signal: 4+ chars alphanumeric with both letters and numbers
+                if (preg_match('/^[A-Z0-9\-\/\.]{4,}$/i', $val) && preg_match('/[A-Z]/i', $val) && preg_match('/[0-9]/', $val)) {
+                    $isDataRow = true;
+                    break;
+                }
+                // Pure numeric price
+                $cleanNum = str_replace([',', ' ', '$', '₫', '€', '£'], '', $val);
+                if (is_numeric($cleanNum) && strlen($cleanNum) >= 2) {
+                    $isDataRow = true;
+                    break;
+                }
+            }
+            if ($isDataRow) {
+                $dataStartRow = $r;
+                break;
+            }
+        }
+
+        // For each column, assemble the header from the header block
+        for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+            
+            // 1. Value at headerRow
+            $val = trim((string)$this->getCellValue($worksheet, $col, $headerRow));
+            
+            // 2. If empty at headerRow, check rows above (e.g. headerRow - 1, headerRow - 2) for merged parent
+            if ($val === '') {
+                for ($rAbove = $headerRow - 1; $rAbove >= max(1, $headerRow - 2); $rAbove--) {
+                    $aboveVal = trim((string)$this->getCellValue($worksheet, $col, $rAbove));
+                    if ($aboveVal !== '') {
+                        $val = $aboveVal;
+                        break;
+                    }
+                }
+            }
+            
+            // 3. If there are subheader rows between headerRow + 1 and dataStartRow - 1, append them
+            for ($rBelow = $headerRow + 1; $rBelow < $dataStartRow; $rBelow++) {
+                $belowVal = trim((string)$this->getCellValue($worksheet, $col, $rBelow));
+                if ($belowVal !== '') {
+                    $val = ($val !== '') ? $val . ' ' . $belowVal : $belowVal;
+                }
+            }
+            
+            // Clean up whitespace and newlines
+            $val = preg_replace('/_x000d_|\r\n|\r|\n/i', ' ', $val);
+            $val = preg_replace('/\s+/', ' ', $val);
+            $val = trim($val);
+            
+            if ($val !== '') {
+                $fileHeaders[$colIdx - 1] = strtolower($val);
+                $realHeaders[$colIdx - 1] = $val;
+            }
+        }
+
+        return [
+            'fileHeaders' => $fileHeaders,
+            'realHeaders' => $realHeaders,
+            'dataStartRow' => $dataStartRow,
+        ];
     }
 
     /**
@@ -2896,7 +2938,7 @@ class SupplierPriceListController extends Controller
         foreach ($sheets as $sheet) {
             $mapping = $sheet['mapping'] ?? [];
             // Nếu không có SKU hoặc không có cột giá nào, cần auto mapping
-            if (empty($mapping['sku'])) {
+            if (!isset($mapping['sku']) || $mapping['sku'] === '') {
                 return true;
             }
             $hasPriceColumn = isset($mapping['price']) || 
@@ -2908,7 +2950,7 @@ class SupplierPriceListController extends Controller
             
             // Kiểm tra custom price columns
             foreach ($mapping as $key => $val) {
-                if (str_starts_with($key, 'custom_') && $val !== '') {
+                if (str_starts_with($key, 'custom_') && $val !== '' && $val !== null) {
                     $hasPriceColumn = true;
                     break;
                 }
@@ -2986,45 +3028,16 @@ class SupplierPriceListController extends Controller
                 continue;
             }
             
-            // Lấy headers - support multi-row headers (e.g. QNAP has headers spanning 2 rows)
-            $fileHeaders = [];
-            $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-            $maxColToProcess = min($highestColIndex, 100);
-            
-            // Row-level decision: is headerRow+1 a header continuation or data?
-            $isMultiRowHeader = $this->isNextRowHeaderContinuation($worksheet, $headerRow, $maxColToProcess, $highestRow);
-            
-            for ($colIdx = 1; $colIdx <= $maxColToProcess; $colIdx++) {
-                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
-                $value = $this->getCellValue($worksheet, $col, $headerRow);
-                $trimVal = trim($value ?? '');
-                
-                // Multi-row header: combine with next row ONLY if row-level check confirmed it
-                if ($isMultiRowHeader && $headerRow < $highestRow) {
-                    $nextRowValue = $this->getCellValue($worksheet, $col, $headerRow + 1);
-                    $nextVal = trim($nextRowValue ?? '');
-                    
-                    if ($nextVal !== '') {
-                        $trimVal = ($trimVal !== '') ? $trimVal . ' ' . $nextVal : $nextVal;
-                    }
-                }
-                
-                // Clean newlines in header values (e.g. "Purchase\nPrice\n(Ex-work TW)" -> "Purchase Price (Ex-work TW)")
-                $trimVal = preg_replace('/[\r\n]+/', ' ', $trimVal);
-                $trimVal = preg_replace('/\s+/', ' ', $trimVal);
-                $trimVal = trim($trimVal);
-                
-                if ($trimVal !== '') {
-                    $fileHeaders[$colIdx - 1] = strtolower($trimVal);
-                }
-            }
+            // Extract headers and determine data start row
+            $extracted = $this->extractSheetHeaders($worksheet, $headerRow, $highestRow, $highestColumn);
+            $fileHeaders = $extracted['fileHeaders'];
+            $realHeaders = $extracted['realHeaders'];
+            $dataStartRow = $extracted['dataStartRow'];
             
             Log::debug("Sheet '{$sheetName}' merged headers: " . json_encode($fileHeaders, JSON_UNESCAPED_UNICODE));
             
             // Read sample data rows for validation scoring
             $rowSamples = [];
-            $dataStartRow = $isMultiRowHeader ? $headerRow + 2 : $headerRow + 1;
-
             for ($r = $dataStartRow; $r < min($dataStartRow + 20, $highestRow + 1); $r++) {
                 $rowVals = [];
                 foreach ($fileHeaders as $colIdx => $headerName) {
@@ -3036,11 +3049,11 @@ class SupplierPriceListController extends Controller
             }
 
             // Auto detect mapping with data validation
-            $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset, $rowSamples);
+            $mapping = $this->autoDetectMappingFromHeaders($fileHeaders, $preset, $rowSamples, $realHeaders);
             // Kiểm tra xem có mapping hợp lệ không (phải có SKU và ít nhất 1 cột giá)
             // IMPORTANT: Use !isset() instead of empty() because index 0 is a valid column
             // empty(0) returns true in PHP, which would reject SKU in column A
-            if (!isset($mapping['sku'])) {
+            if (!isset($mapping['sku']) || $mapping['sku'] === '') {
                 Log::info("No SKU column found in sheet: {$sheetName}");
                 continue;
             }

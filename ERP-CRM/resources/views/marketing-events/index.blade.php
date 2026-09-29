@@ -258,51 +258,57 @@ function marketingEventsPage() {
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-center whitespace-nowrap">
-                                    <div class="flex flex-col gap-2 items-center justify-center">
-                                        {{-- Nút Phân bổ Quà tặng từ kho --}}
-                                        <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" class="w-full px-2.5 py-1.5 text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors shadow-2xs inline-flex items-center justify-center gap-1.5" title="Phân bổ / Xuất quà từ kho cho Ticket này">
-                                            <i class="fas fa-gift text-purple-600"></i> Phân bổ quà
-                                        </button>
-
-                                        <div class="flex items-center justify-center gap-1 w-full">
-                                            @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
-                                                <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex items-center gap-1">
+                                    <div class="flex flex-col gap-1.5 items-center justify-center">
+                                        @if($marketingRequest->status !== 'completed')
+                                            {{-- Bước 1: Nếu chưa phân bổ quà -> Nút Phân bổ quà từ kho --}}
+                                            @if($allocatedTxs->count() === 0)
+                                                <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" 
+                                                    class="w-full px-3 py-1.5 text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors shadow-sm inline-flex items-center justify-center gap-1.5" 
+                                                    title="Chọn và xuất quà từ kho cho Ticket này">
+                                                    <i class="fas fa-gift"></i> Phân bổ quà
+                                                </button>
+                                            @else
+                                                {{-- Bước 2: Đã phân bổ quà -> Nút Bàn giao cho Sales --}}
+                                                <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="w-full">
                                                     @csrf
-                                                    <select name="assigned_to" class="max-w-[110px] border border-gray-300 rounded px-1.5 py-1 text-xs" required title="Chọn người phụ trách">
+                                                    <input type="hidden" name="status" value="completed">
+                                                    <input type="hidden" name="comment" value="Đã chuẩn bị và bàn giao quà tặng đầy đủ cho Sales.">
+                                                    <button type="submit" onclick="return confirm('Xác nhận đã đóng gói và bàn giao quà tặng cho Sales?')" 
+                                                        class="w-full px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm inline-flex items-center justify-center gap-1.5" 
+                                                        title="Xác nhận đã bàn giao quà cho Sales">
+                                                        <i class="fas fa-check-circle"></i> Bàn giao quà
+                                                    </button>
+                                                </form>
+
+                                                <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" 
+                                                    class="text-[11px] text-purple-700 hover:text-purple-900 font-semibold hover:underline inline-flex items-center gap-1">
+                                                    <i class="fas fa-plus-circle"></i> Xuất thêm / Quản lý
+                                                </button>
+                                            @endif
+
+                                            {{-- Phân công người phụ trách --}}
+                                            @if($user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager']))
+                                                <form method="POST" action="{{ route('marketing-requests.assign', $marketingRequest) }}" class="flex items-center gap-1 mt-0.5">
+                                                    @csrf
+                                                    <select name="assigned_to" class="max-w-[110px] border border-gray-300 rounded px-1.5 py-0.5 text-xs" required title="Chọn người phụ trách">
                                                         <option value="">Phân công...</option>
                                                         @foreach($marketingAssignees as $assignee)
                                                             <option value="{{ $assignee->id }}" {{ $marketingRequest->assigned_to === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
                                                         @endforeach
                                                     </select>
-                                                    <button type="submit" class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 shadow-sm" title="Lưu phân công"><i class="fas fa-save"></i></button>
+                                                    <button type="submit" class="px-2 py-0.5 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 shadow-xs" title="Lưu phân công"><i class="fas fa-save"></i></button>
                                                 </form>
                                             @endif
-
-                                            @if($marketingRequest->status !== 'completed')
-                                                @if($marketingRequest->status === 'received')
-                                                    <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
-                                                        @csrf
-                                                        <input type="hidden" name="status" value="in_progress">
-                                                        <button type="submit" class="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors shadow-sm" title="Bắt đầu chuẩn bị quà">
-                                                            <i class="fas fa-play mr-1"></i>Nhận
-                                                        </button>
-                                                    </form>
-                                                @else
-                                                    <form method="POST" action="{{ route('marketing-requests.status.update', $marketingRequest) }}" class="inline">
-                                                        @csrf
-                                                        <input type="hidden" name="status" value="completed">
-                                                        <input type="hidden" name="comment" value="Đã chuẩn bị và bàn giao quà tặng đầy đủ cho Sales.">
-                                                        <button type="submit" onclick="return confirm('Xác nhận đã đóng gói và bàn giao quà cho Sales?')" class="px-2 py-1 text-xs font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Bàn giao quà cho Sales">
-                                                            <i class="fas fa-check mr-1"></i>Bàn giao
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                            @else
-                                                <span class="inline-flex items-center text-xs text-emerald-600 font-bold px-2 py-1 bg-emerald-50 rounded">
-                                                    <i class="fas fa-check-double mr-1"></i>Xong
-                                                </span>
+                                        @else
+                                            {{-- Đã hoàn thành bàn giao (Không hiện badge Xong rườm rà) --}}
+                                            @if($allocatedTxs->count() > 0)
+                                                <button type="button" @click="openAllocateModal({{ Js::from($modalPayload) }})" 
+                                                    class="text-xs text-purple-700 hover:text-purple-900 font-medium hover:underline inline-flex items-center gap-1"
+                                                    title="Xem danh sách quà đã xuất">
+                                                    <i class="fas fa-eye"></i> Xem quà đã xuất
+                                                </button>
                                             @endif
-                                        </div>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
