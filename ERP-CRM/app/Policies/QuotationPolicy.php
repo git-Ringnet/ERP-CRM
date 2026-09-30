@@ -99,13 +99,6 @@ class QuotationPolicy extends BasePolicy
             return true;
         }
 
-        // Sales may withdraw their own quotation only before it is sent or
-        // accepted.  The controller also enforces the allowed statuses.
-        if ($quotation->created_by === $user->id
-            && $user->hasAnyRole(['sales_staff', 'sales'])) {
-            return true;
-        }
-
         return $this->checkPermission($user, 'delete_quotations');
     }
 }
