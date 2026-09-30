@@ -227,6 +227,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sales/{sale}/expenses/add-default', [SaleController::class, 'addDefaultExpenses'])->name('sales.expenses.addDefault');
     Route::post('/sales/{sale}/expenses/sync', [SaleController::class, 'syncExpenses'])->name('sales.expenses.sync');
     Route::delete('/sales/{sale}/expenses/{expense}', [SaleController::class, 'deleteExpense'])->name('sales.expenses.delete');
+    Route::delete('/sales/{sale}/pnl-expenses/{expense}', [SaleController::class, 'deletePnlExpense'])->name('sales.pnl-expenses.delete');
 
     // Invoice Request routes
     Route::post('/sales/{sale}/invoice-requests', [\App\Http\Controllers\InvoiceRequestController::class, 'store'])->name('invoice-requests.store');

@@ -315,7 +315,11 @@ class TechnicalTicket extends Model
      */
     public function canUserHandover(?User $user = null): bool
     {
-        return $this->canUserUpdateProgress($user);
+        $user = $user ?? auth()->user();
+
+        // Bàn giao thay đổi người chịu trách nhiệm, nên chỉ Tech Lead (và
+        // super admin để xử lý vận hành) được phép thực hiện.
+        return $user && $user->hasAnyRole(['technical_lead', 'super_admin']);
     }
 
     // ===================================================================

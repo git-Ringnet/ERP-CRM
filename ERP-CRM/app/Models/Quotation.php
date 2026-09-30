@@ -114,6 +114,25 @@ class Quotation extends Model
         ];
     }
 
+    /**
+     * Return only columns that may be exposed in a quotation sent to a customer.
+     * Pricelist is an internal reference price and must never be exported.
+     */
+    public static function customerFacingCustomColumns($columns): array
+    {
+        if (!is_array($columns)) {
+            return [];
+        }
+
+        return array_values(array_filter($columns, static function ($column) {
+            $normalized = strtolower(str_replace(['_', ' ', '-'], '', (string) $column));
+
+            return !in_array($normalized, [
+                'productid', 'quantity', 'price', 'vat', 'rowtotal', 'pricelist',
+            ], true);
+        }));
+    }
+
     public function currency()
     {
         return $this->belongsTo(Currency::class);
@@ -223,6 +242,6 @@ class Quotation extends Model
 
     public function canBeDeleted(): bool
     {
-        return true;
+        return in_array($this->status, ['draft', 'rejected'], true);
     }
 }

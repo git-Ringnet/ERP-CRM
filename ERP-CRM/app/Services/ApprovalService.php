@@ -352,13 +352,6 @@ class ApprovalService
             ->orderBy('level')
             ->first();
 
-        // Nếu cấp tiếp theo là Cấp 2 của sale_pnl (BOD), nhưng đơn hàng không phải là ngoại lệ BOD phê duyệt,
-        // thì bỏ qua Cấp 2 (BOD) và chuyển sang kiểm tra cấp kế tiếp.
-        if ($nextLevel && $workflow->document_type === 'sale_pnl' && $nextLevel->level == 2) {
-            if ($document && isset($document->payment_term_type) && $document->payment_term_type !== 'bod_exception') {
-                return $this->findNextApplicableLevel($workflow, 2, $amount, $document);
-            }
-        }
 
         // Nếu cấp tiếp theo là Cấp 1 của marketing_budget (OM), nhưng sự kiện là External,
         // thì bỏ qua Cấp 1 (OM) và chuyển thẳng sang Cấp 2 (BOD).

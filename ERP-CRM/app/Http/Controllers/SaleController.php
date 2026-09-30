@@ -2063,22 +2063,17 @@ class SaleController extends Controller
             if (isset($validated['expenses'])) {
                 foreach ($validated['expenses'] as $expenseData) {
                     if (!empty($expenseData['id'])) {
-                        $expense = SaleExpense::where('id', $expenseData['id'])->where('sale_id', $sale->id)->firstOrFail();
+                        $expense = SaleExpense::where('id', $expenseData['id'])->where('sale_id', $sale->id)->first();
+                        if (!$expense) continue;
                         $inputMode = $expenseData['input_mode'] ?? $expense->input_mode ?? 'fixed';
+                        $pctVal = (isset($expenseData['percent_value']) && $expenseData['percent_value'] !== '') ? (float) $expenseData['percent_value'] : 0;
+                        $amtVal = (isset($expenseData['amount']) && $expenseData['amount'] !== '') ? (float) $expenseData['amount'] : 0;
                         $expense->update([
                             'type' => $expenseData['type'] ?? $expense->type,
                             'input_mode' => $inputMode,
-                            'percent_value' => $inputMode === 'percent' ? ($expenseData['percent_value'] ?? 0) : null,
-                            'amount' => $inputMode === 'fixed' ? ($expenseData['amount'] ?? 0) : 0,
+                            'percent_value' => $inputMode === 'percent' ? $pctVal : null,
+                            'amount' => $inputMode === 'fixed' ? $amtVal : 0,
                             'description' => $expenseData['description'] ?? ($expense->description ?? ''),
-                        ]);
-                    } elseif (!empty($expenseData['type'])) {
-                        $sale->expenses()->create([
-                            'type' => $expenseData['type'],
-                            'input_mode' => $expenseData['input_mode'] ?? 'fixed',
-                            'percent_value' => ($expenseData['input_mode'] ?? 'fixed') === 'percent' ? ($expenseData['percent_value'] ?? 0) : null,
-                            'amount' => ($expenseData['input_mode'] ?? 'fixed') === 'fixed' ? ($expenseData['amount'] ?? 0) : 0,
-                            'description' => $expenseData['description'] ?? '',
                         ]);
                     }
                 }
@@ -2127,11 +2122,14 @@ class SaleController extends Controller
                 if (empty($type)) continue;
 
                 $inputMode = $newExpense['input_mode'] ?? 'fixed';
+                $pctVal = (isset($newExpense['percent_value']) && $newExpense['percent_value'] !== '') ? (float) $newExpense['percent_value'] : 0;
+                $amtVal = (isset($newExpense['amount']) && $newExpense['amount'] !== '') ? (float) $newExpense['amount'] : 0;
+
                 $sale->expenses()->create([
                     'type' => $type,
                     'input_mode' => $inputMode,
-                    'percent_value' => $inputMode === 'percent' ? ($newExpense['percent_value'] ?? 0) : null,
-                    'amount' => $inputMode === 'fixed' ? ($newExpense['amount'] ?? 0) : 0,
+                    'percent_value' => $inputMode === 'percent' ? $pctVal : null,
+                    'amount' => $inputMode === 'fixed' ? $amtVal : 0,
                     'description' => $newExpense['description'] ?? '',
                 ]);
             }
@@ -2144,10 +2142,13 @@ class SaleController extends Controller
                 if (in_array($expense->type, $standardTypes)) continue;
 
                 $inputMode = $extraData['input_mode'] ?? $expense->input_mode;
+                $pctVal = (isset($extraData['percent_value']) && $extraData['percent_value'] !== '') ? (float) $extraData['percent_value'] : 0;
+                $amtVal = (isset($extraData['amount']) && $extraData['amount'] !== '') ? (float) $extraData['amount'] : 0;
+
                 $expense->update([
                     'input_mode' => $inputMode,
-                    'percent_value' => $inputMode === 'percent' ? ($extraData['percent_value'] ?? 0) : null,
-                    'amount' => $inputMode === 'fixed' ? ($extraData['amount'] ?? 0) : 0,
+                    'percent_value' => $inputMode === 'percent' ? $pctVal : null,
+                    'amount' => $inputMode === 'fixed' ? $amtVal : 0,
                     'description' => $extraData['description'] ?? ($expense->description ?? ''),
                 ]);
             }

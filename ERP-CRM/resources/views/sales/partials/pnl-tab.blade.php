@@ -241,6 +241,17 @@
                 return total;
             },
 
+            // Sum of ALL non-standard extra expenses in the bottom table (for UI display)
+            get allPnlExtraCostsDisplayTotal() {
+                let total = 0;
+                (this.pnl_extra_costs || []).forEach(exp => {
+                    if (!exp.is_standard && !this.standard_types.includes(exp.type)) {
+                        total += Math.round(exp.calculated_amount || 0);
+                    }
+                });
+                return total;
+            },
+
             addPnlExpense() {
                 this.pnl_extra_costs.push({
                     id: null,
@@ -269,8 +280,7 @@
                         },
                     }).then(r => r.json()).then(data => {
                         if (data.success) {
-                            this.pnl_extra_costs.splice(idx, 1);
-                            this.updateGlobalTotals();
+                            window.location.reload();
                         } else {
                             alert(data.message || 'Lỗi khi xóa.');
                         }
@@ -283,7 +293,8 @@
 
             recalcPnlExpense(exp) {
                 if (!exp) return;
-                const val = parseFloat(exp.input_value) || 0;
+                const raw = (exp.input_value !== null && exp.input_value !== undefined) ? exp.input_value.toString().replace(/,/g, '') : '0';
+                const val = parseFloat(raw) || 0;
                 if (exp.input_mode === 'percent') {
                     exp.calculated_amount = Math.round(this.global_cost * val / 100);
                 } else {
@@ -743,7 +754,7 @@
     }
 
     function cleanMoneyString(val) {
-        if (val === null || val === undefined) return '';
+        if (val === null || val === undefined || val === '') return '0';
         return val.toString().replace(/,/g, '');
     }
 
@@ -782,18 +793,18 @@
     function preparePnlJsonData(form) {
         // 1. Gom items
         const items = [];
-        document.querySelectorAll('tr[x-data]').forEach(row => {
+        form.querySelectorAll('tr[x-data]').forEach(row => {
             try {
                 const rowData = getAlpineData(row);
                 if (rowData && typeof rowData.qty !== 'undefined' && typeof rowData.usd_p !== 'undefined') {
                     const extra_expenses_data = {};
                     if (rowData.extra_costs && Array.isArray(rowData.extra_costs)) {
                         rowData.extra_costs.forEach(ec => {
-                            const editorEl = document.querySelector('[x-data^="pnlEditor"]');
+                            const editorEl = form.closest('[x-data^="pnlEditor"]') || document.querySelector('[x-data^="pnlEditor"]');
                             const editorData = editorEl ? getAlpineData(editorEl) : null;
                             const currentMode = editorData ? editorData.getExtraMode(ec.id) : 'fixed';
                             if (currentMode === 'percent') {
-                                const expenseInput = document.querySelector(`.extra-expense-input[data-expense-id="${ec.id}"][data-mode="percent"]`);
+                                const expenseInput = form.querySelector(`.extra-expense-input[data-expense-id="${ec.id}"][data-mode="percent"]`);
                                 const ecVal = expenseInput ? parseFloat(expenseInput.value.toString().replace(/,/g, '')) || 0 : (parseFloat(ec.val) || 0);
                                 extra_expenses_data[ec.id] = ecVal;
                             } else {
@@ -840,9 +851,9 @@
             }
         });
 
-        // 2. Gom expenses
+        // 2. Gom expenses (chỉ lấy trong form hiện tại và có id hợp lệ)
         const expenses = {};
-        document.querySelectorAll('[name^="expenses["]').forEach(input => {
+        form.querySelectorAll('[name^="expenses["]').forEach(input => {
             const match = input.name.match(/^expenses\[([^\]]+)\]\[([^\]]+)\]/);
             if (match) {
                 const idx = match[1];
@@ -852,7 +863,7 @@
                 }
                 let val = input.value;
                 if (input.classList.contains('extra-expense-money')) {
-                    val = val.toString().replace(/,/g, '');
+                    val = (val ?? '').toString().replace(/,/g, '');
                 }
                 expenses[idx][key] = val;
             }
@@ -861,26 +872,29 @@
         // 3. Gom new_expenses & pnl_extra_expenses
         const new_expenses = [];
         const pnl_extra_expenses = [];
-        const editorEl = document.querySelector('[x-data^="pnlEditor"]');
+        const editorEl = form.closest('[x-data^="pnlEditor"]') || document.querySelector('[x-data^="pnlEditor"]');
         if (editorEl) {
             try {
                 const editorData = getAlpineData(editorEl);
                 if (editorData && editorData.pnl_extra_costs) {
-                    editorData.pnl_extra_costs.forEach((exp, idx) => {
-                        const cleanVal = (exp.input_value || '').toString().replace(/,/g, '');
-                        const calcAmt = (exp.calculated_amount || 0).toString().replace(/,/g, '');
+                    editorData.pnl_extra_costs.forEach((exp) => {
+                        const rawVal = (exp.input_value !== null && exp.input_value !== undefined) ? exp.input_value.toString().replace(/,/g, '') : '0';
+                        const numVal = parseFloat(rawVal) || 0;
+                        const calcAmt = (exp.calculated_amount !== null && exp.calculated_amount !== undefined) ? (parseFloat(exp.calculated_amount.toString().replace(/,/g, '')) || 0) : 0;
                         
                         const expData = {
-                            id: exp.id,
-                            type: exp.type,
-                            input_mode: exp.input_mode,
-                            percent_value: exp.input_mode === 'percent' ? cleanVal : '',
-                            amount: exp.input_mode === 'fixed' ? cleanVal : calcAmt,
-                            description: exp.description
+                            id: exp.id || null,
+                            type: exp.type || '',
+                            input_mode: exp.input_mode || 'fixed',
+                            percent_value: exp.input_mode === 'percent' ? numVal : 0,
+                            amount: exp.input_mode === 'fixed' ? numVal : calcAmt,
+                            description: exp.description || ''
                         };
                         
                         if (exp.is_new) {
-                            new_expenses.push(expData);
+                            if (expData.type.trim() !== '') {
+                                new_expenses.push(expData);
+                            }
                         } else if (exp.id) {
                             pnl_extra_expenses.push(expData);
                         }
@@ -893,11 +907,11 @@
 
         // Set JSON strings to hidden inputs
         setOrHiddenInput(form, 'items_json', JSON.stringify(items));
-        setOrHiddenInput(form, 'expenses_json', JSON.stringify(Object.values(expenses)));
+        setOrHiddenInput(form, 'expenses_json', JSON.stringify(Object.values(expenses).filter(e => e.id)));
         setOrHiddenInput(form, 'new_expenses_json', JSON.stringify(new_expenses));
         setOrHiddenInput(form, 'pnl_extra_expenses_json', JSON.stringify(pnl_extra_expenses));
 
-        // Disable all old inputs to avoid max_input_vars
+        // Disable all old inputs in form to avoid max_input_vars
         form.querySelectorAll('[name^="items["], [name^="expenses["], [name^="new_expenses["], [name^="pnl_extra_expenses["]').forEach(input => {
             input.disabled = true;
         });
@@ -1968,7 +1982,7 @@
                                     <input type="text" inputmode="numeric"
                                            x-model="exp.input_value"
                                            @input="recalcPnlExpense(exp)"
-                                           @blur="exp.input_value = parseFloat((exp.input_value || '0').toString().replace(/,/g, '')) || 0"
+                                           @blur="exp.input_value = parseFloat(((exp.input_value !== null && exp.input_value !== undefined) ? exp.input_value : '0').toString().replace(/,/g, '')) || 0; recalcPnlExpense(exp)"
                                            :placeholder="exp.input_mode === 'percent' ? '0.0' : '0'"
                                            {{ !$sale->isPlEditable() ? 'readonly' : '' }}
                                            class="w-full border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-xs text-right focus:outline-none focus:ring-2 focus:ring-rose-400 {{ !$sale->isPlEditable() ? 'bg-gray-50' : '' }}">
@@ -2008,16 +2022,16 @@
                         <div x-show="exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][type]'" :value="exp.type" :disabled="!exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="!exp.is_new">
-                            <input type="hidden" :name="'new_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : '')" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : 0)" :disabled="!exp.is_new">
                             <input type="hidden" :name="'new_expenses['+idx+'][amount]'" :value="cleanMoneyString(exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount)" :disabled="!exp.is_new">
-                            <input type="hidden" :name="'new_expenses['+idx+'][description]'" :value="exp.description" :disabled="!exp.is_new">
+                            <input type="hidden" :name="'new_expenses['+idx+'][description]'" :value="exp.description || ''" :disabled="!exp.is_new">
                         </div>
                         <div x-show="!exp.is_new && exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][id]'" :value="exp.id" :disabled="exp.is_new || !exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][input_mode]'" :value="exp.input_mode" :disabled="exp.is_new || !exp.id">
-                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : '')" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][percent_value]'" :value="cleanMoneyString(exp.input_mode === 'percent' ? exp.input_value : 0)" :disabled="exp.is_new || !exp.id">
                             <input type="hidden" :name="'pnl_extra_expenses['+idx+'][amount]'" :value="cleanMoneyString(exp.input_mode === 'fixed' ? exp.input_value : exp.calculated_amount)" :disabled="exp.is_new || !exp.id">
-                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][description]'" :value="exp.description" :disabled="exp.is_new || !exp.id">
+                            <input type="hidden" :name="'pnl_extra_expenses['+idx+'][description]'" :value="exp.description || ''" :disabled="exp.is_new || !exp.id">
                         </div>
                     </div>
                 </template>
@@ -2032,7 +2046,7 @@
             {{-- Total --}}
             <div x-show="pnl_extra_costs.filter(e => !e.is_standard && !standard_types.includes(e.type)).length > 0" class="mt-3 flex justify-between items-center px-3 py-2.5 bg-rose-100 rounded-lg border border-rose-200">
                 <span class="text-xs font-bold text-rose-800 uppercase">Tổng chi phí bổ sung:</span>
-                <span class="text-sm font-bold text-rose-800" x-text="formatNumber(totalPnlExtraCosts) + ' ₫'"></span>
+                <span class="text-sm font-bold text-rose-800" x-text="formatNumber(allPnlExtraCostsDisplayTotal) + ' ₫'"></span>
             </div>
 
             {{-- Net profit after extra costs --}}
