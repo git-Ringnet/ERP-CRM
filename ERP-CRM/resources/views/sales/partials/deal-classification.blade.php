@@ -5,7 +5,7 @@
     $matrix = old('trade_up_matrix', isset($sale) ? $sale->trade_up_matrix : ($projectTradeUp ? null : 'none'));
 @endphp
 
-<div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4" id="dealClassification" data-project-trade-up="{{ $projectTradeUp ? '1' : '0' }}">
+<div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4" id="dealClassification" data-project-trade-up="{{ $projectTradeUp ? '1' : '0' }}" data-is-locked="{{ $isLocked ? '1' : '0' }}">
     <div class="flex items-start gap-3">
         <i class="fas fa-tags mt-1 text-indigo-600"></i>
         <div class="flex-1">
@@ -16,7 +16,7 @@
                 <input type="checkbox" name="is_license_vnet" value="1" {{ old('is_license_vnet', $sale->is_license_vnet ?? false) ? 'checked' : '' }} {{ $isLocked ? 'disabled' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                 License VNET
             </label>
-            @if($isLocked)<input type="hidden" name="is_license_vnet" value="{{ $sale->is_license_vnet ? 1 : 0 }}">@endif
+            @if($isLocked)<input type="hidden" name="is_license_vnet" value="{{ ($sale->is_license_vnet ?? false) ? 1 : 0 }}">@endif
 
             <div class="mt-3 grid gap-2 sm:grid-cols-3" id="tradeUpMatrixChoices">
                 @foreach(['none' => 'Không thuộc trường hợp này', 'correct' => 'Trade up đúng matrix', 'incorrect' => 'Trade up không đúng matrix'] as $value => $label)
@@ -26,7 +26,7 @@
                     </label>
                 @endforeach
             </div>
-            @if($isLocked)<input type="hidden" name="trade_up_matrix" value="{{ $sale->trade_up_matrix }}">@endif
+            @if($isLocked)<input type="hidden" name="trade_up_matrix" value="{{ $sale->trade_up_matrix ?? 'none' }}">@endif
 
             <div id="projectTradeUpNotice" class="{{ $projectTradeUp ? '' : 'hidden' }} mt-3 rounded bg-amber-50 p-2 text-xs text-amber-800">
                 ĐKDA này là Trade up: không thể bỏ đánh dấu Trade up; vui lòng chọn đúng hoặc không đúng matrix.
@@ -35,7 +35,7 @@
                 <input type="checkbox" name="ohf_cost_added" value="1" {{ old('ohf_cost_added', $sale->ohf_cost_added ?? false) ? 'checked' : '' }} {{ $isLocked ? 'disabled' : '' }} class="rounded border-amber-400 text-amber-600 focus:ring-amber-500">
                 Đã bổ sung chi phí OHF vào PNL
             </label>
-            @if($isLocked)<input type="hidden" name="ohf_cost_added" value="{{ $sale->ohf_cost_added ? 1 : 0 }}">@endif
+            @if($isLocked)<input type="hidden" name="ohf_cost_added" value="{{ ($sale->ohf_cost_added ?? false) ? 1 : 0 }}">@endif
         </div>
     </div>
 </div>
@@ -44,15 +44,20 @@
 @push('scripts')
 <script>
     function syncDealClassificationFromProject() {
+        const dealClassEl = document.getElementById('dealClassification');
+        const isLocked = dealClassEl?.dataset.isLocked === '1';
         const project = document.getElementById('projectSelect');
         const selected = project && project.options[project.selectedIndex];
-        const currentProjectTradeUp = document.getElementById('dealClassification')?.dataset.projectTradeUp === '1';
+        const currentProjectTradeUp = dealClassEl?.dataset.projectTradeUp === '1';
         const isTradeUp = selected ? selected.dataset.dealType === 'trade_up' : currentProjectTradeUp;
         const none = document.querySelector('.trade-up-matrix[value="none"]');
         const notice = document.getElementById('projectTradeUpNotice');
-        if (none) {
+        if (none && !isLocked) {
             none.disabled = !!isTradeUp;
-            if (isTradeUp && none.checked) document.querySelector('.trade-up-matrix[value="correct"]').checked = true;
+            if (isTradeUp && none.checked) {
+                const correct = document.querySelector('.trade-up-matrix[value="correct"]');
+                if (correct) correct.checked = true;
+            }
         }
         if (notice) notice.classList.toggle('hidden', !isTradeUp);
         syncOhfCostVisibility();

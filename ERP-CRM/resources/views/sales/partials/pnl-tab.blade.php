@@ -1169,7 +1169,7 @@
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST" enctype="multipart/form-data">
         @csrf
-        @include('sales.partials.deal-classification', ['isLocked' => !$sale->isPlEditable()])
+        @include('sales.partials.deal-classification', ['isLocked' => $sale->status === 'cancelled' || $sale->pl_status === 'approved'])
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
                 <thead>
@@ -2252,16 +2252,14 @@
 
             {{-- Action buttons --}}
             <div class="flex flex-wrap items-center gap-3">
-                @if($sale->isPlEditable() || $sale->pl_status === 'pending')
-                    @if($sale->isPlEditable())
-                        <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150">
-                            <i class="fas fa-save mr-2"></i> Lưu nháp P&L
-                        </button>
-                    @endif
+                @if($sale->status !== 'cancelled' && $sale->pl_status !== 'approved')
+                    <button type="submit" form="pnlForm" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150 cursor-pointer">
+                        <i class="fas fa-save mr-2"></i> {{ $sale->pl_status === 'pending' ? 'Lưu thay đổi P&L' : 'Lưu nháp P&L' }}
+                    </button>
 
                     @if($sale->pl_status !== null && $sale->pl_status !== 'pending')
                         <button type="button" onclick="submitPnlFormAction('{{ route('sales.submitPnL', $sale) }}', 'Gửi duyệt P&L này?')"
-                            class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150">
+                            class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition ease-in-out duration-150 cursor-pointer">
                             <i class="fas fa-paper-plane mr-2"></i> {{ in_array($sale->pl_status, ['rejected', 'need_revision']) ? 'Gửi duyệt lại P&L' : 'Gửi duyệt P&L' }}
                         </button>
                     @endif

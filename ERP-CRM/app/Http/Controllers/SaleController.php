@@ -1869,8 +1869,8 @@ class SaleController extends Controller
 
         $this->authorize('update', $sale);
 
-        if (!$sale->isPlEditable() && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
-            return back()->with('error', 'P&L hiện không thể chỉnh sửa (đang chờ duyệt hoặc đã duyệt).');
+        if ($sale->pl_status === 'approved' && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
+            return back()->with('error', 'P&L đã được duyệt, không thể chỉnh sửa.');
         }
 
         $itemsPayload = $request->input('items', []);
@@ -2226,15 +2226,20 @@ class SaleController extends Controller
                     ->withFragment('pnl');
             }
 
-            // Lưu nháp thông thường
-            $sale->pl_status = 'draft';
+            // Lưu nháp thông thường hoặc lưu khi đang chờ duyệt
+            if ($sale->pl_status !== 'pending') {
+                $sale->pl_status = 'draft';
+            }
             $sale->calculateMargin();
             $sale->save();
 
             DB::commit();
             
             // Redirect to same page with hash to stay on P&L tab
-            return redirect()->route('sales.show', $sale->id)->with('success', 'Đã cập nhật chi tiết P&L. Vui lòng nhấn "Gửi duyệt" để hoàn tất.')->withFragment('pnl');
+            $successMsg = $sale->pl_status === 'pending'
+                ? 'Đã cập nhật chi tiết P&L thành công.'
+                : 'Đã cập nhật chi tiết P&L. Vui lòng nhấn "Gửi duyệt" để hoàn tất.';
+            return redirect()->route('sales.show', $sale->id)->with('success', $successMsg)->withFragment('pnl');
         } catch (\Illuminate\Database\QueryException $e) {
             DB::rollBack();
             \Illuminate\Support\Facades\Log::error('QueryException in updatePnL: ' . $e->getMessage(), [
