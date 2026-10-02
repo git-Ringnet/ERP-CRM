@@ -5,6 +5,14 @@
 
 @section('content')
 <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+    @if ($errors->any())
+        <div class="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p class="font-semibold">Không thể gửi yêu cầu đặt hàng. Vui lòng kiểm tra:</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">
+                @foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+            </ul>
+        </div>
+    @endif
     <div class="p-4 sm:p-6 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
         <div class="flex items-center">
             <div class="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center text-white mr-4">
@@ -43,6 +51,7 @@
                     <span class="font-bold">Khách hàng:</span> {{ $sale->customer_name }}
                 </div>
             </div>
+            <div id="tradeUpSerialError" class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
 
             {{-- Global SI/EU inputs (only need to fill once) --}}
             @php
@@ -932,8 +941,37 @@
     const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
     const cancelSubmitBtn = document.getElementById('cancelSubmitBtn');
     const orderForm = document.getElementById('orderRequestForm');
+    const isTradeUpOrder = @json($sale->trade_up_matrix !== 'none');
+
+    function validateTradeUpSerialsBeforeSubmit() {
+        const errorBox = document.getElementById('tradeUpSerialError');
+        errorBox.classList.add('hidden');
+        errorBox.textContent = '';
+        document.querySelectorAll('.sn-input').forEach(input => input.classList.remove('border-red-500', 'ring-1', 'ring-red-400'));
+
+        if (!isTradeUpOrder) return true;
+
+        for (const row of document.querySelectorAll('.item-row')) {
+            const type = (row.querySelector('.type-select')?.value || '').toUpperCase();
+            if (type !== 'HW') continue;
+
+            const quantity = Math.floor(Number(row.querySelector('.qty-input')?.value || 0));
+            const serialInputs = Array.from(row.querySelectorAll('.sn-input'));
+            const enteredCount = serialInputs.filter(input => input.value.trim() !== '').length;
+            if (quantity < 1 || enteredCount !== quantity) {
+                const partNumber = row.querySelector('input[name*="[part_number]"]')?.value || 'dòng hàng này';
+                serialInputs.forEach(input => input.classList.add('border-red-500', 'ring-1', 'ring-red-400'));
+                errorBox.textContent = `Đơn Trade up yêu cầu nhập đủ ${quantity} S/N cho dòng HW ${partNumber}. Hiện đã nhập ${enteredCount}/${quantity} S/N.`;
+                errorBox.classList.remove('hidden');
+                serialInputs.find(input => !input.value.trim())?.focus();
+                return false;
+            }
+        }
+        return true;
+    }
 
     function showConfirmModal() {
+        if (!validateTradeUpSerialsBeforeSubmit()) return;
         confirmModal.classList.remove('hidden');
         // Trigger animation
         requestAnimationFrame(() => {
@@ -967,6 +1005,7 @@
     });
 
     confirmSubmitBtn.addEventListener('click', function() {
+        if (!validateTradeUpSerialsBeforeSubmit()) return;
         hideConfirmModal();
         orderForm.submit();
     });
