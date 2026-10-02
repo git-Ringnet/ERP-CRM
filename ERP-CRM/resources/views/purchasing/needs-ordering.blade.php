@@ -64,10 +64,12 @@
                                         </p>
                                     </div>
                                 </div>
+                                @canany(['create_purchase_orders', 'create_needs_ordering'])
                                 <button type="button" onclick="preparePo('{{ $vId }}')"
                                     class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm">
                                     <i class="fas fa-plus mr-2"></i> Tạo PO cho Hãng này
                                 </button>
+                                @endcanany
                             </div>
 
                             <div class="overflow-x-auto">
@@ -112,6 +114,8 @@
                                                                 <div class="font-bold text-gray-800">{{ $so['code'] }}</div>
                                                             @endif
                                                             <div class="text-[10px] text-gray-400">{{ $so['pr_code'] }}</div>
+                                                            @if($so['is_license_vnet'])<span class="mt-1 inline-block rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">License VNET</span>@endif
+                                                            @if($so['trade_up_matrix'] !== 'none')<span class="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Trade up {{ $so['trade_up_matrix'] === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
                                                         </div>
                                                     </div>
                                                 </td>
@@ -386,10 +390,12 @@
                                     <p class="text-xs text-gray-500">{{ count($vendor['sales_orders']) }} Yêu cầu Ticket cần xử lý</p>
                                 </div>
                             </div>
+                            @canany(['create_purchase_orders', 'create_needs_ordering'])
                             <button type="button" onclick="preparePo('{{ $vId }}')"
                                 class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm">
                                 <i class="fas fa-plus mr-2"></i> Tạo PO cho Hãng này
                             </button>
+                            @endcanany
                         </div>
 
                         <div class="overflow-x-auto">
@@ -539,11 +545,13 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2" @click.stop>
+                                    @canany(['create_purchase_orders', 'create_needs_ordering'])
                                     <button type="button" 
                                         onclick="openConfirmDraftModal('{{ $po->id }}', '{{ $po->code }}', '{{ $po->cpq_number }}', '{{ addslashes($po->note) }}')"
                                         class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm font-bold shadow-sm flex items-center gap-1.5">
                                         <i class="fas fa-check-circle text-xs"></i> Xác nhận tạo PO
                                     </button>
+                                    @endcanany
                                     <form action="{{ route('purchase-orders.draft.destroy', $po->id) }}" method="POST" class="inline"
                                         onsubmit="return confirm('Bạn có chắc muốn xóa toàn bộ đơn hàng nháp này? Tất cả mặt hàng sẽ quay lại danh sách cần đặt.')">
                                         @csrf

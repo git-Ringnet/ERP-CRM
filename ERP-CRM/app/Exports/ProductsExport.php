@@ -37,11 +37,10 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
         return [
             'Mã sản phẩm',
             'Tên sản phẩm',
+            'Hãng',
             'Đơn vị',
+            'Bảo hành (tháng)',
             'Danh mục',
-            'Mô tả',
-            'Ghi chú',
-            'Theo dõi hết hạn',
             'Mô tả',
             'Ghi chú',
         ];
@@ -55,11 +54,10 @@ class ProductsExport implements FromCollection, WithHeadings, WithMapping
         return [
             $product->code ?? '',
             $product->name ?? '',
+            $product->brand ?? '',
             $product->unit ?? '',
+            $product->warranty_months ?? '',
             $product->category ?? '',
-            $product->description ?? '',
-            $product->note ?? '',
-            $product->track_expiry ? 'Có' : 'Không',
             $product->description ?? '',
             $product->note ?? '',
         ];

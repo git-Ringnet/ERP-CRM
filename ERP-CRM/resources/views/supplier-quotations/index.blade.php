@@ -103,6 +103,7 @@
                                                 title="Sửa">
                                                 <i class="fas fa-edit"></i>
                                             </a>
+                                            @can('create_purchase_orders')
                                             <form action="{{ route('supplier-quotations.select', $quotation) }}" method="POST"
                                                 class="inline">
                                                 @csrf
@@ -113,6 +114,7 @@
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                             </form>
+                                            @endcan
                                             <form action="{{ route('supplier-quotations.reject', $quotation) }}" method="POST"
                                                 class="inline">
                                                 @csrf

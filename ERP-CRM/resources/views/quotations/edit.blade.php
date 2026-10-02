@@ -112,10 +112,13 @@
                         @error('code')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-project-diagram text-purple-500 mr-1"></i> Dự án liên kết
-                        </label>
-                        <select name="project_id" id="project_id"
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-sm font-medium text-gray-700">
+                                <i class="fas fa-project-diagram text-purple-500 mr-1"></i> Dự án liên kết
+                            </label>
+                            <span id="projectBomBadge" class="hidden text-[11px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded"></span>
+                        </div>
+                        <select name="project_id" id="project_id" onchange="onProjectChange(this)"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                             <option value="">-- Không chọn / Báo giá độc lập --</option>
                             @if(isset($projects))
@@ -129,6 +132,14 @@
                                 @endforeach
                             @endif
                         </select>
+                        <div id="projectBomActionWrapper" class="{{ (isset($selectedProject) || $quotation->project_id || old('project_id')) ? '' : 'hidden' }} mt-1.5 flex items-center gap-2 text-xs">
+                            <button type="button" onclick="openProjectBomModal()" class="text-purple-700 hover:text-purple-900 font-semibold inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors">
+                                <i class="fas fa-list-alt text-purple-600"></i> Xem BOM Dự án <span id="projectBomCountBadge" class="ml-1 px-1.5 py-0.2 bg-purple-200 text-purple-800 rounded-full font-bold"></span>
+                            </button>
+                            <button type="button" id="btnQuickLoadBom" onclick="quickLoadProjectBom()" class="text-emerald-700 hover:text-emerald-900 font-semibold inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors">
+                                <i class="fas fa-file-import text-emerald-600"></i> Nạp SP
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Khách hàng <span
@@ -894,6 +905,114 @@
                 <button type="button" id="cancelSingleContactBtn" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
                     Hủy
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Project BOM Details Modal -->
+<div id="projectBomViewModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeProjectBomModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
+            <div class="bg-gradient-to-r from-purple-700 to-indigo-800 px-6 py-4 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <i class="fas fa-project-diagram text-xl text-purple-200"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-lg font-bold flex items-center gap-2">
+                            BOM Dự án: <span id="modalProjectName" class="text-purple-100 font-semibold">Đang tải...</span>
+                        </h3>
+                        <p class="text-xs text-purple-200" id="modalProjectCustomerInfo">Thông tin sản phẩm và file kỹ thuật đính kèm từ dự án</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeProjectBomModal()" class="text-white/80 hover:text-white text-xl p-1 cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <!-- Loading State -->
+                <div id="modalBomLoading" class="py-12 text-center text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-3xl text-purple-600 mb-3"></i>
+                    <p class="text-sm font-medium">Đang tải chi tiết BOM từ dự án...</p>
+                </div>
+
+                <!-- Content State -->
+                <div id="modalBomContent" class="hidden space-y-4">
+                    <!-- Attached Files Section -->
+                    <div id="modalBomFilesContainer" class="hidden bg-purple-50/60 border border-purple-200 rounded-xl p-4">
+                        <h4 class="text-xs font-bold text-purple-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <i class="fas fa-paperclip text-purple-600"></i> File BOM / Báo giá đính kèm:
+                        </h4>
+                        <div id="modalBomFilesList" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <div class="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+                        <div class="bg-gray-100 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                            <div class="text-xs font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-list-check text-purple-600"></i>
+                                <span>Danh sách Part Number & Sản phẩm (<span id="modalBomItemsCount">0</span> mục)</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                                    <i class="fas fa-check mr-1"></i> Có sẵn trong kho: <span id="modalBomMatchedCount" class="ml-1 font-bold">0</span>
+                                </span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                                    <i class="fas fa-plus mr-1"></i> SP Mới / Hàng ngoài: <span id="modalBomNewCount" class="ml-1 font-bold">0</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="max-h-80 overflow-y-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead class="bg-gray-50 text-gray-600 font-semibold sticky top-0 border-b border-gray-200">
+                                    <tr>
+                                        <th class="p-2.5 text-center w-10">STT</th>
+                                        <th class="p-2.5 w-40">Mã / Part Number</th>
+                                        <th class="p-2.5">Tên sản phẩm / Model</th>
+                                        <th class="p-2.5 text-center w-16">SL</th>
+                                        <th class="p-2.5 text-center w-16">ĐVT</th>
+                                        <th class="p-2.5 text-right w-28">Đơn giá dự toán</th>
+                                        <th class="p-2.5 text-center w-28">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modalBomTableBody" class="divide-y divide-gray-200 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Raw Text Section (if any) -->
+                    <div id="modalBomRawTextContainer" class="hidden">
+                        <details class="group bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs">
+                            <summary class="font-semibold text-gray-700 cursor-pointer flex items-center justify-between">
+                                <span><i class="fas fa-code text-gray-500 mr-1.5"></i> Xem nội dung BOM gốc (dạng văn bản)</span>
+                                <i class="fas fa-chevron-down group-open:rotate-180 transition-transform text-gray-400"></i>
+                            </summary>
+                            <pre id="modalBomRawText" class="mt-2.5 p-3 bg-white border border-gray-200 rounded-lg text-xs font-mono whitespace-pre-wrap text-gray-700 overflow-x-auto"></pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-500 flex items-center gap-1.5">
+                    <i class="fas fa-info-circle text-blue-500"></i>
+                    <span>Sales có thể nạp toàn bộ hoặc sửa giá trước khi cập nhật báo giá.</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btnModalApplyAppend" onclick="applyProjectBomModalItems(true)" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm nối tiếp vào bảng
+                    </button>
+                    <button type="button" id="btnModalApplyReplace" onclick="applyProjectBomModalItems(false)" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer">
+                        <i class="fas fa-sync-alt mr-1.5"></i> Ghi đè vào bảng SP
+                    </button>
+                    <button type="button" onclick="closeProjectBomModal()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 cursor-pointer">
+                        Đóng
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -2436,5 +2555,333 @@
                 item.querySelector('.note-number').textContent = '(' + (index + 1) + ')';
             });
         }
+
+        // ==========================================
+        // Project Selector Synchronize Handler & BOM Modal
+        // ==========================================
+        let currentProjectBomData = null;
+
+        function onProjectChange(select) {
+            const selectedOpt = select.options[select.selectedIndex];
+            const projId = select.value;
+            const bomActionWrapper = $('#projectBomActionWrapper');
+            const bomCountBadge = $('#projectBomCountBadge');
+            
+            if (!projId) {
+                bomActionWrapper.addClass('hidden');
+                currentProjectBomData = null;
+                return;
+            }
+
+            bomActionWrapper.removeClass('hidden');
+            bomCountBadge.text('...');
+
+            const customerId = selectedOpt.getAttribute('data-customer-id');
+            const projectName = selectedOpt.getAttribute('data-name');
+
+            // Fetch Project BOM & details to ensure fresh data and customer info
+            fetch(`/ajax/projects/${projId}/bom`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.project) {
+                        currentProjectBomData = data;
+                        const targetCustId = data.project.customer_id || customerId;
+                        if (targetCustId) {
+                            $('select[name="customer_id"]').val(targetCustId).trigger('change');
+                        }
+                        if (data.count > 0) {
+                            bomCountBadge.text(`${data.count} SP`);
+                            $('#btnQuickLoadBom').removeClass('hidden');
+                        } else if (data.project.bom_data || (data.project.files && data.project.files.length > 0)) {
+                            bomCountBadge.text(`File/Ghi chú`);
+                            $('#btnQuickLoadBom').addClass('hidden');
+                        } else {
+                            bomCountBadge.text('0 SP');
+                            $('#btnQuickLoadBom').addClass('hidden');
+                        }
+                    }
+                })
+                .catch(err => console.error('Error fetching project BOM:', err));
+
+            if (customerId) {
+                $('select[name="customer_id"]').val(customerId).trigger('change');
+            }
+
+            const titleInput = $('input[name="title"]');
+            if (projectName && (!titleInput.val() || titleInput.val().startsWith('Báo giá cho ') || titleInput.val().startsWith('Dự án: '))) {
+                titleInput.val('Báo giá cho ' + projectName);
+            }
+        }
+
+        function openProjectBomModal() {
+            const projSelect = document.getElementById('project_id');
+            const projId = projSelect ? projSelect.value : null;
+
+            if (!projId) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Chưa chọn dự án',
+                    text: 'Vui lòng chọn một Dự án liên kết trước để xem BOM.',
+                });
+                return;
+            }
+
+            const modal = document.getElementById('projectBomViewModal');
+            if (modal) modal.classList.remove('hidden');
+
+            if (currentProjectBomData && currentProjectBomData.project && currentProjectBomData.project.id == projId) {
+                $('#modalBomLoading').addClass('hidden');
+                renderProjectBomModal(currentProjectBomData);
+                $('#modalBomContent').removeClass('hidden');
+                return;
+            }
+
+            $('#modalBomLoading').removeClass('hidden');
+            $('#modalBomContent').addClass('hidden');
+
+            fetch(`/ajax/projects/${projId}/bom`)
+                .then(res => res.json())
+                .then(data => {
+                    $('#modalBomLoading').addClass('hidden');
+                    if (data.success && data.project) {
+                        currentProjectBomData = data;
+                        renderProjectBomModal(data);
+                        $('#modalBomContent').removeClass('hidden');
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Lỗi tải dữ liệu',
+                            text: data.message || 'Không thể tải thông tin BOM dự án.',
+                        });
+                        closeProjectBomModal();
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    $('#modalBomLoading').addClass('hidden');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi kết nối',
+                        text: 'Không thể kết nối đến máy chủ.',
+                    });
+                    closeProjectBomModal();
+                });
+        }
+
+        function closeProjectBomModal() {
+            const modal = document.getElementById('projectBomViewModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function renderProjectBomModal(data) {
+            const proj = data.project;
+            $('#modalProjectName').text(`${proj.code} - ${proj.name}`);
+            $('#modalProjectCustomerInfo').text(`Partner/SI: ${proj.partner_name || 'N/A'} | End-User: ${proj.end_user_name || 'N/A'}`);
+
+            // Files
+            const filesContainer = $('#modalBomFilesContainer');
+            const filesList = $('#modalBomFilesList');
+            filesList.empty();
+
+            if (proj.files && proj.files.length > 0) {
+                proj.files.forEach(f => {
+                    const ext = (f.ext || '').toUpperCase();
+                    let icon = 'fa-file-alt text-blue-500';
+                    if (['XLS', 'XLSX', 'CSV'].includes(ext)) icon = 'fa-file-excel text-emerald-600';
+                    else if (ext === 'PDF') icon = 'fa-file-pdf text-red-500';
+                    else if (['DOC', 'DOCX'].includes(ext)) icon = 'fa-file-word text-blue-600';
+
+                    filesList.append(`
+                        <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-100 shadow-2xs">
+                            <div class="flex items-center gap-2 truncate">
+                                <i class="fas ${icon} text-lg flex-shrink-0"></i>
+                                <span class="text-xs font-medium text-gray-800 truncate" title="${f.name}">${f.name}</span>
+                            </div>
+                            <a href="${f.url}" download class="ml-2 px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold rounded border border-purple-200 transition-colors flex-shrink-0">
+                                <i class="fas fa-download mr-1"></i> Tải file
+                            </a>
+                        </div>
+                    `);
+                });
+                filesContainer.removeClass('hidden');
+            } else {
+                filesContainer.addClass('hidden');
+            }
+
+            // Items table
+            const tableBody = $('#modalBomTableBody');
+            tableBody.empty();
+
+            const items = data.items || [];
+            let matchedCount = 0;
+            let newCount = 0;
+
+            if (items.length > 0) {
+                items.forEach((it, idx) => {
+                    if (it.is_matched) matchedCount++;
+                    else newCount++;
+
+                    const statusBadge = it.is_matched
+                        ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800"><i class="fas fa-check mr-1"></i> Có sẵn trong kho</span>'
+                        : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800"><i class="fas fa-plus mr-1"></i> SP Mới</span>';
+
+                    tableBody.append(`
+                        <tr class="hover:bg-purple-50/30 transition-colors">
+                            <td class="p-2.5 text-center text-gray-500">${idx + 1}</td>
+                            <td class="p-2.5 font-mono font-bold text-purple-900">${escapeHtml(it.code || '')}</td>
+                            <td class="p-2.5 text-gray-800 font-medium">${escapeHtml(it.name || '')}</td>
+                            <td class="p-2.5 text-center font-bold text-gray-900">${it.quantity || 1}</td>
+                            <td class="p-2.5 text-center text-gray-600">${escapeHtml(it.unit || 'Bộ')}</td>
+                            <td class="p-2.5 text-right font-medium text-gray-800">${formatMoney(it.price || 0)}</td>
+                            <td class="p-2.5 text-center">${statusBadge}</td>
+                        </tr>
+                    `);
+                });
+                $('#btnModalApplyAppend').removeClass('hidden');
+                $('#btnModalApplyReplace').removeClass('hidden');
+            } else {
+                tableBody.append(`
+                    <tr>
+                        <td colspan="7" class="p-6 text-center text-gray-400">
+                            <i class="fas fa-inbox text-2xl mb-2 text-gray-300 block"></i>
+                            Chưa có danh sách Part Number nhận diện được trong BOM của dự án này.
+                        </td>
+                    </tr>
+                `);
+                $('#btnModalApplyAppend').addClass('hidden');
+                $('#btnModalApplyReplace').addClass('hidden');
+            }
+
+            $('#modalBomItemsCount').text(items.length);
+            $('#modalBomMatchedCount').text(matchedCount);
+            $('#modalBomNewCount').text(newCount);
+
+            // Raw text
+            if (proj.bom_data && proj.bom_data.trim()) {
+                $('#modalBomRawText').text(proj.bom_data);
+                $('#modalBomRawTextContainer').removeClass('hidden');
+            } else {
+                $('#modalBomRawTextContainer').addClass('hidden');
+            }
+        }
+
+        function applyProjectBomModalItems(isAppend) {
+            if (!currentProjectBomData || !currentProjectBomData.items || currentProjectBomData.items.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Thông báo',
+                    text: 'Dự án này chưa có sản phẩm BOM nào để nạp.',
+                });
+                return;
+            }
+
+            const items = currentProjectBomData.items;
+            const tableBody = document.getElementById('tableBody');
+
+            if (!isAppend) {
+                tableBody.innerHTML = '';
+                rowIndex = 0;
+            } else {
+                // If only 1 empty row exists, remove it
+                const existingRows = tableBody.querySelectorAll('.product-item');
+                if (existingRows.length === 1) {
+                    const firstRowSelect = existingRows[0].querySelector('.product-select')?.value;
+                    const firstRowManual = existingRows[0].querySelector('.manual-name-input')?.value;
+                    if (!firstRowSelect && !firstRowManual) {
+                        existingRows[0].remove();
+                        rowIndex = 0;
+                    }
+                }
+            }
+
+            items.forEach(item => {
+                addProductRow();
+                const row = $('#tableBody .product-item').last();
+                const currentIdx = row.attr('data-index');
+
+                if (item.is_matched && item.product_id) {
+                    const displayText = '[' + (item.code || '') + '] ' + (item.name || '');
+                    const newOpt = new Option(displayText, 'p-' + item.product_id, true, true);
+                    const sel = row.find('.product-select');
+                    sel.append(newOpt).trigger('change');
+
+                    row.find('.description-input').val(item.description || item.name || '');
+                    row.find('.quantity-input').val(item.quantity || 1);
+                    row.find('.price-input').val(formatMoney(item.price || 0));
+                    if (item.cost_price) {
+                        row.find('.pricelist-display').val(item.cost_price);
+                    }
+                } else {
+                    const toggleBtn = row.find('.toggle-mode-btn');
+                    if (!row.find('.select2-wrapper').hasClass('hidden')) {
+                        toggleRowMode(toggleBtn[0]);
+                    }
+                    row.find('.manual-name-input').val(item.name || item.code || '');
+                    row.find('.description-input').val(item.description || item.name || '');
+                    row.find('.quantity-input').val(item.quantity || 1);
+                    row.find('.price-input').val(formatMoney(item.price || 0));
+                }
+
+                calculateRowTotal(currentIdx);
+                rowIndex++;
+            });
+
+            calculateTotal();
+            closeProjectBomModal();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Đã nạp danh sách BOM',
+                text: `Đã nạp ${items.length} sản phẩm từ BOM dự án vào bảng báo giá thành công.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+
+        function quickLoadProjectBom() {
+            const projSelect = document.getElementById('project_id');
+            const projId = projSelect ? projSelect.value : null;
+
+            if (!projId) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Chưa chọn dự án',
+                    text: 'Vui lòng chọn một Dự án liên kết trước.',
+                });
+                return;
+            }
+
+            if (currentProjectBomData && currentProjectBomData.items && currentProjectBomData.items.length > 0) {
+                applyProjectBomModalItems(true);
+            } else {
+                fetch(`/ajax/projects/${projId}/bom`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && data.items && data.items.length > 0) {
+                            currentProjectBomData = data;
+                            applyProjectBomModalItems(true);
+                        } else {
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Thông báo',
+                                text: 'Dự án này chưa có dữ liệu sản phẩm BOM để nạp.',
+                            });
+                        }
+                    })
+                    .catch(err => console.error(err));
+            }
+        }
+
+        // Initialize on load if project is pre-selected
+        $(document).ready(function() {
+            const projSelect = document.getElementById('project_id');
+            if (projSelect && projSelect.value) {
+                onProjectChange(projSelect);
+            }
+        });
     </script>
 @endpush

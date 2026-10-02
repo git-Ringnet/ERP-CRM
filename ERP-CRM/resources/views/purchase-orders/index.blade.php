@@ -32,6 +32,7 @@
             <p class="text-gray-600">Quản lý đơn đặt hàng gửi cho nhà cung cấp</p>
         </div>
         <div class="flex space-x-2">
+            @canany(['create_purchase_orders', 'edit_purchase_orders'])
             <button type="button" onclick="document.getElementById('bulk-import-serial-file').click()"
                 class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
                 <i class="fas fa-file-upload mr-2"></i> Import Serial Excel
@@ -40,18 +41,23 @@
                 @csrf
                 <input type="file" id="bulk-import-serial-file" name="serial_file" accept=".xlsx,.xls,.csv" onchange="this.form.submit()">
             </form>
+            @endcanany
+            @canany(['create_purchase_orders', 'edit_purchase_orders', 'view_purchase_orders'])
             <a href="{{ route('purchase-orders.import-serials-template') }}"
                 class="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">
                 <i class="fas fa-file-download mr-2"></i> Tải mẫu Import Serial
             </a>
+            @endcanany
+            @can('export_purchase_orders')
             <a href="{{ route('purchase-orders.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-emerald-600">
                 <i class="fas fa-file-excel mr-2"></i> Xuất Excel
             </a>
-            @can('create', App\Models\PurchaseOrder::class)
+            @endcan
+            @canany(['create_purchase_orders', 'create'])
             <a href="{{ route('purchase-orders.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm shadow">
                 <i class="fas fa-plus mr-2"></i> Tạo PO
             </a>
-            @endcan
+            @endcanany
         </div>
     </div>
 

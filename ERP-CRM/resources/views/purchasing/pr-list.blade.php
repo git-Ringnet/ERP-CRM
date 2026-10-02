@@ -243,6 +243,13 @@
                             <td colspan="8" class="px-6 py-4">
                                 <div class="bg-white p-4 rounded-lg border border-gray-200">
                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm yêu cầu:</h4>
+                                    <div class="mb-3 flex flex-wrap items-center gap-2">
+                                        @if($request->sale?->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
+                                        @if(($request->sale?->trade_up_matrix ?? 'none') !== 'none')
+                                            <span class="rounded {{ $request->sale->trade_up_matrix === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">Trade up {{ $request->sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>
+                                            @if($request->sale->trade_up_matrix === 'incorrect')<span class="text-xs {{ $request->sale->ohf_cost_added ? 'text-green-700' : 'text-red-700' }}">{{ $request->sale->ohf_cost_added ? 'Đã xác nhận OHF' : 'Chưa xác nhận OHF' }}</span>@endif
+                                        @endif
+                                    </div>
                                     <table class="w-full text-[10px] border-collapse border border-gray-200">
                                         <thead class="bg-yellow-100">
                                             <tr class="border-b border-gray-300">

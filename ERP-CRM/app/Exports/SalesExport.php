@@ -35,6 +35,12 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
         if (!empty($this->filters['type'])) {
             $query->where('type', $this->filters['type']);
         }
+        if (!empty($this->filters['license_vnet'])) {
+            $query->where('is_license_vnet', true);
+        }
+        if (!empty($this->filters['trade_up'])) {
+            $query->whereIn('trade_up_matrix', ['correct', 'incorrect']);
+        }
         if (!empty($this->filters['project_id'])) {
             $query->where('project_id', $this->filters['project_id']);
         }

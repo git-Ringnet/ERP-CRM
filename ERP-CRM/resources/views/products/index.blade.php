@@ -111,17 +111,21 @@
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                @php
-                                    $supplierNames = $product->supplierPriceListItems
-                                        ->map(fn($item) => $item->priceList->supplier->name ?? null)
-                                        ->filter()
-                                        ->unique();
-                                @endphp
-                                @if($supplierNames->count() > 0)
-                                    {{ $supplierNames->implode(', ') }}
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                @if(!empty($product->brand))
+                                    <span class="font-medium text-gray-900">{{ $product->brand }}</span>
                                 @else
-                                    <span class="text-gray-400">-</span>
+                                    @php
+                                        $supplierNames = $product->supplierPriceListItems
+                                            ->map(fn($item) => $item->priceList->supplier->name ?? null)
+                                            ->filter()
+                                            ->unique();
+                                    @endphp
+                                    @if($supplierNames->count() > 0)
+                                        {{ $supplierNames->implode(', ') }}
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center hidden">

@@ -223,6 +223,6 @@ class Quotation extends Model
 
     public function canBeDeleted(): bool
     {
-        return true;
+        return empty($this->converted_to_sale_id) && $this->status !== 'converted';
     }
 }

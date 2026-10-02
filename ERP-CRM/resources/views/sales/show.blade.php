@@ -387,6 +387,18 @@
                             </span>
                         </dd>
                     </div>
+                    @if($sale->is_license_vnet || $sale->trade_up_matrix !== 'none')
+                    <div class="flex items-start">
+                        <dt class="w-32 text-gray-500">Deal:</dt>
+                        <dd class="flex flex-wrap gap-1">
+                            @if($sale->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
+                            @if($sale->trade_up_matrix !== 'none')
+                                <span class="rounded {{ $sale->trade_up_matrix === 'incorrect' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800' }} px-2 py-1 text-xs font-semibold">Trade up {{ $sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>
+                                @if($sale->trade_up_matrix === 'incorrect')<span class="px-2 py-1 text-xs {{ $sale->ohf_cost_added ? 'text-green-700' : 'text-red-700' }}">{{ $sale->ohf_cost_added ? 'Đã bổ sung OHF' : 'Chưa xác nhận OHF' }}</span>@endif
+                            @endif
+                        </dd>
+                    </div>
+                    @endif
                     @if($sale->project)
                     <div class="flex">
                         <dt class="w-32 text-gray-500">Dự án:</dt>
@@ -3124,11 +3136,14 @@ function closeSaleCloseProjectModal() {
                                                class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center warranty-input">
                                     </td>
                                     <td class="p-2.5 text-center">
-                                        <label class="inline-flex items-center gap-1 cursor-pointer">
-                                            <input type="checkbox" name="items[{{ $idx }}][is_from_stock]" value="1" {{ $item->is_from_stock ? 'checked' : '' }}
-                                                   class="h-3.5 w-3.5 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
-                                            <span class="text-[10px] font-bold text-emerald-800">Sẵn kho</span>
-                                        </label>
+                                        <input type="hidden" name="items[{{ $idx }}][is_from_stock]" value="{{ $item->is_from_stock ? 1 : 0 }}" class="is-from-stock-input">
+                                        @if($item->is_from_stock)
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                <i class="fas fa-warehouse text-emerald-600"></i> Sẵn kho
+                                            </span>
+                                        @else
+                                            <span class="text-[11px] text-gray-400 font-medium">Đặt mua</span>
+                                        @endif
                                     </td>
                                     <td class="p-2.5 text-center">
                                         <button type="button" onclick="removeBomRow(this)" class="p-1 text-red-400 hover:text-red-600">
@@ -3342,11 +3357,14 @@ function addBomRow(productData = null) {
                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs text-center warranty-input">
         </td>
         <td class="p-2.5 text-center">
-            <label class="inline-flex items-center gap-1 cursor-pointer">
-                <input type="checkbox" name="items[${idx}][is_from_stock]" value="1" ${isFromStock ? 'checked' : ''}
-                       class="h-3.5 w-3.5 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
-                <span class="text-[10px] font-bold text-emerald-800">Sẵn kho</span>
-            </label>
+            <input type="hidden" name="items[${idx}][is_from_stock]" value="${isFromStock}" class="is-from-stock-input">
+            ${isFromStock ? `
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <i class="fas fa-warehouse text-emerald-600"></i> Sẵn kho
+                </span>
+            ` : `
+                <span class="text-[11px] text-gray-400 font-medium">Đặt mua</span>
+            `}
         </td>
         <td class="p-2.5 text-center">
             <button type="button" onclick="removeBomRow(this)" class="p-1 text-red-400 hover:text-red-600">
@@ -3514,7 +3532,7 @@ function searchBomAvailableStock(query) {
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
-                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Không tìm thấy sản phẩm sẵn kho phù hợp</div>';
+                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Bạn hiện không giữ sản phẩm nào có sẵn trong kho</div>';
                 return;
             }
             list.innerHTML = data.map(item => `
@@ -3523,10 +3541,7 @@ function searchBomAvailableStock(query) {
                         <div class="font-bold text-xs text-gray-800">${item.name}</div>
                         <div class="text-[11px] text-gray-500 font-mono">Mã: ${item.code} | ĐVT: ${item.unit}</div>
                         <div class="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                            <i class="fas fa-warehouse mr-1"></i>Tồn khả dụng: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
-                        </div>
-                        <div class="text-[10px] text-indigo-700 font-medium mt-0.5">
-                            <i class="fas fa-info-circle mr-1"></i>${item.holding_summary}
+                            <i class="fas fa-warehouse mr-1"></i>Tồn bạn đang giữ: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -3548,6 +3563,7 @@ function searchBomAvailableStock(query) {
 }
 
 function selectStockItemForBom(item) {
+    item.is_from_stock = 1;
     addBomRow(item);
     closeBomStockPickerModal();
 }
@@ -3570,4 +3586,3 @@ function recalcMsAmount(percent) {
 
 </script>
 @endpush
-

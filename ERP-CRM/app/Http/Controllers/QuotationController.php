@@ -313,8 +313,8 @@ class QuotationController extends Controller
     {
         $this->authorize('update', $quotation);
 
-        if (!in_array($quotation->status, ['draft', 'rejected'])) {
-            return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
+        if ($quotation->status === 'converted' || !empty($quotation->converted_to_sale_id)) {
+            return back()->with('error', 'Không thể sửa báo giá đã chuyển thành đơn hàng.');
         }
 
         $quotation->load(['items', 'project.customer', 'project.vendor', 'project.collaborateCustomer']);
@@ -332,8 +332,8 @@ class QuotationController extends Controller
     {
         $this->authorize('update', $quotation);
 
-        if (!in_array($quotation->status, ['draft', 'rejected'])) {
-            return back()->with('error', 'Chỉ có thể sửa báo giá ở trạng thái Nháp hoặc Từ chối.');
+        if ($quotation->status === 'converted' || !empty($quotation->converted_to_sale_id)) {
+            return back()->with('error', 'Không thể sửa báo giá đã chuyển thành đơn hàng.');
         }
 
         // Sanitize formatted prices (strip comma separators) before validation

@@ -41,6 +41,13 @@
                                         class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('name') border-red-500 @enderror">
                                     @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
                                 </div>
+                                <div>
+                                    <label for="brand" class="block text-sm font-medium text-gray-700 mb-1">Hãng / Nhà sản xuất</label>
+                                    <input type="text" name="brand" id="brand" value="{{ old('brand') }}"
+                                        placeholder="VD: Fortinet, Dell, Cisco..."
+                                        class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('brand') border-red-500 @enderror">
+                                    @error('brand')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                </div>
                                 <div class="hidden">
                                     <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Danh
                                         mục</label>

@@ -298,6 +298,9 @@
             if (!is_array($allColumns)) {
                 $allColumns = [];
             }
+            // Filter out pricelist for customer print
+            $allColumns = array_values(array_filter($allColumns, fn($col) => strtolower(str_replace(['_', ' ', '-'], '', (string)$col)) !== 'pricelist'));
+
             if (!in_array('product_id', $allColumns)) {
                 $allColumns = array_merge(['product_id', 'quantity', 'price', 'vat', 'row_total'], $allColumns);
             } else {

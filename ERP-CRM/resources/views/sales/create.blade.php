@@ -111,12 +111,21 @@
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" 
                                     data-customer-id="{{ $project->customer_id }}"
+                                    data-deal-type="{{ $project->deal_type }}"
                                     data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
                                     {{ old('project_id', $selectedProject?->id ?? '') == $project->id ? 'selected' : '' }}>
                                     {{ $project->code }} - {{ $project->name }}
                                 </option>
                             @endforeach
                         </select>
+                        <div id="projectBomActionWrapper" class="{{ (isset($selectedProject) || old('project_id')) ? '' : 'hidden' }} mt-2 flex items-center gap-2 text-xs">
+                            <button type="button" onclick="openProjectBomModal()" class="text-purple-700 hover:text-purple-900 font-semibold inline-flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors">
+                                <i class="fas fa-list-alt text-purple-600"></i> Xem BOM Dự án <span id="projectBomCountBadge" class="ml-1 px-1.5 py-0.2 bg-purple-200 text-purple-800 rounded-full font-bold"></span>
+                            </button>
+                            <button type="button" id="btnQuickLoadBom" onclick="quickLoadProjectBom()" class="text-emerald-700 hover:text-emerald-900 font-semibold inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors">
+                                <i class="fas fa-file-import text-emerald-600"></i> Nạp SP
+                            </button>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">
                             <a href="{{ route('projects.create') }}" class="text-purple-600 hover:underline">
                                 <i class="fas fa-plus mr-1"></i>Tạo dự án mới
@@ -125,6 +134,8 @@
                     </div>
                 </div>
             </div>
+
+            @include('sales.partials.deal-classification')
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -306,14 +317,14 @@
                                         <input type="hidden" name="products[{{ $idx }}][product_id]" required class="product-id-input" value="{{ old("products.{$idx}.product_id", $pid) }}">
                                         <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                         <input type="hidden" name="products[{{ $idx }}][is_liquidation]" value="{{ old("products.{$idx}.is_liquidation", 0) }}" class="is-liquidation-input">
-                                        <div class="mt-1.5 flex items-center">
-                                            <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
-                                                <input type="hidden" name="products[{{ $idx }}][is_from_stock]" value="0">
-                                                <input type="checkbox" name="products[{{ $idx }}][is_from_stock]" value="1" {{ old("products.{$idx}.is_from_stock", 0) ? 'checked' : '' }}
-                                                       class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox">
+                                        <input type="hidden" name="products[{{ $idx }}][is_from_stock]" value="{{ old("products.{$idx}.is_from_stock", 0) ? '1' : '0' }}" class="is-from-stock-input">
+                                        @if(old("products.{$idx}.is_from_stock", 0))
+                                        <div class="mt-1 flex items-center is-from-stock-badge">
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                                                 <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
-                                            </label>
+                                            </span>
                                         </div>
+                                        @endif
                                     </div>
                                     <input type="hidden" name="products[{{ $idx }}][new_name]" class="new-name-input" value="{{ old("products.{$idx}.new_name", $pname) }}">
                                     <input type="hidden" name="products[{{ $idx }}][new_code]" class="new-code-input" value="{{ old("products.{$idx}.new_code", $pcode) }}">
@@ -1491,13 +1502,20 @@ function toggleProjectSelect() {
 function handleProjectSelection() {
     const projectSelect = document.getElementById('projectSelect');
     const option = projectSelect ? projectSelect.options[projectSelect.selectedIndex] : null;
+    const actionWrapper = document.getElementById('projectBomActionWrapper');
     
-    if (!option || !option.value) return;
+    if (!option || !option.value) {
+        if (actionWrapper) actionWrapper.classList.add('hidden');
+        return;
+    }
     
     const customerId = option.dataset.customerId;
     if (customerId) {
         $('select[name="customer_id"]').val(customerId).trigger('change');
     }
+
+    if (actionWrapper) actionWrapper.classList.remove('hidden');
+    checkProjectBom(option.value);
 }
 
 // Format money input (supports decimals for foreign currencies)
@@ -1612,14 +1630,14 @@ function addProductRow(productData = null) {
                     <input type="hidden" name="products[${productIndex}][is_liquidation]" value="0" class="is-liquidation-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                 </div>
-                <div class="mt-1.5 flex items-center">
-                    <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
-                        <input type="hidden" name="products[${productIndex}][is_from_stock]" value="0">
-                        <input type="checkbox" name="products[${productIndex}][is_from_stock]" value="1" ${isFromStock ? 'checked' : ''}
-                               class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox">
-                        <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
-                    </label>
-                </div>
+                <input type="hidden" name="products[${productIndex}][is_from_stock]" value="${isFromStock ? '1' : '0'}" class="is-from-stock-input">
+                ${isFromStock ? `
+                    <div class="mt-1 flex items-center is-from-stock-badge">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
+                        </span>
+                    </div>
+                ` : ''}
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${pname}">
                 <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${pcode}">
                 <input type="hidden" name="products[${productIndex}][new_unit]" class="new-unit-input" value="${punit}">
@@ -3326,7 +3344,7 @@ function searchCreateAvailableStock(query) {
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
-                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Không tìm thấy sản phẩm sẵn kho phù hợp</div>';
+                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Bạn hiện không giữ sản phẩm nào có sẵn trong kho</div>';
                 return;
             }
             list.innerHTML = data.map(item => `
@@ -3335,10 +3353,7 @@ function searchCreateAvailableStock(query) {
                         <div class="font-bold text-xs text-gray-900">${item.name}</div>
                         <div class="text-[11px] text-gray-500 font-mono">Mã: ${item.code} | ĐVT: ${item.unit}</div>
                         <div class="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                            <i class="fas fa-warehouse mr-1"></i>Tồn khả dụng: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
-                        </div>
-                        <div class="text-[10px] text-indigo-700 font-medium mt-0.5">
-                            <i class="fas fa-info-circle mr-1"></i>${item.holding_summary || ''}
+                            <i class="fas fa-warehouse mr-1"></i>Tồn bạn đang giữ: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -3364,6 +3379,244 @@ function selectStockItemForCreate(item) {
     addProductRow(item);
     closeCreateStockPickerModal();
 }
+
+function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// --- Project BOM Modal Logic for Sales Order Create ---
+let currentProjectBomData = null;
+
+function checkProjectBom(projectId) {
+    if (!projectId) {
+        $('#projectBomCountBadge').text('');
+        return;
+    }
+    fetch(`/ajax/projects/${projectId}/bom`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.project) {
+                currentProjectBomData = data;
+                const itemsCount = (data.items || []).length;
+                const badge = document.getElementById('projectBomCountBadge');
+                if (badge) {
+                    badge.textContent = itemsCount > 0 ? `(${itemsCount} SP)` : '';
+                }
+            }
+        })
+        .catch(err => console.error('Error fetching project BOM:', err));
+}
+
+function openProjectBomModal() {
+    const projSelect = document.getElementById('projectSelect');
+    const projId = projSelect ? projSelect.value : null;
+
+    if (!projId) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Chưa chọn dự án',
+            text: 'Vui lòng chọn một Dự án chính trước để xem BOM.',
+        });
+        return;
+    }
+
+    const modal = document.getElementById('projectBomViewModal');
+    if (modal) modal.classList.remove('hidden');
+
+    if (currentProjectBomData && currentProjectBomData.project && currentProjectBomData.project.id == projId) {
+        $('#modalBomLoading').addClass('hidden');
+        renderProjectBomModal(currentProjectBomData);
+        $('#modalBomContent').removeClass('hidden');
+        return;
+    }
+
+    $('#modalBomLoading').removeClass('hidden');
+    $('#modalBomContent').addClass('hidden');
+
+    fetch(`/ajax/projects/${projId}/bom`)
+        .then(res => res.json())
+        .then(data => {
+            $('#modalBomLoading').addClass('hidden');
+            if (data.success && data.project) {
+                currentProjectBomData = data;
+                renderProjectBomModal(data);
+                $('#modalBomContent').removeClass('hidden');
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi tải dữ liệu',
+                    text: data.message || 'Không thể tải thông tin BOM dự án.',
+                });
+                closeProjectBomModal();
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            $('#modalBomLoading').addClass('hidden');
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi kết nối',
+                text: 'Không thể kết nối đến máy chủ.',
+            });
+            closeProjectBomModal();
+        });
+}
+
+function closeProjectBomModal() {
+    const modal = document.getElementById('projectBomViewModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function renderProjectBomModal(data) {
+    const proj = data.project;
+    $('#modalProjectName').text(`${proj.code} - ${proj.name}`);
+    $('#modalProjectCustomerInfo').text(`Partner/SI: ${proj.partner_name || 'N/A'} | End-User: ${proj.end_user_name || 'N/A'}`);
+
+    // Files
+    const filesContainer = $('#modalBomFilesContainer');
+    const filesList = $('#modalBomFilesList');
+    filesList.empty();
+
+    if (proj.files && proj.files.length > 0) {
+        proj.files.forEach(f => {
+            const ext = (f.ext || '').toUpperCase();
+            let icon = 'fa-file-alt text-blue-500';
+            if (['XLS', 'XLSX', 'CSV'].includes(ext)) icon = 'fa-file-excel text-emerald-600';
+            else if (ext === 'PDF') icon = 'fa-file-pdf text-red-500';
+            else if (['DOC', 'DOCX'].includes(ext)) icon = 'fa-file-word text-blue-600';
+
+            filesList.append(`
+                <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-100 shadow-2xs">
+                    <div class="flex items-center gap-2 truncate">
+                        <i class="fas ${icon} text-lg flex-shrink-0"></i>
+                        <span class="text-xs font-medium text-gray-800 truncate" title="${f.name}">${f.name}</span>
+                    </div>
+                    <a href="${f.url}" download class="ml-2 px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold rounded border border-purple-200 transition-colors flex-shrink-0">
+                        <i class="fas fa-download mr-1"></i> Tải file
+                    </a>
+                </div>
+            `);
+        });
+        filesContainer.removeClass('hidden');
+    } else {
+        filesContainer.addClass('hidden');
+    }
+
+    // Items table
+    const tableBody = $('#modalBomTableBody');
+    tableBody.empty();
+
+    const items = data.items || [];
+    let matchedCount = 0;
+    let newCount = 0;
+
+    if (items.length > 0) {
+        items.forEach((it, idx) => {
+            if (it.is_matched) matchedCount++;
+            else newCount++;
+
+            const statusBadge = it.is_matched
+                ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800"><i class="fas fa-check mr-1"></i> Có sẵn trong kho</span>'
+                : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800"><i class="fas fa-plus mr-1"></i> SP Mới</span>';
+
+            tableBody.append(`
+                <tr class="hover:bg-purple-50/30 transition-colors">
+                    <td class="p-2.5 text-center text-gray-500">${idx + 1}</td>
+                    <td class="p-2.5 font-mono font-bold text-purple-900">${escapeHtml(it.code || '')}</td>
+                    <td class="p-2.5 text-gray-800 font-medium">${escapeHtml(it.name || '')}</td>
+                    <td class="p-2.5 text-center font-bold text-gray-900">${it.quantity || 1}</td>
+                    <td class="p-2.5 text-center text-gray-600">${escapeHtml(it.unit || 'Bộ')}</td>
+                    <td class="p-2.5 text-right font-medium text-gray-800">${formatMoney(it.price || 0)}</td>
+                    <td class="p-2.5 text-center">${statusBadge}</td>
+                </tr>
+            `);
+        });
+        $('#btnModalApplyAppend').removeClass('hidden');
+        $('#btnModalApplyReplace').removeClass('hidden');
+    } else {
+        tableBody.append(`
+            <tr>
+                <td colspan="7" class="p-6 text-center text-gray-400">
+                    <i class="fas fa-inbox text-2xl mb-2 text-gray-300 block"></i>
+                    Chưa có danh sách Part Number nhận diện được trong BOM của dự án này.
+                </td>
+            </tr>
+        `);
+        $('#btnModalApplyAppend').addClass('hidden');
+        $('#btnModalApplyReplace').addClass('hidden');
+    }
+
+    $('#modalBomItemsCount').text(items.length);
+    $('#modalBomMatchedCount').text(matchedCount);
+    $('#modalBomNewCount').text(newCount);
+
+    // Raw text
+    if (proj.bom_data && proj.bom_data.trim()) {
+        $('#modalBomRawText').text(proj.bom_data);
+        $('#modalBomRawTextContainer').removeClass('hidden');
+    } else {
+        $('#modalBomRawTextContainer').addClass('hidden');
+    }
+}
+
+function applyProjectBomModalItems(isAppend) {
+    if (!currentProjectBomData || !currentProjectBomData.items || currentProjectBomData.items.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Thông báo',
+            text: 'Dự án này chưa có sản phẩm BOM nào để nạp.',
+        });
+        return;
+    }
+
+    parsedBomItems = currentProjectBomData.items;
+    applyBomItems(isAppend);
+    closeProjectBomModal();
+}
+
+function quickLoadProjectBom() {
+    const projSelect = document.getElementById('projectSelect');
+    const projId = projSelect ? projSelect.value : null;
+
+    if (!projId) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Chưa chọn dự án',
+            text: 'Vui lòng chọn một Dự án chính trước.',
+        });
+        return;
+    }
+
+    if (currentProjectBomData && currentProjectBomData.items && currentProjectBomData.items.length > 0) {
+        parsedBomItems = currentProjectBomData.items;
+        applyBomItems(true);
+    } else {
+        fetch(`/ajax/projects/${projId}/bom`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.items && data.items.length > 0) {
+                    currentProjectBomData = data;
+                    parsedBomItems = data.items;
+                    applyBomItems(true);
+                } else {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Thông báo',
+                        text: 'Dự án này chưa có dữ liệu sản phẩm BOM để nạp.',
+                    });
+                }
+            })
+            .catch(err => console.error(err));
+    }
+}
+
+// Check BOM on initial load if project is selected
+$(document).ready(function() {
+    const projSelect = document.getElementById('projectSelect');
+    if (projSelect && projSelect.value) {
+        checkProjectBom(projSelect.value);
+    }
+});
 </script>
 
 <!-- Modal Chọn Hàng Sẵn Kho khi Tạo Đơn hàng -->
@@ -3383,6 +3636,114 @@ function selectStockItemForCreate(item) {
         </div>
         <div class="p-4 overflow-y-auto flex-1 max-h-96" id="createStockPickerList">
             <div class="text-center py-6 text-gray-400 text-xs">Đang tải danh sách hàng sẵn kho...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Project BOM Details Modal for Sales Order Create -->
+<div id="projectBomViewModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeProjectBomModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
+            <div class="bg-gradient-to-r from-purple-700 to-indigo-800 px-6 py-4 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <i class="fas fa-project-diagram text-xl text-purple-200"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-lg font-bold flex items-center gap-2">
+                            BOM Dự án: <span id="modalProjectName" class="text-purple-100 font-semibold">Đang tải...</span>
+                        </h3>
+                        <p class="text-xs text-purple-200" id="modalProjectCustomerInfo">Thông tin sản phẩm và file kỹ thuật đính kèm từ dự án</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeProjectBomModal()" class="text-white/80 hover:text-white text-xl p-1 cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <!-- Loading State -->
+                <div id="modalBomLoading" class="py-12 text-center text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-3xl text-purple-600 mb-3"></i>
+                    <p class="text-sm font-medium">Đang tải chi tiết BOM từ dự án...</p>
+                </div>
+
+                <!-- Content State -->
+                <div id="modalBomContent" class="hidden space-y-4">
+                    <!-- Attached Files Section -->
+                    <div id="modalBomFilesContainer" class="hidden bg-purple-50/60 border border-purple-200 rounded-xl p-4">
+                        <h4 class="text-xs font-bold text-purple-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <i class="fas fa-paperclip text-purple-600"></i> File BOM / Báo giá đính kèm:
+                        </h4>
+                        <div id="modalBomFilesList" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <div class="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+                        <div class="bg-gray-100 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                            <div class="text-xs font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-list-check text-purple-600"></i>
+                                <span>Danh sách Part Number & Sản phẩm (<span id="modalBomItemsCount">0</span> mục)</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                                    <i class="fas fa-check mr-1"></i> Có sẵn trong kho: <span id="modalBomMatchedCount" class="ml-1 font-bold">0</span>
+                                </span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                                    <i class="fas fa-plus mr-1"></i> SP Mới / Hàng ngoài: <span id="modalBomNewCount" class="ml-1 font-bold">0</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="max-h-80 overflow-y-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead class="bg-gray-50 text-gray-600 font-semibold sticky top-0 border-b border-gray-200">
+                                    <tr>
+                                        <th class="p-2.5 text-center w-10">STT</th>
+                                        <th class="p-2.5 w-40">Mã / Part Number</th>
+                                        <th class="p-2.5">Tên sản phẩm / Model</th>
+                                        <th class="p-2.5 text-center w-16">SL</th>
+                                        <th class="p-2.5 text-center w-16">ĐVT</th>
+                                        <th class="p-2.5 text-right w-28">Đơn giá dự toán</th>
+                                        <th class="p-2.5 text-center w-28">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modalBomTableBody" class="divide-y divide-gray-200 bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Raw Text Section (if any) -->
+                    <div id="modalBomRawTextContainer" class="hidden">
+                        <details class="group bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs">
+                            <summary class="font-semibold text-gray-700 cursor-pointer flex items-center justify-between">
+                                <span><i class="fas fa-code text-gray-500 mr-1.5"></i> Xem nội dung BOM gốc (dạng văn bản)</span>
+                                <i class="fas fa-chevron-down group-open:rotate-180 transition-transform text-gray-400"></i>
+                            </summary>
+                            <pre id="modalBomRawText" class="mt-2.5 p-3 bg-white border border-gray-200 rounded-lg text-xs font-mono whitespace-pre-wrap text-gray-700 overflow-x-auto"></pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-500 flex items-center gap-1.5">
+                    <i class="fas fa-info-circle text-blue-500"></i>
+                    <span>Có thể nạp toàn bộ hoặc sửa số lượng/đơn giá trước khi lưu đơn hàng.</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btnModalApplyAppend" onclick="applyProjectBomModalItems(true)" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer">
+                        <i class="fas fa-plus mr-1.5"></i> Thêm nối tiếp vào bảng
+                    </button>
+                    <button type="button" id="btnModalApplyReplace" onclick="applyProjectBomModalItems(false)" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer">
+                        <i class="fas fa-sync-alt mr-1.5"></i> Ghi đè vào bảng SP
+                    </button>
+                    <button type="button" onclick="closeProjectBomModal()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 cursor-pointer">
+                        Đóng
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>

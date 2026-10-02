@@ -17,6 +17,9 @@ class Sale extends Model
         'code',
         'type',
         'project_id',
+        'is_license_vnet',
+        'trade_up_matrix',
+        'ohf_cost_added',
         'customer_id',
         'contact_id',
         'customer_name',
@@ -79,6 +82,8 @@ class Sale extends Model
         'pl_approved_at' => 'datetime',
         'is_payment_exception' => 'boolean',
         'has_bank_guarantee' => 'boolean',
+        'is_license_vnet' => 'boolean',
+        'ohf_cost_added' => 'boolean',
     ];
 
     protected static function booted()
@@ -1818,4 +1823,3 @@ class Sale extends Model
         return min(100, round(($exportedQty / $totalQty) * 100));
     }
 }
-

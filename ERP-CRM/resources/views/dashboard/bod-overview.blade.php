@@ -183,6 +183,17 @@
 
                 <!-- 6. Model / Keyword Search (Correctly Centered Icon & Padding) -->
                 <div class="flex flex-col space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-600">License VNET / Trade up</label>
+                    <select x-model="filters.deal_flag" @change="applyFilters()"
+                        class="w-full px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all cursor-pointer">
+                        <option value="">-- Tất cả --</option>
+                        <option value="license_vnet">License VNET</option>
+                        <option value="trade_up">Trade up</option>
+                    </select>
+                </div>
+
+                <!-- 6. Model / Keyword Search (Correctly Centered Icon & Padding) -->
+                <div class="flex flex-col space-y-1.5">
                     <label class="text-[11px] font-bold uppercase tracking-wider text-slate-600">Tìm Model / Từ Khóa</label>
                     <div class="relative flex items-center w-full">
                         <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -1598,6 +1609,7 @@
                     vendor_id: '{{ $filters["vendor_id"] ?? "" }}',
                     model_code: '{{ $filters["model_code"] ?? "" }}',
                     deal_type: '{{ $filters["deal_type"] ?? "" }}',
+                    deal_flag: '{{ !empty($filters["license_vnet"]) ? "license_vnet" : (!empty($filters["trade_up"]) ? "trade_up" : "") }}',
                 },
 
                 filterOptions: @json($filter_options ?? []),
@@ -1637,13 +1649,18 @@
                 applyFilters() {
                     this.loading = true;
                     this.filterError = '';
+                    const requestFilters = {
+                        ...this.filters,
+                        license_vnet: this.filters.deal_flag === 'license_vnet' ? 1 : 0,
+                        trade_up: this.filters.deal_flag === 'trade_up' ? 1 : 0,
+                    };
                     fetch('{{ route("dashboard.bod-filter") }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
-                        body: JSON.stringify(this.filters)
+                        body: JSON.stringify(requestFilters)
                     })
                         .then(async res => {
                             const payload = await res.json();
@@ -1685,7 +1702,8 @@
                         customer_id: '',
                         vendor_id: '',
                         model_code: '',
-                        deal_type: ''
+                        deal_type: '',
+                        deal_flag: ''
                     };
                     this.applyFilters();
                 },

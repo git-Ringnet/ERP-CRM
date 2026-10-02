@@ -44,6 +44,12 @@
                             class="px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary font-medium">
                     </div>
 
+                    <select name="deal_flag" class="px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary font-medium">
+                        <option value="">Tất cả deal</option>
+                        <option value="license_vnet" {{ ($dealFlag ?? '') === 'license_vnet' ? 'selected' : '' }}>License VNET</option>
+                        <option value="trade_up" {{ ($dealFlag ?? '') === 'trade_up' ? 'selected' : '' }}>Trade up</option>
+                    </select>
+
                     <!-- Quick Date Presets -->
                     <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
                         <button type="button" class="date-preset-btn px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-white hover:text-primary hover:shadow-2xs rounded-md transition-all" data-preset="30days">30 ngày qua</button>

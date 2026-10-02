@@ -33,7 +33,10 @@
     if (!is_array($customColumns)) {
         $customColumns = [];
     }
-    $customColumns = array_values(array_filter($customColumns, fn($col) => !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total'])));
+    $customColumns = array_values(array_filter($customColumns, function($col) {
+        $normalized = strtolower(str_replace(['_', ' ', '-'], '', (string)$col));
+        return !in_array($col, ['product_id', 'quantity', 'price', 'vat', 'row_total']) && $normalized !== 'pricelist';
+    }));
     $totalCols = 6 + count($customColumns);
 
     $subtotalForeign = $isForeign ? $quotation->items->sum('total') : $quotation->subtotal;

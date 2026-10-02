@@ -316,6 +316,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/report', [ProjectController::class, 'report'])->name('projects.report');
     Route::get('/projects/export/excel', [ProjectController::class, 'export'])->name('projects.export');
     Route::get('/ajax/projects', [ProjectController::class, 'getList'])->name('projects.list');
+    Route::get('/ajax/projects/{project}/bom', [ProjectController::class, 'getBomDetails'])->name('projects.bom-details');
     Route::get('/ajax/projects/check-tax-code', [ProjectController::class, 'checkTaxCode'])->name('projects.check-tax-code');
     Route::get('/ajax/projects/check-duplicate', [ProjectController::class, 'checkDuplicate'])->name('projects.check-duplicate');
     Route::post('/projects/{project}/process-intake', [ProjectController::class, 'processIntake'])->name('projects.process-intake');

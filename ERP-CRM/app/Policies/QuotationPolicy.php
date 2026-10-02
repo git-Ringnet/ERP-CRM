@@ -87,7 +87,7 @@ class QuotationPolicy extends BasePolicy
         }
 
         if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
-            return true;
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
         }
 
         return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
@@ -97,6 +97,10 @@ class QuotationPolicy extends BasePolicy
     {
         if ($user->hasAnyRole(['super_admin', 'admin', 'sales_manager'])) {
             return true;
+        }
+
+        if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
         }
 
         return $this->checkPermission($user, 'delete_quotations');

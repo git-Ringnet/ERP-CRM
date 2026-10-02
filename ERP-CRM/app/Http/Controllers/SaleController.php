@@ -103,6 +103,13 @@ class SaleController extends Controller
             $query->where('type', $request->type);
         }
 
+        if ($request->boolean('license_vnet')) {
+            $query->where('is_license_vnet', true);
+        }
+        if ($request->boolean('trade_up')) {
+            $query->whereIn('trade_up_matrix', ['correct', 'incorrect']);
+        }
+
         // Filter by project
         if ($request->filled('project_id')) {
             $query->where('project_id', $request->project_id);
@@ -370,6 +377,9 @@ class SaleController extends Controller
             'code' => ['required', 'string', 'max:50', 'unique:sales,code'],
             'type' => ['required', 'in:retail,project'],
             'project_id' => ['nullable', 'exists:projects,id'],
+            'is_license_vnet' => ['nullable', 'boolean'],
+            'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
+            'ohf_cost_added' => ['nullable', 'boolean'],
             'customer_id' => ['required', 'exists:customers,id'],
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
@@ -412,6 +422,7 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $dealFlags = $this->resolveDealFlags($validated, $request);
             $processedProducts = [];
             foreach ($validated['products'] as $item) {
                 if ($item['product_id'] === 'new') {
@@ -511,6 +522,7 @@ class SaleController extends Controller
                 'code' => $code,
                 'type' => $validated['type'],
                 'project_id' => $validated['project_id'] ?? null,
+                ...$dealFlags,
                 'customer_id' => $validated['customer_id'],
                 'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
@@ -833,6 +845,9 @@ class SaleController extends Controller
             'code' => ['required', 'string', 'max:50', Rule::unique('sales')->ignore($sale->id)],
             'type' => ['required', 'in:retail,project'],
             'project_id' => ['nullable', 'exists:projects,id'],
+            'is_license_vnet' => ['nullable', 'boolean'],
+            'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
+            'ohf_cost_added' => ['nullable', 'boolean'],
             'customer_id' => ['required', 'exists:customers,id'],
             'contact_id' => ['required', 'exists:contacts,id'],
             'date' => ['required', 'date'],
@@ -877,6 +892,7 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $dealFlags = $this->resolveDealFlags($validated, $request);
             $processedProducts = [];
             foreach ($validated['products'] as $item) {
                 if ($item['product_id'] === 'new') {
@@ -974,6 +990,7 @@ class SaleController extends Controller
                 'code' => $validated['code'],
                 'type' => $validated['type'],
                 'project_id' => $validated['project_id'] ?? null,
+                ...$dealFlags,
                 'customer_id' => $validated['customer_id'],
                 'contact_id' => $validated['contact_id'],
                 'customer_name' => $customer->name,
@@ -1346,7 +1363,7 @@ class SaleController extends Controller
     {
         $this->authorize('export', Sale::class);
 
-        $filters = $request->only(['search', 'status', 'type', 'project_id']);
+        $filters = $request->only(['search', 'status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'license_vnet', 'trade_up']);
         $filename = 'don-hang-ban-' . date('Y-m-d') . '.xlsx';
 
         return Excel::download(new SalesExport($filters), $filename);
@@ -1711,11 +1728,7 @@ class SaleController extends Controller
     {
         try {
             // Find users with purchase order creation permission
-            $purchaseUsers = User::whereHas('roles.permissions', function ($q) {
-                $q->where('name', 'create_purchase_orders');
-            })->orWhereHas('permissions', function ($q) {
-                $q->where('name', 'create_purchase_orders');
-            })->get();
+            $purchaseUsers = User::withPermission('create_purchase_orders')->get();
 
             foreach ($purchaseUsers as $user) {
                 Notification::create([
@@ -1929,6 +1942,9 @@ class SaleController extends Controller
             'pnl_extra_expenses.*.description' => ['nullable', 'string', 'max:500'],
             'pnl_attachments' => ['nullable', 'array'],
             'pnl_attachments.*' => ['file', 'max:20480'],
+            'is_license_vnet' => ['nullable', 'boolean'],
+            'trade_up_matrix' => ['required', 'in:none,correct,incorrect'],
+            'ohf_cost_added' => ['nullable', 'boolean'],
             'payment_term' => ['nullable', 'string', 'max:100'],
             'payment_due_date' => ['nullable', 'date'],
             'has_bank_guarantee' => ['nullable', 'boolean'],
@@ -1969,6 +1985,8 @@ class SaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $dealFlags = $this->resolveDealFlags($validated, $request, $sale->project_id);
+            $sale->fill($dealFlags);
             if ($request->has('payment_term')) {
                 $sale->payment_term = $validated['payment_term'] ?? null;
             }
@@ -2558,6 +2576,10 @@ class SaleController extends Controller
             return back()->with('error', 'P&L đã được duyệt.');
         }
 
+        if ($sale->project?->deal_type === 'trade_up' && $sale->trade_up_matrix === 'none') {
+            return back()->with('error', 'Đơn từ ĐKDA Trade up phải chọn đúng hoặc không đúng matrix trước khi gửi duyệt P&L.');
+        }
+
         if (request()->has('has_bank_guarantee')) {
             $sale->has_bank_guarantee = request()->boolean('has_bank_guarantee');
             $sale->bank_guarantee_note = $sale->has_bank_guarantee ? (request()->input('bank_guarantee_note') ?? null) : null;
@@ -2954,6 +2976,8 @@ class SaleController extends Controller
             throw $e;
         }
 
+        $this->validateTradeUpOrderRequestSerials($sale, $validated['order_request_items'], $isDraft);
+
         DB::beginTransaction();
         try {
             $orderRequest = \App\Models\SaleOrderRequest::create([
@@ -3111,6 +3135,8 @@ class SaleController extends Controller
             'order_request_note' => 'nullable|string|max:2000',
             'order_request_files.*' => 'nullable|file|max:20480',
         ]);
+
+        $this->validateTradeUpOrderRequestSerials($sale, $validated['order_request_items'], $isDraft);
 
         DB::beginTransaction();
         try {
@@ -5358,6 +5384,55 @@ class SaleController extends Controller
         }
 
         return $result;
+    }
+
+    /** Build trusted deal flags. Trade up is inherited from its registered project. */
+    private function resolveDealFlags(array $validated, Request $request, ?int $projectId = null): array
+    {
+        $projectId = $projectId ?? ($validated['project_id'] ?? null);
+        $project = !empty($projectId)
+            ? Project::select('id', 'deal_type')->find($projectId)
+            : null;
+        $matrix = $validated['trade_up_matrix'];
+        $isProjectTradeUp = $project?->deal_type === 'trade_up';
+
+        if ($isProjectTradeUp && $matrix === 'none') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'trade_up_matrix' => 'Đơn tạo từ ĐKDA Trade up phải chọn đúng hoặc không đúng matrix.',
+            ]);
+        }
+
+        return [
+            'is_license_vnet' => $request->boolean('is_license_vnet'),
+            'trade_up_matrix' => $matrix,
+            'ohf_cost_added' => $matrix === 'incorrect' && $request->boolean('ohf_cost_added'),
+        ];
+    }
+
+    /** Trade up requires one serial per hardware item before an order request can be sent. */
+    private function validateTradeUpOrderRequestSerials(Sale $sale, array $items, bool $isDraft): void
+    {
+        if ($isDraft || $sale->trade_up_matrix === 'none') {
+            return;
+        }
+
+        foreach ($items as $index => $item) {
+            if (strtoupper((string) ($item['type'] ?? '')) !== 'HW') {
+                continue;
+            }
+
+            $serials = is_array($item['serial_number'] ?? null)
+                ? $item['serial_number']
+                : preg_split('/\s*,\s*/', (string) ($item['serial_number'] ?? ''));
+            $count = count(array_filter($serials, fn ($serial) => trim((string) $serial) !== ''));
+            $quantity = (int) ($item['quantity'] ?? 0);
+
+            if ($quantity < 1 || $count !== $quantity) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "order_request_items.{$index}.serial_number" => "Đơn Trade up yêu cầu nhập đủ {$quantity} S/N cho dòng HW " . ($item['part_number'] ?? '') . '.',
+                ]);
+            }
+        }
     }
 
     /** Ensure a saved payment schedule always represents the whole order. */

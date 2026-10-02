@@ -409,6 +409,8 @@
                                 <span class="text-sm font-bold text-gray-900">
                                     Đơn bán: <a href="{{ route('sales.show', $sale->id) }}" target="_blank" class="text-blue-600 hover:underline font-bold">{{ $sale->code }}</a>
                                 </span>
+                                @if($sale->is_license_vnet)<span class="rounded bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800">License VNET</span>@endif
+                                @if($sale->trade_up_matrix !== 'none')<span class="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Trade up {{ $sale->trade_up_matrix === 'correct' ? 'đúng matrix' : 'không đúng matrix' }}</span>@endif
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
                                     {{ $sale->customer_name }}
                                 </span>

@@ -74,6 +74,7 @@
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" 
                                     data-customer-id="{{ $project->customer_id }}"
+                                    data-deal-type="{{ $project->deal_type }}"
                                     data-customer-name="{{ $project->customer ? $project->customer->name . ($project->customer->code ? ' (' . $project->customer->code . ')' : '') : '' }}"
                                     {{ old('project_id', $sale->project_id) == $project->id ? 'selected' : '' }}>
                                     {{ $project->code }} - {{ $project->name }}
@@ -88,6 +89,8 @@
                     </div>
                 </div>
             </div>
+
+            @include('sales.partials.deal-classification', ['isLocked' => $isLocked])
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -240,15 +243,14 @@
                                     @if(!$isLocked)
                                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
                                     @endif
-                                </div>
-                                <div class="mt-1.5 flex items-center">
-                                    <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
-                                        <input type="hidden" name="products[{{ $index }}][is_from_stock]" value="0">
-                                        <input type="checkbox" name="products[{{ $index }}][is_from_stock]" value="1" {{ $item->is_from_stock ? 'checked' : '' }}
-                                               class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox"
-                                               {{ $isLocked ? 'disabled' : '' }}>
-                                        <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
-                                    </label>
+                                    <input type="hidden" name="products[{{ $index }}][is_from_stock]" value="{{ $item->is_from_stock ? '1' : '0' }}" class="is-from-stock-input">
+                                    @if($item->is_from_stock)
+                                    <div class="mt-1 flex items-center is-from-stock-badge">
+                                        <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                            <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
+                                        </span>
+                                    </div>
+                                    @endif
                                 </div>
                                 @if(!$isLocked)
                                 <input type="hidden" name="products[{{ $index }}][new_name]" class="new-name-input">
@@ -1429,14 +1431,14 @@ function addProductRow(productData = null) {
                            placeholder="Gõ để tìm sản phẩm..." autocomplete="off" value="${displayText}">
                     <input type="hidden" name="products[${productIndex}][product_id]" value="${pid}" required class="product-id-input">
                     <div class="searchable-dropdown hidden absolute z-50 w-full bg-white border border-gray-300 rounded-b-lg max-h-48 overflow-y-auto shadow-lg"></div>
-                </div>
-                <div class="mt-1.5 flex items-center">
-                    <label class="inline-flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer select-none bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
-                        <input type="hidden" name="products[${productIndex}][is_from_stock]" value="0">
-                        <input type="checkbox" name="products[${productIndex}][is_from_stock]" value="1" ${isFromStock ? 'checked' : ''}
-                               class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 is-from-stock-checkbox">
-                        <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
-                    </label>
+                    <input type="hidden" name="products[${productIndex}][is_from_stock]" value="${isFromStock ? '1' : '0'}" class="is-from-stock-input">
+                    ${isFromStock ? `
+                    <div class="mt-1 flex items-center is-from-stock-badge">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            <i class="fas fa-warehouse text-emerald-600"></i> Hàng sẵn trong kho
+                        </span>
+                    </div>
+                    ` : ''}
                 </div>
                 <input type="hidden" name="products[${productIndex}][new_name]" class="new-name-input" value="${pname}">
                 <input type="hidden" name="products[${productIndex}][new_code]" class="new-code-input" value="${pcode}">
@@ -2884,7 +2886,7 @@ function searchEditAvailableStock(query) {
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
-                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Không tìm thấy sản phẩm sẵn kho phù hợp</div>';
+                list.innerHTML = '<div class="text-center py-6 text-gray-400 text-xs">Bạn hiện không giữ sản phẩm nào có sẵn trong kho</div>';
                 return;
             }
             list.innerHTML = data.map(item => `
@@ -2893,10 +2895,7 @@ function searchEditAvailableStock(query) {
                         <div class="font-bold text-xs text-gray-900">${item.name}</div>
                         <div class="text-[11px] text-gray-500 font-mono">Mã: ${item.code} | ĐVT: ${item.unit}</div>
                         <div class="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                            <i class="fas fa-warehouse mr-1"></i>Tồn khả dụng: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
-                        </div>
-                        <div class="text-[10px] text-indigo-700 font-medium mt-0.5">
-                            <i class="fas fa-info-circle mr-1"></i>${item.holding_summary || ''}
+                            <i class="fas fa-warehouse mr-1"></i>Tồn bạn đang giữ: <span class="font-bold">${item.in_stock_quantity}</span> (${item.warehouses_detail})
                         </div>
                     </div>
                     <div class="flex items-center gap-3">

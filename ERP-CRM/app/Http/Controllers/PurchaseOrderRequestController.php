@@ -197,6 +197,9 @@ class PurchaseOrderRequestController extends Controller
                     'note' => $pr->note, // Thêm ghi chú PR
                     'attachments' => $pr->attachments, // Thêm file đính kèm PR
                     'sale_id' => $pr->sale_id, // Thêm sale_id để tạo link
+                    'is_license_vnet' => (bool) ($pr->sale?->is_license_vnet ?? false),
+                    'trade_up_matrix' => $pr->sale?->trade_up_matrix ?? 'none',
+                    'ohf_cost_added' => (bool) ($pr->sale?->ohf_cost_added ?? false),
                     'pay_status' => $payStatus,
                     'products' => []
                 ];

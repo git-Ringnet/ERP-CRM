@@ -15,6 +15,7 @@
                         class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
                         <i class="fas fa-edit mr-2"></i> Sửa
                     </a>
+                    @can('create_purchase_orders')
                     <form action="{{ route('supplier-quotations.select', $supplierQuotation) }}" method="POST" class="inline">
                         @csrf
                         <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -22,6 +23,7 @@
                             <i class="fas fa-check mr-2"></i> Chọn báo giá này
                         </button>
                     </form>
+                    @endcan
                 @endif
             </div>
         </div>

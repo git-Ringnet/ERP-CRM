@@ -33,6 +33,8 @@ class BODDashboardApiController extends Controller
             'vendor_id',
             'model_code',
             'deal_type',
+            'license_vnet',
+            'trade_up',
         ]);
 
         try {
@@ -63,7 +65,7 @@ class BODDashboardApiController extends Controller
     {
         $type = $request->input('type');
         $filters = $this->bodService->resolveFilters(
-            $request->only(['period_type', 'date_from', 'date_to', 'team', 'sales_id', 'customer_id', 'vendor_id', 'model_code', 'deal_type']),
+            $request->only(['period_type', 'date_from', 'date_to', 'team', 'sales_id', 'customer_id', 'vendor_id', 'model_code', 'deal_type', 'license_vnet', 'trade_up']),
             auth()->user()
         );
 

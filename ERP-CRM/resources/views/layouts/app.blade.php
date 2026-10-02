@@ -572,7 +572,7 @@
                     </div>
                 @endcanany
 
-                @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_all_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_all_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports', 'view_pr_approvals', 'view_needs_ordering'])
+                @canany(['view_supplier_price_lists', 'view_purchase_requests', 'view_all_purchase_requests', 'view_supplier_quotations', 'view_purchase_orders', 'view_all_purchase_orders', 'view_own_purchase_orders', 'view_shipping_allocations', 'view_purchase_reports', 'view_pr_approvals', 'view_needs_ordering', 'create_purchase_orders', 'create_needs_ordering'])
                     <div class="mt-4">
                         <div class="section-header flex items-center justify-between px-4 py-3 text-gray-300 hover:text-white rounded-lg transition-colors"
                             onclick="toggleDropdown('purchasing')">
@@ -618,21 +618,21 @@
                                 </a>
                             @endcan
 
-                            @can('view_needs_ordering')
+                            @canany(['view_needs_ordering', 'create_needs_ordering', 'create_purchase_orders'])
                                 <a href="{{ route('purchase-requests.needs-ordering') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-requests.needs-ordering') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-layer-group w-6 text-teal-400"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Gom đơn cần đặt</span>
                                 </a>
-                            @endcan
+                            @endcanany
 
-                            @can('view_purchase_orders')
+                            @canany(['view_purchase_orders', 'view_all_purchase_orders', 'view_own_purchase_orders', 'create_purchase_orders'])
                                 <a href="{{ route('purchase-orders.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('purchase-orders.*') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-file-contract w-6 text-blue-400"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Đặt hàng với hãng (PO)</span>
                                 </a>
-                            @endcan
+                            @endcanany
 
                             <!-- @can('view_shipping_allocations')
                                                                                                     <a href="{{ route('shipping-allocations.index') }}"

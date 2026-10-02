@@ -111,6 +111,8 @@ class BODDashboardService
             'vendor_id' => $filters['vendor_id'] ?? null,
             'model_code' => $filters['model_code'] ?? null,
             'deal_type' => $filters['deal_type'] ?? null,
+            'license_vnet' => !empty($filters['license_vnet']),
+            'trade_up' => !empty($filters['trade_up']),
         ];
     }
 
@@ -390,6 +392,8 @@ class BODDashboardService
             })
             ->when($filters['sales_id'], fn($q, $s) => $q->where('user_id', $s))
             ->when($filters['customer_id'], fn($q, $c) => $q->where('customer_id', $c))
+            ->when($filters['license_vnet'], fn($q) => $q->where('is_license_vnet', true))
+            ->when($filters['trade_up'], fn($q) => $q->whereIn('trade_up_matrix', ['correct', 'incorrect']))
             // A sale may contain items from more than one vendor/project, so
             // apply these dashboard filters through the order lines instead
             // of assuming a vendor exists on the sales header.

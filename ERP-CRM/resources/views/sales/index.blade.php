@@ -107,6 +107,15 @@
                     <option value="project" {{ request('type') == 'project' ? 'selected' : '' }}>Bán theo dự án</option>
                 </select>
 
+                <label class="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm cursor-pointer">
+                    <input id="license_vnet" type="checkbox" name="license_vnet" value="1" {{ request()->boolean('license_vnet') ? 'checked' : '' }} onchange="applyFilters()" class="rounded border-gray-300 text-indigo-600">
+                    License VNET
+                </label>
+                <label class="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm cursor-pointer">
+                    <input id="trade_up" type="checkbox" name="trade_up" value="1" {{ request()->boolean('trade_up') ? 'checked' : '' }} onchange="applyFilters()" class="rounded border-gray-300 text-amber-600">
+                    Trade up
+                </label>
+
                 <!-- Filter by Project -->
                 @if(isset($projects) && $projects->count() > 0)
                     <select name="project_id" id="project_id" onchange="applyFilters()"
@@ -646,11 +655,13 @@
             const params = new URLSearchParams(window.location.search);
 
             // Update/Set params from inputs
-            const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'user_id'];
+            const fields = ['status', 'type', 'project_id', 'customer_id', 'date_from', 'date_to', 'user_id', 'license_vnet', 'trade_up'];
 
             fields.forEach(field => {
                 const element = document.getElementById(field);
-                if (element && element.value) {
+                if (element && element.type === 'checkbox') {
+                    element.checked ? params.set(field, '1') : params.delete(field);
+                } else if (element && element.value) {
                     params.set(field, element.value);
                 } else if (element) {
                     params.delete(field); // Remove param if value is empty

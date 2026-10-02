@@ -47,6 +47,7 @@ class SaleReportController extends Controller
         $paymentPercentMax = $request->input('payment_percent_max');
         $marginPercentMin = $request->input('margin_percent_min');
         $marginPercentMax = $request->input('margin_percent_max');
+        $dealFlag = $request->input('deal_flag');
 
         // Financial & Cost filters
         $revenueMin = $request->input('revenue_min');
@@ -74,13 +75,13 @@ class SaleReportController extends Controller
         }
 
         // Summary statistics
-        $stats = $this->getSummaryStats($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
+        $stats = $this->getSummaryStats($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax, $dealFlag);
 
         // Customer report
-        $customerReport = $this->getCustomerReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
+        $customerReport = $this->getCustomerReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax, $dealFlag);
 
         // Product report
-        $productReport = $this->getProductReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax);
+        $productReport = $this->getProductReport($dateFrom, $dateTo, $customerId, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax, $dealFlag);
 
         // Margin report (with full column filters)
         $marginReport = $this->getMarginReport(
@@ -90,6 +91,7 @@ class SaleReportController extends Controller
             $revenueMin, $revenueMax, $totalMin, $totalMax, $costMin, $costMax,
             $hasVat, $hasImplementationCost, $hasContractorTax, $hasFinanceCost,
             $hasManagementCost, $hasSupport247, $hasOtherSupport, $marginMin, $marginMax
+            , $dealFlag
         );
 
         $customers = Customer::orderBy('name')->get();
@@ -111,6 +113,7 @@ class SaleReportController extends Controller
             'revenueMin', 'revenueMax', 'totalMin', 'totalMax', 'costMin', 'costMax',
             'hasVat', 'hasImplementationCost', 'hasContractorTax', 'hasFinanceCost',
             'hasManagementCost', 'hasSupport247', 'hasOtherSupport', 'marginMin', 'marginMax'
+            , 'dealFlag'
         ));
     }
 
@@ -146,7 +149,8 @@ class SaleReportController extends Controller
         $hasSupport247 = null,
         $hasOtherSupport = null,
         $marginMin = null,
-        $marginMax = null
+        $marginMax = null,
+        $dealFlag = null
     ): array
     {
         $query = Sale::with(['customer', 'user', 'items.product', 'items.supplier'])
@@ -163,6 +167,11 @@ class SaleReportController extends Controller
         }
         if ($userId) {
             $query->where('user_id', $userId);
+        }
+        if ($dealFlag === 'license_vnet') {
+            $query->where('is_license_vnet', true);
+        } elseif ($dealFlag === 'trade_up') {
+            $query->whereIn('trade_up_matrix', ['correct', 'incorrect']);
         }
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -376,7 +385,7 @@ class SaleReportController extends Controller
         return $report;
     }
 
-    private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
+    private function getSummaryStats($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null, $dealFlag = null): array
     {
         $query = Sale::whereBetween('date', [$dateFrom, $dateTo])
             ->whereIn('status', ['approved', 'shipping', 'completed']); // Only include confirmed orders
@@ -393,6 +402,7 @@ class SaleReportController extends Controller
         if ($userId) {
             $query->where('user_id', $userId);
         }
+        $this->applyDealFlagFilter($query, $dealFlag);
         $this->applyVendorFilter($query, $vendorId);
         $this->applyPaymentState($query, $paymentState, '', $paymentPercentMin, $paymentPercentMax);
 
@@ -409,6 +419,7 @@ class SaleReportController extends Controller
             ->when($customerId, fn($q) => $q->where('customer_id', $customerId))
             ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
             ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->tap(fn($q) => $this->applyDealFlagFilter($q, $dealFlag))
             ->tap(fn($q) => $this->applyVendorFilter($q, $vendorId))
             ->tap(fn($q) => $this->applyPaymentState($q, $paymentState, '', $paymentPercentMin, $paymentPercentMax))
             ->get()
@@ -430,7 +441,7 @@ class SaleReportController extends Controller
         ];
     }
 
-    private function getCustomerReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
+    private function getCustomerReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null, $dealFlag = null): array
     {
         $query = Sale::select(
                 'customer_id',
@@ -452,18 +463,20 @@ class SaleReportController extends Controller
         if ($userId) {
             $query->where('user_id', $userId);
         }
+        $this->applyDealFlagFilter($query, $dealFlag);
         $this->applyVendorFilter($query, $vendorId);
         $this->applyPaymentState($query, $paymentState, '', $paymentPercentMin, $paymentPercentMax);
 
         $results = $query->orderByDesc('total_revenue')->get();
 
-        return $results->map(function ($item) use ($dateFrom, $dateTo, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax) {
+        return $results->map(function ($item) use ($dateFrom, $dateTo, $productId, $userId, $vendorId, $paymentState, $paymentPercentMin, $paymentPercentMax, $dealFlag) {
             // Get net revenue sum for this customer in this range
             $netRevenueSum = Sale::where('customer_id', $item->customer_id)
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->whereIn('status', ['approved', 'shipping', 'completed'])
                 ->when($productId, fn($q) => $q->whereHas('items', fn($items) => $items->where('product_id', $productId)))
                 ->when($userId, fn($q) => $q->where('user_id', $userId))
+                ->tap(fn($q) => $this->applyDealFlagFilter($q, $dealFlag))
                 ->tap(fn($q) => $this->applyVendorFilter($q, $vendorId))
                 ->tap(fn($q) => $this->applyPaymentState($q, $paymentState, '', $paymentPercentMin, $paymentPercentMax))
                 ->get()
@@ -483,7 +496,7 @@ class SaleReportController extends Controller
         })->toArray();
     }
 
-    private function getProductReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null): array
+    private function getProductReport($dateFrom, $dateTo, $customerId = null, $productId = null, $userId = null, $vendorId = null, $paymentState = null, $paymentPercentMin = null, $paymentPercentMax = null, $dealFlag = null): array
     {
         $query = SaleItem::select(
                 'sale_items.product_id',
@@ -507,6 +520,11 @@ class SaleReportController extends Controller
         }
         if ($userId) {
             $query->where('sales.user_id', $userId);
+        }
+        if ($dealFlag === 'license_vnet') {
+            $query->where('sales.is_license_vnet', true);
+        } elseif ($dealFlag === 'trade_up') {
+            $query->whereIn('sales.trade_up_matrix', ['correct', 'incorrect']);
         }
         if ($vendorId) {
             $query->where(function ($itemsQuery) use ($vendorId) {
@@ -537,6 +555,15 @@ class SaleReportController extends Controller
     }
 
     /** Apply the brand/vendor filter consistently to sale-based reports. */
+    private function applyDealFlagFilter($query, ?string $dealFlag): void
+    {
+        if ($dealFlag === 'license_vnet') {
+            $query->where('is_license_vnet', true);
+        } elseif ($dealFlag === 'trade_up') {
+            $query->whereIn('trade_up_matrix', ['correct', 'incorrect']);
+        }
+    }
+
     private function applyVendorFilter($query, $vendorId): void
     {
         if (!$vendorId) {
@@ -698,6 +725,7 @@ class SaleReportController extends Controller
         $paymentPercentMax = $request->input('payment_percent_max');
         $marginPercentMin = $request->input('margin_percent_min');
         $marginPercentMax = $request->input('margin_percent_max');
+        $dealFlag = $request->input('deal_flag');
         $revenueMin = $request->input('revenue_min');
         $revenueMax = $request->input('revenue_max');
         $totalMin = $request->input('total_min');
@@ -726,6 +754,7 @@ class SaleReportController extends Controller
             $revenueMin, $revenueMax, $totalMin, $totalMax, $costMin, $costMax,
             $hasVat, $hasImplementationCost, $hasContractorTax, $hasFinanceCost,
             $hasManagementCost, $hasSupport247, $hasOtherSupport, $marginMin, $marginMax
+            , $dealFlag
         );
 
         $fromFormatted = date('d/m/Y', strtotime($dateFrom));

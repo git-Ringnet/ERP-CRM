@@ -35,6 +35,8 @@ class DashboardController extends Controller
             'vendor_id',
             'model_code',
             'deal_type',
+            'license_vnet',
+            'trade_up',
         ]);
 
         $bodData = $this->bodService->getDashboardData($filters, auth()->user());

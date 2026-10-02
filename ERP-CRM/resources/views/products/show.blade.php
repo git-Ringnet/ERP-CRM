@@ -32,7 +32,11 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Tên sản phẩm</label>
-                            <p class="text-sm text-gray-900">{{ $product->name }}</p>
+                            <p class="text-sm text-gray-900 font-medium">{{ $product->name }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Hãng / Nhà sản xuất</label>
+                            <p class="text-sm text-gray-900 font-semibold">{{ $product->brand ?: '-' }}</p>
                         </div>
                         <div class="hidden">
                             <label class="block text-sm font-medium text-gray-500">Danh mục</label>

@@ -966,6 +966,13 @@ class ProjectController extends Controller
             'special_request_note' => ['nullable', 'string'],
         ], [], $this->validationAttributes());
 
+        if ($project->deal_type && $validated['deal_type'] !== $project->deal_type
+            && Sale::where('project_id', $project->id)->exists()) {
+            return back()->withInput()->withErrors([
+                'deal_type' => 'Không thể đổi New buy/Trade up sau khi ĐKDA đã được dùng tạo đơn hàng. Vui lòng tạo ĐKDA mới.',
+            ]);
+        }
+
         $validated['status'] = $validated['status'] ?? $project->status ?? 'planning';
 
         $validated['name_en'] = $validated['name_en'] ?? $validated['name'];
@@ -1237,6 +1244,71 @@ class ProjectController extends Controller
             })->orderBy('name')->get();
 
         return view('projects.report', compact('projects', 'totals', 'kpis', 'vendors', 'managers', 'pms'));
+    }
+
+    /**
+     * Get BOM details of a project for Quotation & Sales modal/view
+     */
+    public function getBomDetails(Project $project)
+    {
+        $this->authorize('view', $project);
+
+        $bomParser = app(\App\Services\BomParserService::class);
+        $items = [];
+
+        // Parse from bom_data if available
+        if (!empty($project->bom_data)) {
+            $items = $bomParser->parse($project->bom_data, $project->id);
+        }
+
+        // If items are empty and bom_file exists, try parsing the file
+        if (empty($items) && !empty($project->bom_file)) {
+            $files = is_array($project->bom_file) ? $project->bom_file : [$project->bom_file];
+            foreach ($files as $file) {
+                if ($file && Storage::exists($file)) {
+                    $fullPath = Storage::path($file);
+                    $fileObj = new \Illuminate\Http\File($fullPath);
+                    $items = $bomParser->parseSpreadsheetFile($fileObj, $project->id);
+                    if (!empty($items)) break;
+                }
+            }
+        }
+
+        $filesData = [];
+        if (!empty($project->bom_file)) {
+            $files = is_array($project->bom_file) ? $project->bom_file : [$project->bom_file];
+            foreach ($files as $f) {
+                if (empty($f)) continue;
+                $filename = basename($f);
+                if (preg_match('/^\d+_(.+)$/', $filename, $m)) {
+                    $filename = $m[1];
+                }
+                $filesData[] = [
+                    'name' => $filename,
+                    'url' => Storage::url($f),
+                    'ext' => strtolower(pathinfo($f, PATHINFO_EXTENSION)),
+                ];
+            }
+        }
+
+        $effectiveCustomer = $project->findOrCreateCustomerFromProject();
+
+        return response()->json([
+            'success' => true,
+            'project' => [
+                'id' => $project->id,
+                'code' => $project->code,
+                'name' => $project->name,
+                'customer_id' => $effectiveCustomer?->id ?? $project->customer_id,
+                'customer_name' => $effectiveCustomer?->name ?? ($project->customer?->name ?? $project->partner_name),
+                'partner_name' => $project->customer?->name ?? $project->partner_name,
+                'end_user_name' => $project->end_user_name,
+                'bom_data' => $project->bom_data,
+                'files' => $filesData,
+            ],
+            'items' => $items,
+            'count' => count($items),
+        ]);
     }
 
     /**

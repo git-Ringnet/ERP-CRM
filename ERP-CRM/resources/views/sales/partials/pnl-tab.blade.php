@@ -1169,6 +1169,7 @@
 
     <form id="pnlForm" action="{{ route('sales.updatePnL', $sale) }}" method="POST" enctype="multipart/form-data">
         @csrf
+        @include('sales.partials.deal-classification', ['isLocked' => !$sale->isPlEditable()])
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse table-pnl-editor min-w-[4200px]">
                 <thead>

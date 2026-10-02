@@ -90,6 +90,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:products,code'],
             'name' => ['required', 'string', 'max:2000'],
+            'brand' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
@@ -153,6 +154,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', Rule::unique('products')->ignore($id)],
             'name' => ['required', 'string', 'max:2000'],
+            'brand' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'string', 'size:1', 'regex:/^[A-Z]$/'],
             'unit' => ['required', 'string', 'max:50'],
             'warranty_months' => ['nullable', 'integer', 'min:0', 'max:120'],
@@ -337,7 +339,7 @@ class ProductController extends Controller
 
         $productsQuery = Product::search($q)
             ->with(['supplierPriceListItems.priceList'])
-            ->select('id', 'code', 'name', 'unit', 'warranty_months', 'description');
+            ->select('id', 'code', 'name', 'brand', 'unit', 'warranty_months', 'description');
 
         if ($request->filled('warehouse_id')) {
             $warehouseId = (int) $request->warehouse_id;
@@ -355,6 +357,7 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'code' => $product->code,
                 'name' => $product->name,
+                'brand' => $product->brand,
                 'unit' => $product->unit,
                 'warranty_months' => $product->warranty_months,
                 'cost' => $product->calculated_cost,
@@ -401,6 +404,7 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'code' => $product->code,
                 'name' => $product->name,
+                'brand' => $product->brand,
                 'price' => $suggestedPrice,
                 'cost' => $product->calculated_cost,
                 'warranty_months' => $product->warranty_months,
@@ -414,6 +418,7 @@ class ProductController extends Controller
                     'id' => $product->id,
                     'code' => $product->code,
                     'name' => $product->name . ' - Hàng thanh lý',
+                    'brand' => $product->brand,
                     'price' => 0,
                     'warranty_months' => 0,
                     'is_liquidation' => 1,
@@ -435,12 +440,11 @@ class ProductController extends Controller
     {
         $q = $request->get('q');
         $currentUser = auth()->user();
-        $currentUserName = $currentUser ? $currentUser->name : null;
+        $currentUserName = $currentUser ? trim($currentUser->name) : null;
 
-        $runrateWarehouseIds = \App\Models\Warehouse::where('code', 'WH_RUNRATE')
-            ->orWhere('name', 'like', '%runrate%')
-            ->pluck('id')
-            ->toArray();
+        if (!$currentUser || !$currentUserName) {
+            return response()->json([]);
+        }
 
         $query = Product::query();
 
@@ -450,56 +454,35 @@ class ProductController extends Controller
             $query->orderBy('name');
         }
 
-        // Only load products that have in_stock items in Kho runrate
-        $query->whereHas('items', function ($sq) use ($runrateWarehouseIds) {
-            $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK);
-            if (!empty($runrateWarehouseIds)) {
-                $sq->whereIn('warehouse_id', $runrateWarehouseIds);
-            }
+        // Only load products that have in_stock items held by the current logged-in user
+        $query->whereHas('items', function ($sq) use ($currentUserName) {
+            $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+               ->where('quantity', '>', 0)
+               ->where('borrower', $currentUserName);
         });
 
         $products = $query->with([
-            'items' => function ($sq) use ($runrateWarehouseIds) {
-                $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK);
-                if (!empty($runrateWarehouseIds)) {
-                    $sq->whereIn('warehouse_id', $runrateWarehouseIds);
-                }
-                $sq->with('warehouse');
+            'items' => function ($sq) use ($currentUserName) {
+                $sq->where('status', \App\Models\ProductItem::STATUS_IN_STOCK)
+                   ->where('quantity', '>', 0)
+                   ->where('borrower', $currentUserName)
+                   ->with('warehouse');
             },
             'supplierPriceListItems.priceList'
         ])
         ->limit(40)
         ->get()
-        ->map(function ($product) use ($currentUserName) {
-            $inStockItems = $product->items;
-            $totalInStock = (int) $inStockItems->sum('quantity');
-
-            // Count held by me vs unallocated vs others
-            $myHeld = $currentUserName
-                ? (int) $inStockItems->filter(fn($it) => $it->borrower === $currentUserName)->sum('quantity')
-                : 0;
-            $unallocated = (int) $inStockItems->filter(fn($it) => empty($it->borrower))->sum('quantity');
-            $heldByOthers = $totalInStock - $myHeld - $unallocated;
+        ->map(function ($product) {
+            $myHeldItems = $product->items;
+            $myHeld = (int) $myHeldItems->sum('quantity');
 
             // Detail string by warehouse
-            $whGroups = $inStockItems->groupBy(fn($it) => $it->warehouse->name ?? 'Kho runrate');
+            $whGroups = $myHeldItems->groupBy(fn($it) => $it->warehouse->name ?? 'Kho');
             $whParts = [];
             foreach ($whGroups as $whName => $groupItems) {
                 $whParts[] = $whName . ': ' . $groupItems->sum('quantity');
             }
             $whDetail = implode(', ', $whParts);
-
-            $holdingNotes = [];
-            if ($myHeld > 0) {
-                $holdingNotes[] = "Bạn đang giữ: {$myHeld}";
-            }
-            if ($unallocated > 0) {
-                $holdingNotes[] = "Sẵn kho: {$unallocated}";
-            }
-            if ($heldByOthers > 0) {
-                $holdingNotes[] = "Sales khác giữ: {$heldByOthers}";
-            }
-            $holdingSummary = implode(' | ', $holdingNotes);
 
             $sellingPrice = $product->calculated_selling_price ?: ($product->price ?? 0);
             $costPrice = $product->calculated_cost ?: ($product->cost ?? 0);
@@ -512,15 +495,17 @@ class ProductController extends Controller
                 'price' => (float) $sellingPrice,
                 'cost' => (float) $costPrice,
                 'warranty_months' => $product->warranty_months ?? 12,
-                'in_stock_quantity' => $totalInStock,
+                'in_stock_quantity' => $myHeld,
                 'my_held_quantity' => $myHeld,
-                'unallocated_quantity' => $unallocated,
-                'held_by_others_quantity' => $heldByOthers,
-                'warehouses_detail' => $whDetail ?: 'Kho runrate: ' . $totalInStock,
-                'holding_summary' => $holdingSummary ?: 'Có sẵn trong kho runrate',
+                'unallocated_quantity' => 0,
+                'held_by_others_quantity' => 0,
+                'warehouses_detail' => $whDetail ?: 'Kho: ' . $myHeld,
+                'holding_summary' => "Bạn đang giữ: {$myHeld}",
                 'is_from_stock' => 1,
             ];
-        });
+        })
+        ->filter(fn($p) => $p['in_stock_quantity'] > 0)
+        ->values();
 
         return response()->json($products);
     }
