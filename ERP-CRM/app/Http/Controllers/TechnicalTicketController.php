@@ -745,7 +745,7 @@ class TechnicalTicketController extends Controller
         $isRequester = ($ticket->created_by === $currentUserId);
         $isTicketTeamLead = ($ticket->team_lead_id === $currentUserId);
         $isCoLead = is_array($ticket->co_lead_ids) && in_array($currentUserId, $ticket->co_lead_ids);
-        $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
+          $isManagerOrAdmin = auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']);
         $isTechLeadRole = auth()->user()->hasRole('technical_lead');
         $isGroupLead = UserGroup::where('leader_id', $currentUserId)->exists();
         $isTeamLead = $isTicketTeamLead || $isCoLead || $isManagerOrAdmin || $isTechLeadRole || $isGroupLead;
@@ -766,6 +766,15 @@ class TechnicalTicketController extends Controller
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['assigned_to' => 'Trạng thái "' . ($statusToCheck === 'assigned' ? 'Đã phân công' : 'Đang thực hiện') . '" yêu cầu phải chỉ định Kỹ sư thực hiện.']);
+        }
+
+        // Kỹ thuật 7: Sales Manager cannot complete or close ticket
+        if (auth()->user()->hasRole('sales_manager') && !auth()->user()->hasAnyRole(['super_admin', 'director'])) {
+            if (in_array($statusToCheck, ['completed', 'closed'])) {
+                return redirect()->back()
+                    ->withInput()
+                    ->withErrors(['status' => 'Sales Manager không có quyền chuyển trạng thái ticket sang Hoàn tất hoặc Đóng.']);
+            }
         }
 
         // Constraint 2: Self-Pickup & Assignment limits on update
@@ -1052,8 +1061,12 @@ class TechnicalTicketController extends Controller
                     ->withErrors(['general' => 'Bạn không có quyền cập nhật tiến độ cho ticket này (chỉ Kỹ sư đang thực hiện hoặc Lead mới có quyền).']);
             }
         } elseif ($action === 'confirm_complete') {
-            // For confirm, requester or admin can do it
-            if (!$isRequester && !$isManagerOrAdmin && !$isTechLeadRole) {
+            // Kỹ thuật 7: Sales Manager may edit a ticket but must not complete it.
+            if (auth()->user()->hasRole('sales_manager') && !auth()->user()->hasAnyRole(['super_admin', 'director'])) {
+                return redirect()->back()
+                    ->withErrors(['general' => 'Sales Manager không có quyền bấm hoàn thành ticket kỹ thuật.']);
+            }
+            if (!$isRequester && !auth()->user()->hasAnyRole(['super_admin', 'director']) && !$isTechLeadRole) {
                 return redirect()->back()
                     ->withErrors(['general' => 'Bạn không có quyền thực hiện hành động này.']);
             }
@@ -1332,8 +1345,9 @@ class TechnicalTicketController extends Controller
             'super_admin', 'director', 'technical_lead', 'technical_engineer', 
             'admin', 'purchase_manager', 'purchase_staff'
         ]);
+        $isSales = $user->hasAnyRole(['sales_staff', 'sales_manager', 'sales']) || in_array($user->department, ['Sales', 'Phòng Kinh doanh', 'Kinh doanh', 'BU1', 'BU2', 'BU3']);
 
-        if (!$isPrivilegedUser && ($user->hasRole('sales_staff') || $user->hasRole('sales_manager') || $user->hasRole('sales') || in_array($user->department, ['Sales', 'Phòng Kinh doanh']))) {
+        if (!$isPrivilegedUser || $isSales) {
             return Project::where(function ($q) use ($user, $includeProjectId) {
                 $q->where('manager_id', $user->id);
                 if ($includeProjectId) {

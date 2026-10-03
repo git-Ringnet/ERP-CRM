@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('quotations', QuotationController::class);
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convertToSale'])->name('quotations.convert');
     Route::post('/quotations/{quotation}/duplicate', [QuotationController::class, 'duplicate'])->name('quotations.duplicate');
+    Route::post('/quotations/{quotation}/send-email', [QuotationController::class, 'sendEmail'])->name('quotations.send-email');
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])->name('quotations.print');
     Route::get('/quotations/{quotation}/export-excel', [QuotationController::class, 'exportSingle'])->name('quotations.export-single');
 
@@ -329,6 +330,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/restore', [ProjectController::class, 'restoreProject'])->name('projects.restore');
     Route::get('/projects/{project}/export-vendor-excel', [ProjectController::class, 'exportVendorExcel'])->name('projects.export-vendor-excel');
     Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
+    Route::get('/projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->name('projects.duplicate');
     Route::resource('projects', ProjectController::class);
 
 
@@ -463,6 +465,10 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/marketing-items/{marketingItem}', [\App\Http\Controllers\MarketingItemController::class, 'update'])->name('marketing-items.update');
     Route::delete('/marketing-items/{marketingItem}', [\App\Http\Controllers\MarketingItemController::class, 'destroy'])->name('marketing-items.destroy');
     Route::post('/marketing-items/import', [\App\Http\Controllers\MarketingItemController::class, 'importStock'])->name('marketing-items.import');
+    Route::post('/marketing-items/import-file', [\App\Http\Controllers\MarketingItemController::class, 'importFile'])->name('marketing-items.import-file');
+    Route::get('/marketing-items/template/download', [\App\Http\Controllers\MarketingItemController::class, 'downloadTemplate'])->name('marketing-items.template.download');
+    Route::post('/marketing-items/{marketingItem}/approve', [\App\Http\Controllers\MarketingItemController::class, 'approve'])->name('marketing-items.approve');
+    Route::post('/marketing-items/{marketingItem}/reject', [\App\Http\Controllers\MarketingItemController::class, 'reject'])->name('marketing-items.reject');
     Route::post('/marketing-items/export', [\App\Http\Controllers\MarketingItemController::class, 'exportStock'])->name('marketing-items.export');
     Route::get('/marketing-items/{marketingItem}/transactions', [\App\Http\Controllers\MarketingItemController::class, 'transactions'])->name('marketing-items.transactions');
 
@@ -650,6 +656,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/marketing-events/{marketingEvent}/submit-approval', [\App\Http\Controllers\MarketingEventController::class, 'submitApproval'])->name('marketing-events.submit-approval');
     Route::post('/marketing-events/{marketingEvent}/approve', [\App\Http\Controllers\MarketingEventController::class, 'approve'])->name('marketing-events.approve');
     Route::post('/marketing-events/{marketingEvent}/reject', [\App\Http\Controllers\MarketingEventController::class, 'reject'])->name('marketing-events.reject');
+    Route::post('/marketing-events/{marketingEvent}/complete', [\App\Http\Controllers\MarketingEventController::class, 'complete'])->name('marketing-events.complete');
     Route::post('/marketing-events/{marketingEvent}/customers', [\App\Http\Controllers\MarketingEventController::class, 'addCustomers'])->name('marketing-events.customers.add');
     Route::delete('/marketing-events/{marketingEvent}/customers/{customer}', [\App\Http\Controllers\MarketingEventController::class, 'removeCustomer'])->name('marketing-events.customers.remove');
     Route::patch('/marketing-events/{marketingEvent}/customers/{customer}/status', [\App\Http\Controllers\MarketingEventController::class, 'updateCustomerStatus'])->name('marketing-events.customers.status');
@@ -669,6 +676,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/marketing-events/transactions/{transaction}/collect', [\App\Http\Controllers\MarketingEventController::class, 'collectDebt'])->name('marketing-events.transactions.collect');
 
     // =========================================================================
+    // Meeting Room Booking (ME 1)
+    // =========================================================================
+    Route::resource('meeting-rooms', \App\Http\Controllers\MeetingRoomBookingController::class);
+    Route::post('/meeting-rooms/{booking}/respond', [\App\Http\Controllers\MeetingRoomBookingController::class, 'respond'])->name('meeting-rooms.respond');
+
+    // =========================================================================
     // Sales Revenue Tracking — Tổng Doanh Số (Theo dõi & Thanh toán)
     // =========================================================================
     Route::get('/sales-revenues', [\App\Http\Controllers\SalesRevenueController::class, 'index'])->name('sales-revenues.index');
@@ -684,6 +697,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/technical/export', [\App\Http\Controllers\TechnicalDashboardController::class, 'export'])->name('technical.export');
     
     Route::get('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'index'])->name('technical.support-logs.index');
+    Route::get('/technical/support-logs/export', [\App\Http\Controllers\TechnicalSupportLogController::class, 'export'])->name('technical.support-logs.export');
     Route::post('/technical/support-logs', [\App\Http\Controllers\TechnicalSupportLogController::class, 'storeCentralized'])->name('technical.support-logs.store-centralized');
     Route::put('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'updateCentralized'])->name('technical.support-logs.update-centralized');
     Route::delete('/technical/support-logs/{id}', [\App\Http\Controllers\TechnicalSupportLogController::class, 'destroyCentralized'])->name('technical.support-logs.destroy-centralized');

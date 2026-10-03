@@ -21,9 +21,9 @@
     <!-- Actions -->
     <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ url()->previous() }}" 
+            <a href="{{ session('sales_list_url') ?: route('sales.index') }}" 
                class="inline-flex items-center px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors shadow-xs">
-                <i class="fas fa-arrow-left mr-2 text-gray-500"></i> Quay lại
+                <i class="fas fa-arrow-left mr-2 text-gray-500"></i> Quay lại danh sách
             </a>
             @if($sale->status === 'cancelled')
                 <span class="inline-flex items-center px-3.5 py-2 bg-red-50 text-red-500 text-sm font-semibold rounded-lg border border-red-200 cursor-not-allowed" 
@@ -794,17 +794,22 @@
                         @endif
                     @endif
 
-                    <p class="text-xs text-red-600 mb-4">Chức năng này dành cho Giám đốc/BOD hoặc người được ủy quyền để cho phép đặt hàng hoặc xuất hàng trước khi thanh toán.</p>
+                    <p class="text-xs text-red-600 mb-4">Chức năng này dành cho Giám đốc/BOD hoặc người được ủy quyền để cho phép đặt hàng preload hoặc xuất hàng trước khi thanh toán.</p>
                     <form action="{{ route('sales.approvePaymentException', $sale->id) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
                         @csrf
                         <div>
-                            <label class="block text-xs font-bold text-red-700 uppercase tracking-wider mb-2">Tài liệu phê duyệt đính kèm (Bắt buộc, hỗ trợ chọn nhiều file)</label>
-                            <input type="file" name="payment_exception_files[]" multiple required
+                            <label class="block text-xs font-bold text-red-700 uppercase tracking-wider mb-2">Ghi chú / Lý do ngoại lệ preload <span class="text-gray-400 font-normal">(bắt buộc nếu không có tệp đính kèm)</span></label>
+                            <textarea name="note" rows="2" placeholder="Nhập lý do ngoại lệ duyệt preload / cho phép đặt hàng trước thanh toán..."
+                                      class="block w-full text-xs text-gray-900 border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-red-500 focus:border-red-500"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-red-700 uppercase tracking-wider mb-2">Tài liệu phê duyệt đính kèm <span class="text-gray-400 font-normal">(Tùy chọn, nếu có file)</span></label>
+                            <input type="file" name="payment_exception_files[]" multiple
                                    class="block w-full text-xs text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-700 hover:file:bg-red-200">
                         </div>
                         <div class="flex justify-start">
                             <button type="submit" class="inline-flex items-center px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm focus:outline-none transition-colors duration-200">
-                                <i class="fas fa-check mr-1.5"></i> Phê duyệt Ngoại lệ
+                                <i class="fas fa-check mr-1.5"></i> Phê duyệt Ngoại lệ / Preload
                             </button>
                         </div>
                     </form>
@@ -927,8 +932,13 @@
                 <form id="exceptionForm" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                     @csrf
                     <div>
-                        <label class="block text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Tệp phê duyệt đính kèm (Bắt buộc, hỗ trợ chọn nhiều file)</label>
-                        <input type="file" name="bod_approval_files[]" multiple required
+                        <label class="block text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Ghi chú / Lý do ngoại lệ đợt <span class="text-gray-400 font-normal">(bắt buộc nếu không có tệp)</span></label>
+                        <textarea name="exception_reason" rows="2" placeholder="Nhập lý do duyệt ngoại lệ đợt thanh toán này..."
+                                  class="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-red-500 focus:border-red-500"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Tệp phê duyệt đính kèm <span class="text-gray-400 font-normal">(Tùy chọn, nếu có file)</span></label>
+                        <input type="file" name="bod_approval_files[]" multiple
                                class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
                     </div>
                     <div class="flex justify-end space-x-2 pt-2">

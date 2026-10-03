@@ -165,6 +165,7 @@
                                 <option value="after_sales" {{ old('work_type', $ticket->work_type) === 'after_sales' ? 'selected' : '' }}>After-sales support</option>
                                 <option value="training" {{ old('work_type', $ticket->work_type) === 'training' ? 'selected' : '' }}>Training / Update</option>
                                 <option value="event" {{ old('work_type', $ticket->work_type) === 'event' ? 'selected' : '' }}>Event / Speaker</option>
+                                <option value="it_support" {{ old('work_type', $ticket->work_type) === 'it_support' ? 'selected' : '' }}>IT nội bộ (Thiết bị, phần mềm, phần cứng)</option>
                                 <option value="other" {{ old('work_type', $ticket->work_type) === 'other' ? 'selected' : '' }}>Other</option>
                             </select>
                             @error('work_type')

@@ -1,0 +1,331 @@
+Dashboard
+Phần
+Lỗi/ điểm cần thay đổi
+Đề xuất (nếu có)
+Phân loại
+Phản hồi
+Dashboard 1 - Manager
+Cho phép lọc trên thanh công cụ thay vì là có 1 bộ lọc riêng, đồng bộ cho tất cả các phần
+Ví dụ minh hoạ lọc giống như file excel
+Cải tiến
+Dashboard 2 - Manager
+Bổ sung thêm trường thông tin để biết được khách hàng này là do Sales/ nhân sự nào bổ sung vào
+Bổ sung
+Dashboard - BĐH
+Không thể lọc tình trạng dự án update đang là bestcase hay commit
+Đề xuất cho lọc thêm status dự án
+Bổ sung
+Kho hàng
+Phần
+Lỗi/ điểm cần thay đổi
+Đề xuất (nếu có)
+Phân loại
+Phản hồi
+Quản lý kho / Không có yêu cầu mới
+Tồn kho
+Giữ hàng 1 - Sales
+Hiển thị
+Thay đổi “Mượn hàng” => “Giữ hàng”
+Đúng tính chất công việc
+Điều chỉnh hiển thị
+Giữ hàng 1 - Sales
+Hiện tại giữ hàng rồi thì có thể vào tạo đơn hàng bán và chọn xuất hàng có sẵn trong kho tuy nhiên đang gặp vấn đề là hiển thị toàn bộ sản phẩm có trong kho chứ không phải chỉ là sản phẩm sales đã giữ => phải ghi nhớ thông tin, mã để search lại, không thật sự tối ưu
+Có thể bổ sung vào xuất hàng từ chỗ mượn luôn được không
+Cho phép tạo đơn hàng bán từ hàng hoá mình đã mượn và qua bên tạo đơn hàng chọn sản phẩm mình đã giữ, tức là có 2 chỗ xuất hàng tổn kho mình giữ
+Thắc mắc
+Giải đáp thắc mắc
+Tồn kho 1 - Hiển thị
+Kho “hàng dự án”: nếu không cho giữ hàng dự án thì tại sao vẫn hiển thị cột “người mượn thiết bị”
+Tương tự với kho “hàng license”
+Điều chỉnh xoá bớt các cột thông tin không cần thiết
+Điều chỉnh hiển thị
+Tồn kho 2 - Hiển thị
+Dư nút lọc kho ở bên gốc phải màn hình, nếu vô tính chọn lọc bên đó thì các thông tin khác sẽ đều bị ảnh hưởng trong khi bên dưới đã có hàng cho chọn 4 loại kho khác nhau rồi
+Dư nên đề xuất bỏ
+Điều chỉnh hiển thị
+Nhập kho / Không có yêu cầu mới
+Nhập kho 1 - Kho
+Cho phép nhập số S/N tương tự như ở module mua hàng
+Xuất kho / Không có yêu cầu mới
+Chuyển kho / Không có yêu cầu mới
+Bán hàng
+Phần
+Lỗi/ điểm cần thay đổi
+Đề xuất (nếu có)
+Phân loại
+Phản hồi
+Cơ hội / Không có yêu cầu mới
+BC Tần suất gặp / Không có yêu cầu mới
+Marketing Event
+ME 1 - Marketing
+Hiện chưa có ticket này
+Bổ sung ticket book lịch phòng họp
+Cho phép toàn bộ nhân sự đều được sử dụng ticket này
+Cho phép book phòng họp, nhưng phải có thông tin nội dung đầy đủ và được add người tham
+Đối với những người được add vào thì sẽ thấy toàn bộ nội dung cuộc họp, thời gian và có quyền bấm vào tham gia hay không hiển thi trên lịch trình của họ luôn
+Đối với các nhân sự khác thì chỉ thấy phòng họp được book không trống thời gian đó, thấy được người book là ai nhưng không thấy được chi tiết nội dung cuộc họp cũng như người tham dự.
+Có thể tham khảo tính năng set lịch họp trên outlook
+Đề xuất mới
+ME 2 - Marketing
+Hiện một Marketing Event chỉ chọn được 1 hãng
+Cho phép lựa chọn nhiều hãng trong cùng một Marketing Event: Hiện một sự kiện có thể nhận hỗ trợ từ nhiều hãng khác nhau, do đó đề xuất hệ thống cho phép chọn đồng thời nhiều hãng khi tạo Marketing Event, thay vì chỉ chọn một hãng. Thông tin ngân sách/hỗ trợ của từng hãng cần được ghi nhận riêng để thuận tiện theo dõi và đối soát.
+Bổ sung
+ME 3 - Marketing
+Hiện một Marketing Event chỉ chọn được 1 hãng (nội dung trùng ME 2)
+Cho phép lựa chọn nhiều hãng trong cùng một Marketing Event. Ngân sách/hỗ trợ của từng hãng được ghi nhận riêng để theo dõi và đối soát.
+Trùng ME 2 – đề xuất gộp
+ME 4 - Marketing
+Marketing Event – Sự kiện nội bộ
+Điều chỉnh các trường thông tin cần nhập đối với Sự kiện nội bộ; chỉ hiển thị/yêu cầu các trường phù hợp với loại sự kiện này.
+Điều chỉnh hiển thị
+ME 5 - Marketing
+Marketing Event – Nguồn tiền
+Cho phép lựa chọn nhiều nguồn tiền trong cùng một sự kiện, bao gồm nhiều hãng và Công đoàn; cho phép nhập số tiền tương ứng của từng nguồn.
+Hiển thị cảnh báo nếu số tiền nhập hiện đang lớn hơn với số thực tế trong kho
+Bổ sung
+ME 6 - Marketing
+Vật phẩm mới
+Bổ sung chức năng đề xuất vật phẩm mới → BOD phê duyệt trước khi mua/sử dụng. Thông tin gồm: tên vật phẩm, số lượng, chi phí dự kiến, nguồn tiền sử dụng (fund hãng, công đoàn, đề xuất công ty hỗ trợ thêm), mục đích sử dụng và lựa chọn event/ sự kiện/ ticket liên quan.
+Đề xuất mới
+ME 7 - Marketing
+Quà tặng
+Cho phép import danh sách quà tặng bằng file Excel theo mẫu thay vì nhập thủ công từng dòng.
+Bổ sung
+ME 8 - Marketing
+Marketing Event – Ngân sách thực tế
+Bổ sung cột “Ngân sách thực tế”. Khi sự kiện kết thúc, Marketing bấm “Hoàn thành sự kiện” và nhập chi phí thực tế theo từng hãng/nguồn hỗ trợ. Nếu chi phí vượt ngân sách, bắt buộc khai báo nguồn tiền bù phần chênh lệch.
+Bổ sung
+ME 9 - Marketing
+Marketing Event – Yêu cầu thanh toán
+Bổ sung chức năng “Yêu cầu thanh toán” cho Marketing, liên kết với Marketing Event và nguồn ngân sách tương ứng; theo dõi Ngân sách dự kiến – Đã yêu cầu thanh toán – Chi phí thực tế – Ngân sách còn lại.
+Bổ sung
+Báo giá
+Báo giá 1 - Sales
+Hiện chưa cho phép gửi mail trực tiếp đến khách hàng
+Bổ sung chức năng gửi email báo giá trực tiếp cho khách hàng từ hệ thống
+Bổ sung
+Báo giá 2 - Sales
+Báo giá đang cho hiển thị cột pricelist => không cần thiết
+Xoá cột pricelist ở mục báo giá đi
+Điều chỉnh hiển thị
+Báo giá 3 - Sales
+Tab Báo giá dù đã liên kết với dự án trước đó nhưng không tự gợi ý tên khách hàng tương ứng
+Tự động gợi ý tên khách hàng theo dự án đã liên kết khi tạo báo giá
+Bổ sung
+Báo giá 4 - Sales
+File báo giá xuất ra vẫn còn cột pricelist (thừa, trùng nội dung với Báo giá 2); ngoài ra Sales không thể chỉnh sửa/xoá báo giá kể cả khi chưa xác nhận gửi
+Bỏ cột pricelist trên file báo giá xuất cho khách hàng; cho phép Sales chỉnh sửa/xoá báo giá khi chưa xác nhận gửi
+Bổ sung (trùng 1 phần với Báo giá 2)
+Báo giá 5 - Sales
+Ở phần Báo giá và tạo đơn hàng không xem được BOM của dự án liên kết, phải thoát ra xem lại rất bất tiện, đôi khi sản phẩm tạo sẵn bị sai/thiếu
+Hiển thị BOM của dự án liên kết ngay tại màn hình Báo giá/ tạo đơn hàng
+Bổ sung
+Đơn hàng bán
+Đặt hàng 1 - Sales
+Đã đề xuất từ trước là chỉ cần chọn cấp CQ 1 lần sẽ ứng cho toàn bộ đơn hàng => hiện tại vẫn bắt phải chọn từng hàng => tốn tgian
+Đồng bộ lại, chỉ cần chọn CQ 1 lần thôi
+Cải tiến
+Đặt hàng 2 - Sales
+Chưa có thông tin phân biệt license từ NPP khác
+Đặt hàng license hiển thị thêm mục tick vào có file là license từ NPP khác hay không
+Bổ sung
+Đặt hàng 3 - Sales
+Phần Yêu cầu đặt hàng chỉ cho phép đính kèm lần lượt 1 file
+Cho phép đính kèm nhiều file cùng lúc; đồng thời đặt phần đính kèm file thành trường bắt buộc khi đặt hàng
+Bổ sung
+PNL 1 - Sales
+Hiện chưa duyệt được PNL nhưng lại cho duyệt UNC trước => không đúng logic
+Chưa duyệt PNL tức là chưa duyệt điều kiện thanh toán đó thì làm sao mà có UNC được
+Sai logic
+PNL 2 - Finance
+PNL chưa hiển thị tổng giá đầu vào
+Đề xuất hiển thị phần tổng của giá đầu vào
+Bổ sung
+PNL 3 - Sales
+Hiện phân tỷ giá đang bắt nhập từng dòng, tuy nhiên tỷ giá thường sẽ tính cho cả đơn hàng
+Cần cho phép nhấp 1 lần đồng bộ cho cả đơn hàng và vẫn có thể điều chỉnh tay từng cái phòng các trường hợp khác xảy ra
+Cải tiến
+Quản lý đơn hàng
+Lọc trạng thái xong chọn 1 đơn hàng, ví dụ lọc “chờ duyệt PNL” xong vào duyệt thì khi duyệt xong 1 đơn quay lại lại phải lọc lần nữa , liên tục thao tác như vậy sẽ rất mất thời gian
+Giữ nguyên bộ lọc trạng thái sau khi duyệt xong một đơn (không phải lọc lại khi quay về danh sách)
+Cải tiến
+Thanh toán 1 - Sales
+Các đơn mong muốn preload (tức là ko đính kèm UNC vẫn đặt hàng được dù dk thanh toán đang là đặt cọc mới được đặt hàng) hiện đang cho phép báo BOD duyệt preload, tuy nhiên lại bắt đình kèm file thay vì ghi thẳng mục note thông tin trên đó để BOD xem xét và duyệt
+Đổi đính kèm file thành ghi chú nội dung đồng thời cũng cho phép đính kèm nếu cần/ nếu có file, không phải yêu cầu bắt buộc
+Điều chỉnh quy trình
+Thanh toán 2 - Sales
+Cần điều chỉnh quy trình thanh toán sau XHĐ: phân quyền cho Kế toán, không bắt buộc upload UNC
+Sau khi XHĐ thì kế toán là người theo dõi và hoàn tất thanh toán của khách hàng
+Sales không có quyền làm cái đó
+Kế toán khi bấm chọn thanh toán thì ko cần upload UNC mà cần ghi số tiền vào và chọn giữa chính thức/ chưa chính thức
+Khi nào mà số tiền cuối nhập vào tương ứng với số tiền ban đầu/ còn lại cần thanh toán sau XHĐ của đơn hàng thì mới hoàn tất deal
+Điều chỉnh quy trình
+XHĐ 1 - Kế toán
+Chưa có nút Hoàn tất XHĐ cho Kế toán
+Hiển thị nút Hoàn tất XHĐ để kế toán bấm vào hoàn tất quy trình này
+Bổ sung
+XHĐ 2 - Kế toán
+Chưa có lựa chọn hoá đơn nháp và bước Admin duyệt trước khi xuất hoá đơn chính thức
+Khi sales bấm XHĐ thì khi điền thông tin sẽ hiển thị là có cần hoá đơn nháp hay không
+Nếu cần thì kế toán mới phải xuất hoá đơn nháp
+Nếu không cần thì admin duyệt đơn đó và xuất chính thức luôn
+Nhìn chung, logic sẽ là đến khi nào XHĐ chính thức thì admin cần duyệt đơn đó mới được xuất chính thức để đảm bảo đúng thông tin
+Admin có quyền từ chối trả lại yêu cầu XHĐ nếu yêu cầu đó thiếu thông tin (kèm note chi tiết lý do
+Điều chỉnh quy trình
+XHĐ 3 - Sales
+Chưa cho Sales yêu cầu XHĐ khi hàng chưa về
+Cho phép Sales được yêu cầu xuất hoá đơn ngay cả khi hàng chưa về nhưng mà không cho phép xuất kho khi hàng chưa về.
+Điều chỉnh quy trình
+Kho và giao nhận 1 - Sales
+Hiện đang chặn sales ở bước xuất kho, hoặc đang lỗi
+Sales có thể yêu cầu xuất kho song song với xuất hoá đơn
+Admin sẽ là người chặn ở bước này để đảm bảo là hoá đơn đã xuất r thì mới báo kho xuất kho được
+Nhưng không chặn sales ở bước này
+Sai logic
+ĐKDA
+ĐKDA 1 - Sales
+Vấn đề đặt ra:
+Cùng 1 thông tin dự án mà muốn đk nhiều hãng thì sao
+Hiện đang bắt nhập lại các đơn
+Đề xuất:
+Cho phép dupliceate dự án
+Bổ sung
+ĐKDA 2 - Sales
+Vấn đề đặt ra:
+Dự án đăng ký đã từ chối rồi nhưng hiện vẫn có quyền update thông tin => Sai Logic
+Đề xuất:
+Ko cho phép update nữa mà báo huỷ luôn dự án
+Đối với dự án được thông báo trùng thì yêu cầu PO/PM Team cần:
+Cung cấp thông tin Sales TH đang làm trùng, ko cung cấp nội dung dự án
+Cung cấp thông tin Sales hãng đang làm
+Sai logic
+ĐKDA 3 - Sales
+Hiện có set luật để cho các dự án sau 3 tháng ko update thì hiển thị cảnh báo đã bị expire và open cho sales khác có thể đăng ký được
+Kiểm tra lại cơ chế cảnh báo expire (sau 3 tháng không update) và mở đăng ký cho Sales khác có đang hoạt động đúng quy tắc đã đặt hay không
+Cần kiểm tra
+ĐKDA 4 - Sales
+Đề xuất ban đầu các dự án FTN đều có mục NTF bắt buộc điền nhưng hiện không điền vẫn có thể đkda được
+Bắt buộc nhập mục NTF đối với dự án FTN trước khi cho phép ĐKDA
+Lỗi
+ĐKDA 5 - Sales
+Hiển thị
+ĐKDA thường sẽ bắt đầu sau cơ hội
+Đề xuất điều chỉnh đẩy lên cạnh cơ hội
+Điều chỉnh hiển thị
+ĐKDA 6 - Sales
+PO/ PM Team chưa đkda nữa mà sales đã được quyền update close won
+Chỉ cho phép Sales update Close Won sau khi PO/ PM Team đã ĐKDA
+Sai logic
+ĐKDA 7 - Sales
+Dự án đã duyệt vẫn cho phép chỉnh sửa nội dung
+Dự án đã duyệt rồi thì không cho phép chỉnh sửa nội dung bên trong nữa, nếu muốn điều chỉnh thì phải đkda mới
+Điều chỉnh quy trình
+ĐKDA 8 - PO/ PM Team
+Form xuất đkda gửi cho hãng hiện đang nằm ngang
+Chuyển sang template dọc để có thể dễ copy gửi qua mail cho hãng
+Điều chỉnh hiển thị
+ĐKDA 9 - Sales
+Tab Đăng ký dự án chưa có mục "Net to FTN" (đối với dự án FTN); trường BOM hiện chưa phải trường bắt buộc nhập
+Thêm mục "Net to FTN" cho dự án FTN và đặt BOM thành 2 trường bắt buộc
+Bổ sung
+ĐKDA 10 - Sales
+Chưa đồng bộ chính xác mã khi đăng ký dự án đúng công thức qua báo giá/ đơn hàng bán
+Ví dụ nhập đúng công thức mã
+1 x FG-200G-BDL-950-12
+Thì phần mềm tự nhận thành mã 201G
+Tăng khả năng nhận diện các model chính xác hơn
+Lỗi đồng bộ
+Công nợ khách hàng
+Công nợ KH 1 - Sales
+Tại sao phần điều khoản thanh toán nếu mà
+Bước tạo đơn hàng bán đầu tiên thì nằm vị trí bên dưới
+Bước báo giá đầu tiên chuyển sang đơn hàng bán thì nằm ở trên
+=> gây khó khăn cho Sales trong việc phải nhớ các thao tác
+Có thể thống nhất 1 cách thôi được không
+Thắc mắc
+Báo cáo bán hàng
+Tổng doanh số
+Tổng doanh số 1 - Báo cáo
+Báo cáo Tổng doanh số chưa có cột ngày XHĐ chính thức
+Bổ sung thêm cột ngày XHĐ chính thức
+Bổ sung
+Mua hàng
+Phần
+Lỗi/ điểm cần thay đổi
+Đề xuất (nếu có)
+Phân loại
+Phản hồi
+Bảng giá
+Bảng giá 1
+Bảng giá chưa có thời hạn hiệu lực
+Cho phép set thời hạn bảng gía để những đơn hàng PNL đã soạn và được duyệt trong thời gian đó thì không thay đổi nhưng sau thời gian đó chưa gửi duyệt sẽ tự động update priceslist mới
+Bổ sung
+Đặt hàng với hãng
+ĐHVH 1 - PO Team
+Chưa cho tạo SO trực tiếp (không qua PNL) với hãng Zyxel
+Cho phép tự tạo SO không cần PNL đối với hãng Zyxel để gom đơn đặt hàng với hãng
+SO đó bao gồm đầy đủ thông tin BOM và người yêu cầu (cho phép chọn trực tiếp tên Sales để gán đơn hàng đó với Sales hoặc chọn Hãng yêu cầu)
+Khi hàng về thao tác vẫn như bình thường và Sales sẽ có sẵn hàng như hàng runrate và tạo đơn hàng xuất hàng như bình thường
+Bổ sung
+ĐHVH 2 - PO Team
+Chưa có điều khoản thanh toán khi đặt hàng với hãng
+Đề xuất thêm điều khoản thanh toán đặt hàng với hãng
+PO Team là ngày nhập trường thông tin này
+FTN - hạn thanh toán 45 ngày
+Non FTN - 30 ngày
+Cho phép điều chỉnh
+=> kế toán theo dõi được công nợ để thanh toán cho hãng
+Bổ sung
+ĐHVH 3 - PO Team
+Chưa có mục đặt hàng với NPP khác
+Bổ sung thêm mục đặt hàng với bên NPP khác
+Bổ sung
+Kỹ thuật
+Phần
+Lỗi/ điểm cần thay đổi
+Đề xuất (nếu có)
+Phân loại
+Phản hồi
+Kỹ thuật 1 - Kỹ thuật
+Hiện tại kỹ thuật đang thể hiện theo dạng ticket action chứ không phải là 1 chuỗi action thuộc 1 dự án
+Cho phép 1 dự án được mở ra nhiều ticket kỹ thuật thay vì phải tạo mới hoàn toàn
+VD như 1 dự án tạo cơ hội trình bày giải pháp => ticket trình bày với kỹ thuật
+Chuyển qua dự án => ticket request BOM trước đó hoặc sau đó rồi đk dự án từ BOM đó
+ĐKDA đã được approve rồi thì cho phép request các ticket khác như tài liệu spec,....
+Điều chỉnh quy trình
+Kỹ thuật 2 - Kỹ thuật
+Khi tạo ticket kỹ thuật và mục dự án tuy cho lựa chọn nhưng lại thể hiện toàn bộ tên dự án cho trong database thay vì là tên các dự án của Sales
+Điều chỉnh lại, cố gắng đồng bộ tất cả luồng thông tin sao mà của sales nào thì sales đó thấy thôi và các Sales khác không được quyề thấy
+Điều chỉnh phân quyền
+Kỹ thuật 3 - Kỹ thuật
+Chưa có phân quyền xem dữ liệu theo 3 mức (tất cả / group / lead)
+3opt phân quyền
+1 là tất cả
+2 là group
+3 là lead
+Điều chỉnh phân quyền
+Kỹ thuật 4 - Tech Lead
+Chưa có chức năng transfer task, đổi người phụ trách
+Cho phép transfer task, đổi người phụ trách chịu trách nhiệm task
+Chỉ có tech lead mới được thực hiện việc này
+Với task transfer sẽ hiển thị lên là có muốn người phụ trách cũ vần thấy được task đó hay không
+Chọn giữa muốn và không muốn
+Bổ sung
+Kỹ thuật 5 - Kỹ thuật
+Nhật ký công việc chưa phân loại task và chưa xuất được Excel
+Phần viết nhật ký cho phép chọn loại task
+24/7
+Ngoài giờ làm việc
+Cho phép xuất file excel phần này
+Mỗi cá nhân được xuất file phần của mình nhưng leader được xuất file toán bộ nhân viên
+Bổ sung
+Kỹ thuật 6 - Các phòng ban
+Chưa có ticket IT hỗ trợ thiết bị, máy móc nội bộ
+Bổ sung ticket IT cho các phòng ban khác
+Ticker nhầm hỗ trợ các vấn đề liên quan đến thiết bị, máy móc nội bộ công ty
+Đề xuất mới
+Kỹ thuật 7 - Sales Manager
+Hiện tại ticket kỹ thuật Sales Manager vẫn đang được bấm hoàn thành => sai logic
+Sales Manager có thể chỉnh sửa được ticket của sales luôn
+Không cho Sales Manager bấm Hoàn thành ticket kỹ thuật; vẫn cho phép Sales Manager chỉnh sửa ticket của Sales
+Sai logic

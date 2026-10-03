@@ -90,6 +90,15 @@ class QuotationPolicy extends BasePolicy
             return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
         }
 
+        if ($quotation->project_id && $quotation->project && $quotation->project->manager_id === $user->id) {
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
+        }
+
+        // Báo giá 4: Sales staff can edit their quotation before conversion
+        if ($user->hasRole('sales_staff') || in_array($user->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh'])) {
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
+        }
+
         return $this->checkPermission($user, 'edit_quotations') || $this->checkPermission($user, 'approve_quotations');
     }
 
@@ -100,6 +109,15 @@ class QuotationPolicy extends BasePolicy
         }
 
         if ($quotation->created_by === $user->id || $quotation->user_id === $user->id) {
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
+        }
+
+        if ($quotation->project_id && $quotation->project && $quotation->project->manager_id === $user->id) {
+            return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
+        }
+
+        // Báo giá 4: Sales staff can delete their quotation before conversion
+        if ($user->hasRole('sales_staff') || in_array($user->department, ['Sales', 'BU1', 'BU2', 'BU3', 'Kinh doanh'])) {
             return empty($quotation->converted_to_sale_id) && $quotation->status !== 'converted';
         }
 

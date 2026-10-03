@@ -23,11 +23,11 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Vendor <span class="text-red-500">*</span>
                                 </label>
-                                <select name="vendor_id" required
+                                <select name="vendor_id" id="vendor_id" required onchange="onVendorChange(this)"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn Vendor --</option>
                                     @foreach($suppliers as $supplier)
-                                        <option value="{{ $supplier->id }}" {{ old('vendor_id', $project->vendor_id) == $supplier->id ? 'selected' : '' }}>
+                                        <option value="{{ $supplier->id }}" data-assigned-team="{{ $supplier->assigned_team }}" {{ old('vendor_id', $project->vendor_id) == $supplier->id ? 'selected' : '' }}>
                                             {{ $supplier->name }}
                                         </option>
                                     @endforeach
@@ -316,7 +316,9 @@
                                 @error('name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">BOM (Bill of Materials)</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    BOM (Bill of Materials) hoặc File YCKT <span class="text-red-500">* (Bắt buộc)</span>
+                                </label>
                                 @if($project->bom_file && is_array($project->bom_file) && count($project->bom_file) > 0)
                                     <div class="mb-3 space-y-2" id="existing_bom_container">
                                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">File BOM hiện tại:</p>
@@ -380,7 +382,22 @@
                                 @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
 
-                            <!-- Removed Net to Tech Horizon, Description, Note -->
+                            <!-- Net to FTN (Bắt buộc cho dự án Fortinet) -->
+                            <div class="md:col-span-2" id="net_to_ftn_container">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Net to FTN (VNĐ) <span id="net_to_ftn_required_star" class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="number" step="any" min="0" name="net_to_tech_horizon" id="net_to_tech_horizon"
+                                        value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) }}"
+                                        placeholder="Nhập giá trị Net to FTN..."
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1" id="net_to_ftn_hint">
+                                    <span class="text-amber-600 font-semibold">* Lưu ý:</span> Bắt buộc nhập Net to FTN đối với tất cả dự án Fortinet (PO Team).
+                                </p>
+                                @error('net_to_tech_horizon') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1104,6 +1121,29 @@
                         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu cập nhật...';
                     }
                 });
+
+                window.onVendorChange = function(select) {
+                    const selectedText = select.options[select.selectedIndex]?.text || '';
+                    const isFtn = selectedText.toLowerCase().includes('fortinet') || selectedText.toLowerCase().includes('ftn');
+                    const star = document.getElementById('net_to_ftn_required_star');
+                    const netInput = document.getElementById('net_to_tech_horizon');
+                    const netHint = document.getElementById('net_to_ftn_hint');
+
+                    if (isFtn) {
+                        if (star) star.classList.remove('hidden');
+                        if (netInput) netInput.setAttribute('required', 'required');
+                        if (netHint) netHint.classList.remove('hidden');
+                    } else {
+                        if (star) star.classList.add('hidden');
+                        if (netInput) netInput.removeAttribute('required');
+                        if (netHint) netHint.classList.add('hidden');
+                    }
+                };
+
+                const vendorSelect = document.getElementById('vendor_id');
+                if (vendorSelect && vendorSelect.value) {
+                    window.onVendorChange(vendorSelect);
+                }
             });
         </script>
     @endpush

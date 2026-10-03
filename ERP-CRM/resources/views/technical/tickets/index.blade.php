@@ -65,6 +65,7 @@
                         <option value="after_sales" {{ request('work_type') === 'after_sales' ? 'selected' : '' }}>After-sales support</option>
                         <option value="training" {{ request('work_type') === 'training' ? 'selected' : '' }}>Training / Update</option>
                         <option value="event" {{ request('work_type') === 'event' ? 'selected' : '' }}>Event / Speaker</option>
+                        <option value="it_support" {{ request('work_type') === 'it_support' ? 'selected' : '' }}>IT nội bộ (Thiết bị, máy móc nội bộ)</option>
                         <option value="other" {{ request('work_type') === 'other' ? 'selected' : '' }}>Other</option>
                     </select>
                 </div>

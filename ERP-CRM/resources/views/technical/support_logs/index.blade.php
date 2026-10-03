@@ -21,6 +21,7 @@
                 technical_ticket_id: '',
                 log_date: '{{ date('Y-m-d') }}',
                 user_id: '{{ Auth::id() }}',
+                work_category: 'regular',
                 serial_number: '',
                 support_content: '',
                 status: 'open',
@@ -43,6 +44,7 @@
                     technical_ticket_id: '',
                     log_date: '{{ date('Y-m-d') }}',
                     user_id: this.currentUserId,
+                    work_category: 'regular',
                     serial_number: '',
                     support_content: '',
                     status: 'open',
@@ -64,6 +66,7 @@
                     technical_ticket_id: log.technical_ticket_id || '',
                     log_date: log.log_date ? log.log_date.substring(0, 10) : '{{ date('Y-m-d') }}',
                     user_id: log.user_id,
+                    work_category: log.work_category || 'regular',
                     serial_number: log.serial_number || '',
                     support_content: log.support_content || '',
                     status: log.status || 'open',
@@ -87,11 +90,14 @@
             <h2 class="text-lg font-bold text-gray-900">Báo cáo công việc kỹ thuật</h2>
             <p class="text-sm text-gray-500">Tra cứu lịch sử nhật ký hỗ trợ kỹ thuật và cập nhật báo cáo công việc hàng ngày</p>
         </div>
+        <div class="flex gap-2">
         @can('manage_technical_support_logs')
+            <a href="{{ route('technical.support-logs.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm"><i class="fas fa-file-excel mr-2"></i>Xuất CSV</a>
             <button @click="openCreateModal()" class="inline-flex items-center px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
                 <i class="fas fa-plus mr-2"></i> Viết Nhật ký (Report Tech)
             </button>
         @endcan
+        </div>
     </div>
 
     <!-- Filters Block -->
@@ -122,6 +128,10 @@
                         <option value="{{ $t->id }}" {{ request('ticket_id') == $t->id ? 'selected' : '' }}>{{ $t->code }} - {{ Str::limit($t->title, 30) }}</option>
                     @endforeach
                 </select>
+            </div>
+            <div>
+                <label for="work_category" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại công việc</label>
+                <select name="work_category" id="work_category" class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary"><option value="">Tất cả</option><option value="regular" @selected(request('work_category') === 'regular')>Trong giờ</option><option value="on_call" @selected(request('work_category') === 'on_call')>24/7</option><option value="after_hours" @selected(request('work_category') === 'after_hours')>Ngoài giờ</option></select>
             </div>
             <div class="flex items-end space-x-2">
                 <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/95 transition-colors shadow-sm">
@@ -160,6 +170,7 @@
                         <th class="px-3 py-2.5 w-28 text-center shrink-0">Ngày ghi nhận</th>
                         <th class="px-3 py-2.5 w-44 shrink-0">Ticket liên quan</th>
                         <th class="px-3 py-2.5 w-40 shrink-0">Kỹ sư thực hiện</th>
+                        <th class="px-3 py-2.5 w-28 shrink-0">Loại</th>
                         <th class="px-4 py-2.5 w-[30%]">Nội dung hỗ trợ kỹ thuật</th>
                         <th class="px-4 py-2.5 w-[20%]">Khách hàng / Người liên hệ</th>
                         <th class="px-3 py-2.5 text-center w-36 min-w-[120px] shrink-0">Trạng thái công việc</th>
@@ -187,6 +198,7 @@
                             <td class="px-3 py-2.5 font-medium text-gray-800">
                                 {{ $log->user->name ?? 'N/A' }}
                             </td>
+                            <td class="px-3 py-2.5 text-xs text-gray-700">{{ $log->work_category_label }}</td>
                             <td class="px-4 py-2.5">
                                 <div class="text-gray-900 whitespace-pre-line leading-relaxed break-all [overflow-wrap:anywhere]" style="word-break: break-word; overflow-wrap: anywhere;">
                                     {{ $log->support_content }}
@@ -230,7 +242,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-10 text-center text-gray-400 italic">Không tìm thấy nhật ký hỗ trợ nào.</td>
+                            <td colspan="9" class="px-6 py-10 text-center text-gray-400 italic">Không tìm thấy nhật ký hỗ trợ nào.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -317,6 +329,10 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                            <label for="modal_work_category" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Loại công việc (*)</label>
+                            <select name="work_category" id="modal_work_category" required class="w-full border-gray-200 rounded-lg text-sm focus:border-primary focus:ring-primary" x-model="logData.work_category"><option value="regular">Trong giờ làm việc</option><option value="on_call">24/7</option><option value="after_hours">Ngoài giờ làm việc</option></select>
+                        </div>
                         <!-- Serial Number -->
                         <div>
                             <label for="modal_serial_number" class="block text-xs font-semibold text-gray-500 uppercase mb-1">Số S/N</label>

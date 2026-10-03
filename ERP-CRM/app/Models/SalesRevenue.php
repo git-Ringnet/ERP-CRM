@@ -26,6 +26,7 @@ class SalesRevenue extends Model
         // 23 cột template
         'cpq_number',
         'invoice_status',
+        'official_invoice_date',
         'warehouse_status',
         'license_exported',
         'po_code',
@@ -54,6 +55,7 @@ class SalesRevenue extends Model
 
     protected $casts = [
         'po_date' => 'date',
+        'official_invoice_date' => 'date',
         'expired_date' => 'date',
         'list_price' => 'decimal:2',
         'discount_percent' => 'decimal:2',
@@ -249,8 +251,12 @@ class SalesRevenue extends Model
         $latestInvoice = $sale->invoiceRequests()->latest()->first();
         if ($latestInvoice) {
             $this->invoice_status = $latestInvoice->status;
+            $this->official_invoice_date = $latestInvoice->status === 'official_issued'
+                ? ($sale->invoice_date ?? $latestInvoice->invoiced_at?->toDateString())
+                : null;
         } else {
             $this->invoice_status = 'not_issued';
+            $this->official_invoice_date = null;
         }
 
         // Quotation ID → find quotation that converted to this sale

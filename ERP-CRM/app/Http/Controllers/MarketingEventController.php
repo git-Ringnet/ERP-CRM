@@ -56,7 +56,7 @@ class MarketingEventController extends Controller
     {
         $this->authorize('viewAny', MarketingEvent::class);
 
-        $query = MarketingEvent::with(['creator', 'approvalHistories'])->latest();
+        $query = MarketingEvent::with(['creator', 'approvalHistories', 'vendor', 'suppliers'])->latest();
 
         $user = $request->user();
         if (!$user->hasAnyRole(['super_admin', 'admin', 'director', 'marketing', 'marketing_manager', 'sales_manager'])) {
@@ -79,6 +79,8 @@ class MarketingEventController extends Controller
         $directRequests = collect();
         $marketingAssignees = collect();
         $availableMarketingItems = collect();
+        $paymentRequests = collect();
+
         if ($request->query('tab') === 'requests') {
             $directRequests = MarketingRequest::with([
                 'ticket.creator',
@@ -104,7 +106,36 @@ class MarketingEventController extends Controller
                 ->where('stock_quantity', '>', 0)
                 ->orderBy('name')
                 ->get();
+        } elseif ($request->query('tab') === 'payments') {
+            $paymentQuery = MarketingRequest::with([
+                'ticket.creator',
+                'ticket.event.suppliers',
+                'event.suppliers',
+                'fund.supplier',
+                'comments.user'
+            ])->whereHas('ticket', fn($q) => $q->where('type', 'payment'));
+
+            if ($request->filled('payment_status')) {
+                $paymentQuery->where('status', $request->payment_status);
+            }
+            if ($request->filled('event_id')) {
+                $paymentQuery->where('marketing_event_id', $request->event_id);
+            }
+            if ($request->filled('search')) {
+                $s = $request->search;
+                $paymentQuery->where(function($q) use ($s) {
+                    $q->where('code', 'like', "%{$s}%")
+                      ->orWhere('description', 'like', "%{$s}%")
+                      ->orWhere('funding_source', 'like', "%{$s}%");
+                });
+            }
+            $paymentRequests = $paymentQuery->latest()->paginate(20)->withQueryString();
         }
+
+        // Stats for payment requests
+        $pendingPaymentApprovalCount = MarketingRequest::whereHas('ticket', fn($q) => $q->where('type', 'payment'))->where('status', 'pending_approval')->count();
+        $pendingPaymentCount = MarketingRequest::whereHas('ticket', fn($q) => $q->where('type', 'payment'))->where('status', 'pending_payment')->count();
+        $paidTotalAmount = MarketingRequest::whereHas('ticket', fn($q) => $q->where('type', 'payment'))->where('status', 'completed')->sum('amount');
         
         // Load workflow to check permissions on index
         $mktWorkflow = \App\Models\ApprovalWorkflow::getForDocumentType('marketing_budget');
@@ -113,11 +144,13 @@ class MarketingEventController extends Controller
         $supplierFunds = [];
         $suppliers = [];
         $transactions = [];
-        if ($request->query('tab') === 'funds') {
+        if ($request->query('tab') === 'funds' || $request->query('tab') === 'payments') {
             $supplierFunds = MarketingSupplierFund::with(['supplier', 'creator'])->latest()->get();
             $suppliers = \App\Models\Supplier::all(['id', 'name']);
             $transactions = MarketingSupplierTransaction::with(['supplier', 'fund', 'event', 'request', 'creator'])->latest()->get();
         }
+
+        $allEventsForSelect = MarketingEvent::latest('id')->get(['id', 'code', 'title']);
 
         return view('marketing-events.index', compact(
             'events', 
@@ -127,7 +160,12 @@ class MarketingEventController extends Controller
             'transactions', 
             'directRequests', 
             'marketingAssignees',
-            'availableMarketingItems'
+            'availableMarketingItems',
+            'paymentRequests',
+            'pendingPaymentApprovalCount',
+            'pendingPaymentCount',
+            'paidTotalAmount',
+            'allEventsForSelect'
         ));
     }
 
@@ -155,8 +193,10 @@ class MarketingEventController extends Controller
             'scope'                 => 'required|in:internal,external',
             'is_public_to_sales'    => 'nullable|boolean',
             'vendor_id'             => 'nullable|exists:suppliers,id',
+            'vendor_ids'            => 'nullable|array',
+            'vendor_ids.*'          => 'exists:suppliers,id',
             'vendor_other_note'     => 'nullable|string',
-            'partner_cooperation'   => 'required|in:yes,no,other',
+            'partner_cooperation'   => 'nullable|in:yes,no,other',
             'partner_info'          => 'nullable|string',
             'organize_type'         => 'required|in:workshop,networking_dinner,exhibition,other',
             'organize_type_other'   => 'nullable|string|max:255',
@@ -166,13 +206,57 @@ class MarketingEventController extends Controller
             'target_audience_note'  => 'nullable|string',
             'budget_external_note'  => 'nullable|string',
             'funding_source'        => 'nullable|string|max:255',
+            'funding_sources'       => 'nullable',
             'special_notes'         => 'nullable|string',
+            'internal_department'   => 'nullable|string|max:255',
+            'internal_purpose'      => 'nullable|string|max:255',
             'support_marketing'     => 'nullable|boolean',
             'support_technical'     => 'nullable|boolean',
             'support_request_note'  => 'nullable|string|max:2000',
         ]);
 
         $validated['is_public_to_sales'] = $request->boolean('is_public_to_sales');
+        $validated['partner_cooperation'] = $validated['partner_cooperation'] ?? 'no';
+
+        // Multi-vendor handling
+        $vendorIds = (array) $request->input('vendor_ids', []);
+        if (empty($vendorIds) && !empty($validated['vendor_id'])) {
+            $vendorIds = [$validated['vendor_id']];
+        }
+        $validated['vendor_id'] = !empty($vendorIds) ? (int)$vendorIds[0] : null;
+
+        // Structured funding sources handling (Multi-brand + Union + Company)
+        $rawSources = $request->input('funding_sources', []);
+        if (is_string($rawSources)) {
+            $rawSources = json_decode($rawSources, true) ?: [];
+        }
+        $cleanedSources = [];
+        $sourceNames = [];
+        $totalPlannedFromSources = 0;
+        foreach ($rawSources as $src) {
+            if (empty($src)) continue;
+            $name = trim($src['name'] ?? '');
+            $planned = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)($src['planned_amount'] ?? 0)));
+            if ($name || $planned > 0) {
+                $cleanedSources[] = [
+                    'source_type'    => $src['source_type'] ?? 'brand',
+                    'supplier_id'    => !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null,
+                    'name'           => $name,
+                    'planned_amount' => $planned,
+                    'actual_amount'  => (float)($src['actual_amount'] ?? 0),
+                    'note'           => $src['note'] ?? '',
+                ];
+                if ($name) $sourceNames[] = $name;
+                $totalPlannedFromSources += $planned;
+            }
+        }
+        $validated['funding_sources'] = $cleanedSources;
+        if (!empty($sourceNames)) {
+            $validated['funding_source'] = implode(', ', array_unique($sourceNames));
+        }
+        if ($totalPlannedFromSources > 0 && ($validated['budget'] <= 0 || empty($request->input('budget')))) {
+            $validated['budget'] = $totalPlannedFromSources;
+        }
 
         if (empty($validated['title'])) {
             $validated['title'] = 'Chương trình Marketing ' . MarketingEvent::generateCode();
@@ -198,6 +282,10 @@ class MarketingEventController extends Controller
         $validated['attachments'] = $attachments;
 
         $event = MarketingEvent::create($validated);
+
+        if (!empty($vendorIds)) {
+            $event->suppliers()->sync($vendorIds);
+        }
 
         $requestedTeams = array_filter([
             $request->boolean('support_marketing') ? 'marketing' : null,
@@ -234,7 +322,7 @@ class MarketingEventController extends Controller
     {
         $this->authorize('view', $marketingEvent);
 
-        $marketingEvent->load(['creator', 'customers', 'approvalHistories', 'tickets.requests.assignee', 'tickets.requests.comments.user', 'vendor']);
+        $marketingEvent->load(['creator', 'customers', 'approvalHistories', 'tickets.requests.assignee', 'tickets.requests.comments.user', 'vendor', 'suppliers', 'completer']);
         $existingCustomerIds = $marketingEvent->customers()->pluck('customers.id')->all();
         $suggestCustomers = Customer::query()
             ->when(!empty($existingCustomerIds), fn ($q) => $q->whereNotIn('id', $existingCustomerIds))
@@ -264,6 +352,7 @@ class MarketingEventController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa sự kiện ở trạng thái Nháp hoặc Từ chối.');
         }
 
+        $marketingEvent->load('suppliers');
         $suppliers = \App\Models\Supplier::all(['id', 'name']);
 
         return view('marketing-events.edit', compact('marketingEvent', 'suppliers'));
@@ -289,8 +378,10 @@ class MarketingEventController extends Controller
             'scope'                 => 'required|in:internal,external',
             'is_public_to_sales'    => 'nullable|boolean',
             'vendor_id'             => 'nullable|exists:suppliers,id',
+            'vendor_ids'            => 'nullable|array',
+            'vendor_ids.*'          => 'exists:suppliers,id',
             'vendor_other_note'     => 'nullable|string',
-            'partner_cooperation'   => 'required|in:yes,no,other',
+            'partner_cooperation'   => 'nullable|in:yes,no,other',
             'partner_info'          => 'nullable|string',
             'organize_type'         => 'required|in:workshop,networking_dinner,exhibition,other',
             'organize_type_other'   => 'nullable|string|max:255',
@@ -300,10 +391,54 @@ class MarketingEventController extends Controller
             'target_audience_note'  => 'nullable|string',
             'budget_external_note'  => 'nullable|string',
             'funding_source'        => 'nullable|string|max:255',
+            'funding_sources'       => 'nullable',
             'special_notes'         => 'nullable|string',
+            'internal_department'   => 'nullable|string|max:255',
+            'internal_purpose'      => 'nullable|string|max:255',
         ]);
 
         $validated['is_public_to_sales'] = $request->boolean('is_public_to_sales');
+        $validated['partner_cooperation'] = $validated['partner_cooperation'] ?? 'no';
+
+        // Multi-vendor handling
+        $vendorIds = (array) $request->input('vendor_ids', []);
+        if (empty($vendorIds) && !empty($validated['vendor_id'])) {
+            $vendorIds = [$validated['vendor_id']];
+        }
+        $validated['vendor_id'] = !empty($vendorIds) ? (int)$vendorIds[0] : null;
+
+        // Structured funding sources handling
+        $rawSources = $request->input('funding_sources', []);
+        if (is_string($rawSources)) {
+            $rawSources = json_decode($rawSources, true) ?: [];
+        }
+        $cleanedSources = [];
+        $sourceNames = [];
+        $totalPlannedFromSources = 0;
+        foreach ($rawSources as $src) {
+            if (empty($src)) continue;
+            $name = trim($src['name'] ?? '');
+            $planned = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)($src['planned_amount'] ?? 0)));
+            if ($name || $planned > 0) {
+                $cleanedSources[] = [
+                    'source_type'    => $src['source_type'] ?? 'brand',
+                    'supplier_id'    => !empty($src['supplier_id']) ? (int)$src['supplier_id'] : null,
+                    'name'           => $name,
+                    'planned_amount' => $planned,
+                    'actual_amount'  => (float)($src['actual_amount'] ?? 0),
+                    'note'           => $src['note'] ?? '',
+                ];
+                if ($name) $sourceNames[] = $name;
+                $totalPlannedFromSources += $planned;
+            }
+        }
+        $validated['funding_sources'] = $cleanedSources;
+        if (!empty($sourceNames)) {
+            $validated['funding_source'] = implode(', ', array_unique($sourceNames));
+        }
+        if ($totalPlannedFromSources > 0 && ($validated['budget'] <= 0 || empty($request->input('budget')))) {
+            $validated['budget'] = $totalPlannedFromSources;
+        }
 
         if (empty($validated['title'])) {
             $validated['title'] = 'Chương trình Marketing ' . ($marketingEvent->code ?: MarketingEvent::generateCode());
@@ -327,9 +462,75 @@ class MarketingEventController extends Controller
         $validated['status'] = 'draft'; // Reset về draft khi chỉnh sửa
 
         $marketingEvent->update($validated);
+        $marketingEvent->suppliers()->sync($vendorIds);
 
         return redirect()->route('marketing-events.show', $marketingEvent)
             ->with('success', 'Đã cập nhật sự kiện thành công.');
+    }
+
+    /**
+     * Hoàn thành sự kiện & Nghiệm thu quyết toán chi phí thực tế
+     */
+    public function complete(Request $request, MarketingEvent $marketingEvent)
+    {
+        $this->authorize('update', $marketingEvent);
+
+        if (!in_array($marketingEvent->status, ['approved', 'completed'])) {
+            return back()->with('error', 'Chỉ có thể hoàn thành sự kiện đã được phê duyệt.');
+        }
+
+        $this->normalizeMoneyFields($request, ['actual_cost']);
+
+        $request->validate([
+            'actual_cost'             => 'required|numeric|min:0',
+            'variance_funding_source' => 'nullable|string|max:255',
+            'completion_note'         => 'nullable|string',
+        ]);
+
+        $actualSourcesInput = $request->input('actual_funding_sources', []);
+        $existingSources = $marketingEvent->funding_sources ?? [];
+        $updatedSources = [];
+        $totalActualFunding = 0;
+
+        foreach ($existingSources as $idx => $src) {
+            $rawVal = $actualSourcesInput[$idx] ?? ($actualSourcesInput[$src['name']] ?? $src['planned_amount'] ?? 0);
+            $actualAmt = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)$rawVal));
+            $src['actual_amount'] = $actualAmt;
+            $totalActualFunding += $actualAmt;
+            $updatedSources[] = $src;
+        }
+
+        // If there were no structured funding sources previously, create default sources from inputs
+        if (empty($updatedSources) && !empty($actualSourcesInput)) {
+            foreach ($actualSourcesInput as $name => $amt) {
+                $actualAmt = (float) preg_replace('/[^\d.]/', '', str_replace(',', '', (string)$amt));
+                $updatedSources[] = [
+                    'source_type'    => 'brand',
+                    'name'           => is_string($name) ? $name : 'Nguồn tài trợ ' . ($name + 1),
+                    'planned_amount' => $actualAmt,
+                    'actual_amount'  => $actualAmt,
+                    'note'           => '',
+                ];
+                $totalActualFunding += $actualAmt;
+            }
+        }
+
+        $actualCost = (float) $request->input('actual_cost', 0);
+        $varianceAmount = $actualCost - $totalActualFunding; // > 0: vượt chi (thiếu hụt), < 0: dư tiền tài trợ
+
+        $marketingEvent->update([
+            'status'                  => 'completed',
+            'actual_cost'             => $actualCost,
+            'actual_funding_sources'  => $updatedSources,
+            'variance_amount'         => $varianceAmount,
+            'variance_funding_source' => $request->input('variance_funding_source'),
+            'completion_note'         => $request->input('completion_note'),
+            'completed_at'            => now(),
+            'completed_by'            => auth()->id(),
+        ]);
+
+        return redirect()->route('marketing-events.show', $marketingEvent)
+            ->with('success', 'Đã ghi nhận hoàn thành sự kiện và cập nhật quyết toán chi phí thực tế thành công.');
     }
 
     public function destroy(MarketingEvent $marketingEvent)

@@ -116,8 +116,43 @@ class ProjectController extends Controller
         // Auto-fill Distributor AM from logged-in user (format: email | name)
         $distributorAm = (Auth::user()->email ?: '') . ' | ' . (Auth::user()->name ?: '');
 
-        // Handle pre-filling from MarketingEvent or Opportunity
+        // Handle pre-filling from MarketingEvent, Opportunity, or Duplication from existing Project
         $preFill = [];
+        $duplicateSource = null;
+
+        if ($request->filled('duplicate_from')) {
+            $duplicateSource = Project::with(['customer', 'collaborateCustomer'])->find($request->duplicate_from);
+            if ($duplicateSource) {
+                $preFill['name'] = $duplicateSource->name;
+                $preFill['name_en'] = $duplicateSource->name_en;
+                $preFill['address'] = $duplicateSource->address;
+                $preFill['description'] = $duplicateSource->description;
+                $preFill['budget'] = $duplicateSource->budget;
+                $preFill['customer_id'] = $duplicateSource->customer_id;
+                $preFill['eu_name_vi'] = $duplicateSource->eu_name_vi;
+                $preFill['eu_name_en'] = $duplicateSource->eu_name_en;
+                $preFill['eu_name_abbr'] = $duplicateSource->eu_name_abbr;
+                $preFill['eu_tax_code'] = $duplicateSource->eu_tax_code;
+                $preFill['eu_province'] = $duplicateSource->eu_province;
+                $preFill['eu_industry'] = $duplicateSource->eu_industry;
+                $preFill['collaborate_type'] = $duplicateSource->collaborate_type;
+                $preFill['collaborate_customer_id'] = $duplicateSource->collaborate_customer_id;
+                $preFill['collaborate_company'] = $duplicateSource->collaborate_company;
+                $preFill['collaborate_tax_code'] = $duplicateSource->collaborate_tax_code;
+                $preFill['collaborate_pic_name'] = $duplicateSource->collaborate_pic_name;
+                $preFill['collaborate_pic_title'] = $duplicateSource->collaborate_pic_title;
+                $preFill['collaborate_pic_phone'] = $duplicateSource->collaborate_pic_phone;
+                $preFill['collaborate_pic_email'] = $duplicateSource->collaborate_pic_email;
+                $preFill['bom_data'] = $duplicateSource->bom_data;
+                $preFill['deal_type'] = $duplicateSource->deal_type;
+                $preFill['special_request_type'] = $duplicateSource->special_request_type;
+                $preFill['special_request_note'] = $duplicateSource->special_request_note;
+                $preFill['sn_numbers'] = $duplicateSource->sn_numbers;
+                $preFill['note'] = $duplicateSource->note;
+                $preFill['duplicate_from_code'] = $duplicateSource->code;
+            }
+        }
+
         if ($request->filled('marketing_event_id')) {
             $mktEvent = \App\Models\MarketingEvent::find($request->marketing_event_id);
             if ($mktEvent) {
@@ -148,14 +183,25 @@ class ProjectController extends Controller
         }
 
         // Only load the selected customer to prevent performance issues with large datasets
-        $selectedCustomerId = old('collaborate_customer_id') ?? $preFill['customer_id'] ?? null;
+        $selectedCustomerId = old('collaborate_customer_id') ?? $preFill['collaborate_customer_id'] ?? $preFill['customer_id'] ?? null;
         $customers = $selectedCustomerId 
             ? Customer::where('id', $selectedCustomerId)->get() 
             : collect();
 
         $industries = self::INDUSTRIES;
 
-        return view('projects.create', compact('customers', 'managers', 'suppliers', 'code', 'preFill', 'distributorAm', 'industries'));
+        return view('projects.create', compact('customers', 'managers', 'suppliers', 'code', 'preFill', 'distributorAm', 'industries', 'duplicateSource'));
+    }
+
+    /**
+     * Duplicate project to register with another vendor.
+     */
+    public function duplicate(Project $project)
+    {
+        $this->authorize('create', Project::class);
+
+        return redirect()->route('projects.create', ['duplicate_from' => $project->id])
+            ->with('info', "Đang nhân bản từ dự án [{$project->code}] {$project->name}. Vui lòng chọn Vendor (Hãng) mới để tiếp tục đăng ký.");
     }
 
     /**
@@ -207,27 +253,23 @@ class ProjectController extends Controller
             });
         }
 
-        $existing = $query->with('manager')->first();
+        $existing = $query->with(['manager', 'vendor'])->first();
 
         if ($existing) {
             $isSameUser = $existing->manager_id === Auth::id();
-            if ($isSameUser) {
-                return response()->json([
-                    'duplicate' => true,
-                    'is_same_user' => true,
-                    'project_id' => $existing->id,
-                    'project_code' => $existing->code,
-                    'project_name' => $existing->name,
-                    'sales_name' => $existing->manager ? $existing->manager->name : 'N/A',
-                    'sales_email' => $existing->manager ? $existing->manager->email : 'N/A',
-                    'created_at' => $existing->created_at ? $existing->created_at->format('d/m/Y H:i') : '',
-                ]);
-            } else {
-                return response()->json([
-                    'duplicate' => true,
-                    'is_same_user' => false,
-                ]);
-            }
+            $vendorInfo = $existing->vendor ? ($existing->vendor->name . ($existing->vendor->contact_person ? ' - ' . $existing->vendor->contact_person : '') . ($existing->vendor->phone ? ' (' . $existing->vendor->phone . ')' : '')) : 'N/A';
+            return response()->json([
+                'duplicate' => true,
+                'is_same_user' => $isSameUser,
+                'project_id' => $existing->id,
+                'project_code' => $existing->code,
+                'project_name' => $existing->name,
+                'sales_name' => $existing->manager ? $existing->manager->name : 'N/A',
+                'sales_email' => $existing->manager ? $existing->manager->email : 'N/A',
+                'sales_phone' => $existing->manager ? ($existing->manager->phone ?? 'N/A') : 'N/A',
+                'vendor_info' => $vendorInfo,
+                'created_at' => $existing->created_at ? $existing->created_at->format('d/m/Y H:i') : '',
+            ]);
         }
 
         return response()->json(['duplicate' => false]);
@@ -359,6 +401,23 @@ class ProjectController extends Controller
         // Auto-determine assigned_team based on Vendor configuration (config/projects.php)
         $supplier = Supplier::find($validated['vendor_id']);
         $validated['assigned_team'] = $supplier ? $supplier->assigned_team : 'pm_team';
+        $isFtn = ($validated['assigned_team'] === 'po_team') || ($supplier && stripos($supplier->name, 'Fortinet') !== false);
+
+        // Validation ĐKDA 4: Net to FTN bắt buộc với dự án FTN
+        if ($isFtn && (!$request->filled('net_to_tech_horizon') || (float)$request->input('net_to_tech_horizon') <= 0)) {
+            return back()->withInput()->withErrors([
+                'net_to_tech_horizon' => 'Dự án Fortinet (FTN) bắt buộc phải nhập giá trị Net to FTN hợp lệ (> 0).',
+            ]);
+        }
+
+        // Validation ĐKDA 9: BOM dự án bắt buộc chọn/điền với những dự án FTN / ĐKDA
+        $hasBomData = !empty(trim($request->input('bom_data', '')));
+        $hasBomFile = $request->hasFile('bom_file');
+        if (!$hasBomData && !$hasBomFile) {
+            return back()->withInput()->withErrors([
+                'bom_data' => 'Đăng ký dự án bắt buộc phải nhập danh mục thiết bị (BOM) hoặc đính kèm file BOM/YCKT.',
+            ]);
+        }
 
         // Auto-set dates
         $validated['start_date'] = now()->format('Y-m-d');
@@ -380,7 +439,9 @@ class ProjectController extends Controller
                 // Different Sales -> Flag as duplicate for PM, proceed creation
                 $validated['intake_status'] = 'duplicate';
                 $validated['registration_status'] = 'duplicate';
-                $validated['duplicate_sales_info'] = "Trùng với dự án {$existing->code} đã được Sales {$existing->manager->name} ({$existing->manager->email}) đăng ký trước đó.";
+                $vendorContact = $existing->vendor ? ($existing->vendor->name . ($existing->vendor->contact_person ? ' - ' . $existing->vendor->contact_person : '') . ($existing->vendor->phone ? ' (' . $existing->vendor->phone . ')' : '')) : 'N/A';
+                $salesContact = ($existing->manager ? $existing->manager->name : 'N/A') . ' (' . ($existing->manager ? $existing->manager->email : 'N/A') . ($existing->manager && $existing->manager->phone ? ' - ' . $existing->manager->phone : '') . ')';
+                $validated['duplicate_sales_info'] = "Trùng với dự án {$existing->code} đã được Sales {$salesContact} đăng ký trước đó. Liên hệ Hãng: {$vendorContact}";
             }
         } else {
             $validated['intake_status'] = 'pending';
@@ -797,6 +858,14 @@ class ProjectController extends Controller
         ];
 
         if ($closeStatus === 'closed_won') {
+            $isApprovedByTeam = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted', 'closed_won'], true);
+            $canBypass = Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
+            if (!$isApprovedByTeam && !$canBypass) {
+                return back()->withInput()->withErrors([
+                    'close_status' => 'Không thể chuyển sang Close Won: Dự án chưa được ' . ($project->assigned_team === 'po_team' ? 'PO Team (FTN)' : 'PM Team (Non-FTN)') . ' tiếp nhận và duyệt ĐKDA.',
+                ]);
+            }
+
             $sourceMode = $validated['source_mode'] ?? ($request->filled('sale_id') ? 'sync_sale' : 'manual');
             $selectedSale = null;
 
@@ -899,6 +968,23 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
+        if ($project->registration_status === 'duplicate') {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa. Vui lòng liên hệ PM/PO Team để được hỗ trợ.');
+        }
+
+        // ĐKDA 7: Không cho sửa nội dung dự án sau khi đã được duyệt
+        $isApproved = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true);
+        if ($isApproved && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã được duyệt ĐKDA thành công nên không thể chỉnh sửa nội dung. Vui lòng gửi thảo luận trong phần Note nếu có thay đổi.');
+        }
+
+        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true)) {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã kết thúc hoặc bị từ chối nên không thể chỉnh sửa. Vui lòng tạo/nhân bản ĐKDA mới nếu cần điều chỉnh.');
+        }
+
         $selectedCustomerId = old('collaborate_customer_id') ?? $project->collaborate_customer_id;
         $customers = $selectedCustomerId 
             ? Customer::where('id', $selectedCustomerId)->get() 
@@ -917,6 +1003,23 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project, NotificationService $notificationService)
     {
         $this->authorize('update', $project);
+
+        if ($project->registration_status === 'duplicate') {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã bị xác định trùng lặp với dự án khác và bị khóa chỉnh sửa.');
+        }
+
+        // ĐKDA 7: Không cho sửa nội dung dự án sau khi đã được duyệt
+        $isApproved = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true);
+        if ($isApproved && !Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po'])) {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã được duyệt ĐKDA thành công nên không thể chỉnh sửa nội dung.');
+        }
+
+        if (in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true)) {
+            return redirect()->route('projects.show', $project)
+                ->with('error', 'Dự án đã kết thúc hoặc bị từ chối nên không thể cập nhật. Vui lòng tạo/nhân bản ĐKDA mới nếu cần điều chỉnh.');
+        }
 
         $old = $project->getAttributes();
 
@@ -990,9 +1093,30 @@ class ProjectController extends Controller
         $startDate = Carbon::parse($project->start_date ?? now());
         $validated['estimated_close_months'] = (int) max(1, round($startDate->diffInMonths(Carbon::parse($validated['end_date']))));
 
+        // Validation ĐKDA 4: Net to FTN bắt buộc với dự án FTN
+        $supplier = Supplier::find($validated['vendor_id']);
+        $assignedTeam = $supplier ? $supplier->assigned_team : ($project->assigned_team ?? 'pm_team');
+        $isFtn = ($assignedTeam === 'po_team') || ($supplier && stripos($supplier->name, 'Fortinet') !== false);
+
+        if ($isFtn && (!$request->filled('net_to_tech_horizon') || (float)$request->input('net_to_tech_horizon') <= 0)) {
+            return back()->withInput()->withErrors([
+                'net_to_tech_horizon' => 'Dự án Fortinet (FTN) bắt buộc phải nhập giá trị Net to FTN hợp lệ (> 0).',
+            ]);
+        }
+
         // File keeping logic
         $currentFiles = is_array($project->bom_file) ? $project->bom_file : [];
         $keepFiles = $request->input('keep_bom_files', []);
+
+        // Validation ĐKDA 9: BOM dự án bắt buộc có
+        $hasBomFiles = $request->hasFile('bom_file') || !empty($keepFiles);
+        $hasBomData = !empty(trim($request->input('bom_data', '')));
+        if (!$hasBomData && !$hasBomFiles) {
+            return back()->withInput()->withErrors([
+                'bom_data' => 'Đăng ký dự án bắt buộc phải có danh mục thiết bị (BOM) hoặc file đính kèm.',
+            ]);
+        }
+
         $deletedFiles = array_diff($currentFiles, $keepFiles);
         foreach ($deletedFiles as $deletedFile) {
             Storage::disk('public')->delete($deletedFile);
@@ -1044,6 +1168,17 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'in:planning,in_progress,completed,cancelled,on_hold'],
         ]);
+
+        if ($validated['status'] === 'completed') {
+            $isApprovedByTeam = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted', 'closed_won'], true);
+            $canBypass = Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
+            if (!$isApprovedByTeam && !$canBypass) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể chuyển sang Hoàn thành (Close Won): Dự án chưa được PO/PM Team duyệt ĐKDA.',
+                ], 422);
+            }
+        }
 
         $old = $project->getAttributes();
         $project->update(['status' => $validated['status']]);

@@ -63,6 +63,9 @@ class TechnicalSupportLogController extends Controller
         if ($request->filled('ticket_id')) {
             $query->where('technical_ticket_id', $request->input('ticket_id'));
         }
+        if ($request->filled('work_category')) {
+            $query->where('work_category', $request->input('work_category'));
+        }
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
@@ -82,6 +85,38 @@ class TechnicalSupportLogController extends Controller
         return view('technical.support_logs.index', compact('supportLogs', 'engineers', 'tickets', 'customers'));
     }
 
+    public function export(Request $request)
+    {
+        if (!Gate::allows('manage_technical_support_logs')) {
+            abort(403, 'Bạn không có quyền xuất nhật ký hỗ trợ.');
+        }
+
+        $query = TechnicalSupportLog::with(['ticket', 'user'])->orderByDesc('log_date')->orderByDesc('id');
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['super_admin', 'director', 'sales_manager', 'technical_lead'])) {
+            $query->where('user_id', $user->id);
+        }
+        foreach (['date_from', 'date_to', 'user_id', 'ticket_id', 'work_category'] as $field) {
+            if (!$request->filled($field)) continue;
+            match ($field) {
+                'date_from' => $query->whereDate('log_date', '>=', $request->$field),
+                'date_to' => $query->whereDate('log_date', '<=', $request->$field),
+                'ticket_id' => $query->where('technical_ticket_id', $request->$field),
+                default => $query->where($field, $request->$field),
+            };
+        }
+
+        return response()->streamDownload(function () use ($query) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($out, ['Ngày', 'Kỹ sư', 'Loại công việc', 'Ticket', 'Nội dung', 'Khách hàng', 'Liên hệ', 'Trạng thái', 'Ghi chú']);
+            foreach ($query->cursor() as $log) {
+                fputcsv($out, [$log->log_date?->format('d/m/Y'), $log->user?->name, $log->work_category_label, $log->ticket?->code, $log->support_content, $log->customer_info, $log->contact_info, $log->status_label, $log->notes]);
+            }
+            fclose($out);
+        }, 'nhat-ky-ky-thuat-' . now()->format('Ymd-His') . '.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     /**
      * Store a newly created support log from the centralized list.
      */
@@ -95,6 +130,7 @@ class TechnicalSupportLogController extends Controller
             'technical_ticket_id' => 'nullable|exists:technical_tickets,id',
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
+            'work_category' => 'required|in:regular,on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -147,6 +183,7 @@ class TechnicalSupportLogController extends Controller
         $request->validate([
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
+            'work_category' => 'required|in:regular,on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -199,6 +236,7 @@ class TechnicalSupportLogController extends Controller
         $request->validate([
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
+            'work_category' => 'required|in:regular,on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',
@@ -262,6 +300,7 @@ class TechnicalSupportLogController extends Controller
             'technical_ticket_id' => 'nullable|exists:technical_tickets,id',
             'log_date' => 'required|date',
             'user_id' => 'required|exists:users,id',
+            'work_category' => 'required|in:regular,on_call,after_hours',
             'support_content' => 'required|string',
             'status' => 'required|string',
             'serial_number' => 'nullable|string|max:255',

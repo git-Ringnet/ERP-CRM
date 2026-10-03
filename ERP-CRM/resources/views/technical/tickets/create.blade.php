@@ -154,6 +154,7 @@
                                     Update</option>
                                 <option value="event" {{ old('work_type') === 'event' ? 'selected' : '' }}>Event / Speaker
                                 </option>
+                                <option value="it_support" {{ old('work_type') === 'it_support' ? 'selected' : '' }}>IT nội bộ (Thiết bị, phần mềm, phần cứng)</option>
                                 <option value="other" {{ old('work_type') === 'other' ? 'selected' : '' }}>Other</option>
                             </select>
                             @error('work_type')

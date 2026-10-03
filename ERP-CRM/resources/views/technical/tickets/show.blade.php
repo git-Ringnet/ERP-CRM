@@ -158,8 +158,8 @@
                 @endif
 
                 @if(in_array($ticket->status, ['assigned', 'in_progress', 'waiting']))
-                    <!-- Requester confirms completion -->
-                    @if($ticket->created_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director', 'sales_manager']))
+                    <!-- Requester confirms completion (Sales Manager cannot complete) -->
+                    @if(($ticket->created_by === auth()->id() || auth()->user()->hasAnyRole(['super_admin', 'director'])) && (!auth()->user()->hasRole('sales_manager') || auth()->user()->hasAnyRole(['super_admin', 'director'])))
                         <form action="{{ route('technical-tickets.update-progress', $ticket->id) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xác nhận hoàn tất ticket này?');">
                             @csrf
                             @method('PUT')

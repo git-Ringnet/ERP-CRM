@@ -20,6 +20,8 @@ class SaleOrderRequest extends Model
         'ticket_id',
         'created_by',
         'note',
+        'is_license_from_other_distributor',
+        'other_distributor_name',
         'sent_at',
         'status',
         'rejection_note',
@@ -28,6 +30,7 @@ class SaleOrderRequest extends Model
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'is_license_from_other_distributor' => 'boolean',
     ];
 
     /**

@@ -117,7 +117,8 @@
                             @if(isset($projects))
                                 @foreach($projects as $p)
                                     <option value="{{ $p->id }}" 
-                                        data-customer-id="{{ $p->customer_id }}"
+                                        data-customer-id="{{ $p->collaborate_customer_id ?: $p->customer_id }}"
+                                        data-customer-name="{{ $p->collaborate_company ?: ($p->customer?->name ?? $p->eu_name_vi) }}"
                                         data-name="{{ $p->name }}"
                                         {{ (old('project_id', $selectedProject?->id ?? ($selectedProjectId ?? '')) == $p->id) ? 'selected' : '' }}>
                                         {{ $p->code }} - {{ $p->name }}
@@ -148,7 +149,7 @@
                                     data-payment-terms="{{ json_encode($customer->payment_terms) }}"
                                     data-tax-code="{{ $customer->tax_code }}"
                                     data-abv-name="{{ $customer->abv_name }}"
-                                    {{ (isset($prefill['customer_id']) && $prefill['customer_id'] == $customer->id) || old('customer_id') == $customer->id || (isset($selectedProject) && $selectedProject->customer_id == $customer->id) ? 'selected' : '' }}>
+                                    {{ (isset($prefill['customer_id']) && $prefill['customer_id'] == $customer->id) || old('customer_id') == $customer->id || (isset($selectedProject) && ($selectedProject->customer_id == $customer->id || $selectedProject->collaborate_customer_id == $customer->id)) ? 'selected' : '' }}>
                                     {{ $customer->name }}{{ $customer->code ? ' (' . $customer->code . ')' : '' }}
                                 </option>
                             @endforeach
@@ -2733,7 +2734,17 @@
             bomCountBadge.text('...');
 
             const customerId = selectedOpt.getAttribute('data-customer-id');
+            const customerName = selectedOpt.getAttribute('data-customer-name');
             const projectName = selectedOpt.getAttribute('data-name');
+
+            // Pre-select customer immediately from attributes if available
+            if (customerId) {
+                const $custSelect = $('select[name="customer_id"]');
+                if ($custSelect.find(`option[value="${customerId}"]`).length === 0 && customerName) {
+                    $custSelect.append(new Option(customerName, customerId, true, true));
+                }
+                $custSelect.val(customerId).trigger('change');
+            }
 
             // Fetch Project BOM & details to ensure fresh data and customer info
             fetch(`/ajax/projects/${projId}/bom`)
@@ -2742,8 +2753,13 @@
                     if (data.success && data.project) {
                         currentProjectBomData = data;
                         const targetCustId = data.project.customer_id || customerId;
+                        const targetCustName = data.project.customer_name || customerName;
                         if (targetCustId) {
-                            $('select[name="customer_id"]').val(targetCustId).trigger('change');
+                            const $custSelect = $('select[name="customer_id"]');
+                            if ($custSelect.find(`option[value="${targetCustId}"]`).length === 0 && targetCustName) {
+                                $custSelect.append(new Option(targetCustName, targetCustId, true, true));
+                            }
+                            $custSelect.val(targetCustId).trigger('change');
                         }
                         if (data.count > 0) {
                             bomCountBadge.text(`${data.count} SP`);
@@ -2758,10 +2774,6 @@
                     }
                 })
                 .catch(err => console.error('Error fetching project BOM:', err));
-
-            if (customerId) {
-                $('select[name="customer_id"]').val(customerId).trigger('change');
-            }
 
             const titleInput = $('input[name="title"]');
             if (projectName && (!titleInput.val() || titleInput.val().startsWith('Báo giá cho ') || titleInput.val().startsWith('Dự án: '))) {

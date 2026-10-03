@@ -359,6 +359,7 @@ class TechnicalTicket extends Model
             'after_sales' => 'After-sales support',
             'training' => 'Training / Update',
             'event' => 'Event / Speaker',
+            'it_support' => 'IT nội bộ (Thiết bị, phần mềm, phần cứng)',
             'other' => 'Other',
             default => $this->work_type,
         };

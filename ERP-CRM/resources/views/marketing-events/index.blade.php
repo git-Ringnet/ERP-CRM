@@ -25,10 +25,63 @@ function marketingEventsPage() {
     return {
         showAddFundModal: false,
         showAllocateGiftModal: false,
+        showCompleteModal: false,
         activeTicket: null,
+        completeData: {
+            eventId: null,
+            eventCode: '',
+            eventTitle: '',
+            budget: 0,
+            actualCost: 0,
+            varianceSource: 'Ngân sách công ty bù',
+            note: '',
+            sources: [],
+            actionUrl: ''
+        },
         availableItems: {!! $availableMarketingItemsJson !!},
         giftRows: [{ item_id: '', search: '', open: false, selectedItem: null, quantity: 1 }],
         giftNote: '',
+        openCompleteModal(ev) {
+            this.completeData.eventId = ev.id;
+            this.completeData.eventCode = ev.code;
+            this.completeData.eventTitle = ev.title;
+            this.completeData.budget = ev.budget || 0;
+            this.completeData.actualCost = ev.actual_cost && ev.actual_cost > 0 ? ev.actual_cost : (ev.budget || 0);
+            this.completeData.varianceSource = ev.variance_funding_source || 'Ngân sách công ty bù';
+            this.completeData.note = ev.completion_note || '';
+            this.completeData.actionUrl = '/marketing-events/' + ev.id + '/complete';
+            
+            let sources = [];
+            if (ev.actual_funding_sources && Array.isArray(ev.actual_funding_sources) && ev.actual_funding_sources.length > 0) {
+                sources = JSON.parse(JSON.stringify(ev.actual_funding_sources));
+            } else if (ev.funding_sources && Array.isArray(ev.funding_sources) && ev.funding_sources.length > 0) {
+                sources = JSON.parse(JSON.stringify(ev.funding_sources));
+            } else {
+                sources = [
+                    { name: ev.funding_source || 'Nguồn tài trợ chính', planned_amount: ev.budget || 0, actual_amount: ev.budget || 0 }
+                ];
+            }
+            this.completeData.sources = sources;
+            this.showCompleteModal = true;
+        },
+        getCompletionTotalFunding() {
+            let total = 0;
+            if (this.completeData.sources) {
+                this.completeData.sources.forEach(s => {
+                    const amt = parseFloat((s.actual_amount + '').replace(/[^\d.]/g, '')) || 0;
+                    total += amt;
+                });
+            }
+            return total;
+        },
+        getCompletionVariance() {
+            const cost = parseFloat((this.completeData.actualCost + '').replace(/[^\d.]/g, '')) || 0;
+            return cost - this.getCompletionTotalFunding();
+        },
+        formatMoneyNumber(val) {
+            const num = parseFloat((val + '').replace(/[^\d.]/g, '')) || 0;
+            return new Intl.NumberFormat('en-US').format(Math.round(num));
+        },
         openAllocateModal(ticket) {
             this.activeTicket = ticket;
             this.giftRows = [{ item_id: '', search: '', open: false, selectedItem: null, quantity: 1 }];
@@ -103,10 +156,19 @@ function marketingEventsPage() {
 <div class="space-y-4" x-data="marketingEventsPage()">
     {{-- Tabs Navigation --}}
     @if($isSuperOrMktOrOMOrBOD)
-    <div class="bg-white rounded-lg shadow-sm p-2 flex border-b border-gray-100">
+    <div class="bg-white rounded-lg shadow-sm p-2 flex border-b border-gray-100 flex-wrap gap-1">
         <a href="{{ route('marketing-events.index', ['tab' => 'events']) }}"
            class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'events' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
             <i class="fas fa-calendar-alt text-base"></i> Sự kiện Marketing
+        </a>
+        <a href="{{ route('marketing-events.index', ['tab' => 'payments']) }}"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'payments' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
+            <i class="fas fa-money-check-alt text-base"></i> Yêu cầu thanh toán Marketing
+            @if(($pendingPaymentApprovalCount + $pendingPaymentCount) > 0)
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                    {{ $pendingPaymentApprovalCount + $pendingPaymentCount }}
+                </span>
+            @endif
         </a>
         <a href="{{ route('marketing-events.index', ['tab' => 'funds']) }}"
            class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all {{ $currentTab === 'funds' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-purple-600 hover:bg-gray-50' }}">
@@ -554,6 +616,202 @@ function marketingEventsPage() {
                 </div>
             </div>
         </div>
+    @elseif($currentTab === 'payments')
+        {{-- Payments Statistics Cards --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-purple-100 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-500 uppercase">Tổng đề nghị thanh toán</div>
+                    <div class="text-2xl font-black text-purple-700 mt-1">{{ method_exists($paymentRequests, 'total') ? $paymentRequests->total() : $paymentRequests->count() }} phiếu</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-amber-100 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-500 uppercase">Chờ BOD duyệt chi</div>
+                    <div class="text-2xl font-black text-amber-600 mt-1">{{ $pendingPaymentApprovalCount }} phiếu</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                    <i class="fas fa-user-check"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-blue-100 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-500 uppercase">Chờ Kế toán chi tiền</div>
+                    <div class="text-2xl font-black text-blue-600 mt-1">{{ $pendingPaymentCount }} phiếu</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-emerald-100 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-500 uppercase">Đã thanh toán hoàn tất</div>
+                    <div class="text-2xl font-black text-emerald-700 mt-1">{{ number_format($paidTotalAmount) }} đ</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+            </div>
+        </div>
+
+        {{-- Filter & Header --}}
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-money-check-alt text-purple-600"></i> Quản lý Yêu cầu thanh toán Marketing
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Theo dõi luồng duyệt chi BOD và giải ngân chuyển khoản từ Kế toán cho các sự kiện & hoạt động Marketing</p>
+                </div>
+                <form action="{{ route('marketing-events.index') }}" method="GET" class="flex flex-wrap gap-2">
+                    <input type="hidden" name="tab" value="payments">
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm theo mã, nội dung..."
+                        class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-400">
+                    <select name="event_id" onchange="this.form.submit()"
+                        class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-400 bg-white">
+                        <option value="">Tất cả sự kiện</option>
+                        @foreach($allEventsForSelect as $ev)
+                            <option value="{{ $ev->id }}" {{ request('event_id') == $ev->id ? 'selected' : '' }}>{{ $ev->code }} - {{ $ev->title }}</option>
+                        @endforeach
+                    </select>
+                    <select name="payment_status" onchange="this.form.submit()"
+                        class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-400 bg-white">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="pending_approval" {{ request('payment_status') === 'pending_approval' ? 'selected' : '' }}>Chờ BOD duyệt</option>
+                        <option value="pending_payment"  {{ request('payment_status') === 'pending_payment' ? 'selected' : '' }}>Chờ Kế toán chi</option>
+                        <option value="completed"        {{ request('payment_status') === 'completed' ? 'selected' : '' }}>Đã thanh toán</option>
+                        <option value="rejected"         {{ request('payment_status') === 'rejected' ? 'selected' : '' }}>Từ chối</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        {{-- Table Payments --}}
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Mã phiếu</th>
+                            <th class="px-4 py-3 text-left">Sự kiện liên kết</th>
+                            <th class="px-4 py-3 text-left min-w-[220px]">Nội dung thanh toán / Tạm ứng</th>
+                            <th class="px-4 py-3 text-right">Số tiền (VND)</th>
+                            <th class="px-4 py-3 text-left">Nguồn tiền / Quỹ</th>
+                            <th class="px-4 py-3 text-center">Trạng thái</th>
+                            <th class="px-4 py-3 text-center">Người lập / Ngày</th>
+                            <th class="px-4 py-3 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($paymentRequests as $req)
+                            <tr class="hover:bg-gray-50/50">
+                                <td class="px-4 py-3 font-bold text-purple-700 whitespace-nowrap">
+                                    {{ $req->code }}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    @if($req->event)
+                                        <a href="{{ route('marketing-events.show', $req->event) }}" class="font-semibold text-gray-800 hover:text-purple-600 block text-xs">
+                                            {{ $req->event->code }}
+                                        </a>
+                                        <span class="text-[11px] text-gray-400 truncate max-w-[150px] block">{{ $req->event->title }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400">Hoạt động MKT chung</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-gray-900 text-xs">{{ $req->description }}</div>
+                                    @if($req->amount_in_words)
+                                        <div class="text-[11px] text-gray-500 italic mt-0.5">Bằng chữ: {{ $req->amount_in_words }}</div>
+                                    @endif
+                                    @if(!empty($req->attachment_path) && is_array($req->attachment_path))
+                                        <div class="flex items-center gap-1 mt-1">
+                                            @foreach($req->attachment_path as $file)
+                                                <a href="{{ $file['url'] ?? asset('storage/' . ($file['path'] ?? '')) }}" target="_blank"
+                                                   class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-purple-700 hover:bg-purple-100">
+                                                    <i class="fas fa-paperclip text-[9px]"></i> {{ $file['name'] ?? 'Chứng từ' }}
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    <span class="text-sm font-black text-gray-900">{{ number_format($req->amount) }} đ</span>
+                                </td>
+                                <td class="px-4 py-3 text-xs whitespace-nowrap">
+                                    @if($req->fund)
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                            <i class="fas fa-wallet text-[9px]"></i> {{ $req->fund->supplier->name ?? 'Quỹ' }}: {{ $req->fund->name }}
+                                        </span>
+                                    @elseif($req->funding_source)
+                                        <span class="font-medium text-gray-700">{{ $req->funding_source }}</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                    @if($req->supplier_debt_checked)
+                                        <div class="text-[10px] text-red-600 font-bold mt-0.5"><i class="fas fa-exclamation-circle text-[9px]"></i> Ghi nhận công nợ hãng</div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-bold {{ $req->status_color }}">
+                                        {{ $req->status_label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap text-xs text-gray-600">
+                                    <div>{{ $req->ticket?->creator->name ?? '—' }}</div>
+                                    <div class="text-[10px] text-gray-400">{{ $req->created_at->format('d/m/Y H:i') }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <div class="flex items-center justify-center gap-1">
+                                        @if($req->status === 'pending_approval' && (auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('director')))
+                                            <form action="{{ route('marketing-requests.status.update', $req) }}" method="POST" class="inline">
+                                                @csrf
+                                                <input type="hidden" name="status" value="pending_payment">
+                                                <button type="submit" onclick="return confirm('BOD duyệt chi khoản thanh toán này sang Kế toán?')"
+                                                    class="px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 shadow-xs" title="BOD Duyệt chi">
+                                                    <i class="fas fa-check mr-1"></i>Duyệt chi
+                                                </button>
+                                            </form>
+                                            <form action="{{ route('marketing-requests.status.update', $req) }}" method="POST" class="inline">
+                                                @csrf
+                                                <input type="hidden" name="status" value="rejected">
+                                                <button type="submit" onclick="return confirm('Từ chối yêu cầu thanh toán này?')"
+                                                    class="px-2.5 py-1 bg-red-50 text-red-600 rounded text-xs font-bold hover:bg-red-100" title="Từ chối">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        @elseif($req->status === 'pending_payment' && (auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('accountant')))
+                                            <form action="{{ route('marketing-requests.status.update', $req) }}" method="POST" class="inline">
+                                                @csrf
+                                                <input type="hidden" name="status" value="completed">
+                                                <button type="submit" onclick="return confirm('Xác nhận Kế toán đã chuyển khoản / giải ngân tiền?')"
+                                                    class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 shadow-xs" title="Xác nhận đã chi">
+                                                    <i class="fas fa-receipt mr-1"></i>Đã chi tiền
+                                                </button>
+                                            </form>
+                                        @endif
+                                        @if($req->event)
+                                            <a href="{{ route('marketing-events.show', $req->event) }}" 
+                                               class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-purple-100 text-gray-600 hover:text-purple-700 inline-flex items-center justify-center text-xs" title="Xem chi tiết sự kiện">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Chưa có yêu cầu thanh toán Marketing nào.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if(method_exists($paymentRequests, 'links'))
+                <div class="p-4">{{ $paymentRequests->links() }}</div>
+            @endif
+        </div>
+
     @elseif($currentTab === 'events')
         {{-- Header for Events --}}
         <div class="bg-white rounded-lg shadow-sm p-4">
@@ -569,10 +827,11 @@ function marketingEventsPage() {
                         <select name="status" onchange="this.form.submit()"
                             class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
                             <option value="">Tất cả trạng thái</option>
-                            <option value="draft"    {{ request('status') === 'draft'    ? 'selected' : '' }}>Nháp</option>
-                            <option value="pending"  {{ request('status') === 'pending'  ? 'selected' : '' }}>Chờ duyệt</option>
-                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Đã duyệt</option>
-                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Từ chối</option>
+                            <option value="draft"     {{ request('status') === 'draft'     ? 'selected' : '' }}>Nháp</option>
+                            <option value="pending"   {{ request('status') === 'pending'   ? 'selected' : '' }}>Chờ duyệt</option>
+                            <option value="approved"  {{ request('status') === 'approved'  ? 'selected' : '' }}>Đã duyệt</option>
+                            <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Đã hoàn thành</option>
+                            <option value="rejected"  {{ request('status') === 'rejected'  ? 'selected' : '' }}>Từ chối</option>
                         </select>
                     </form>
                     @can('create_marketing_events')
@@ -592,12 +851,13 @@ function marketingEventsPage() {
                     <thead class="bg-gray-50 border-b">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sự kiện</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Địa điểm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày & Địa điểm</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hãng / Nguồn tiền</th>
                             @if($isSuperOrMktOrOMOrBOD)
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">NS dự toán</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">NS thực tế</th>
                             @endif
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">KH mời</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">KH / CBNV</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Người tạo</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
@@ -607,43 +867,106 @@ function marketingEventsPage() {
                         @forelse($events as $event)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
-                                <a href="{{ route('marketing-events.show', $event) }}" class="font-medium text-purple-600 hover:underline">
+                                <a href="{{ route('marketing-events.show', $event) }}" class="font-bold text-purple-700 hover:underline">
                                     {{ $event->title }}
                                 </a>
-                                <div class="flex items-center gap-1.5 mt-0.5">
-                                    @if($event->is_public_to_sales)
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-700">
+                                        {{ $event->code }}
+                                    </span>
+                                    @if($event->scope === 'internal')
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                            <i class="fas fa-users text-[9px]"></i> Nội bộ
+                                        </span>
+                                    @elseif($event->is_public_to_sales)
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
-                                            <i class="fas fa-globe text-[9px]"></i> Hãng lớn / Mở rộng
+                                            <i class="fas fa-globe text-[9px]"></i> Toàn công ty
                                         </span>
                                     @else
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
-                                            <i class="fas fa-lock text-[9px]"></i> Chỉ định riêng
+                                            <i class="fas fa-lock text-[9px]"></i> Riêng tư
                                         </span>
                                     @endif
                                 </div>
-                                @if($event->description)
-                                <div class="text-xs text-gray-500 truncate max-w-xs mt-0.5">{{ $event->description }}</div>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                                <div class="font-medium">{{ $event->event_date->format('d/m/Y') }}</div>
+                                <div class="text-xs text-gray-500 truncate max-w-[150px]">{{ $event->location ?? '—' }}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-1 max-w-[180px]">
+                                    @forelse($event->suppliers as $sup)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            {{ $sup->name }}
+                                        </span>
+                                    @empty
+                                        @if($event->vendor)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                {{ $event->vendor->name }}
+                                            </span>
+                                        @elseif($event->funding_source)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-700">
+                                                {{ $event->funding_source }}
+                                            </span>
+                                        @else
+                                            <span class="text-xs text-gray-400">—</span>
+                                        @endif
+                                    @endforelse
+                                </div>
+                            </td>
+                            @if($isSuperOrMktOrOMOrBOD)
+                            <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 whitespace-nowrap">
+                                {{ number_format($event->budget) }} đ
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                @if($event->actual_cost > 0 || $event->isCompleted())
+                                    <div class="text-sm font-bold text-gray-900">{{ number_format($event->actual_cost) }} đ</div>
+                                    @if($event->variance_amount != 0)
+                                        <div class="text-[10px] font-bold mt-0.5 {{ $event->variance_amount > 0 ? 'text-rose-600' : 'text-emerald-600' }}">
+                                            {{ $event->variance_amount > 0 ? '▲ Thiếu ' . number_format($event->variance_amount) . ' đ' : '▼ Dư ' . number_format(abs($event->variance_amount)) . ' đ' }}
+                                        </div>
+                                    @endif
+                                @else
+                                    <span class="text-xs text-gray-400 italic">Chưa chốt</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $event->event_date->format('d/m/Y') }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $event->location ?? '—' }}</td>
-                            @if($isSuperOrMktOrOMOrBOD)
-                            <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format($event->budget) }} đ</td>
                             @endif
-                            <td class="px-4 py-3 text-center text-sm">{{ $event->customers_count ?? $event->customers->count() }}</td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $event->status_color }}">
+                            <td class="px-4 py-3 text-center text-sm font-medium">
+                                {{ $event->customers_count ?? $event->customers->count() ?: ($event->target_audience_count ?: '0') }}
+                            </td>
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold {{ $event->status_color }}">
                                     {{ $event->status_label }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-sm text-center text-gray-600">{{ $event->creator->name ?? '—' }}</td>
+                            <td class="px-4 py-3 text-sm text-center text-gray-600 whitespace-nowrap">{{ $event->creator->name ?? '—' }}</td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
-                                <div class="flex items-center justify-center gap-2">
+                                <div class="flex items-center justify-center gap-1.5">
                                     <a href="{{ route('marketing-events.show', $event) }}" 
                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors" 
                                        title="Xem chi tiết">
                                         <i class="fas fa-eye"></i>
                                     </a>
+
+                                    {{-- Nút Hoàn thành & Nghiệm thu chi phí --}}
+                                    @if(in_array($event->status, ['approved', 'completed']))
+                                        <button type="button" @click="openCompleteModal({{ Js::from([
+                                            'id' => $event->id,
+                                            'code' => $event->code,
+                                            'title' => $event->title,
+                                            'budget' => (float)$event->budget,
+                                            'actual_cost' => (float)$event->actual_cost,
+                                            'variance_funding_source' => $event->variance_funding_source,
+                                            'completion_note' => $event->completion_note,
+                                            'funding_sources' => $event->funding_sources,
+                                            'actual_funding_sources' => $event->actual_funding_sources,
+                                            'funding_source' => $event->funding_source,
+                                        ]) }})" 
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg {{ $event->isCompleted() ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-blue-50 text-blue-700 hover:bg-blue-100' }} transition-colors" 
+                                        title="{{ $event->isCompleted() ? 'Xem / Cập nhật quyết toán' : 'Hoàn thành sự kiện & Nghiệm thu chi phí' }}">
+                                            <i class="fas {{ $event->isCompleted() ? 'fa-clipboard-check' : 'fa-flag-checkered' }}"></i>
+                                        </button>
+                                    @endif
 
                                     @php
                                         $canApprove = false;
@@ -657,22 +980,20 @@ function marketingEventsPage() {
                                     @endphp
 
                                     @if($canApprove)
-                                    <div class="flex items-center gap-1">
-                                        <form action="{{ route('marketing-events.approve', $event) }}" method="POST" class="inline">
-                                            @csrf
-                                            <button type="submit" 
-                                                onclick="return confirm('Duyệt ngân sách sự kiện này?')"
-                                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" 
-                                                title="Duyệt nhanh">
-                                                <i class="fas fa-check"></i>
-                                            </button>
-                                        </form>
-                                        <a href="{{ route('marketing-events.show', $event) }}?reject=1" 
-                                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors" 
-                                            title="Từ chối">
-                                            <i class="fas fa-times"></i>
-                                        </a>
-                                    </div>
+                                    <form action="{{ route('marketing-events.approve', $event) }}" method="POST" class="inline">
+                                        @csrf
+                                        <button type="submit" 
+                                            onclick="return confirm('Duyệt ngân sách sự kiện này?')"
+                                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" 
+                                            title="Duyệt nhanh">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <a href="{{ route('marketing-events.show', $event) }}?reject=1" 
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors" 
+                                        title="Từ chối">
+                                        <i class="fas fa-times"></i>
+                                    </a>
                                     @endif
 
                                     @if($event->isEditable())
@@ -698,7 +1019,7 @@ function marketingEventsPage() {
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Chưa có sự kiện nào.</td></tr>
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Chưa có sự kiện nào.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -913,5 +1234,142 @@ function marketingEventsPage() {
             </div>
         </div>
     @endif
+
+    {{-- MODAL HOÀN THÀNH SỰ KIỆN & QUYẾT TOÁN CHI PHÍ THỰC TẾ --}}
+    <div x-show="showCompleteModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-purple-100"
+             @click.outside="showCompleteModal = false">
+            <div class="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">
+                        <i class="fas fa-flag-checkered"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold">Nghiệm thu Hoàn thành Sự kiện & Quyết toán NS</h3>
+                        <p class="text-xs text-emerald-100 mt-0.5">
+                            Sự kiện: <strong x-text="completeData.eventCode"></strong> - <span x-text="completeData.eventTitle"></span>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" @click="showCompleteModal = false" class="text-white/80 hover:text-white text-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form :action="completeData.actionUrl" method="POST" class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                @csrf
+
+                {{-- Tổng chi phí thực tế --}}
+                <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-200">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <span class="text-xs font-bold text-gray-500 uppercase block">Ngân sách dự toán ban đầu:</span>
+                            <span class="text-lg font-bold text-gray-800" x-text="formatMoneyNumber(completeData.budget) + ' đ'"></span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase mb-1">
+                                Tổng Chi phí Thực tế Phát sinh (VND) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text"
+                                   :value="formatMoneyNumber(completeData.actualCost)"
+                                   @input="completeData.actualCost = $event.target.value.replace(/[^\d]/g, '')"
+                                   name="actual_cost"
+                                   required
+                                   class="w-full border border-emerald-300 rounded-lg px-3 py-2 text-base font-black text-emerald-800 bg-white focus:ring-2 focus:ring-emerald-400 text-right">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Bảng chi tiết thực tế tài trợ của từng Hãng / Nguồn tiền --}}
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            <i class="fas fa-hand-holding-usd text-emerald-600 mr-1"></i> Số tiền thực tế tài trợ từng Hãng & Nguồn tiền
+                        </label>
+                        <span class="text-xs text-gray-500">
+                            Tổng tài trợ thực tế: <strong class="text-emerald-700" x-text="formatMoneyNumber(getCompletionTotalFunding()) + ' đ'"></strong>
+                        </span>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-xl overflow-hidden">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 font-bold uppercase text-gray-500">
+                                <tr>
+                                    <th class="p-2.5 text-left">Nguồn tài trợ / Hãng</th>
+                                    <th class="p-2.5 text-right w-36">Dự toán cam kết</th>
+                                    <th class="p-2.5 text-right w-44">Thực tế chi trả (VND) <span class="text-red-500">*</span></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="(src, idx) in completeData.sources" :key="idx">
+                                    <tr class="hover:bg-gray-50/50">
+                                        <td class="p-2.5 font-semibold text-gray-800" x-text="src.name || ('Nguồn ' + (idx + 1))"></td>
+                                        <td class="p-2.5 text-right text-gray-500" x-text="formatMoneyNumber(src.planned_amount) + ' đ'"></td>
+                                        <td class="p-2.5 text-right">
+                                            <input type="text"
+                                                   :name="'actual_funding_sources[' + idx + ']'"
+                                                   :value="formatMoneyNumber(src.actual_amount)"
+                                                   @input="src.actual_amount = $event.target.value.replace(/[^\d]/g, '')"
+                                                   class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-emerald-400">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {{-- Con số chênh lệch & Nguồn xử lý chênh lệch --}}
+                <div class="p-4 rounded-xl border"
+                     :class="getCompletionVariance() > 0 ? 'bg-rose-50/70 border-rose-200' : (getCompletionVariance() < 0 ? 'bg-emerald-50/70 border-emerald-200' : 'bg-gray-50 border-gray-200')">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold uppercase"
+                              :class="getCompletionVariance() > 0 ? 'text-rose-800' : (getCompletionVariance() < 0 ? 'text-emerald-800' : 'text-gray-700')">
+                            <i class="fas fa-balance-scale mr-1"></i> Chênh lệch (Tổng chi thực tế - Tổng tài trợ):
+                        </span>
+                        <span class="text-base font-black"
+                              :class="getCompletionVariance() > 0 ? 'text-rose-700' : (getCompletionVariance() < 0 ? 'text-emerald-700' : 'text-gray-700')"
+                              x-text="(getCompletionVariance() > 0 ? '▲ Thiếu hụt (Vượt chi): ' : (getCompletionVariance() < 0 ? '▼ Dư tiền tài trợ: ' : 'Cân bằng: ')) + formatMoneyNumber(Math.abs(getCompletionVariance())) + ' đ'">
+                        </span>
+                    </div>
+
+                    {{-- Nguồn tiền bù đắp / xử lý phần dư --}}
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">
+                            <span x-text="getCompletionVariance() > 0 ? 'Con số thiếu hụt / phát sinh vượt dự toán lấy nguồn bù từ đâu? *' : 'Con số dư tài trợ xử lý như thế nào? *'"></span>
+                        </label>
+                        <select name="variance_funding_source" x-model="completeData.varianceSource" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-purple-400 bg-white">
+                            <option value="Ngân sách công ty bù thêm">Trích bổ sung từ Ngân sách Công ty</option>
+                            <option value="Đàm phán Hãng hỗ trợ thêm">Đàm phán Hãng hỗ trợ thanh toán thêm</option>
+                            <option value="Quỹ Marketing nội bộ dự phòng">Trích từ Quỹ Marketing dự phòng của năm</option>
+                            <option value="Quỹ Công đoàn hỗ trợ">Trích từ Quỹ Công đoàn hỗ trợ</option>
+                            <option value="Hoàn trả quỹ hãng / chuyển kỳ sau">Hoàn trả nguồn tài trợ / Chuyển sang sự kiện sau</option>
+                            <option value="Khác">Khác (Ghi chú chi tiết bên dưới)</option>
+                        </select>
+                    </div>
+                </div>
+
+                {{-- Ghi chú nghiệm thu --}}
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ghi chú tổng kết / Nghiệm thu tài chính</label>
+                    <textarea name="completion_note" x-model="completeData.note" rows="2"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-purple-400"
+                              placeholder="Ghi chú kết quả sự kiện, đối soát hóa đơn với các hãng..."></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t">
+                    <button type="button" @click="showCompleteModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-xs font-bold transition-colors">
+                        Đóng
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fas fa-check-circle"></i> Xác nhận Hoàn thành & Lưu quyết toán
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 @endsection
+

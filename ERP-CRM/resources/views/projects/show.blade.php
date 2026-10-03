@@ -8,6 +8,23 @@
     $canViewCommercial = auth()->user()->canViewCommercialPrice($project->manager_id);
 @endphp
 <div class="space-y-6">
+    @if($project->registration_status === 'duplicate')
+        <div class="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg text-red-800 flex items-start gap-3 shadow-sm">
+            <i class="fas fa-exclamation-triangle text-red-500 text-xl mt-0.5"></i>
+            <div>
+                <h4 class="font-bold text-sm">DỰ ÁN BỊ TRÙNG LẶP ĐĂNG KÝ (DUPLICATE)</h4>
+                <p class="text-xs mt-1">Dự án này bị trùng thông tin với dự án đã tồn tại trên hệ thống. Tính năng chỉnh sửa đã bị khóa để bảo toàn dữ liệu. Vui lòng liên hệ PM/PO Team để được hỗ trợ xử lý.</p>
+            </div>
+        </div>
+    @elseif((($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true)) && !auth()->user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']))
+        <div class="p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg text-blue-800 flex items-start gap-3 shadow-sm">
+            <i class="fas fa-lock text-blue-500 mt-0.5"></i>
+            <div>
+                <p class="text-xs font-medium">Dự án đã được duyệt ĐKDA thành công nên đã khóa chỉnh sửa trực tiếp đối với Sales. Nếu cần điều chỉnh hoặc gửi thêm thông tin, vui lòng sử dụng mục Thảo luận/Ghi chú hoặc liên hệ PO/PM.</p>
+            </div>
+        </div>
+    @endif
+
     <!-- Actions Toolbar -->
     <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <!-- Left Side: Back Button -->
@@ -23,12 +40,42 @@
             
             <!-- Nhóm 1: Công cụ & Chỉnh sửa -->
             <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-150">
-                <!-- Edit Button -->
-                <a href="{{ route('projects.edit', $project->id) }}" 
-                   class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
-                    <i class="fas fa-edit mr-1"></i> Sửa
+                <!-- Duplicate Button (ĐKDA 1) -->
+                <a href="{{ route('projects.duplicate', $project->id) }}" 
+                   class="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                   title="Nhân bản dữ liệu sang dự án mới để đăng ký hãng khác">
+                    <i class="fas fa-copy mr-1"></i> Nhân bản
                 </a>
+
+                <!-- Edit Button (ĐKDA 2 & 7) -->
+                @php
+                    $currentUser = auth()->user();
+                    $isPoOrAdmin = $currentUser->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
+                    $isDuplicateDeal = ($project->registration_status === 'duplicate');
+                    $isApprovedDeal = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true);
+                    $canEditProject = !$isDuplicateDeal && ($isPoOrAdmin || !$isApprovedDeal) && !in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true);
+                    $canCloseWon = $isPoOrAdmin || $isApprovedDeal;
+                @endphp
+                @if($canEditProject)
+                    <a href="{{ route('projects.edit', $project->id) }}" 
+                       class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
+                        <i class="fas fa-edit mr-1"></i> Sửa
+                    </a>
+                @else
+                    <button type="button" disabled
+                       class="inline-flex items-center px-3 py-1.5 bg-gray-200 text-gray-400 rounded-md font-medium text-xs cursor-not-allowed whitespace-nowrap"
+                       title="{{ $isDuplicateDeal ? 'Dự án trùng lặp - Đã khóa sửa' : ($isApprovedDeal ? 'Dự án đã duyệt - Đã khóa sửa với Sales' : 'Dự án đã đóng hoặc từ chối') }}">
+                        <i class="fas fa-lock mr-1"></i> Sửa
+                    </button>
+                @endif
                 
+                <!-- Vertical Template for Email (ĐKDA 8) -->
+                <button type="button" onclick="openModal('verticalVendorTemplateModal')"
+                   class="inline-flex items-center px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                   title="Xem mẫu đăng ký dự án dạng dọc để sao chép gửi email cho Hãng">
+                    <i class="fas fa-file-alt mr-1"></i> Mẫu gửi Hãng (Dọc)
+                </button>
+
                 <!-- 1-Click Excel Export for Vendor -->
                 <a href="{{ route('projects.export-vendor-excel', $project->id) }}" 
                    class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
@@ -1603,11 +1650,18 @@
                         <label class="block text-sm font-medium text-gray-700">Kết quả đóng dự án <span class="text-red-500">*</span></label>
                         <select name="close_status" id="close_status" required onchange="toggleCloseStatusFields()" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                             <option value="">-- Chọn kết quả --</option>
-                            <option value="closed_won">Closed Won (Thắng dự án)</option>
+                            <option value="closed_won" {{ !$canCloseWon ? 'disabled class=text-gray-400' : '' }}>
+                                Closed Won (Thắng dự án){{ !$canCloseWon ? ' - (Yêu cầu PO/PM duyệt ĐKDA trước)' : '' }}
+                            </option>
                             <option value="closed_lost">Closed Lost (Thua dự án)</option>
                             <option value="cancelled">Cancelled (Hủy dự án)</option>
                             <option value="on_hold">On Hold (Tạm dừng)</option>
                         </select>
+                        @if(!$canCloseWon)
+                            <p class="text-xs text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                                <i class="fas fa-exclamation-triangle"></i> Lưu ý: Không thể chọn Closed Won vì dự án chưa được PO/PM duyệt hoặc đăng ký thành công với Hãng.
+                            </p>
+                        @endif
                     </div>
                     
                     <!-- Closed Won Fields -->
@@ -1925,5 +1979,113 @@
             reasonSelect.required = true;
         }
     }
+
+    function copyVerticalTemplate() {
+        const textEl = document.getElementById('verticalVendorTemplateText');
+        if (textEl) {
+            textEl.select();
+            navigator.clipboard.writeText(textEl.value).then(() => {
+                const btn = document.getElementById('copyVerticalTemplateBtn');
+                if (btn) {
+                    const oldHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> <span>Đã sao chép!</span>';
+                    btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                    btn.classList.add('bg-emerald-600');
+                    setTimeout(() => {
+                        btn.innerHTML = oldHtml;
+                        btn.classList.remove('bg-emerald-600');
+                        btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                    }, 2500);
+                }
+            });
+        }
+    }
 </script>
+
+<!-- 6. Vertical Vendor Registration Template Modal (ĐKDA 8) -->
+@php
+    $bomItemsList = \App\Exports\ProjectsExport::parseBomData($project->bom_data);
+    if (empty($bomItemsList) && $project->saleItems && $project->saleItems->count() > 0) {
+        foreach ($project->saleItems as $sItem) {
+            $bomItemsList[] = [
+                'pn' => $sItem->product->code ?? '',
+                'model' => $sItem->product->name ?? '',
+                'qty' => $sItem->quantity ?? 1,
+            ];
+        }
+    }
+@endphp
+<div id="verticalVendorTemplateModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('verticalVendorTemplateModal')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-file-alt text-indigo-600 text-lg"></i>
+                    <h3 class="text-lg font-bold text-gray-900">Mẫu Đăng ký Dự án dạng Dọc (Gửi Hãng qua Email)</h3>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeModal('verticalVendorTemplateModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mt-4 space-y-3">
+                <p class="text-xs text-gray-500">Mẫu đã được căn chỉnh theo cấu trúc danh sách dọc chuẩn xác, thuận tiện để sao chép trực tiếp vào nội dung email gửi Hãng (Vendor).</p>
+                <div class="relative">
+                    <textarea id="verticalVendorTemplateText" readonly rows="16" class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:outline-none select-all leading-relaxed">THÔNG TIN ĐĂNG KÝ DỰ ÁN (DEAL REGISTRATION)
+==================================================
+1. THÔNG TIN CHUNG
+- Mã dự án (Project Code): {{ $project->code }}
+- Tên dự án (Project Name): {{ $project->name }}
+- Hãng (Vendor): {{ $project->vendor->name ?? 'N/A' }}
+- Nhà phân phối (Distributor): {{ $project->distributor ?: 'Tech Horizon Corporation' }}
+- AM phụ trách (Distributor AM): {{ $project->manager->name ?? $project->distributor_am ?? 'N/A' }}
+- Ngày đăng ký (Deal Reg Date): {{ $project->created_at ? $project->created_at->format('d/m/Y') : '' }}
+- Dự kiến chốt (Expected Close Date): {{ $project->end_date ? $project->end_date->format('d/m/Y') : 'N/A' }}
+@if($project->net_to_tech_horizon)
+- Net to FTN: {{ number_format($project->net_to_tech_horizon, 0, ',', '.') }} VNĐ
+@endif
+
+2. THÔNG TIN KHÁCH HÀNG CUỐI (END-USER)
+- Tên End-User (Tiếng Việt): {{ $project->eu_name_vi }}
+- Tên End-User (Tiếng Anh): {{ $project->eu_name_en ?: 'N/A' }}
+- Mã số thuế (Tax Code): {{ $project->eu_tax_code ?: 'N/A' }}
+- Địa chỉ (Address): {{ $project->eu_address ?: 'N/A' }}
+- Người liên hệ (Contact Person): {{ $project->eu_contact_name ?: 'N/A' }}
+- Số điện thoại (Phone): {{ $project->eu_contact_phone ?: 'N/A' }}
+- Email: {{ $project->eu_contact_email ?: 'N/A' }}
+
+3. ĐẠI LÝ / ĐỐI TÁC HỢP TÁC (PARTNER / SI)
+- Hình thức: {{ $project->collaborate_type == 'direct' ? 'Làm việc trực tiếp End-User' : 'Qua Đại lý / SI' }}
+@if($project->collaborate_type != 'direct')
+- Tên đại lý (Partner Company): {{ $project->collaborate_company ?: 'N/A' }}
+- Mã số thuế đại lý: {{ $project->collaborate_tax_code ?: 'N/A' }}
+- Người liên hệ: {{ $project->collaborate_contact_name ?: 'N/A' }}
+- Số điện thoại: {{ $project->collaborate_contact_phone ?: 'N/A' }}
+@endif
+
+4. DANH SÁCH THIẾT BỊ / BOM (BILL OF MATERIALS)
+@if(count($bomItemsList) > 0)
+@foreach($bomItemsList as $idx => $bItem)
+[{{ $idx + 1 }}] Part Number: {{ $bItem['pn'] ?: '-' }} | Model: {{ $bItem['model'] ?: '-' }} | Số lượng: {{ $bItem['qty'] ?: 1 }}
+@endforeach
+@else
+(Chưa có danh sách thiết bị BOM chi tiết)
+@endif
+
+5. GHI CHÚ (NOTE)
+{{ $project->note ?: '(Không có ghi chú bổ sung)' }}
+==================================================</textarea>
+                </div>
+            </div>
+            <div class="mt-5 sm:mt-6 flex justify-end gap-3">
+                <button type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" onclick="closeModal('verticalVendorTemplateModal')">Đóng</button>
+                <button type="button" id="copyVerticalTemplateBtn" onclick="copyVerticalTemplate()" class="inline-flex items-center gap-1.5 justify-center rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                    <i class="fas fa-copy"></i>
+                    <span>Sao chép vào Clipboard</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection

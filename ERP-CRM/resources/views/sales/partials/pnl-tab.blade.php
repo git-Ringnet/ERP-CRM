@@ -1085,6 +1085,58 @@
         }
     }
 
+    function applyGlobalExchangeRatePnL() {
+        const rateInput = document.getElementById('pnl_global_exchange_rate');
+        const rateVal = parseFloat(rateInput?.value);
+        if (!rateVal || rateVal <= 0) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Chưa nhập tỷ giá',
+                    text: 'Vui lòng nhập tỷ giá hợp lệ trước khi nhấn đồng bộ.',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'Đóng'
+                });
+            } else {
+                alert('Vui lòng nhập tỷ giá hợp lệ trước khi nhấn đồng bộ.');
+            }
+            return;
+        }
+
+        let count = 0;
+        document.querySelectorAll('tr[x-data]').forEach(row => {
+            try {
+                const rd = getAlpineData(row);
+                if (rd && typeof rd.rate !== 'undefined') {
+                    rd.rate = rateVal;
+                    if (typeof rd.calculate === 'function') {
+                        rd.calculate();
+                    }
+                    count++;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        window.dispatchEvent(new CustomEvent('sync-rate', { detail: rateVal }));
+
+        document.querySelectorAll('table.table-pnl-editor input[x-model="rate"]').forEach(input => {
+            input.value = rateVal;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Đã đồng bộ tỷ giá',
+                text: `Đã áp dụng tỷ giá ${rateVal.toLocaleString()} cho ${count} sản phẩm trong bảng P&L. Bạn vẫn có thể tùy chỉnh lại từng dòng nếu cần.`,
+                timer: 2200,
+                showConfirmButton: false
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => { 
         initExtraExpenseMoneyInputs(); 
         const pnlForm = document.getElementById('pnlForm');
@@ -1145,24 +1197,40 @@
 
     @if($sale->isPlEditable())
     <div class="px-4 py-2.5 bg-cyan-50/60 border-b border-cyan-100 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                <i class="fas fa-industry text-cyan-600 mr-1"></i> Chọn Hãng (Chung):
-            </span>
-            <select id="pnl_global_vendor" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 bg-white min-w-[220px]">
-                <option value="">-- Chọn Hãng / Vendor --</option>
-                <option value="service">Service (Dịch vụ)</option>
-                @foreach($suppliers as $supplier)
-                    <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
-                @endforeach
-            </select>
-            <button type="button" onclick="applyGlobalVendorPnL()"
-                    class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
-                <i class="fas fa-check-double"></i> Áp dụng cho tất cả sản phẩm
-            </button>
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                    <i class="fas fa-industry text-cyan-600 mr-1"></i> Chọn Hãng:
+                </span>
+                <select id="pnl_global_vendor" class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 bg-white min-w-[200px]">
+                    <option value="">-- Chọn Hãng / Vendor --</option>
+                    <option value="service">Service (Dịch vụ)</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                    @endforeach
+                </select>
+                <button type="button" onclick="applyGlobalVendorPnL()"
+                        class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-check-double"></i> Áp dụng Hãng
+                </button>
+            </div>
+
+            <!-- Global Exchange Rate Sync (PNL 3) -->
+            <div class="flex items-center gap-2 border-l border-cyan-200 pl-4">
+                <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                    <i class="fas fa-dollar-sign text-emerald-600 mr-1"></i> Tỷ giá chung:
+                </span>
+                <input type="number" id="pnl_global_exchange_rate" value="{{ $sale->exchange_rate ?: 25400 }}" step="any" min="0" placeholder="VD: 25400"
+                       class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 w-28 text-right font-semibold focus:ring-1 focus:ring-emerald-500 bg-white">
+                <button type="button" onclick="applyGlobalExchangeRatePnL()"
+                        class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Đồng bộ tỷ giá này cho tất cả sản phẩm trong bảng P&L">
+                    <i class="fas fa-sync-alt"></i> Đồng bộ tỷ giá
+                </button>
+            </div>
         </div>
         <div class="text-[11px] text-gray-500 italic">
-            * Chọn hãng ở trên và nhấn "Áp dụng" để tự động gán cho tất cả dòng sản phẩm trong bảng P&L.
+            * Nhấn đồng bộ để áp dụng tỷ giá cho toàn đơn hàng (vẫn có thể chỉnh tay từng dòng nếu cần).
         </div>
     </div>
     @endif
@@ -1553,7 +1621,8 @@
                                     @endforeach
                                 }
                             })"
-                            @pnl-recalc.window="calculate()">
+                            @pnl-recalc.window="calculate()"
+                            @sync-rate.window="rate = $event.detail; calculate()">
                             <td class="px-2 py-2 text-center border border-gray-400 text-xs">
                                 <div class="font-bold mb-1">{{ $item->product->code ?? '' }}</div>
                                 <select x-model="vendor_value"
@@ -1868,9 +1937,10 @@
                 </tbody>
                 <tfoot class="bg-gray-800 text-white font-bold text-xs sticky bottom-0">
                     <tr>
-                        <td colspan="10" class="px-2 py-3 text-right uppercase tracking-wider">Tổng cộng (Đơn hàng):</td>
+                        <td colspan="9" class="px-2 py-3 text-right uppercase tracking-wider">Tổng cộng (Đơn hàng):</td>
+                        <td class="px-2 py-3 text-right bg-amber-900 text-amber-200 font-bold" title="Tổng giá đầu vào (VND)" x-text="formatNumber(global_cost)"></td>
                         <td class="px-2 py-3 text-right"></td> {{-- Giá bán lẻ --}}
-                        <td class="px-2 py-3 text-right bg-blue-900" x-text="formatNumber(global_revenue)"></td>
+                        <td class="px-2 py-3 text-right bg-blue-900 font-bold" title="Tổng doanh số bán (VND)" x-text="formatNumber(global_revenue)"></td>
                         <td class="px-2 py-3 text-right" x-text="formatNumber(global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100) - global_cost)"></td>
                         <td class="px-2 py-3 text-center" x-text="(global_revenue > 0 ? (((global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) - global_cost) / (global_revenue * (1 - {{ $sale->discount ?? 0 }} / 100)) * 100).toFixed(1) : 0) + '%'"></td>
                         

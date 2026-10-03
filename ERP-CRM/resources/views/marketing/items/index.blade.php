@@ -34,7 +34,7 @@
     </div>
 
     {{-- KPI Cards --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm flex items-center justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Tổng loại vật phẩm</p>
@@ -80,6 +80,19 @@
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
         </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Chờ BOD duyệt</p>
+                <h3 class="text-2xl font-bold {{ $pendingApprovalCount > 0 ? 'text-amber-600' : 'text-gray-800' }} mt-1">{{ number_format($pendingApprovalCount) }}</h3>
+                <span class="text-xs {{ $pendingApprovalCount > 0 ? 'text-amber-500 font-semibold' : 'text-gray-400' }}">
+                    {{ $pendingApprovalCount > 0 ? 'Cần BOD phê duyệt' : 'Đã duyệt hết' }}
+                </span>
+            </div>
+            <div class="w-12 h-12 rounded-xl {{ $pendingApprovalCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400' }} flex items-center justify-center text-xl">
+                <i class="fas fa-user-check"></i>
+            </div>
+        </div>
     </div>
 
     {{-- Main Content Card --}}
@@ -98,6 +111,15 @@
                     class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
                     <i class="fas fa-plus"></i> Thêm vật phẩm mới
                 </button>
+                <button type="button" @click="showImportFileModal = true"
+                    class="px-3.5 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
+                    <i class="fas fa-file-excel"></i> Import quà tặng (Excel)
+                </button>
+                <a href="{{ route('marketing-items.download-template') }}"
+                   class="px-3 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+                   title="Tải file mẫu Excel chuẩn để nhập dữ liệu">
+                    <i class="fas fa-download text-xs text-gray-400"></i> File mẫu
+                </a>
                 <button type="button" @click="showImportModal = true; selectedItem = null; importForm.marketing_item_id = ''"
                     class="px-3.5 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
                     <i class="fas fa-arrow-down"></i> Nhập kho
@@ -111,7 +133,7 @@
 
         {{-- Filters --}}
         <div class="p-4 bg-gray-50/70 border-b border-gray-100">
-            <form method="GET" action="{{ route('marketing-items.index') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <form method="GET" action="{{ route('marketing-items.index') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Tìm mã, tên, mô tả vật phẩm..."
                         class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 focus:ring-purple-500 px-3 py-2 bg-white">
@@ -131,11 +153,19 @@
                         <option value="out" {{ request('stock_status') === 'out' ? 'selected' : '' }}>🛑 Hết hàng (= 0)</option>
                     </select>
                 </div>
+                <div>
+                    <select name="approval_status" class="w-full text-xs rounded-lg border-gray-300 focus:border-purple-500 focus:ring-purple-500 px-3 py-2 bg-white" onchange="this.form.submit()">
+                        <option value="">-- Trạng thái duyệt BOD --</option>
+                        <option value="pending" {{ request('approval_status') === 'pending' ? 'selected' : '' }}>⏳ Chờ BOD duyệt</option>
+                        <option value="approved" {{ request('approval_status') === 'approved' ? 'selected' : '' }}>✅ Đã duyệt</option>
+                        <option value="rejected" {{ request('approval_status') === 'rejected' ? 'selected' : '' }}>❌ Bị từ chối</option>
+                    </select>
+                </div>
                 <div class="flex gap-2">
                     <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-semibold hover:bg-gray-700 transition-colors flex-1">
                         <i class="fas fa-filter mr-1"></i> Lọc
                     </button>
-                    @if(request()->anyFilled(['search', 'category', 'stock_status']))
+                    @if(request()->anyFilled(['search', 'category', 'stock_status', 'approval_status']))
                         <a href="{{ route('marketing-items.index') }}" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 transition-colors flex items-center justify-center">
                             <i class="fas fa-redo"></i>
                         </a>
@@ -155,7 +185,8 @@
                         <th class="px-4 py-3.5 text-right">Tồn kho</th>
                         <th class="px-4 py-3.5 text-right">Đơn giá ước tính</th>
                         <th class="px-4 py-3.5 text-right">Tổng giá trị</th>
-                        <th class="px-4 py-3.5 text-center">Trạng thái</th>
+                        <th class="px-4 py-3.5 text-center">Trạng thái kho</th>
+                        <th class="px-4 py-3.5 text-center">Duyệt BOD</th>
                         <th class="px-4 py-3.5 text-center">Thao tác</th>
                     </tr>
                 </thead>
@@ -216,6 +247,41 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3.5 text-center">
+                                @if(($item->approval_status ?? 'approved') === 'pending')
+                                    <div class="space-y-1">
+                                        <span class="inline-block text-2xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                                            Chờ BOD duyệt
+                                        </span>
+                                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('director') || auth()->user()->hasRole('admin'))
+                                            <div class="flex items-center justify-center gap-1 mt-1">
+                                                <form action="{{ route('marketing-items.approve', $item->id) }}" method="POST" class="inline m-0" onsubmit="return confirm('BOD phê duyệt vật phẩm này vào kho chính thức?')">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-2xs font-bold transition-all shadow-xs" title="Duyệt">
+                                                        <i class="fas fa-check"></i> Duyệt
+                                                    </button>
+                                                </form>
+                                                <button type="button" @click="openRejectModal({{ json_encode($item) }})" class="px-2 py-0.5 bg-red-100 hover:bg-red-200 text-red-700 rounded text-2xs font-bold transition-all" title="Từ chối">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @elseif(($item->approval_status ?? 'approved') === 'rejected')
+                                    <div>
+                                        <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 block" title="{{ $item->rejection_reason }}">
+                                            Từ chối
+                                        </span>
+                                        @if($item->rejection_reason)
+                                            <span class="text-3xs text-red-500 italic block mt-0.5 truncate max-w-[100px]" title="{{ $item->rejection_reason }}">"{{ $item->rejection_reason }}"</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        Đã duyệt
+                                    </span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3.5 text-center">
                                 <div class="flex items-center justify-center gap-1.5">
                                     <button type="button" @click="openImport({{ json_encode($item) }})" title="Nhập thêm hàng"
                                         class="w-7 h-7 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center text-xs transition-colors">
@@ -248,7 +314,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center py-10 text-gray-400">
+                            <td colspan="9" class="text-center py-10 text-gray-400">
                                 <i class="fas fa-box-open text-4xl mb-2 text-gray-300"></i>
                                 <p class="text-sm">Chưa có vật phẩm nào trong kho Marketing.</p>
                             </td>
@@ -333,6 +399,13 @@
                 <template x-if="editItem">
                     <input type="hidden" name="_method" value="PUT">
                 </template>
+
+                @if(!auth()->user()->hasRole('super_admin') && !auth()->user()->hasRole('director'))
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                    <i class="fas fa-info-circle text-amber-500 mt-0.5 shrink-0"></i>
+                    <span><strong>Quy trình phê duyệt:</strong> Vật phẩm mới sẽ được gửi tới Ban Giám đốc (BOD) phê duyệt trước khi được xuất kho hoặc tính vào danh mục chính thức.</span>
+                </div>
+                @endif
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tên vật phẩm <span class="text-red-500">*</span></label>
@@ -643,6 +716,87 @@
             </form>
         </div>
     </div>
+
+    {{-- MODAL IMPORT FILE QUÀ TẶNG (EXCEL / CSV) --}}
+    <div x-show="showImportFileModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4" x-cloak>
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4" @click.away="showImportFileModal = false">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-file-excel text-emerald-600"></i> Import Danh sách Quà tặng / Vật phẩm
+                </h3>
+                <button type="button" @click="showImportFileModal = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+
+            <form action="{{ route('marketing-items.import-file') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                
+                <div class="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-xs text-emerald-900">
+                    <div class="font-bold flex items-center gap-1.5 text-emerald-800">
+                        <i class="fas fa-info-circle"></i> Hướng dẫn nhập file Excel / CSV:
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-emerald-800/90 text-2xs">
+                        <li>File cần chứa các cột: <strong>Tên vật phẩm, Phân loại, Đơn vị tính, Số lượng, Đơn giá ước tính, Tồn tối thiểu, Mô tả</strong>.</li>
+                        <li>Phân loại chấp nhận: <code>gift</code> (Quà tặng), <code>brochure</code> (Ấn phẩm), <code>standee</code>, <code>banner</code>, <code>backdrop</code>, <code>uniform</code> (Đồng phục), <code>other</code>.</li>
+                        <li>Nếu vật phẩm đã có sẵn mã trong hệ thống, số lượng sẽ được tự động cộng dồn vào kho.</li>
+                    </ul>
+                    <div class="pt-1">
+                        <a href="{{ route('marketing-items.download-template') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 text-emerald-700 font-bold rounded-lg hover:bg-emerald-50 transition-colors shadow-2xs">
+                            <i class="fas fa-download"></i> Tải file Excel mẫu chuẩn (.xlsx)
+                        </a>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Chọn file Excel hoặc CSV <span class="text-red-500">*</span></label>
+                    <input type="file" name="file" required accept=".xlsx,.xls,.csv"
+                           class="w-full text-xs text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-lg p-2 bg-white">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button type="button" @click="showImportFileModal = false" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200">
+                        Hủy
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-cloud-upload-alt"></i> Tải lên & Thực hiện Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- MODAL BOD TỪ CHỐI DUYỆT VẬT PHẨM --}}
+    <div x-show="showRejectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4" x-cloak>
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" @click.away="showRejectModal = false">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 class="text-base font-bold text-red-600 flex items-center gap-2">
+                    <i class="fas fa-times-circle"></i> BOD Từ chối Phê duyệt Vật phẩm
+                </h3>
+                <button type="button" @click="showRejectModal = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+
+            <form :action="rejectItem ? ('/marketing-items/' + rejectItem.id + '/reject') : '#'" method="POST" class="space-y-4">
+                @csrf
+                <p class="text-xs text-gray-600">
+                    Vật phẩm: <strong class="text-gray-900" x-text="rejectItem ? (rejectItem.code + ' - ' + rejectItem.name) : ''"></strong>
+                </p>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lý do từ chối <span class="text-red-500">*</span></label>
+                    <textarea name="rejection_reason" rows="3" required placeholder="Nhập lý do không phê duyệt vật phẩm này..."
+                              class="w-full text-xs rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500 px-3 py-2"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button type="button" @click="showRejectModal = false" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200">
+                        Đóng
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-sm">
+                        Xác nhận Từ chối
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -651,8 +805,16 @@ function marketingItemsManager(config) {
         showAddItemModal: false,
         showImportModal: false,
         showExportModal: false,
+        showImportFileModal: false,
+        showRejectModal: false,
         selectedItem: null,
         editItem: null,
+        rejectItem: null,
+
+        openRejectModal(item) {
+            this.rejectItem = item;
+            this.showRejectModal = true;
+        },
 
         allItems: config.allItems || [],
         opportunities: config.opportunities || [],

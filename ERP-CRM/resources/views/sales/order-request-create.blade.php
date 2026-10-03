@@ -165,7 +165,15 @@
                             <tr class="bg-yellow-200 text-[10px] border-b border-gray-300">
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[140px] align-middle uppercase">Vendor <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[90px] align-middle uppercase">Type <span class="text-red-500">*</span></th>
-                                <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[60px] align-middle uppercase" title="Cấp CQ riêng (chỉ FTN+HW)">CQ</th>
+                                <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 min-w-[70px] align-middle uppercase" title="Chọn cấp CQ cho tất cả sản phẩm">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>CQ</span>
+                                        <label class="inline-flex items-center gap-1 cursor-pointer font-normal text-[9px] text-emerald-800" title="Chọn/Bỏ chọn CQ cho tất cả dòng">
+                                            <input type="checkbox" id="master_cq_checkbox" onchange="toggleMasterCq(this)" class="w-3.5 h-3.5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                                            <span>Tất cả</span>
+                                        </label>
+                                    </div>
+                                </th>
                                 <th rowspan="2" class="px-2 py-2 text-left font-bold text-gray-800 border-r border-gray-300 min-w-[180px] align-middle uppercase">Part Number <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Qty <span class="text-red-500">*</span></th>
                                 <th rowspan="2" class="px-2 py-2 text-center font-bold text-gray-800 border-r border-gray-300 w-16 align-middle uppercase">Unit</th>
@@ -352,6 +360,26 @@
                 </div>
             </div>
 
+            <!-- License từ NPP khác (Đặt hàng 2) -->
+            <div class="bg-amber-50/70 border border-amber-200 rounded-lg p-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="is_license_from_other_distributor" id="is_license_from_other_distributor" value="1"
+                        onchange="toggleOtherDistributorInput(this)"
+                        class="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                        {{ old('is_license_from_other_distributor', isset($orderRequest) ? $orderRequest->is_license_from_other_distributor : false) ? 'checked' : '' }}>
+                    <span class="text-xs font-bold text-gray-800 uppercase">
+                        <i class="fas fa-certificate text-amber-600 mr-1"></i> Có đính kèm file License từ NPP khác
+                    </span>
+                </label>
+                <div id="other_distributor_wrapper" class="mt-2 {{ old('is_license_from_other_distributor', isset($orderRequest) ? $orderRequest->is_license_from_other_distributor : false) ? '' : 'hidden' }}">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Tên Nhà Phân Phối (NPP) khác đã cấp license:</label>
+                    <input type="text" name="other_distributor_name" id="other_distributor_name"
+                        value="{{ old('other_distributor_name', isset($orderRequest) ? $orderRequest->other_distributor_name : '') }}"
+                        placeholder="Nhập tên NPP cấp license..."
+                        class="w-full md:w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-400">
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ghi chú cho PO team</label>
@@ -359,9 +387,24 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400">{{ isset($orderRequest) ? $orderRequest->note : '' }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">File đính kèm</label>
-                    <input type="file" name="order_request_files[]" multiple
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">
+                        File đính kèm <span class="text-red-500">* (Bắt buộc)</span>
+                    </label>
+                    <input type="file" name="order_request_files[]" id="order_request_files" multiple
                         class="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-lg p-1">
+                    <p class="text-[11px] text-gray-500 mt-1">
+                        <i class="fas fa-info-circle mr-1 text-emerald-600"></i> Cho phép chọn và đính kèm nhiều file cùng lúc (PO, License, BOM...).
+                    </p>
+                    @if(isset($orderRequest) && $orderRequest->attachments->count() > 0)
+                        <div class="mt-2 text-xs text-gray-600">
+                            <span class="font-medium text-emerald-700">Đã có {{ $orderRequest->attachments->count() }} file đính kèm:</span>
+                            <ul class="list-disc list-inside mt-1 text-[11px]">
+                                @foreach($orderRequest->attachments as $att)
+                                    <li><a href="{{ Storage::url($att->file_path) }}" target="_blank" class="text-blue-600 underline">{{ $att->file_name }}</a></li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1019,6 +1062,36 @@
             hideConfirmModal();
         }
     });
+
+    window.toggleMasterCq = function(masterCb) {
+        const isChecked = masterCb.checked;
+        document.querySelectorAll('.item-row').forEach(row => {
+            const cqLabel = row.querySelector('.cq-checkbox-label');
+            const cqCheckbox = row.querySelector('.needs-cq-checkbox');
+            if (!cqCheckbox) return;
+
+            if (isChecked) {
+                if (cqLabel) cqLabel.style.display = '';
+                cqCheckbox.checked = true;
+            } else {
+                cqCheckbox.checked = false;
+            }
+            if (typeof handleNeedsCqChange === 'function') {
+                handleNeedsCqChange(row);
+            }
+        });
+    };
+
+    window.toggleOtherDistributorInput = function(cb) {
+        const wrapper = document.getElementById('other_distributor_wrapper');
+        const input = document.getElementById('other_distributor_name');
+        if (cb.checked) {
+            wrapper?.classList.remove('hidden');
+            input?.focus();
+        } else {
+            wrapper?.classList.add('hidden');
+        }
+    };
 </script>
 @endpush
 @endsection

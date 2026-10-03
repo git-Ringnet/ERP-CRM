@@ -5,6 +5,25 @@
 
 @section('content')
     <div class="max-w-8xl">
+        @if(isset($duplicateSource))
+            <div class="mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg shadow-xs flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-copy text-emerald-600 text-xl"></i>
+                    <div>
+                        <h4 class="font-bold text-emerald-800 text-sm">CHẾ ĐỘ NHÂN BẢN ĐĂNG KÝ DỰ ÁN</h4>
+                        <p class="text-xs text-emerald-700 mt-0.5">
+                            Đang kế thừa toàn bộ thông tin End-User, BOM và đối tác từ dự án: 
+                            <strong class="font-semibold text-emerald-900">[{{ $duplicateSource->code }}] {{ $duplicateSource->name }}</strong>.
+                            Vui lòng chọn Vendor (Hãng) mới bên dưới để tiếp tục đăng ký.
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ route('projects.show', $duplicateSource->id) }}" target="_blank" class="text-xs font-semibold text-emerald-800 underline hover:text-emerald-900 whitespace-nowrap">
+                    Xem dự án gốc <i class="fas fa-external-link-alt ml-1"></i>
+                </a>
+            </div>
+        @endif
+
         <form id="project_form" action="{{ route('projects.store') }}" method="POST" enctype="multipart/form-data">
             @csrf
             <input type="hidden" name="marketing_event_id" value="{{ old('marketing_event_id', $preFill['marketing_event_id'] ?? '') }}">
@@ -25,7 +44,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Vendor <span class="text-red-500">*</span>
                                 </label>
-                                <select name="vendor_id" required
+                                <select name="vendor_id" id="vendor_id" required onchange="onVendorChange(this)"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn Vendor --</option>
                                     @foreach($suppliers as $supplier)
@@ -397,14 +416,15 @@
                             <!-- BOM / YCKT Upload -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT)
+                                    BOM (Bill of Materials) hoặc File YCKT <span class="text-red-500">* (Bắt buộc)</span>
                                 </label>
                                 <div class="space-y-2">
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                    <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới (hệ thống sẽ tự động điền danh sách sản phẩm khi tạo Đơn hàng từ dự án này).</p>
+                                    <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới (Bắt buộc một trong hai hình thức).</p>
                                     <textarea name="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
-                                        class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary">{{ old('bom_data') }}</textarea>
+                                        class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('bom_data') border-red-500 @enderror">{{ old('bom_data', $preFill['bom_data'] ?? '') }}</textarea>
+                                    @error('bom_data') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                 </div>
                             </div>
 
@@ -416,18 +436,18 @@
                                 <select name="deal_type" id="deal_type_select" onchange="toggleFortinetSN()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn loại Deal --</option>
-                                    <option value="new_buy" {{ old('deal_type') == 'new_buy' ? 'selected' : '' }}>Newbuy (Mua mới)</option>
-                                    <option value="trade_up" {{ old('deal_type') == 'trade_up' ? 'selected' : '' }}>Trade up (Nâng cấp / Đổi thiết bị cũ)</option>
+                                    <option value="new_buy" {{ old('deal_type', $preFill['deal_type'] ?? '') == 'new_buy' ? 'selected' : '' }}>Newbuy (Mua mới)</option>
+                                    <option value="trade_up" {{ old('deal_type', $preFill['deal_type'] ?? '') == 'trade_up' ? 'selected' : '' }}>Trade up (Nâng cấp / Đổi thiết bị cũ)</option>
                                 </select>
                             </div>
 
                             <!-- Note (Fortinet Dealreg Only) when Trade up selected -->
-                            <div id="sn_numbers_container" class="hidden md:col-span-2">
+                            <div id="sn_numbers_container" class="{{ old('deal_type', $preFill['deal_type'] ?? '') == 'trade_up' ? '' : 'hidden' }} md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Note (Fortinet Dealreg Only) <span class="text-red-500">*</span>
                                 </label>
                                 <textarea name="sn_numbers" rows="2" placeholder="Nếu chọn Trade up thì cần nhập số S/N vào đây..."
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('sn_numbers') }}</textarea>
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('sn_numbers', $preFill['sn_numbers'] ?? '') }}</textarea>
                                 <p class="text-xs text-gray-500 mt-1">Bắt buộc nhập số S/N khi chọn Trade up Fortinet</p>
                             </div>
 
@@ -437,18 +457,18 @@
                                 <select name="special_request_type" id="special_request_type" onchange="toggleSpecialRequestNote()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Không có yêu cầu thêm --</option>
-                                    <option value="bom_project" {{ old('special_request_type') == 'bom_project' ? 'selected' : '' }}>Bom dự án (Nhờ Hãng tạo BOM)</option>
-                                    <option value="urgent_price" {{ old('special_request_type') == 'urgent_price' ? 'selected' : '' }}>Cần giá gấp</option>
+                                    <option value="bom_project" {{ old('special_request_type', $preFill['special_request_type'] ?? '') == 'bom_project' ? 'selected' : '' }}>Bom dự án (Nhờ Hãng tạo BOM)</option>
+                                    <option value="urgent_price" {{ old('special_request_type', $preFill['special_request_type'] ?? '') == 'urgent_price' ? 'selected' : '' }}>Cần giá gấp</option>
                                 </select>
                             </div>
 
                             <!-- Note bắt buộc cho Yêu cầu thêm -->
-                            <div id="special_request_note_container" class="hidden md:col-span-2">
+                            <div id="special_request_note_container" class="{{ old('special_request_type', $preFill['special_request_type'] ?? '') ? '' : 'hidden' }} md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Ghi chú yêu cầu thêm <span class="text-red-500">*</span>
                                 </label>
                                 <textarea name="special_request_note" rows="2" placeholder="Nhập lý do / nội dung diễn giải cho yêu cầu thêm..."
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('special_request_note') }}</textarea>
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('special_request_note', $preFill['special_request_note'] ?? '') }}</textarea>
                             </div>
 
                             <!-- Ghi chú dự án (General Note) -->
@@ -457,11 +477,26 @@
                                     Note
                                 </label>
                                 <textarea name="note" rows="3" placeholder="Nhập ghi chú chi tiết cho dự án..."
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note') }}</textarea>
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary @error('note') border-red-500 @enderror">{{ old('note', $preFill['note'] ?? '') }}</textarea>
                                 @error('note') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
 
-                            <!-- Removed Net to Tech Horizon and Description -->
+                            <!-- Net to FTN (Bắt buộc cho dự án Fortinet) -->
+                            <div class="md:col-span-2" id="net_to_ftn_container">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Net to FTN (VNĐ) <span id="net_to_ftn_required_star" class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="number" step="any" min="0" name="net_to_tech_horizon" id="net_to_tech_horizon"
+                                        value="{{ old('net_to_tech_horizon', $preFill['net_to_tech_horizon'] ?? '') }}"
+                                        placeholder="Nhập giá trị Net to FTN..."
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1" id="net_to_ftn_hint">
+                                    <span class="text-amber-600 font-semibold">* Lưu ý:</span> Bắt buộc nhập Net to FTN đối với tất cả dự án Fortinet (PO Team).
+                                </p>
+                                @error('net_to_tech_horizon') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1067,7 +1102,12 @@
                         }
                     } else {
                         if (warningMsg) {
-                            warningMsg.innerHTML = `<strong>Cảnh báo:</strong> Dự án này đã trùng thông tin đăng ký với hãng và khách hàng của Sales khác. Hệ thống đã tự động cảnh báo cho PM.`;
+                            warningMsg.innerHTML = `<span class="font-bold text-red-800">CẢNH BÁO TRÙNG DỰ ÁN:</span> Dự án này đã trùng thông tin với dự án <strong>${data.project_code || ''}</strong> (${data.project_name || ''}) đã đăng ký trước đó.<br/>
+                            <div class="mt-2 p-2.5 bg-white rounded-lg border border-red-200 text-xs text-gray-800 space-y-1.5 shadow-xs">
+                                <div><i class="fas fa-user-tie mr-1.5 text-blue-600"></i><strong>Sales đã đăng ký:</strong> ${data.sales_name || 'N/A'} - ${data.sales_email || ''} ${data.sales_phone && data.sales_phone !== 'N/A' ? '(' + data.sales_phone + ')' : ''}</div>
+                                <div><i class="fas fa-building mr-1.5 text-purple-600"></i><strong>Thông tin liên hệ Hãng:</strong> ${data.vendor_info || 'N/A'}</div>
+                            </div>
+                            <span class="text-red-700 italic mt-1.5 block">Vui lòng liên hệ Sales phụ trách hoặc Hãng để kiểm tra lại thông tin trước khi tiếp tục.</span>`;
                         }
                         if (sameSalesActions) sameSalesActions.classList.add('hidden');
                         if (submitBtn) {
@@ -1091,6 +1131,33 @@
                 }
             });
         }
+
+        function onVendorChange(select) {
+            const selectedText = select.options[select.selectedIndex]?.text || '';
+            const isFtn = selectedText.toLowerCase().includes('fortinet') || selectedText.toLowerCase().includes('ftn');
+            const star = document.getElementById('net_to_ftn_required_star');
+            const netInput = document.getElementById('net_to_tech_horizon');
+            const netHint = document.getElementById('net_to_ftn_hint');
+
+            if (isFtn) {
+                if (star) star.classList.remove('hidden');
+                if (netInput) netInput.setAttribute('required', 'required');
+                if (netHint) netHint.classList.remove('hidden');
+            } else {
+                if (star) star.classList.add('hidden');
+                if (netInput) netInput.removeAttribute('required');
+                if (netHint) netHint.classList.add('hidden');
+            }
+            checkDuplicateProject();
+        }
+
+        // Initialize on load for vendor
+        document.addEventListener('DOMContentLoaded', function() {
+            const vendorSelect = document.getElementById('vendor_id');
+            if (vendorSelect && vendorSelect.value) {
+                onVendorChange(vendorSelect);
+            }
+        });
 
         // === AJAX: Check duplicate Partner/Company MST/Tax Code ===
         let collabTaxCheckTimer = null;

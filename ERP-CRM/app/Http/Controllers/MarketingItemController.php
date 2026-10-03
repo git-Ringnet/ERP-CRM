@@ -9,6 +9,9 @@ use App\Models\MarketingEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\MarketingItemsImport;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MarketingItemController extends Controller
 {
@@ -33,6 +36,10 @@ class MarketingItemController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('approval_status')) {
+            $query->where('approval_status', $request->approval_status);
+        }
+
         if ($request->filled('stock_status')) {
             if ($request->stock_status === 'low') {
                 $query->whereColumn('stock_quantity', '<=', 'min_stock_alert');
@@ -41,16 +48,19 @@ class MarketingItemController extends Controller
             }
         }
 
-        $items = $query->orderBy('name')->paginate(15)->withQueryString();
+        $items = $query->latest('id')->paginate(15)->withQueryString();
 
         // Statistics
         $totalTypes = MarketingItem::count();
         $totalQuantity = MarketingItem::sum('stock_quantity');
         $totalValue = MarketingItem::select(DB::raw('SUM(stock_quantity * unit_cost) as total_val'))->value('total_val') ?? 0;
         $lowStockCount = MarketingItem::whereColumn('stock_quantity', '<=', 'min_stock_alert')->count();
+        $pendingApprovalCount = MarketingItem::where('approval_status', 'pending')->count();
 
         $categories = MarketingItem::CATEGORIES;
-        $allItems = MarketingItem::where('status', 'active')->orWhereNull('status')->orderBy('name')->get(['id', 'code', 'name', 'stock_quantity', 'unit', 'unit_cost']);
+        $allItems = MarketingItem::where('status', 'active')->where(function($q) {
+            $q->where('approval_status', 'approved')->orWhereNull('approval_status');
+        })->orderBy('name')->get(['id', 'code', 'name', 'stock_quantity', 'unit', 'unit_cost']);
         
         $opportunities = Opportunity::with('customer')
             ->whereNotIn('status', ['cancelled'])
@@ -93,6 +103,7 @@ class MarketingItemController extends Controller
             'totalQuantity',
             'totalValue',
             'lowStockCount',
+            'pendingApprovalCount',
             'categories',
             'opportunities',
             'marketingEvents',
@@ -113,13 +124,22 @@ class MarketingItemController extends Controller
             'status' => 'nullable|in:active,inactive',
         ]);
 
+        $user = Auth::user();
+        $isBOD = $user->hasAnyRole(['super_admin', 'director']);
+
         $validated['code'] = MarketingItem::generateCode();
         $validated['stock_quantity'] = $validated['stock_quantity'] ?? 0;
         $validated['min_stock_alert'] = $validated['min_stock_alert'] ?? 10;
         $validated['unit_cost'] = $validated['unit_cost'] ?? 0;
         $validated['status'] = $validated['status'] ?? 'active';
+        $validated['approval_status'] = $isBOD ? 'approved' : 'pending';
+        $validated['submitted_by'] = $user->id;
+        if ($isBOD) {
+            $validated['approved_by'] = $user->id;
+            $validated['approved_at'] = now();
+        }
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $isBOD) {
             $item = MarketingItem::create($validated);
 
             if ($item->stock_quantity > 0) {
@@ -135,7 +155,11 @@ class MarketingItemController extends Controller
             }
         });
 
-        return redirect()->route('marketing-items.index')->with('success', 'Đã thêm vật phẩm mới vào Kho Marketing.');
+        $msg = $isBOD 
+            ? 'Đã thêm vật phẩm mới vào Kho Marketing thành công.' 
+            : 'Đã gửi đề xuất vật phẩm mới lên Ban Giám đốc (BOD) phê duyệt.';
+
+        return redirect()->route('marketing-items.index')->with('success', $msg);
     }
 
     public function update(Request $request, MarketingItem $marketingItem)
@@ -254,5 +278,140 @@ class MarketingItemController extends Controller
             ->paginate(20);
 
         return view('marketing.items.transactions', compact('marketingItem', 'transactions'));
+    }
+
+    /**
+     * BOD Phê duyệt vật phẩm mới
+     */
+    public function approve(MarketingItem $marketingItem)
+    {
+        $user = Auth::user();
+        if (!$user->hasAnyRole(['super_admin', 'director'])) {
+            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) mới có quyền phê duyệt vật phẩm.');
+        }
+
+        $marketingItem->update([
+            'approval_status' => 'approved',
+            'status'          => 'active',
+            'approved_by'     => $user->id,
+            'approved_at'     => now(),
+            'rejection_reason' => null,
+        ]);
+
+        return back()->with('success', "BOD đã phê duyệt vật phẩm: {$marketingItem->name} (Mã: {$marketingItem->code}).");
+    }
+
+    /**
+     * BOD Từ chối vật phẩm mới
+     */
+    public function reject(Request $request, MarketingItem $marketingItem)
+    {
+        $user = Auth::user();
+        if (!$user->hasAnyRole(['super_admin', 'director'])) {
+            return back()->with('error', 'Chỉ Ban Giám Đốc (BOD) mới có quyền từ chối vật phẩm.');
+        }
+
+        $reason = trim($request->input('rejection_reason', 'BOD không phê duyệt mẫu vật phẩm này.'));
+
+        $marketingItem->update([
+            'approval_status'  => 'rejected',
+            'approved_by'      => $user->id,
+            'approved_at'      => now(),
+            'rejection_reason' => $reason,
+        ]);
+
+        return back()->with('success', "Đã từ chối vật phẩm: {$marketingItem->name}.");
+    }
+
+    /**
+     * Import danh sách vật phẩm / quà tặng từ file Excel / CSV
+     */
+    public function importFile(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+        ]);
+
+        try {
+            $import = new MarketingItemsImport();
+            Excel::import($import, $request->file('file'));
+
+            $imported = $import->getImportedCount();
+            $updated = $import->getUpdatedCount();
+            $errors = $import->getErrors();
+
+            $msg = "Import thành công: Thêm mới {$imported} vật phẩm, Cập nhật {$updated} vật phẩm.";
+            if (!empty($errors)) {
+                $msg .= " (Có " . count($errors) . " dòng lỗi: " . implode('; ', array_slice($errors, 0, 3)) . ")";
+                return back()->with('warning', $msg);
+            }
+
+            return back()->with('success', $msg);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Lỗi khi đọc file import: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tải file Excel mẫu để import Quà tặng / Vật phẩm MKT
+     */
+    public function downloadTemplate(): StreamedResponse
+    {
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="Mau_Import_Vat_Pham_MKT_' . date('Ymd') . '.csv"',
+        ];
+
+        return response()->stream(function () {
+            $handle = fopen('php://output', 'w');
+            // Write UTF-8 BOM
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($handle, [
+                'ma_vat_pham',
+                'ten_vat_pham',
+                'danh_muc',
+                'don_vi_tinh',
+                'so_luong_nhap',
+                'canh_bao_ton_toi_thieu',
+                'don_gia',
+                'mo_ta'
+            ]);
+
+            fputcsv($handle, [
+                'MKT-0001',
+                'Bình giữ nhiệt Lock&Lock 500ml in logo Fortinet',
+                'gift',
+                'Cái',
+                '100',
+                '20',
+                '180000',
+                'Quà tặng hội thảo khách hàng VIP'
+            ]);
+
+            fputcsv($handle, [
+                'MKT-0002',
+                'Áo Polo đồng phục sự kiện Ringnet - Cisco',
+                'clothing',
+                'Cái',
+                '50',
+                '10',
+                '150000',
+                'Size L, XL màu xanh navy'
+            ]);
+
+            fputcsv($handle, [
+                'MKT-0003',
+                'Brochure Giải pháp Trung tâm dữ liệu HPE Q3/2026',
+                'publication',
+                'Cuốn',
+                '200',
+                '50',
+                '25000',
+                'Giấy Couche 250gsm cán mờ'
+            ]);
+
+            fclose($handle);
+        }, 200, $headers);
     }
 }

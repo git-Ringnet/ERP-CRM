@@ -17,6 +17,7 @@ class TechnicalSupportLog extends Model
         'technical_ticket_id',
         'log_date',
         'user_id',
+        'work_category',
         'serial_number',
         'support_content',
         'status',
@@ -53,6 +54,15 @@ class TechnicalSupportLog extends Model
             'completed' => 'Đã hoàn thành',
             'closed' => 'Đã đóng (Closed)',
             default => $this->status,
+        };
+    }
+
+    public function getWorkCategoryLabelAttribute(): string
+    {
+        return match ($this->work_category) {
+            'on_call' => '24/7',
+            'after_hours' => 'Ngoài giờ làm việc',
+            default => 'Trong giờ làm việc',
         };
     }
 

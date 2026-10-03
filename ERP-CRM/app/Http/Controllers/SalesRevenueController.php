@@ -50,14 +50,22 @@ class SalesRevenueController extends Controller
         $poItems = $query->get();
 
         // Get already-tracked PO item IDs
-        $existingPoItemIds = SalesRevenue::where('year', $year)
+        $existingRevenues = SalesRevenue::where('year', $year)
             ->whereNotNull('purchase_order_item_id')
-            ->pluck('purchase_order_item_id')
-            ->toArray();
+            ->get(['id', 'purchase_order_item_id', 'invoice_status', 'official_invoice_date'])
+            ->keyBy('purchase_order_item_id');
 
         $count = 0;
         foreach ($poItems as $poItem) {
-            if (in_array($poItem->id, $existingPoItemIds)) {
+            if ($existingRevenue = $existingRevenues->get($poItem->id)) {
+                $sale = $poItem->saleOrderRequestItem?->saleOrderRequest?->sale;
+                $latestInvoice = $sale?->invoiceRequests()->latest()->first();
+                $existingRevenue->update([
+                    'invoice_status' => $latestInvoice?->status ?? 'not_issued',
+                    'official_invoice_date' => $latestInvoice?->status === 'official_issued'
+                        ? ($sale->invoice_date ?? $latestInvoice->invoiced_at?->toDateString())
+                        : null,
+                ]);
                 continue; // Already tracked
             }
 
@@ -168,7 +176,7 @@ class SalesRevenueController extends Controller
 
         // Only allow editing specific fields (manual/editable columns)
         $editableFields = [
-            'cpq_number', 'invoice_status', 'warehouse_status', 'license_exported',
+            'cpq_number', 'invoice_status', 'official_invoice_date', 'warehouse_status', 'license_exported',
             'serial_number', 'quote_id', 'list_price', 'discount_percent',
             'expired_date', 'selling_price', 'end_user_partner', 'equipment',
             'partner_name', 'end_user', 'industry', 'note',
@@ -186,7 +194,7 @@ class SalesRevenueController extends Controller
         if ($field === 'quantity') {
             $value = $value !== '' ? (int) $value : null;
         }
-        if ($field === 'expired_date') {
+        if (in_array($field, ['expired_date', 'official_invoice_date'])) {
             $value = $value ?: null;
         }
 
@@ -273,7 +281,7 @@ class SalesRevenueController extends Controller
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
             fputcsv($file, [
-                'STT', 'CPQ', 'Tình trạng XHĐ', 'Hàng đã nhập kho (WH)',
+                'STT', 'CPQ', 'Tình trạng XHĐ', 'Ngày XHĐ chính thức', 'Hàng đã nhập kho (WH)',
                 'Đã Xuất POS (License)', 'Số PO', 'Ngày PO', 'Hàng hóa',
                 'SL', 'S.N', 'Quote ID', 'ListPrice', 'Discount',
                 'Unit Price', 'Thành Tiền', 'Expired date', 'Khách hàng',
@@ -286,6 +294,7 @@ class SalesRevenueController extends Controller
                     $i + 1,
                     $r->cpq_number,
                     $r->invoice_status_label,
+                    $r->official_invoice_date?->format('d/m/Y'),
                     $r->warehouse_status,
                     $r->license_exported,
                     $r->po_code,

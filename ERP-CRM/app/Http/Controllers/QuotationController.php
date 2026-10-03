@@ -19,6 +19,7 @@ use App\Services\BomParserService;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Str;
@@ -87,7 +88,7 @@ class QuotationController extends Controller
                 $prefill['project_id'] = $selectedProject->id;
                 
                 if ($effectiveCustomer && !$customers->contains('id', $effectiveCustomer->id)) {
-                    $customers = Customer::orderBy('name')->get();
+                    $customers->prepend($effectiveCustomer);
                 }
 
                 if (!empty($selectedProject->bom_data)) {
@@ -307,6 +308,30 @@ class QuotationController extends Controller
         $companySettings = Setting::where('group', 'company')->pluck('value', 'key');
         
         return view('quotations.show', compact('quotation', 'companySettings'));
+    }
+
+    public function sendEmail(Request $request, Quotation $quotation)
+    {
+        $this->authorize('update', $quotation);
+
+        if ($quotation->converted_to_sale_id) {
+            return back()->with('error', 'Không thể gửi lại báo giá đã chuyển thành đơn hàng.');
+        }
+
+        $validated = $request->validate([
+            'to' => ['required', 'email', 'max:255'],
+            'subject' => ['nullable', 'string', 'max:255'],
+            'message' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        $quotation->loadMissing('customer', 'contact');
+        Mail::to($validated['to'])->send(new \App\Mail\QuotationMail(
+            $quotation,
+            $validated['message'] ?? null,
+            $validated['subject'] ?? null,
+        ));
+
+        return back()->with('success', 'Đã gửi email báo giá đến ' . $validated['to'] . '.');
     }
 
     public function edit(Quotation $quotation)

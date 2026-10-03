@@ -19,28 +19,61 @@
     }
 
     $isMarketingOrBOD = auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('director') || auth()->user()->hasRole('marketing') || auth()->user()->hasRole('order_management');
+    
+    // Tính tổng tiền thanh toán đã hoàn thành chi
+    $actualPaymentsCost = $marketingEvent->requests()
+        ->whereHas('ticket', fn($q) => $q->where('type', 'payment'))
+        ->where('status', 'completed')
+        ->sum('amount');
+    $effectiveActualCost = $marketingEvent->actual_cost ?? $actualPaymentsCost;
 @endphp
 
-<div class="space-y-5" x-data="{ showReject: new URLSearchParams(window.location.search).get('reject') === '1' }">
+<div class="space-y-5" x-data="{ 
+    showReject: new URLSearchParams(window.location.search).get('reject') === '1',
+    showCompleteModal: false,
+    completeData: {
+        eventId: {{ $marketingEvent->id }},
+        eventTitle: {{ Js::from($marketingEvent->title) }},
+        eventCode: {{ Js::from($marketingEvent->code) }},
+        budget: {{ (float)($marketingEvent->budget ?? 0) }},
+        actualCost: '{{ (int)($marketingEvent->actual_cost ?? $effectiveActualCost ?? 0) }}',
+        sources: {{ Js::from(!empty($marketingEvent->funding_sources) ? $marketingEvent->funding_sources : [['name' => $marketingEvent->vendor?->name ?? 'Hãng tài trợ', 'type' => 'brand', 'planned_amount' => $marketingEvent->budget ?? 0, 'actual_amount' => $marketingEvent->budget ?? 0]]) }},
+        varianceSource: '{{ $marketingEvent->variance_funding_source ?? 'Ngân sách công ty bù thêm' }}',
+        note: '{{ addslashes($marketingEvent->completion_note ?? '') }}'
+    },
+    formatMoneyNumber(val) {
+        if (!val && val !== 0) return '0';
+        return Number(val).toLocaleString('vi-VN');
+    },
+    getCompletionTotalFunding() {
+        return (this.completeData.sources || []).reduce((sum, s) => sum + (parseFloat(s.actual_amount) || 0), 0);
+    },
+    getCompletionVariance() {
+        const actual = parseFloat(this.completeData.actualCost) || 0;
+        const funding = this.getCompletionTotalFunding();
+        return actual - funding;
+    }
+}">
     {{-- ── Workflow Progress Guide ── --}}
     @php
         $steps = [
             ['id' => 1, 'name' => 'Kế hoạch', 'icon' => 'fa-file-alt'],
             ['id' => 2, 'name' => 'Duyệt ngân sách', 'icon' => 'fa-check-double'],
             ['id' => 3, 'name' => 'Mở Ticket hỗ trợ', 'icon' => 'fa-ticket-alt'],
+            ['id' => 4, 'name' => 'Nghiệm thu quyết toán', 'icon' => 'fa-flag-checkered'],
         ];
 
         // Determine current step logic
         $currentStep = 1;
-        if ($marketingEvent->status === 'approved') {
-            $currentStep = 2; // Approved
+        if ($marketingEvent->status === 'completed') {
+            $currentStep = 5; // Hoàn tất toàn bộ
+        } elseif ($marketingEvent->status === 'approved') {
+            $currentStep = 3;
             if ($marketingEvent->tickets->count() > 0) {
-                $currentStep = 3;
-                // Check if ALL requests in ALL tickets are completed
                 $allRequests = \App\Models\MarketingRequest::where('marketing_event_id', $marketingEvent->id)->get();
                 $allCompleted = $allRequests->isNotEmpty() && $allRequests->every(fn($r) => $r->status === 'completed');
                 if ($allCompleted) {
-                    $currentStep = 4; // Beyond step 3 → step 3 shows green completed
+                    $currentStep = 4; // Sẵn sàng quyết toán
                 }
             }
         } elseif ($marketingEvent->status === 'pending') {
@@ -185,6 +218,25 @@
                     </form>
                 @endif
 
+                @if($marketingEvent->status === 'approved')
+                    @if($isMarketingOrBOD)
+                    <button type="button" @click="showCompleteModal = true"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-sm transition-colors">
+                        <i class="fas fa-check-double text-xs"></i><span>Hoàn thành & Nghiệm thu</span>
+                    </button>
+                    @endif
+                @elseif($marketingEvent->status === 'completed')
+                    <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 text-xs font-bold">
+                        <i class="fas fa-flag-checkered text-teal-600"></i> Đã hoàn tất & Nghiệm thu
+                    </span>
+                    @if($isMarketingOrBOD)
+                    <button type="button" @click="showCompleteModal = true"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors">
+                        <i class="fas fa-edit text-xs"></i><span>Điều chỉnh quyết toán</span>
+                    </button>
+                    @endif
+                @endif
+
                 @if($marketingEvent->status === 'pending' && $canApprove)
                     <form action="{{ route('marketing-events.approve', $marketingEvent) }}" method="POST" class="inline">
                         @csrf
@@ -296,43 +348,93 @@
                                 {{ $marketingEvent->organize_type_label }}
                             </span>
                         </div>
-                        <div>
-                            <span class="text-gray-400">Vendor/Hãng phối hợp chính:</span>
-                            <span class="font-bold text-gray-700 block">{{ $marketingEvent->vendor->name ?? 'N/A' }}</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Ghi chú hãng khác:</span>
-                            <span class="font-bold text-gray-700 block">{{ $marketingEvent->vendor_other_note ?? 'Không' }}</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Có phối hợp Partner?</span>
-                            <span class="font-bold text-gray-700 block">
-                                @if($marketingEvent->partner_cooperation === 'yes') Có
-                                @elseif($marketingEvent->partner_cooperation === 'other') Khác / Chưa chốt
-                                @else Không @endif
-                            </span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Chi tiết Partner & PIC:</span>
-                            <span class="font-bold text-gray-700 block">{{ $marketingEvent->partner_info ?? '—' }}</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Thời gian tổ chức:</span>
-                            <span class="font-bold text-gray-700 block">
-                                {{ $marketingEvent->event_date->format('d/m/Y') }}
-                                @if($marketingEvent->start_time)
-                                    ({{ date('H:i', strtotime($marketingEvent->start_time)) }} - {{ date('H:i', strtotime($marketingEvent->end_time)) }})
-                                @endif
-                            </span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Địa điểm:</span>
-                            <span class="font-bold text-gray-700 block">{{ $marketingEvent->location ?? 'N/A' }}</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-400">Đối tượng & Số lượng khách:</span>
-                            <span class="font-bold text-gray-700 block">{{ $marketingEvent->target_audience_count }} khách ({{ $marketingEvent->target_audience_note ?? 'Chưa note' }})</span>
-                        </div>
+
+                        @if($marketingEvent->scope === 'internal')
+                            {{-- Thông tin đặc thù sự kiện nội bộ --}}
+                            <div>
+                                <span class="text-gray-400">Phòng ban phụ trách:</span>
+                                <span class="font-bold text-violet-700 block">{{ $marketingEvent->internal_department ?: 'Chưa chỉ định' }}</span>
+                            </div>
+                            <div class="md:col-span-2">
+                                <span class="text-gray-400">Mục đích tổ chức nội bộ:</span>
+                                <span class="font-bold text-gray-800 block mt-0.5">{{ $marketingEvent->internal_purpose ?: 'Không có' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Thời gian tổ chức:</span>
+                                <span class="font-bold text-gray-700 block">
+                                    {{ $marketingEvent->event_date->format('d/m/Y') }}
+                                    @if($marketingEvent->start_time)
+                                        ({{ date('H:i', strtotime($marketingEvent->start_time)) }} - {{ date('H:i', strtotime($marketingEvent->end_time)) }})
+                                    @endif
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Địa điểm:</span>
+                                <span class="font-bold text-gray-700 block">{{ $marketingEvent->location ?? 'N/A' }}</span>
+                            </div>
+                            <div class="md:col-span-2">
+                                <span class="text-gray-400">Quy mô CBNV tham gia:</span>
+                                <span class="font-bold text-gray-700 block">
+                                    {{ $marketingEvent->target_audience_count }} nhân sự / CBNV
+                                    @if($marketingEvent->target_audience_note)
+                                        ({{ $marketingEvent->target_audience_note }})
+                                    @endif
+                                </span>
+                            </div>
+                        @else
+                            {{-- Sự kiện Đối ngoại --}}
+                            <div class="md:col-span-2">
+                                <span class="text-gray-400">Vendor / Các Hãng phối hợp:</span>
+                                <div class="mt-1 flex flex-wrap gap-1.5">
+                                    @if($marketingEvent->suppliers && $marketingEvent->suppliers->count() > 0)
+                                        @foreach($marketingEvent->suppliers as $sup)
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                                <i class="fas fa-building text-[10px]"></i> {{ $sup->name }}
+                                            </span>
+                                        @endforeach
+                                    @elseif($marketingEvent->vendor)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                            <i class="fas fa-building text-[10px]"></i> {{ $marketingEvent->vendor->name }}
+                                        </span>
+                                    @else
+                                        <span class="font-bold text-gray-400">Chưa chỉ định</span>
+                                    @endif
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Ghi chú hãng khác:</span>
+                                <span class="font-bold text-gray-700 block">{{ $marketingEvent->vendor_other_note ?? 'Không' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Có phối hợp Partner?</span>
+                                <span class="font-bold text-gray-700 block">
+                                    @if($marketingEvent->partner_cooperation === 'yes') Có
+                                    @elseif($marketingEvent->partner_cooperation === 'other') Khác / Chưa chốt
+                                    @else Không @endif
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Chi tiết Partner & PIC:</span>
+                                <span class="font-bold text-gray-700 block">{{ $marketingEvent->partner_info ?? '—' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Thời gian tổ chức:</span>
+                                <span class="font-bold text-gray-700 block">
+                                    {{ $marketingEvent->event_date->format('d/m/Y') }}
+                                    @if($marketingEvent->start_time)
+                                        ({{ date('H:i', strtotime($marketingEvent->start_time)) }} - {{ date('H:i', strtotime($marketingEvent->end_time)) }})
+                                    @endif
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Địa điểm:</span>
+                                <span class="font-bold text-gray-700 block">{{ $marketingEvent->location ?? 'N/A' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Đối tượng & Số lượng khách:</span>
+                                <span class="font-bold text-gray-700 block">{{ $marketingEvent->target_audience_count }} khách ({{ $marketingEvent->target_audience_note ?? 'Chưa note' }})</span>
+                            </div>
+                        @endif
                     </div>
                 </div>
 
@@ -446,48 +548,175 @@
         @if($isMarketingOrBOD)
         <div x-show="activeTab === 'budget'" class="space-y-5">
             {{-- Ngân sách Card --}}
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
-                    <i class="fas fa-coins text-yellow-500"></i> Quản lý Ngân sách chương trình
-                </h3>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                        <i class="fas fa-coins text-yellow-500"></i> Quản lý Ngân sách & Quyết toán chương trình
+                    </h3>
+                    @if($isMarketingOrBOD)
+                    <button type="button" @click="showCompleteModal = true"
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5
+                            {{ $marketingEvent->isCompleted() ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-emerald-600 hover:bg-emerald-700 text-white' }}">
+                        <i class="fas fa-check-circle"></i>
+                        <span>{{ $marketingEvent->isCompleted() ? 'Cập nhật lại Quyết toán' : 'Nghiệm thu Hoàn thành Sự kiện' }}</span>
+                    </button>
+                    @endif
+                </div>
+
+                {{-- 3 Thẻ chỉ số --}}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div class="relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-100 rounded-2xl p-5 text-center border border-violet-100">
-                        <div class="text-xs text-violet-500 font-bold uppercase tracking-wider mb-1">Dự toán đã duyệt</div>
+                        <div class="text-xs text-violet-500 font-bold uppercase tracking-wider mb-1">Dự toán kế hoạch đã duyệt</div>
                         <div class="text-3xl font-black text-violet-700">{{ number_format($marketingEvent->budget) }}</div>
                         <div class="text-xs text-violet-400 mt-1">VND</div>
                     </div>
                     
-                    @php
-                        // Tính tổng tiền thanh toán đã hoàn thành chi
-                        $actualPaymentsCost = $marketingEvent->requests()
-                            ->whereHas('ticket', fn($q) => $q->where('type', 'payment'))
-                            ->where('status', 'completed')
-                            ->sum('amount');
-                    @endphp
                     <div class="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-5 text-center border border-blue-100">
-                        <div class="text-xs text-blue-500 font-bold uppercase tracking-wider mb-1">Chi phí thực tế (Đã chi)</div>
-                        <div class="text-3xl font-black text-blue-700">{{ number_format($actualPaymentsCost) }}</div>
+                        <div class="text-xs text-blue-500 font-bold uppercase tracking-wider mb-1">
+                            {{ $marketingEvent->isCompleted() ? 'Chi phí thực tế (Đã nghiệm thu)' : 'Chi phí thực tế (Đã chi qua ticket)' }}
+                        </div>
+                        <div class="text-3xl font-black text-blue-700">
+                            {{ number_format($marketingEvent->isCompleted() ? ($marketingEvent->actual_cost ?? 0) : $actualPaymentsCost) }}
+                        </div>
                         <div class="text-xs text-blue-400 mt-1">VND</div>
                     </div>
 
-                    <div class="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-100 rounded-2xl p-5 text-center border border-emerald-100">
-                        <div class="text-xs text-emerald-500 font-bold uppercase tracking-wider mb-1">Ngân sách còn lại</div>
+                    @if($marketingEvent->isCompleted())
+                        @php $var = $marketingEvent->variance_amount ?? (($marketingEvent->actual_cost ?? 0) - ($marketingEvent->budget ?? 0)); @endphp
+                        <div class="relative overflow-hidden rounded-2xl p-5 text-center border {{ $var > 0 ? 'bg-gradient-to-br from-rose-50 to-red-100 border-rose-200' : ($var < 0 ? 'bg-gradient-to-br from-emerald-50 to-teal-100 border-emerald-200' : 'bg-gradient-to-br from-gray-50 to-slate-100 border-gray-200') }}">
+                            <div class="text-xs font-bold uppercase tracking-wider mb-1 {{ $var > 0 ? 'text-rose-600' : ($var < 0 ? 'text-emerald-600' : 'text-gray-600') }}">
+                                {{ $var > 0 ? 'Chênh lệch Vượt chi (Thiếu hụt)' : ($var < 0 ? 'Chênh lệch Tiết kiệm (Dư ngân sách)' : 'Chênh lệch Quyết toán') }}
+                            </div>
+                            <div class="text-3xl font-black {{ $var > 0 ? 'text-rose-700' : ($var < 0 ? 'text-emerald-700' : 'text-gray-700') }}">
+                                {{ ($var > 0 ? '+' : '') . number_format($var) }}
+                            </div>
+                            <div class="text-xs mt-1 {{ $var > 0 ? 'text-rose-400' : ($var < 0 ? 'text-emerald-400' : 'text-gray-400') }}">VND</div>
+                        </div>
+                    @else
                         @php $remainingBudget = $marketingEvent->budget - $actualPaymentsCost; @endphp
-                        <div class="text-3xl font-black {{ $remainingBudget >= 0 ? 'text-emerald-700' : 'text-red-700' }}">{{ number_format($remainingBudget) }}</div>
-                        <div class="text-xs text-emerald-400 mt-1">VND</div>
-                    </div>
+                        <div class="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-100 rounded-2xl p-5 text-center border border-emerald-100">
+                            <div class="text-xs text-emerald-500 font-bold uppercase tracking-wider mb-1">Ngân sách còn lại (Ước tính)</div>
+                            <div class="text-3xl font-black {{ $remainingBudget >= 0 ? 'text-emerald-700' : 'text-red-700' }}">{{ number_format($remainingBudget) }}</div>
+                            <div class="text-xs text-emerald-400 mt-1">VND</div>
+                        </div>
+                    @endif
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 pt-5 border-t border-gray-100 text-sm">
-                    <div>
-                        <span class="text-gray-400">Nguồn tiền tài trợ/Hãng:</span>
-                        <p class="font-bold text-gray-700 mt-0.5">{{ $marketingEvent->funding_source ?? 'N/A' }}</p>
+                {{-- BẢNG PHÂN BỔ KẾ HOẠCH NGUỒN TIỀN (HÃNG, CÔNG ĐOÀN, CÔNG TY) --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <i class="fas fa-hand-holding-usd text-violet-600"></i> Cơ cấu Nguồn vốn tài trợ (Dự kiến)
+                    </h4>
+                    @if(!empty($marketingEvent->funding_sources) && is_array($marketingEvent->funding_sources))
+                        <div class="border border-gray-200 rounded-xl overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead class="bg-gray-50 text-gray-500 font-bold uppercase">
+                                    <tr>
+                                        <th class="p-2.5 text-left">Nguồn kinh phí</th>
+                                        <th class="p-2.5 text-center">Phân loại</th>
+                                        <th class="p-2.5 text-right">Dự toán cam kết</th>
+                                        <th class="p-2.5 text-right">Tỷ trọng (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @php $totPlan = max(1, $marketingEvent->budget ?? 0); @endphp
+                                    @foreach($marketingEvent->funding_sources as $f)
+                                        @php
+                                            $pAmt = (float)($f['planned_amount'] ?? 0);
+                                            $pct = round(($pAmt / $totPlan) * 100, 1);
+                                        @endphp
+                                        <tr class="hover:bg-gray-50/50">
+                                            <td class="p-2.5 font-bold text-gray-800">
+                                                <i class="fas {{ ($f['type'] ?? '') === 'brand' ? 'fa-building text-violet-500' : (($f['type'] ?? '') === 'union' ? 'fa-users-cog text-amber-500' : 'fa-landmark text-blue-500') }} mr-1.5"></i>
+                                                {{ $f['name'] ?? 'Nguồn kinh phí' }}
+                                            </td>
+                                            <td class="p-2.5 text-center">
+                                                <span class="px-2 py-0.5 rounded-full font-semibold {{ ($f['type'] ?? '') === 'brand' ? 'bg-violet-50 text-violet-700' : (($f['type'] ?? '') === 'union' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700') }}">
+                                                    {{ ($f['type'] ?? '') === 'brand' ? 'Hãng tài trợ' : (($f['type'] ?? '') === 'union' ? 'Quỹ Công đoàn' : 'Ngân sách Công ty') }}
+                                                </span>
+                                            </td>
+                                            <td class="p-2.5 text-right font-black text-gray-800">{{ number_format($pAmt) }} đ</td>
+                                            <td class="p-2.5 text-right font-bold text-gray-500">{{ $pct }}%</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="p-3 bg-gray-50 rounded-xl text-xs text-gray-600 flex items-center justify-between">
+                            <span>Nguồn tiền tài trợ chính: <strong>{{ $marketingEvent->funding_source ?: ($marketingEvent->vendor?->name ?? 'Công ty / Hãng') }}</strong></span>
+                            <span>Dự toán: <strong class="text-violet-700">{{ number_format($marketingEvent->budget) }} đ</strong></span>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- BẢNG NGHIỆM THU QUYẾT TOÁN THỰC TẾ (NẾU ĐÃ HOÀN TẤT) --}}
+                @if($marketingEvent->isCompleted())
+                <div class="pt-4 border-t border-emerald-100 bg-emerald-50/30 rounded-xl p-4 border border-emerald-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fas fa-balance-scale text-emerald-600"></i> Bảng Đối chiếu Quyết toán Thực tế từng Hãng & Nguồn tiền
+                        </h4>
+                        <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            Đã nghiệm thu lúc {{ $marketingEvent->completed_at ? $marketingEvent->completed_at->format('d/m/Y H:i') : '' }}
+                        </span>
                     </div>
-                    <div>
-                        <span class="text-gray-400">Note yêu cầu ngân sách bên ngoài:</span>
-                        <p class="font-bold text-gray-700 mt-0.5">{{ $marketingEvent->budget_external_note ?? 'Không' }}</p>
+
+                    @if(!empty($marketingEvent->actual_funding_sources) && is_array($marketingEvent->actual_funding_sources))
+                    <div class="border border-emerald-200 rounded-xl overflow-hidden bg-white mb-3">
+                        <table class="w-full text-xs">
+                            <thead class="bg-emerald-50 text-emerald-800 font-bold uppercase">
+                                <tr>
+                                    <th class="p-2.5 text-left">Nguồn tài trợ / Hãng</th>
+                                    <th class="p-2.5 text-right">Dự toán cam kết</th>
+                                    <th class="p-2.5 text-right">Thực tế chi trả / tài trợ</th>
+                                    <th class="p-2.5 text-right">Chênh lệch</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-emerald-50">
+                                @foreach($marketingEvent->actual_funding_sources as $af)
+                                    @php
+                                        $plan = (float)($af['planned_amount'] ?? 0);
+                                        $act  = (float)($af['actual_amount'] ?? 0);
+                                        $diff = $act - $plan;
+                                    @endphp
+                                    <tr class="hover:bg-emerald-50/30">
+                                        <td class="p-2.5 font-bold text-gray-800">{{ $af['name'] ?? 'Nguồn' }}</td>
+                                        <td class="p-2.5 text-right text-gray-500">{{ number_format($plan) }} đ</td>
+                                        <td class="p-2.5 text-right font-black text-emerald-700">{{ number_format($act) }} đ</td>
+                                        <td class="p-2.5 text-right font-bold {{ $diff > 0 ? 'text-emerald-600' : ($diff < 0 ? 'text-red-600' : 'text-gray-500') }}">
+                                            {{ ($diff > 0 ? '+' : '') . number_format($diff) }} đ
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs bg-white p-3 rounded-xl border border-emerald-100">
+                        <div>
+                            <span class="text-gray-500 block">Nguồn xử lý con số chênh lệch / vượt dự toán:</span>
+                            <span class="font-bold text-emerald-900 text-sm mt-0.5 block">
+                                <i class="fas fa-check-circle text-emerald-500 mr-1"></i>
+                                {{ $marketingEvent->variance_funding_source ?: 'Ngân sách công ty bù thêm' }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block">Người xác nhận nghiệm thu:</span>
+                            <span class="font-bold text-gray-800 text-sm mt-0.5 block">
+                                {{ $marketingEvent->completer?->name ?? 'Hệ thống' }}
+                            </span>
+                        </div>
+                        @if($marketingEvent->completion_note)
+                        <div class="md:col-span-2 pt-2 border-t border-gray-100">
+                            <span class="text-gray-500 block">Ghi chú tổng kết / Nghiệm thu:</span>
+                            <p class="text-gray-700 italic mt-0.5">{{ $marketingEvent->completion_note }}</p>
+                        </div>
+                        @endif
                     </div>
                 </div>
+                @endif
             </div>
 
             {{-- Lịch sử Yêu cầu thanh toán con --}}
@@ -1220,6 +1449,143 @@
             </div>
         </div>
 
+    </div>
+
+    {{-- MODAL HOÀN THÀNH SỰ KIỆN & QUYẾT TOÁN THỰC TẾ --}}
+    <div x-show="showCompleteModal"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto"
+             @click.away="showCompleteModal = false">
+            
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-flag-checkered text-emerald-600"></i> Hoàn thành Sự kiện & Nghiệm thu Chi phí Thực tế
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        Chương trình: <strong class="text-gray-700" x-text="completeData.eventCode + ' - ' + completeData.eventTitle"></strong>
+                    </p>
+                </div>
+                <button type="button" @click="showCompleteModal = false" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-base"></i>
+                </button>
+            </div>
+
+            <form :action="'/marketing-events/' + completeData.eventId + '/complete'" method="POST" class="space-y-4">
+                @csrf
+                
+                {{-- Tổng ngân sách & Chi phí thực tế --}}
+                <div class="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="text-xs font-semibold text-emerald-800 uppercase block">Dự toán đã duyệt</span>
+                            <span class="text-lg font-black text-emerald-950 block mt-0.5" x-text="formatMoneyNumber(completeData.budget) + ' đ'"></span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-emerald-900 uppercase mb-1">
+                                Tổng Chi phí Thực tế Phát sinh (VND) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text"
+                                   :value="formatMoneyNumber(completeData.actualCost)"
+                                   @input="completeData.actualCost = $event.target.value.replace(/[^\d]/g, '')"
+                                   name="actual_cost"
+                                   required
+                                   class="w-full border border-emerald-300 rounded-lg px-3 py-2 text-base font-black text-emerald-800 bg-white focus:ring-2 focus:ring-emerald-400 text-right">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Bảng chi tiết thực tế tài trợ của từng Hãng / Nguồn tiền --}}
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            <i class="fas fa-hand-holding-usd text-emerald-600 mr-1"></i> Số tiền thực tế tài trợ từng Hãng & Nguồn tiền
+                        </label>
+                        <span class="text-xs text-gray-500">
+                            Tổng tài trợ thực tế: <strong class="text-emerald-700" x-text="formatMoneyNumber(getCompletionTotalFunding()) + ' đ'"></strong>
+                        </span>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-xl overflow-hidden">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 font-bold uppercase text-gray-500">
+                                <tr>
+                                    <th class="p-2.5 text-left">Nguồn tài trợ / Hãng</th>
+                                    <th class="p-2.5 text-right w-36">Dự toán cam kết</th>
+                                    <th class="p-2.5 text-right w-44">Thực tế chi trả (VND) <span class="text-red-500">*</span></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="(src, idx) in completeData.sources" :key="idx">
+                                    <tr class="hover:bg-gray-50/50">
+                                        <td class="p-2.5 font-semibold text-gray-800" x-text="src.name || ('Nguồn ' + (idx + 1))"></td>
+                                        <td class="p-2.5 text-right text-gray-500" x-text="formatMoneyNumber(src.planned_amount) + ' đ'"></td>
+                                        <td class="p-2.5 text-right">
+                                            <input type="text"
+                                                   :name="'actual_funding_sources[' + idx + ']'"
+                                                   :value="formatMoneyNumber(src.actual_amount)"
+                                                   @input="src.actual_amount = $event.target.value.replace(/[^\d]/g, '')"
+                                                   class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-gray-800 focus:ring-1 focus:ring-emerald-400">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {{-- Con số chênh lệch & Nguồn xử lý chênh lệch --}}
+                <div class="p-4 rounded-xl border"
+                     :class="getCompletionVariance() > 0 ? 'bg-rose-50/70 border-rose-200' : (getCompletionVariance() < 0 ? 'bg-emerald-50/70 border-emerald-200' : 'bg-gray-50 border-gray-200')">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold uppercase"
+                              :class="getCompletionVariance() > 0 ? 'text-rose-800' : (getCompletionVariance() < 0 ? 'text-emerald-800' : 'text-gray-700')">
+                            <i class="fas fa-balance-scale mr-1"></i> Chênh lệch (Tổng chi thực tế - Tổng tài trợ):
+                        </span>
+                        <span class="text-base font-black"
+                              :class="getCompletionVariance() > 0 ? 'text-rose-700' : (getCompletionVariance() < 0 ? 'text-emerald-700' : 'text-gray-700')"
+                              x-text="(getCompletionVariance() > 0 ? '▲ Thiếu hụt (Vượt chi): ' : (getCompletionVariance() < 0 ? '▼ Dư tiền tài trợ: ' : 'Cân bằng: ')) + formatMoneyNumber(Math.abs(getCompletionVariance())) + ' đ'">
+                        </span>
+                    </div>
+
+                    {{-- Nguồn tiền bù đắp / xử lý phần dư --}}
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">
+                            <span x-text="getCompletionVariance() > 0 ? 'Con số thiếu hụt / phát sinh vượt dự toán lấy nguồn bù từ đâu? *' : 'Con số dư tài trợ xử lý như thế nào? *'"></span>
+                        </label>
+                        <select name="variance_funding_source" x-model="completeData.varianceSource" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-purple-400 bg-white">
+                            <option value="Ngân sách công ty bù thêm">Trích bổ sung từ Ngân sách Công ty</option>
+                            <option value="Đàm phán Hãng hỗ trợ thêm">Đàm phán Hãng hỗ trợ thanh toán thêm</option>
+                            <option value="Quỹ Marketing nội bộ dự phòng">Trích từ Quỹ Marketing dự phòng của năm</option>
+                            <option value="Quỹ Công đoàn hỗ trợ">Trích từ Quỹ Công đoàn hỗ trợ</option>
+                            <option value="Hoàn trả quỹ hãng / chuyển kỳ sau">Hoàn trả nguồn tài trợ / Chuyển sang sự kiện sau</option>
+                            <option value="Khác">Khác (Ghi chú chi tiết bên dưới)</option>
+                        </select>
+                    </div>
+                </div>
+
+                {{-- Ghi chú nghiệm thu --}}
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ghi chú tổng kết / Nghiệm thu tài chính</label>
+                    <textarea name="completion_note" x-model="completeData.note" rows="2"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-purple-400"
+                              placeholder="Ghi chú kết quả sự kiện, đối soát hóa đơn với các hãng..."></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t">
+                    <button type="button" @click="showCompleteModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-xs font-bold transition-colors">
+                        Đóng
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fas fa-check-circle"></i> Xác nhận Hoàn thành & Lưu quyết toán
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 @endsection

@@ -429,21 +429,13 @@
                                 </a>
                             @endcan
 
-                            {{-- @can('view_activities')
-                            <a href="{{ route('activities.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('activities.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-tasks w-6 text-green-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Công việc</span>
-                            </a>
+                            @can('view_projects')
+                                <a href="{{ route('projects.index') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
+                                </a>
                             @endcan
-
-                            @can('view_customer_care_stages')
-                            <a href="{{ route('customer-care-stages.index') }}"
-                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('customer-care-stages.*') ? 'bg-primary text-white' : '' }}">
-                                <i class="fas fa-heart w-6 text-pink-400 flex-shrink-0"></i>
-                                <span class="ml-3 sidebar-text whitespace-nowrap">Chăm sóc KH</span>
-                            </a>
-                            @endcan --}}
 
                             @can('view_marketing_events')
                                 <a href="{{ route('marketing-events.index') }}"
@@ -458,6 +450,12 @@
                                 </a>
                             @endcan
 
+                            <a href="{{ route('meeting-rooms.index') }}"
+                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('meeting-rooms.*') ? 'bg-primary text-white' : '' }}">
+                                <i class="fas fa-door-open w-6 text-purple-400 flex-shrink-0"></i>
+                                <span class="ml-3 sidebar-text whitespace-nowrap">Đặt phòng họp</span>
+                            </a>
+
                             @can('view_quotations')
                                 <a href="{{ route('quotations.index') }}"
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('quotations.*') ? 'bg-primary text-white' : '' }}">
@@ -471,14 +469,6 @@
                                     class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('sales.*') && !request()->routeIs('sales.order-tracking') ? 'bg-primary text-white' : '' }}">
                                     <i class="fas fa-shopping-cart w-6 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Đơn hàng bán</span>
-                                </a>
-                            @endcan
-
-                            @can('view_projects')
-                                <a href="{{ route('projects.index') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('projects.*') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-project-diagram w-6 text-purple-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
                                 </a>
                             @endcan
 

@@ -33,21 +33,6 @@
                         </form>
                     </div>
                 </div>
-
-                <!-- Filter by Warehouse -->
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Kho</label>
-                    <select name="warehouse_id"
-                        onchange="window.location.href='{{ route('inventory.index') }}?warehouse_id='+this.value+'&tab={{ $activeTab }}&search={{ request('search') }}'"
-                        class="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white">
-                        <option value="">Tất cả kho</option>
-                        @foreach($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                                {{ $warehouse->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
             </div>
 
             <form action="{{ route('inventory.index') }}" method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
@@ -190,7 +175,9 @@
                                     <i class="fas fa-question-circle text-gray-400 hover:text-primary text-xs"></i>
                                 </span>
                             </th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
+                            @if(!in_array($activeTab, ['project', 'license']))
+                                <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người giữ thiết bị</th>
+                            @endif
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
                             @if($activeTab === 'runrate')
                                 <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-28">Thao tác</th>
@@ -215,7 +202,8 @@
                         @php
                             $lastVendorKey = null;
                             $lastProjectStockGroupKey = null;
-                            $columnCount = 10 + ($activeTab === 'runrate' ? 1 : 0) + $cols->count();
+                            $hasHoldCol = !in_array($activeTab, ['project', 'license']);
+                            $columnCount = 9 + ($hasHoldCol ? 1 : 0) + ($activeTab === 'runrate' ? 1 : 0) + $cols->count();
                         @endphp
                         @forelse($items as $item)
                             @php
@@ -322,20 +310,22 @@
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->project_name ?: '-' }}
                                 </td>
-                                <td class="px-3 py-1.5">
-                                    @if($item->borrower_display)
-                                        <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
-                                    @else
-                                        <span class="text-sm text-gray-400">Chưa phân bổ</span>
-                                    @endif
-                                </td>
+                                @if(!in_array($activeTab, ['project', 'license']))
+                                    <td class="px-3 py-1.5">
+                                        @if($item->borrower_display)
+                                            <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
+                                        @else
+                                            <span class="text-sm text-gray-400">Chưa phân bổ</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-3 py-1.5">
                                     <span class="text-sm text-gray-600">{{ $item->comments ?: '-' }}</span>
                                 </td>
                                 @if($activeTab === 'runrate')
                                     <td class="px-3 py-2 text-center whitespace-nowrap">
-                                        <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu mượn sản phẩm này">
-                                            <i class="fas fa-people-arrows mr-1"></i> Mượn hàng
+                                        <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu giữ sản phẩm này">
+                                            <i class="fas fa-people-arrows mr-1"></i> Giữ hàng
                                         </a>
                                     </td>
                                 @endif
@@ -385,7 +375,7 @@
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người mượn thiết bị</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người giữ thiết bị</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
                             
                             <!-- Custom columns headers -->

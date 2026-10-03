@@ -444,6 +444,19 @@
                     <i class="fas fa-file-excel mr-2"></i> Xuất Excel
                 </a>
 
+                @can('update', $quotation)
+                <details class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <summary class="cursor-pointer text-sm font-medium text-blue-800"><i class="fas fa-envelope mr-2"></i>Gửi email báo giá</summary>
+                    <form action="{{ route('quotations.send-email', $quotation) }}" method="POST" class="mt-3 space-y-2">
+                        @csrf
+                        <input type="email" name="to" required value="{{ old('to', $quotation->contact?->email ?? $quotation->customer?->email) }}" placeholder="Email người nhận" class="w-full rounded border-gray-300 text-sm">
+                        <input type="text" name="subject" value="{{ old('subject', 'Báo giá ' . $quotation->code) }}" placeholder="Tiêu đề email" class="w-full rounded border-gray-300 text-sm">
+                        <textarea name="message" rows="3" placeholder="Lời nhắn tới khách hàng" class="w-full rounded border-gray-300 text-sm">{{ old('message') }}</textarea>
+                        <button type="submit" class="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Gửi báo giá</button>
+                    </form>
+                </details>
+                @endcan
+
                 <form action="{{ route('quotations.duplicate', $quotation) }}" method="POST">
                     @csrf
                     <input type="hidden" name="redirect_to" value="show">

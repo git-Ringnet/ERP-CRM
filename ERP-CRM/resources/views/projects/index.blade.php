@@ -204,11 +204,22 @@
                                             title="Xem chi tiết">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{{ route('projects.edit', $project->id) }}"
-                                            class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
-                                            title="Sửa">
-                                            <i class="fas fa-edit"></i>
+                                        <a href="{{ route('projects.duplicate', $project->id) }}"
+                                            class="p-2 text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                                            title="Nhân bản ĐKDA">
+                                            <i class="fas fa-copy"></i>
                                         </a>
+                                        @if($project->registration_status === 'duplicate')
+                                            <span class="p-2 text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed" title="Dự án trùng lặp - Đã khóa sửa">
+                                                <i class="fas fa-lock"></i>
+                                            </span>
+                                        @else
+                                            <a href="{{ route('projects.edit', $project->id) }}"
+                                                class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
+                                                title="Sửa">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        @endif
                                         <form action="{{ route('projects.destroy', $project) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')

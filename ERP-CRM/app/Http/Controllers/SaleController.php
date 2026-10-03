@@ -55,6 +55,8 @@ class SaleController extends Controller
     {
         $this->authorize('viewAny', Sale::class);
 
+        session(['sales_list_url' => $request->fullUrl()]);
+
         $query = Sale::query();
 
         // Apply data filtering based on permissions
@@ -2974,7 +2976,13 @@ class SaleController extends Controller
                 'order_request_items.*.mst' => 'nullable|string|max:255',
                 'order_request_items.*.address' => 'nullable|string|max:500',
                 'order_request_note' => 'nullable|string|max:2000',
-                'order_request_files.*' => 'nullable|file|max:20480',
+                'is_license_from_other_distributor' => 'nullable|boolean',
+                'other_distributor_name' => 'nullable|string|max:255',
+                'order_request_files' => $isDraft ? 'nullable|array' : 'required|array|min:1',
+                'order_request_files.*' => 'file|max:20480',
+            ], [
+                'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
+                'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('storeOrderRequest validation failed: ' . json_encode($e->errors()));
@@ -2990,6 +2998,8 @@ class SaleController extends Controller
                 'sale_id' => $sale->id,
                 'created_by' => auth()->id(),
                 'note' => $request->input('order_request_note'),
+                'is_license_from_other_distributor' => $request->boolean('is_license_from_other_distributor'),
+                'other_distributor_name' => $request->input('other_distributor_name'),
                 'sent_at' => $isDraft ? null : now(),
                 'status' => $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN,
             ]);
@@ -3138,7 +3148,13 @@ class SaleController extends Controller
             'order_request_items.*.mst' => 'nullable|string|max:255',
             'order_request_items.*.address' => 'nullable|string|max:500',
             'order_request_note' => 'nullable|string|max:2000',
-            'order_request_files.*' => 'nullable|file|max:20480',
+            'is_license_from_other_distributor' => 'nullable|boolean',
+            'other_distributor_name' => 'nullable|string|max:255',
+            'order_request_files' => ($isDraft || $orderRequest->attachments()->count() > 0) ? 'nullable|array' : 'required|array|min:1',
+            'order_request_files.*' => 'file|max:20480',
+        ], [
+            'order_request_files.required' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
+            'order_request_files.min' => 'Bắt buộc đính kèm ít nhất 1 file khi gửi yêu cầu đặt hàng.',
         ]);
 
         $this->validateTradeUpOrderRequestSerials($sale, $validated['order_request_items'], $isDraft);
@@ -3148,6 +3164,8 @@ class SaleController extends Controller
             $newStatus = $isDraft ? \App\Models\SaleOrderRequest::STATUS_DRAFT : \App\Models\SaleOrderRequest::STATUS_PENDING_ADMIN;
             $orderRequest->update([
                 'note' => $request->input('order_request_note'),
+                'is_license_from_other_distributor' => $request->boolean('is_license_from_other_distributor'),
+                'other_distributor_name' => $request->input('other_distributor_name'),
                 'status' => $newStatus,
                 'sent_at' => $isDraft ? null : now(),
                 'rejection_note' => $isDraft ? $orderRequest->rejection_note : null,
@@ -3866,6 +3884,8 @@ class SaleController extends Controller
         }
 
         $request->validate([
+            'reason' => 'nullable|string|max:1000',
+            'note' => 'nullable|string|max:1000',
             'payment_exception_file' => 'nullable|file|max:20480',
             'payment_exception_files' => 'nullable|array',
             'payment_exception_files.*' => 'file|max:20480',
@@ -3881,21 +3901,26 @@ class SaleController extends Controller
             }
         }
 
-        if (empty($paths)) {
-            return back()->with('error', 'Vui lòng đính kèm tệp phê duyệt.');
+        $note = trim((string)($request->input('note') ?? $request->input('reason') ?? ''));
+        if (empty($paths) && empty($note)) {
+            return back()->with('error', 'Vui lòng nhập ghi chú lý do duyệt ngoại lệ hoặc đính kèm tệp phê duyệt.');
         }
 
         $sale->is_payment_exception = true;
-        $sale->payment_exception_file = count($paths) === 1 ? $paths[0] : json_encode($paths);
+        $sale->payment_exception_file = empty($paths) ? null : (count($paths) === 1 ? $paths[0] : json_encode($paths));
         $sale->save();
 
         // Ghi log Audit Trail
+        $logReason = !empty($note) 
+            ? 'Duyệt ngoại lệ/preload toàn đơn. Lý do: ' . $note . ' (Người thực hiện: ' . $user->name . ')'
+            : 'Đã duyệt ngoại lệ toàn đơn hàng. Người thực hiện: ' . $user->name;
+
         \App\Models\PaymentApprovalLog::create([
             'sale_id' => $sale->id,
             'action' => 'bod_exception_approved',
             'new_value' => 'exception_approved',
-            'reason' => 'Đã duyệt ngoại lệ toàn đơn hàng. Người thực hiện: ' . $user->name,
-            'attachment_path' => count($paths) === 1 ? $paths[0] : json_encode($paths),
+            'reason' => $logReason,
+            'attachment_path' => empty($paths) ? null : (count($paths) === 1 ? $paths[0] : json_encode($paths)),
             'performed_by' => $user->id,
             'performed_at' => now(),
         ]);
@@ -4708,6 +4733,8 @@ class SaleController extends Controller
         }
 
         $request->validate([
+            'exception_reason' => 'nullable|string|max:1000',
+            'reason' => 'nullable|string|max:1000',
             'bod_approval_file' => 'nullable|file|max:20480',
             'bod_approval_files' => 'nullable|array',
             'bod_approval_files.*' => 'file|max:20480',
@@ -4723,24 +4750,29 @@ class SaleController extends Controller
             }
         }
 
-        if (empty($paths)) {
-            return back()->with('error', 'Vui lòng đính kèm tệp phê duyệt.');
+        $note = trim((string)($request->input('exception_reason') ?? $request->input('reason') ?? ''));
+        if (empty($paths) && empty($note)) {
+            return back()->with('error', 'Vui lòng nhập ghi chú lý do duyệt ngoại lệ hoặc đính kèm tệp phê duyệt.');
         }
 
         $oldStatus = $schedule->status;
         $schedule->status = 'exception_approved';
-        $schedule->bod_approval_file_path = count($paths) === 1 ? $paths[0] : json_encode($paths);
+        $schedule->bod_approval_file_path = empty($paths) ? null : (count($paths) === 1 ? $paths[0] : json_encode($paths));
         $schedule->save();
 
         // Ghi log
+        $logReason = !empty($note)
+            ? 'Duyệt ngoại lệ đợt "' . $schedule->milestone_name . '". Lý do: ' . $note . ' (Người thực hiện: ' . $user->name . ')'
+            : 'Đã duyệt ngoại lệ cho đợt: ' . $schedule->milestone_name . '. Người thực hiện: ' . $user->name;
+
         \App\Models\PaymentApprovalLog::create([
             'schedule_id' => $schedule->id,
             'sale_id' => $sale->id,
             'action' => 'bod_exception_approved',
             'old_value' => $oldStatus,
             'new_value' => 'exception_approved',
-            'reason' => $request->input('exception_reason', 'Đã duyệt ngoại lệ cho đợt: ' . $schedule->milestone_name . '. Người thực hiện: ' . $user->name),
-            'attachment_path' => count($paths) === 1 ? $paths[0] : json_encode($paths),
+            'reason' => $logReason,
+            'attachment_path' => empty($paths) ? null : (count($paths) === 1 ? $paths[0] : json_encode($paths)),
             'performed_by' => $user->id,
             'performed_at' => now(),
         ]);

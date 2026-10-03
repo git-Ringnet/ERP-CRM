@@ -18,15 +18,22 @@ class MarketingEvent extends Model
         'partner_info', 'organize_type', 'organize_type_other', 'start_time', 'end_time',
         'target_audience_count', 'target_audience_note', 'budget_external_note', 'funding_source',
         'special_notes', 'attachments',
+        'funding_sources', 'actual_funding_sources', 'variance_amount', 'variance_funding_source',
+        'completion_note', 'completed_at', 'completed_by',
+        'internal_department', 'internal_purpose',
     ];
 
     protected $casts = [
-        'event_date'         => 'date',
-        'approved_at'        => 'datetime',
-        'budget'             => 'decimal:2',
-        'actual_cost'        => 'decimal:2',
-        'is_public_to_sales' => 'boolean',
-        'attachments'        => 'array',
+        'event_date'             => 'date',
+        'approved_at'            => 'datetime',
+        'completed_at'          => 'datetime',
+        'budget'                 => 'decimal:2',
+        'actual_cost'            => 'decimal:2',
+        'variance_amount'        => 'decimal:2',
+        'is_public_to_sales'     => 'boolean',
+        'attachments'            => 'array',
+        'funding_sources'        => 'array',
+        'actual_funding_sources' => 'array',
     ];
 
     protected static function boot()
@@ -77,9 +84,21 @@ class MarketingEvent extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function completer()
+    {
+        return $this->belongsTo(User::class, 'completed_by');
+    }
+
     public function vendor()
     {
         return $this->belongsTo(Supplier::class, 'vendor_id');
+    }
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class, 'marketing_event_suppliers')
+            ->withPivot('is_primary')
+            ->withTimestamps();
     }
 
     public function tickets()
@@ -126,6 +145,7 @@ class MarketingEvent extends Model
             'approved'  => 'Đã duyệt',
             'rejected'  => 'Từ chối',
             'cancelled' => 'Đã hủy',
+            'completed' => 'Đã hoàn thành',
             default     => $this->status,
         };
     }
@@ -138,6 +158,7 @@ class MarketingEvent extends Model
             'approved'  => 'bg-green-100 text-green-700',
             'rejected'  => 'bg-red-100 text-red-700',
             'cancelled' => 'bg-gray-200 text-gray-500',
+            'completed' => 'bg-emerald-100 text-emerald-800 border border-emerald-300',
             default     => 'bg-gray-100 text-gray-700',
         };
     }
@@ -156,5 +177,29 @@ class MarketingEvent extends Model
     public function isEditable(): bool
     {
         return in_array($this->status, ['draft', 'rejected']);
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
+    }
+
+    /**
+     * Get all vendor/brand names formatted
+     */
+    public function getVendorNamesAttribute(): array
+    {
+        $names = [];
+        if ($this->relationLoaded('suppliers') && $this->suppliers->isNotEmpty()) {
+            $names = $this->suppliers->pluck('name')->all();
+        } elseif ($this->vendor) {
+            $names[] = $this->vendor->name;
+        }
+
+        if ($this->vendor_other_note) {
+            $names[] = $this->vendor_other_note;
+        }
+
+        return array_unique($names);
     }
 }

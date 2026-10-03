@@ -504,10 +504,12 @@ class BomParserService
         $model = trim($model, " \t\n\r\0\x0B-:|(),");
 
         // 3. Separate Part Number and Model if possible
-        if (preg_match('/^([A-Z0-9\-_.\/]{3,30})\s*[:\-\|]\s*(.+)$/i', $model, $pnMatches)) {
+        // Note: Hyphen '-' is only a separator if surrounded by spaces (e.g., "FG-200G - Firewall FortiGate 200G").
+        // Hyphens within a SKU (e.g., "FG-200G-BDL-950-12") must NOT be treated as separators.
+        if (preg_match('/^([A-Z0-9\-_.\/]{3,50})\s*(?:[:|]|\s+[-–—]\s+)\s*(.+)$/iu', $model, $pnMatches)) {
             $pn = trim($pnMatches[1]);
             $model = trim($pnMatches[2]);
-        } elseif (preg_match('/^([A-Z0-9\-_.\/]{4,30})\s+(.+)$/', $model, $pnMatches)) {
+        } elseif (preg_match('/^([A-Z0-9\-_.\/]{3,50})\s+([a-zA-Z\p{L}].+)$/u', $model, $pnMatches)) {
             // Check if first token looks like a Part Number (has both letters and digits or dashes)
             $firstToken = $pnMatches[1];
             if ((preg_match('/[A-Za-z]/', $firstToken) && preg_match('/[0-9]/', $firstToken)) || str_contains($firstToken, '-') || str_contains($firstToken, '_')) {
@@ -616,9 +618,26 @@ class BomParserService
             if ($product) return $product;
         }
 
-        // 4. Try matching partial / prefix code (if length >= 4)
+        // 4. Try matching product where code matches the prefix or query starts with product code
+        // e.g., query "FG-200G-BDL-950-12" starts with product code "FG-200G"
         foreach ($queries as $q) {
-            if (strlen($q) >= 4) {
+            if (strlen($q) >= 3) {
+                // Match where query starts with product code (longest code first)
+                $product = Product::whereRaw('? LIKE CONCAT(code, "%")', [$q])
+                    ->orderByRaw('LENGTH(code) DESC')
+                    ->first();
+                if ($product) return $product;
+
+                // Match where product code starts with query
+                $product = Product::where('code', 'like', "{$q}%")
+                    ->first();
+                if ($product) return $product;
+            }
+        }
+
+        // 5. Fallback: partial match on code or name (if length >= 5)
+        foreach ($queries as $q) {
+            if (strlen($q) >= 5) {
                 $product = Product::where('code', 'like', "%{$q}%")
                     ->orWhere('name', 'like', "%{$q}%")
                     ->first();

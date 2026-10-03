@@ -111,6 +111,7 @@
                             <th class="px-1 py-2 border border-[#d06a1e] w-8 sticky left-0 bg-[#e87722] z-20">STT</th>
                             <th class="px-1 py-2 border border-[#d06a1e] min-w-[80px]">CPQ</th>
                             <th class="px-1 py-2 border border-[#d06a1e] min-w-[100px]">Tình trạng<br/>XHĐ</th>
+                            <th class="px-1 py-2 border border-[#d06a1e] min-w-[100px]">Ngày XHĐ<br/>chính thức</th>
                             <th class="px-1 py-2 border border-[#d06a1e] min-w-[100px]">Hàng đã nhập<br/>kho (WH)</th>
                             <th class="px-1 py-2 border border-[#d06a1e] min-w-[90px]">Đã Xuất POS<br/>(License)</th>
                             <th class="px-1 py-2 border border-[#d06a1e] min-w-[90px]">Số PO</th>
@@ -164,6 +165,11 @@
                                     @else
                                         <span class="cell-value text-gray-400 italic">—</span>
                                     @endif
+                                </td>
+
+                                {{-- Ngày XHĐ chính thức (AUTO from Sale / InvoiceRequest) --}}
+                                <td class="td-auto px-1 py-1 text-center text-[10px]">
+                                    {{ $rev->official_invoice_date?->format('d/m/Y') ?: '—' }}
                                 </td>
 
                                 {{-- Hàng nhập kho (AUTO from PO) --}}
@@ -326,7 +332,7 @@
                     @if($revenues->count() > 0)
                         <tfoot>
                             <tr class="bg-orange-50 font-bold text-[10px]">
-                                <td colspan="8" class="px-2 py-2 text-right border border-gray-300 sticky left-0 bg-orange-50 z-10">TỔNG CỘNG</td>
+                                <td colspan="9" class="px-2 py-2 text-right border border-gray-300 sticky left-0 bg-orange-50 z-10">TỔNG CỘNG</td>
                                 <td class="px-1 py-2 text-center border border-gray-300">{{ number_format($stats['total_quantity']) }}</td>
                                 <td colspan="5" class="border border-gray-300"></td>
                                 <td class="px-1 py-2 text-right border border-gray-300 text-primary">${{ number_format($stats['total_amount'], 2) }}</td>
