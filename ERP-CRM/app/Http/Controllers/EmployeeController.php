@@ -45,7 +45,22 @@ class EmployeeController extends Controller
             $query->where('status', $request->status);
         }
 
-        $employees = $query->orderBy('created_at', 'desc')->paginate(10);
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'employee_code' => 'users.employee_code',
+            'name' => 'users.name',
+            'position' => 'users.position',
+            'department' => 'users.department',
+            'email' => 'users.email',
+            'phone' => 'users.phone',
+            'status' => 'users.status',
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $employees = $query->paginate(10)->withQueryString();
 
         // Get unique departments for filter dropdown
         $departments = User::whereNotNull('employee_code')

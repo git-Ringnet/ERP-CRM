@@ -40,7 +40,22 @@ class SupplierController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $suppliers = $query->with('contacts')->orderBy('created_at', 'desc')->paginate(10);
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'code' => 'suppliers.code',
+            'name' => 'suppliers.name',
+            'tax_code' => 'suppliers.tax_code',
+            'email' => 'suppliers.email',
+            'phone' => 'suppliers.phone',
+            'address' => 'suppliers.address',
+            'payment_term' => 'suppliers.payment_term',
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $suppliers = $query->with('contacts')->paginate(10)->withQueryString();
 
         return view('suppliers.index', compact('suppliers'));
     }

@@ -457,24 +457,32 @@
                 const doc = parser.parseFromString(html, 'text/html');
 
                 const newTable = doc.getElementById(this.tableId) ||
-                    doc.querySelector(`table[data-module="${this.module}"]`) ||
+                    (this.module ? doc.querySelector(`table[data-module="${this.module}"]`) : null) ||
+                    doc.querySelector('main table') ||
                     doc.querySelector('table');
 
                 if (newTable && newTable.querySelector('tbody')) {
                     this.tbody.innerHTML = newTable.querySelector('tbody').innerHTML;
                 }
 
-                // Update pagination
-                const currentContainer = this.table.closest('.bg-white') || this.table.parentElement;
-                const newContainer = doc.getElementById(this.tableId)?.closest('.bg-white') || doc.querySelector('.bg-white');
+                // Update pagination safely without touching page headers or notification dropdowns
+                const findPaginationEl = (container) => {
+                    const scope = container.querySelector('main') || container;
+                    const nav = scope.querySelector('nav[role="navigation"], .pagination');
+                    if (!nav) return null;
+                    return nav.closest('.border-t') || nav;
+                };
 
-                if (currentContainer && newContainer) {
-                    const currentNav = currentContainer.querySelector('.border-t, nav[role="navigation"]')?.parentElement;
-                    const newNav = newContainer.querySelector('.border-t, nav[role="navigation"]')?.parentElement;
+                const oldPagination = findPaginationEl(document);
+                const newPagination = findPaginationEl(doc);
 
-                    if (currentNav && newNav) {
-                        currentNav.innerHTML = newNav.innerHTML;
-                    }
+                if (oldPagination && newPagination) {
+                    oldPagination.outerHTML = newPagination.outerHTML;
+                } else if (oldPagination && !newPagination) {
+                    oldPagination.innerHTML = '';
+                } else if (!oldPagination && newPagination) {
+                    const wrapper = this.table.closest('.overflow-x-auto') || this.table;
+                    wrapper.insertAdjacentElement('afterend', newPagination);
                 }
 
                 tableWrapper.classList.remove('opacity-50', 'pointer-events-none');
@@ -1140,7 +1148,8 @@
                 const items = data.values || [];
 
                 if (items.length === 0) {
-                    container.innerHTML = `<div class="p-3 text-center text-gray-400 text-xs">Không có dữ liệu</div>`;
+                    // Fallback to reading values from current table rows
+                    populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text');
                     return;
                 }
 
@@ -1166,8 +1175,8 @@
                 });
             })
             .catch(err => {
-                console.error('Error fetching distinct values:', err);
-                container.innerHTML = `<div class="p-3 text-center text-red-500 text-xs">Lỗi khi tải dữ liệu từ máy chủ</div>`;
+                console.warn('Error fetching distinct values from server, falling back to local DOM:', err);
+                populateValuesClient(tableInstance, colIndex, currentColumn ? currentColumn.colType : 'text');
             });
     }
 

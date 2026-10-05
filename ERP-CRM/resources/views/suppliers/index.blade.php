@@ -82,26 +82,26 @@
 
         <!-- Table -->
         <div class="overflow-x-auto" x-data="{ expanded: null }">
-            <table class="w-full">
+            <table class="w-full" data-module="suppliers" data-filter-mode="server">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10 no-filter no-sort">
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">STT
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã NCC
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã NCC">Mã NCC
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhà
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="name" data-col-title="Tên nhà cung cấp">Tên nhà
                             cung cấp</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="email" data-col-title="Email">Email
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điện
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="phone" data-col-title="Điện thoại">Điện
                             thoại</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Địa chỉ
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="address" data-col-title="Địa chỉ">Địa chỉ
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Điều
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="payment_term" data-col-title="Điều khoản TT">Điều
                             khoản TT</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thao
                             tác</th>
                     </tr>
                 </thead>

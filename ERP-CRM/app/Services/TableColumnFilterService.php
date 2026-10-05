@@ -88,6 +88,21 @@ class TableColumnFilterService
                 'tax_code' => 'suppliers.tax_code',
                 'email' => 'suppliers.email',
                 'phone' => 'suppliers.phone',
+                'address' => 'suppliers.address',
+                'payment_term' => 'suppliers.payment_term',
+            ],
+        ],
+        'employees' => [
+            'model' => \App\Models\User::class,
+            'table' => 'users',
+            'columns' => [
+                'employee_code' => 'users.employee_code',
+                'name' => 'users.name',
+                'position' => 'users.position',
+                'department' => 'users.department',
+                'email' => 'users.email',
+                'phone' => 'users.phone',
+                'status' => 'users.status',
             ],
         ],
         'warehouses' => [
@@ -345,45 +360,65 @@ class TableColumnFilterService
         $dbCol = str_contains($target, '.') ? $target : "{$config['table']}.{$target}";
         $fieldOnly = str_contains($dbCol, '.') ? explode('.', $dbCol)[1] : $dbCol;
 
-        $query = $modelClass::query()
-            ->selectRaw("{$dbCol} as val, COUNT(*) as count")
-            ->whereNotNull($dbCol)
-            ->where($dbCol, '!=', '');
+        try {
+            // Check if column exists in the database table to prevent SQL errors
+            if (!\Illuminate\Support\Facades\Schema::hasColumn($config['table'], $fieldOnly)) {
+                return [];
+            }
 
-        if (!empty($search)) {
-            $query->where($dbCol, 'like', "%{$search}%");
-        }
+            $query = $modelClass::query()
+                ->selectRaw("{$dbCol} as val, COUNT(*) as count")
+                ->whereNotNull($dbCol)
+                ->where($dbCol, '!=', '');
 
-        $results = $query->groupBy($dbCol)
-            ->orderByDesc('count')
-            ->limit($limit)
-            ->get();
+            // Specific module scopes
+            if ($module === 'employees') {
+                $query->whereNotNull('employee_code')->where('is_hidden', false);
+            }
 
-        $list = [];
-        foreach ($results as $row) {
-            $valStr = (string)$row->val;
-            $list[] = [
-                'value' => $valStr,
-                'label' => $valStr,
-                'count' => (int)$row->count,
-            ];
-        }
+            if (!empty($search)) {
+                $query->where($dbCol, 'like', "%{$search}%");
+            }
 
-        // Check empty count
-        if (empty($search)) {
-            $emptyCount = $modelClass::query()
-                ->where(fn($q) => $q->whereNull($dbCol)->orWhere($dbCol, ''))
-                ->count();
+            $results = $query->groupBy($dbCol)
+                ->orderByDesc('count')
+                ->limit($limit)
+                ->get();
 
-            if ($emptyCount > 0) {
+            $list = [];
+            foreach ($results as $row) {
+                $valStr = (string)$row->val;
                 $list[] = [
-                    'value' => '(Trống / N/A)',
-                    'label' => '(Trống / N/A)',
-                    'count' => $emptyCount,
+                    'value' => $valStr,
+                    'label' => $valStr,
+                    'count' => (int)$row->count,
                 ];
             }
-        }
 
-        return $list;
+            // Check empty count
+            if (empty($search)) {
+                $emptyQuery = $modelClass::query()
+                    ->where(fn($q) => $q->whereNull($dbCol)->orWhere($dbCol, ''));
+
+                if ($module === 'employees') {
+                    $emptyQuery->whereNotNull('employee_code')->where('is_hidden', false);
+                }
+
+                $emptyCount = $emptyQuery->count();
+
+                if ($emptyCount > 0) {
+                    $list[] = [
+                        'value' => '(Trống / N/A)',
+                        'label' => '(Trống / N/A)',
+                        'count' => $emptyCount,
+                    ];
+                }
+            }
+
+            return $list;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("TableColumnFilter distinct values error [{$module}][{$column}]: " . $e->getMessage());
+            return [];
+        }
     }
 }
