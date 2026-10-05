@@ -1722,6 +1722,7 @@
             </div>
             <form action="{{ route('projects.close', $project->id) }}" method="POST">
                 @csrf
+                @php $canCloseWon = $canCloseWon ?? false; @endphp
                 <div class="mt-4 space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Kết quả đóng dự án <span class="text-red-500">*</span></label>

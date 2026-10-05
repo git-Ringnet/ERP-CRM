@@ -157,6 +157,9 @@ class ProjectsExport implements FromArray, WithHeadings, WithStyles
 
     public static function parseBomData($bomData)
     {
+        if (empty($bomData)) {
+            return [];
+        }
         $service = app(\App\Services\BomParserService::class);
         $rawItems = $service->extractRawLines($bomData);
         $items = [];

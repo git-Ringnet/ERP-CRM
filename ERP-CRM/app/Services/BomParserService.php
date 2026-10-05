@@ -292,8 +292,12 @@ class BomParserService
     /**
      * Extract raw items from text
      */
-    public function extractRawLines(string $text): array
+    public function extractRawLines(?string $text): array
     {
+        if (empty($text) || !trim($text)) {
+            return [];
+        }
+
         $lines = preg_split('/\r\n|\r|\n/', trim($text));
         $items = [];
 

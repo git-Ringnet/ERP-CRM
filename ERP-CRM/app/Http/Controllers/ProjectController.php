@@ -707,7 +707,11 @@ class ProjectController extends Controller
             ->with('items.product')
             ->first();
 
-        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'technicalTickets', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure'));
+        $canCloseWon = ($project->intake_status === 'registered')
+            || in_array($project->registration_status, ['registered', 'approved', 'update_status', 'vendor_quoted', 'vendor_processing', 'ordered', 'delivered', 'invoiced', 'closed_won'], true)
+            || (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->hasAnyRole(['admin', 'super_admin', 'pm', 'po']));
+
+        return view('projects.show', compact('project', 'salesStats', 'recentSales', 'technicalTickets', 'quotations', 'exportStats', 'recentExports', 'activityLogs', 'latestSaleForClosure', 'canCloseWon'));
     }
 
     /**

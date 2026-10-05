@@ -470,7 +470,8 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/marketing-items/{marketingItem}', [\App\Http\Controllers\MarketingItemController::class, 'destroy'])->name('marketing-items.destroy');
     Route::post('/marketing-items/import', [\App\Http\Controllers\MarketingItemController::class, 'importStock'])->name('marketing-items.import');
     Route::post('/marketing-items/import-file', [\App\Http\Controllers\MarketingItemController::class, 'importFile'])->name('marketing-items.import-file');
-    Route::get('/marketing-items/template/download', [\App\Http\Controllers\MarketingItemController::class, 'downloadTemplate'])->name('marketing-items.template.download');
+    Route::get('/marketing-items/template/download', [\App\Http\Controllers\MarketingItemController::class, 'downloadTemplate'])->name('marketing-items.download-template');
+    Route::get('/marketing-items/download-template', [\App\Http\Controllers\MarketingItemController::class, 'downloadTemplate'])->name('marketing-items.template.download');
     Route::post('/marketing-items/{marketingItem}/approve', [\App\Http\Controllers\MarketingItemController::class, 'approve'])->name('marketing-items.approve');
     Route::post('/marketing-items/{marketingItem}/reject', [\App\Http\Controllers\MarketingItemController::class, 'reject'])->name('marketing-items.reject');
     Route::post('/marketing-items/export', [\App\Http\Controllers\MarketingItemController::class, 'exportStock'])->name('marketing-items.export');
