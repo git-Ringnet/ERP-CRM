@@ -157,14 +157,43 @@ class SaleController extends Controller
         }
 
         $relations = ['project', 'user', 'customer', 'quotation', 'items.product', 'paymentSchedules'];
-        $query->with($relations)->orderBy('created_at', 'desc');
+        $query->with($relations);
+
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'code' => 'sales.code',
+            'quotation_code' => 'sales.quotation_code',
+            'type' => 'sales.type',
+            'status' => 'sales.status',
+            'total_amount' => 'sales.total_amount',
+            'margin' => 'sales.margin',
+            'date' => 'sales.date',
+            'customer' => function($q, $op, $val) {
+                if ($op === 'in') {
+                    $q->whereHas('customer', fn($sub) => $sub->whereIn('name', $val));
+                } else {
+                    $q->whereHas('customer', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+                }
+            },
+            'user' => function($q, $op, $val) {
+                if ($op === 'in') {
+                    $q->whereHas('user', fn($sub) => $sub->whereIn('name', $val));
+                } else {
+                    $q->whereHas('user', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+                }
+            },
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
 
         // Some filters are action queues rather than a single dashboard state.
         // Keep those in SQL via the model scope; comparing dashboard_status would
         // otherwise make the "waiting for Finance" / "waiting for export" lists
         // appear empty.
         if (in_array($dashboardStatusFilter, ['pending_payment', 'pending_export', 'pending_export_approval'], true)) {
-            $sales = $query->filterByStatus($dashboardStatusFilter)->paginate(10);
+            $sales = $query->filterByStatus($dashboardStatusFilter)->paginate(10)->withQueryString();
         } elseif ($dashboardStatusFilter) {
             $allSales = $query->get()->filter(fn (Sale $sale) => $sale->dashboard_status === $dashboardStatusFilter)->values();
             $page = max(1, (int) $request->input('page', 1));
@@ -177,7 +206,7 @@ class SaleController extends Controller
                 ['path' => $request->url(), 'query' => $request->query()]
             );
         } else {
-            $sales = $query->paginate(10);
+            $sales = $query->paginate(10)->withQueryString();
         }
 
         // Load payment transactions cho từng sale (để hiển thị % cọc/thanh toán)
@@ -263,6 +292,58 @@ class SaleController extends Controller
         // Parse BOM data from selected projects if available
         $bomParser = app(BomParserService::class);
         $prefilledProducts = $bomParser->parseFromProjects($selectedProjects);
+
+        // Pre-fill from Held Stock (Inventory) if requested
+        if ($request->filled('from_stock_product_id')) {
+            $stockProduct = Product::find($request->input('from_stock_product_id'));
+            if ($stockProduct) {
+                $qty = max(1, (int)$request->input('from_stock_qty', 1));
+                $sellingPrice = $stockProduct->calculated_selling_price ?: ($stockProduct->price ?? 0);
+                $costPrice = $stockProduct->calculated_cost ?: ($stockProduct->cost ?? 0);
+                $prefilledProducts[] = [
+                    'product_id' => $stockProduct->id,
+                    'name' => $stockProduct->name,
+                    'code' => $stockProduct->code,
+                    'unit' => $stockProduct->unit ?? 'Cái',
+                    'quantity' => $qty,
+                    'price' => (float)$sellingPrice,
+                    'cost' => (float)$costPrice,
+                    'vat' => 8,
+                    'warranty_months' => $stockProduct->warranty_months ?? 12,
+                    'is_from_stock' => 1,
+                    'contractor_tax_enabled' => 0,
+                    'display_text' => '[' . ($stockProduct->code ?? '') . '] ' . ($stockProduct->name ?? ''),
+                ];
+            }
+        }
+
+        // Pre-fill from Borrow Ticket if requested
+        if ($request->filled('from_ticket_id')) {
+            $ticket = \App\Models\Ticket::with(['items.product'])->find($request->input('from_ticket_id'));
+            if ($ticket) {
+                foreach ($ticket->items as $tItem) {
+                    $prod = $tItem->product;
+                    if ($prod) {
+                        $sellingPrice = $prod->calculated_selling_price ?: ($prod->price ?? 0);
+                        $costPrice = $prod->calculated_cost ?: ($prod->cost ?? 0);
+                        $prefilledProducts[] = [
+                            'product_id' => $prod->id,
+                            'name' => $prod->name,
+                            'code' => $prod->code,
+                            'unit' => $prod->unit ?? 'Cái',
+                            'quantity' => max(1, (int)$tItem->quantity),
+                            'price' => (float)$sellingPrice,
+                            'cost' => (float)$costPrice,
+                            'vat' => 8,
+                            'warranty_months' => $prod->warranty_months ?? 12,
+                            'is_from_stock' => 1,
+                            'contractor_tax_enabled' => 0,
+                            'display_text' => '[' . ($prod->code ?? '') . '] ' . ($prod->name ?? ''),
+                        ];
+                    }
+                }
+            }
+        }
 
         return view('sales.create', compact(
             'customers', 'products', 'projects', 'code', 'selectedProject',
@@ -355,15 +436,15 @@ class SaleController extends Controller
         foreach ($products as $key => $prod) {
             if (isset($prod['product_id'])) {
                 if ($prod['product_id'] === 'new') {
-                    if (empty($prod['new_name'])) {
+                    if (empty($prod['new_name']) && empty($prod['product_name'])) {
                         return back()->withInput()->withErrors(["products.{$key}.new_name" => "Tên sản phẩm mới không được để trống."]);
                     }
-                    if (empty($prod['new_code'])) {
-                        return back()->withInput()->withErrors(["products.{$key}.new_code" => "Mã sản phẩm mới không được để trống."]);
-                    }
                 } else {
-                    if (!\App\Models\Product::where('id', $prod['product_id'])->exists()) {
-                        return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                    if (!empty($prod['product_id']) && !\App\Models\Product::where('id', $prod['product_id'])->exists()) {
+                        $prodByCode = \App\Models\Product::where('code', $prod['product_id'])->first();
+                        if (!$prodByCode && empty($prod['new_name']) && empty($prod['product_name'])) {
+                            return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                        }
                     }
                 }
             }
@@ -427,18 +508,20 @@ class SaleController extends Controller
             $dealFlags = $this->resolveDealFlags($validated, $request);
             $processedProducts = [];
             foreach ($validated['products'] as $item) {
-                if ($item['product_id'] === 'new') {
-                    $newCode = strtoupper(trim($item['new_code']));
-                    $product = Product::where('code', $newCode)->first();
-                    if (!$product) {
-                        $product = Product::create([
-                            'code' => $newCode,
-                            'name' => $item['new_name'],
-                            'unit' => $item['new_unit'] ?: 'Cái',
-                            'category' => 'A',
-                        ]);
+                if (($item['product_id'] ?? '') === 'new') {
+                    $newCode = strtoupper(trim($item['new_code'] ?? ''));
+                    $newName = trim($item['new_name'] ?? '');
+                    $product = null;
+                    if (!empty($newCode)) {
+                        $product = Product::where('code', $newCode)->first();
                     }
-                    $item['product_id'] = $product->id;
+                    if (!$product && !empty($newName)) {
+                        $product = Product::where('name', $newName)->first();
+                    }
+                    $item['product_id'] = $product ? $product->id : null;
+                } elseif (!empty($item['product_id']) && !is_numeric($item['product_id'])) {
+                    $prodByCode = Product::where('code', $item['product_id'])->first();
+                    $item['product_id'] = $prodByCode ? $prodByCode->id : null;
                 }
                 $processedProducts[] = $item;
             }
@@ -559,8 +642,8 @@ class SaleController extends Controller
 
             // Create sale items with cost price and project
             foreach ($validated['products'] as $item) {
-                $product = Product::find($item['product_id']);
-                $costPrice = $product->calculated_cost;
+                $product = !empty($item['product_id']) ? Product::find($item['product_id']) : null;
+                $costPrice = $product ? $product->calculated_cost : (float)($item['cost_price'] ?? 0);
                 $quantity = $item['quantity'];
 
                 // Inherit sale-level project_id
@@ -569,7 +652,7 @@ class SaleController extends Controller
                 // Get warranty: use input value if provided, otherwise use product default
                 $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
                     ? (int) $item['warranty_months']
-                    : $product->warranty_months;
+                    : ($product ? $product->warranty_months : 0);
 
                 $itemSubtotal = round($quantity * $item['price'], 2);
                 $itemDiscount = round($itemSubtotal * ($validated['discount'] ?? 0) / 100, 2);
@@ -578,10 +661,12 @@ class SaleController extends Controller
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
                 $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
 
+                $productName = $product ? $product->name : ($item['new_name'] ?? $item['product_name'] ?? 'Sản phẩm');
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $product->name,
+                    'product_id' => $product ? $product->id : null,
+                    'product_name' => $productName,
                     'project_id' => $itemProjectId,
                     'quantity' => $quantity,
                     'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
@@ -829,15 +914,15 @@ class SaleController extends Controller
         foreach ($products as $key => $prod) {
             if (isset($prod['product_id'])) {
                 if ($prod['product_id'] === 'new') {
-                    if (empty($prod['new_name'])) {
+                    if (empty($prod['new_name']) && empty($prod['product_name'])) {
                         return back()->withInput()->withErrors(["products.{$key}.new_name" => "Tên sản phẩm mới không được để trống."]);
                     }
-                    if (empty($prod['new_code'])) {
-                        return back()->withInput()->withErrors(["products.{$key}.new_code" => "Mã sản phẩm mới không được để trống."]);
-                    }
                 } else {
-                    if (!\App\Models\Product::where('id', $prod['product_id'])->exists()) {
-                        return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                    if (!empty($prod['product_id']) && !\App\Models\Product::where('id', $prod['product_id'])->exists()) {
+                        $prodByCode = \App\Models\Product::where('code', $prod['product_id'])->first();
+                        if (!$prodByCode && empty($prod['new_name']) && empty($prod['product_name'])) {
+                            return back()->withInput()->withErrors(["products.{$key}.product_id" => "Sản phẩm không hợp lệ hoặc không tồn tại."]);
+                        }
                     }
                 }
             }
@@ -897,18 +982,20 @@ class SaleController extends Controller
             $dealFlags = $this->resolveDealFlags($validated, $request);
             $processedProducts = [];
             foreach ($validated['products'] as $item) {
-                if ($item['product_id'] === 'new') {
-                    $newCode = strtoupper(trim($item['new_code']));
-                    $product = Product::where('code', $newCode)->first();
-                    if (!$product) {
-                        $product = Product::create([
-                            'code' => $newCode,
-                            'name' => $item['new_name'],
-                            'unit' => $item['new_unit'] ?: 'Cái',
-                            'category' => 'A',
-                        ]);
+                if (($item['product_id'] ?? '') === 'new') {
+                    $newCode = strtoupper(trim($item['new_code'] ?? ''));
+                    $newName = trim($item['new_name'] ?? '');
+                    $product = null;
+                    if (!empty($newCode)) {
+                        $product = Product::where('code', $newCode)->first();
                     }
-                    $item['product_id'] = $product->id;
+                    if (!$product && !empty($newName)) {
+                        $product = Product::where('name', $newName)->first();
+                    }
+                    $item['product_id'] = $product ? $product->id : null;
+                } elseif (!empty($item['product_id']) && !is_numeric($item['product_id'])) {
+                    $prodByCode = Product::where('code', $item['product_id'])->first();
+                    $item['product_id'] = $prodByCode ? $prodByCode->id : null;
                 }
                 $processedProducts[] = $item;
             }
@@ -1143,8 +1230,8 @@ class SaleController extends Controller
             $sale->items()->delete();
 
             foreach ($validated['products'] as $item) {
-                $product = Product::find($item['product_id']);
-                $costPrice = $product->calculated_cost;
+                $product = !empty($item['product_id']) ? Product::find($item['product_id']) : null;
+                $costPrice = $product ? $product->calculated_cost : (float)($item['cost_price'] ?? 0);
                 $quantity = $item['quantity'];
 
                 // Inherit sale-level project_id
@@ -1153,16 +1240,16 @@ class SaleController extends Controller
                 // Get warranty: use input value if provided, otherwise use product default
                 $warrantyMonths = isset($item['warranty_months']) && $item['warranty_months'] !== ''
                     ? (int) $item['warranty_months']
-                    : $product->warranty_months;
+                    : ($product ? $product->warranty_months : 0);
 
                 // Lấy dữ liệu P&L: Ưu tiên dữ liệu từ form P&L (items[]), sau đó mới tới Data cũ, cuối cùng là mặc định
                 $reqPnl = [];
-                if (!empty($pnlMap[$item['product_id']])) {
+                if (!empty($item['product_id']) && !empty($pnlMap[$item['product_id']])) {
                     $reqPnl = array_shift($pnlMap[$item['product_id']]);
                 }
 
                 $oldPnl = [];
-                if (!empty($oldPnlData[$item['product_id']])) {
+                if (!empty($item['product_id']) && !empty($oldPnlData[$item['product_id']])) {
                     $oldPnl = array_shift($oldPnlData[$item['product_id']]);
                 }
 
@@ -1206,10 +1293,12 @@ class SaleController extends Controller
                 $itemBaseForVat = $itemSubtotal - $itemDiscount;
                 $itemVatAmount = round($itemBaseForVat * $effectiveVat / 100, 2);
 
+                $productName = $product ? $product->name : ($item['new_name'] ?? $item['product_name'] ?? 'Sản phẩm');
+
                 SaleItem::create([
                     'sale_id' => $sale->id,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $product->name,
+                    'product_id' => $product ? $product->id : null,
+                    'product_name' => $productName,
                     'project_id' => $itemProjectId,
                     'quantity' => $quantity,
                     'is_liquidation' => isset($item['is_liquidation']) ? (bool) $item['is_liquidation'] : false,
@@ -1733,6 +1822,11 @@ class SaleController extends Controller
             $purchaseUsers = User::withPermission('create_purchase_orders')->get();
 
             foreach ($purchaseUsers as $user) {
+                // Verify user can view this sale before notifying
+                if (!\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale)) {
+                    continue;
+                }
+
                 Notification::create([
                     'user_id' => $user->id,
                     'type' => 'sale_approved',
@@ -2870,6 +2964,10 @@ class SaleController extends Controller
         $senderName = auth()->user()->name ?? 'Sales';
         foreach ($poUsers as $user) {
             if ($user->id === auth()->id()) continue;
+            // Verify user can view this sale before notifying
+            if (!\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale)) {
+                continue;
+            }
 
             Notification::create([
                 'user_id' => $user->id,
@@ -4321,7 +4419,7 @@ class SaleController extends Controller
                 $newName = trim($itemData['new_name'] ?? '');
                 $newCode = trim($itemData['new_code'] ?? '');
 
-                // If product not found by numeric ID, check or create new product
+                // If product not found by numeric ID, check if existing product matches by code or name
                 if (!$product && (($itemData['product_id'] ?? '') === 'new' || !empty($rawProductName) || !empty($newName) || !empty($newCode))) {
                     $searchCode = preg_replace('/^\[SP Mới\]\s*/u', '', $newCode ?: $rawProductName);
                     $searchName = preg_replace('/^\[SP Mới\]\s*/u', '', $newName ?: $rawProductName);
@@ -4330,17 +4428,6 @@ class SaleController extends Controller
                         $product = \App\Models\Product::where('code', $searchCode)
                             ->orWhere('name', $searchName)
                             ->first();
-
-                        if (!$product) {
-                            $product = \App\Models\Product::create([
-                                'code' => $searchCode ?: ('SP-' . strtoupper(\Illuminate\Support\Str::random(6))),
-                                'name' => $searchName ?: $searchCode,
-                                'unit' => $itemData['new_unit'] ?? 'Cái',
-                                'category' => 'A',
-                                'price' => $price,
-                                'warranty_months' => $itemData['warranty_months'] ?? 12,
-                            ]);
-                        }
                     }
                 }
 

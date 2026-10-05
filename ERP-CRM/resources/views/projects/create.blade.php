@@ -44,11 +44,16 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Vendor <span class="text-red-500">*</span>
                                 </label>
-                                <select name="vendor_id" id="vendor_id" required onchange="onVendorChange(this)"
+                                <select name="vendor_id" id="vendor_id" required onchange="checkVendorRequirement()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn Vendor --</option>
                                     @foreach($suppliers as $supplier)
-                                        <option value="{{ $supplier->id }}" {{ old('vendor_id') == $supplier->id ? 'selected' : '' }}>
+                                        <option value="{{ $supplier->id }}" 
+                                            data-name="{{ $supplier->name }}"
+                                            data-code="{{ $supplier->code ?? '' }}"
+                                            data-team="{{ $supplier->assigned_team ?? '' }}"
+                                            data-assigned-team="{{ $supplier->assigned_team ?? '' }}"
+                                            {{ old('vendor_id', $preFill['vendor_id'] ?? '') == $supplier->id ? 'selected' : '' }}>
                                             {{ $supplier->name }}
                                         </option>
                                     @endforeach
@@ -172,8 +177,8 @@
                                     onchange="toggleCollaborateType()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn loại hợp tác --</option>
-                                    <option value="partner" {{ old('collaborate_type') == 'partner' ? 'selected' : '' }}>Partner</option>
-                                    <option value="end_user" {{ old('collaborate_type') == 'end_user' ? 'selected' : '' }}>EU</option>
+                                    <option value="partner" {{ old('collaborate_type', $preFill['collaborate_type'] ?? '') == 'partner' ? 'selected' : '' }}>Partner</option>
+                                    <option value="end_user" {{ old('collaborate_type', $preFill['collaborate_type'] ?? '') == 'end_user' ? 'selected' : '' }}>EU</option>
                                 </select>
                             </div>
 
@@ -311,7 +316,7 @@
                                     Company name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_company" id="collaborate_company"
-                                    value="{{ old('collaborate_company') }}"
+                                    value="{{ old('collaborate_company', $preFill['collaborate_company'] ?? '') }}"
                                     placeholder="Tên công ty hợp tác"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_company') border-red-500 @enderror">
                                 @error('collaborate_company') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -321,7 +326,7 @@
                                     Mã số thuế <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_tax_code" id="collaborate_tax_code"
-                                    value="{{ old('collaborate_tax_code') }}"
+                                    value="{{ old('collaborate_tax_code', $preFill['collaborate_tax_code'] ?? '') }}"
                                     placeholder="MST công ty hợp tác"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_tax_code') border-red-500 @enderror">
                                 @error('collaborate_tax_code') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -341,7 +346,7 @@
                                     PIC Name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_name" id="collaborate_pic_name"
-                                    value="{{ old('collaborate_pic_name') }}"
+                                    value="{{ old('collaborate_pic_name', $preFill['collaborate_pic_name'] ?? '') }}"
                                     placeholder="Họ và tên PIC"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_name') border-red-500 @enderror">
                                 @error('collaborate_pic_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -351,7 +356,7 @@
                                     PIC Job Title <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_title" id="collaborate_pic_title"
-                                    value="{{ old('collaborate_pic_title') }}"
+                                    value="{{ old('collaborate_pic_title', $preFill['collaborate_pic_title'] ?? '') }}"
                                     placeholder="VD: Manager, Director..."
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_title') border-red-500 @enderror">
                                 @error('collaborate_pic_title') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -361,7 +366,7 @@
                                     PIC Phone <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="collaborate_pic_phone" id="collaborate_pic_phone"
-                                    value="{{ old('collaborate_pic_phone') }}"
+                                    value="{{ old('collaborate_pic_phone', $preFill['collaborate_pic_phone'] ?? '') }}"
                                     placeholder="0901234567"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary @error('collaborate_pic_phone') border-red-500 @enderror">
                                 @error('collaborate_pic_phone') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -371,7 +376,7 @@
                                     PIC Email
                                 </label>
                                 <input type="email" name="collaborate_pic_email" id="collaborate_pic_email"
-                                    value="{{ old('collaborate_pic_email') }}"
+                                    value="{{ old('collaborate_pic_email', $preFill['collaborate_pic_email'] ?? '') }}"
                                     placeholder="pic@company.com"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
@@ -416,16 +421,38 @@
                             <!-- BOM / YCKT Upload -->
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    BOM (Bill of Materials) hoặc File YCKT <span class="text-red-500">* (Bắt buộc)</span>
+                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT) <span class="text-red-500">* (Bắt buộc)</span>
                                 </label>
                                 <div class="space-y-2">
                                     <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                    <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới (Bắt buộc một trong hai hình thức).</p>
-                                    <textarea name="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
+                                    <p class="text-xs text-gray-500">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới <span class="text-red-500 font-semibold">(Bắt buộc phải có ít nhất 1 file BOM hoặc dán danh sách Part Number)</span>.</p>
+                                    <textarea name="bom_data" id="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
                                         class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary @error('bom_data') border-red-500 @enderror">{{ old('bom_data', $preFill['bom_data'] ?? '') }}</textarea>
                                     @error('bom_data') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                                 </div>
+                            </div>
+
+                            <!-- Net to FTN / Tech Horizon -->
+                            <div id="net_to_ftn_container" class="md:col-span-2 bg-gray-50 border border-gray-200 rounded-lg p-4 transition-all">
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-semibold text-gray-700">
+                                        Net to FTN (Net to Tech Horizon) <span id="net_to_ftn_required" class="text-red-500 hidden">*</span>
+                                    </label>
+                                    <span id="net_to_ftn_badge" class="hidden text-xs bg-orange-100 text-orange-800 font-bold px-2.5 py-0.5 rounded-full border border-orange-200">
+                                        <i class="fas fa-exclamation-circle mr-1"></i> Bắt buộc với Fortinet (FTN)
+                                    </span>
+                                </div>
+                                <div class="relative">
+                                    <input type="number" name="net_to_tech_horizon" id="net_to_tech_horizon" value="{{ old('net_to_tech_horizon', $preFill['net_to_tech_horizon'] ?? '') }}"
+                                        min="0" step="any" placeholder="Nhập giá trị Net to FTN (VNĐ)..."
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-14 focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
+                                    <span class="absolute right-3 top-2 text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">VNĐ</span>
+                                </div>
+                                <p id="net_to_ftn_hint" class="text-xs text-gray-500 mt-1">
+                                    Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng Fortinet.
+                                </p>
+                                @error('net_to_tech_horizon') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
 
                             <!-- Deal Type (Fortinet Dealreg Only) -->
@@ -1489,6 +1516,48 @@
                         }
                     });
                 }
+
+                // Initialize vendor requirement check
+                window.checkVendorRequirement = function() {
+                    const vendorSelect = document.getElementById('vendor_id');
+                    if (!vendorSelect) return;
+                    const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
+                    const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.text || '') : '';
+                    const vendorCode = selectedOption ? (selectedOption.getAttribute('data-code') || '') : '';
+                    const vendorTeam = selectedOption ? (selectedOption.getAttribute('data-team') || '') : '';
+                    
+                    const isFTN = /fortinet|ftn/i.test(vendorName) || /fortinet|ftn/i.test(vendorCode) || vendorTeam === 'po_team';
+                    
+                    const container = document.getElementById('net_to_ftn_container');
+                    const requiredStar = document.getElementById('net_to_ftn_required');
+                    const badge = document.getElementById('net_to_ftn_badge');
+                    const hint = document.getElementById('net_to_ftn_hint');
+                    const input = document.getElementById('net_to_tech_horizon');
+                    
+                    if (isFTN) {
+                        if (container) {
+                            container.className = "md:col-span-2 bg-orange-50/70 border-2 border-orange-300 rounded-lg p-4 transition-all shadow-sm";
+                        }
+                        if (requiredStar) requiredStar.classList.remove('hidden');
+                        if (badge) badge.classList.remove('hidden');
+                        if (hint) {
+                            hint.className = "text-xs text-orange-800 font-medium mt-1";
+                            hint.innerHTML = '<i class="fas fa-exclamation-triangle mr-1 text-orange-600"></i> <strong>Bắt buộc:</strong> Dự án Fortinet (FTN) phải nhập Net to FTN trước khi ĐKDA.';
+                        }
+                    } else {
+                        if (container) {
+                            container.className = "md:col-span-2 bg-gray-50 border border-gray-200 rounded-lg p-4 transition-all";
+                        }
+                        if (requiredStar) requiredStar.classList.add('hidden');
+                        if (badge) badge.classList.add('hidden');
+                        if (hint) {
+                            hint.className = "text-xs text-gray-500 mt-1";
+                            hint.innerHTML = 'Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng.';
+                        }
+                    }
+                };
+
+                checkVendorRequirement();
             });
         </script>
     @endpush

@@ -52,6 +52,7 @@
             </div>
 
             <div class="flex gap-2">
+                @can('import', App\Models\Product::class)
                 <a href="{{ route('products.import.template') }}"
                     class="inline-flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
                     <i class="fas fa-download mr-2"></i>
@@ -62,6 +63,7 @@
                     <i class="fas fa-upload mr-2"></i>
                     Import Excel
                 </button>
+                @endcan
                 <a href="{{ route('products.export') }}?{{ http_build_query(request()->query()) }}"
                     class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
                     <i class="fas fa-file-excel mr-2"></i>
@@ -75,33 +77,70 @@
             </div>
         </div>
 
+        <!-- Bulk Actions Bar -->
+        <div id="bulkActionBar" class="hidden bg-red-50 border-b border-red-200 px-4 py-3 transition-all duration-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 font-semibold text-xs">
+                        <i class="fas fa-check-square"></i>
+                    </span>
+                    <span class="text-sm font-medium text-gray-800">
+                        Đã chọn: <span id="selectedCount" class="font-bold text-red-600">0</span> sản phẩm
+                    </span>
+                    <span class="text-gray-300">|</span>
+                    <button type="button" onclick="clearProductSelection()" class="text-xs text-gray-500 hover:text-gray-800 underline font-medium cursor-pointer">
+                        Bỏ chọn tất cả
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="confirmBulkDeleteProducts()" class="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 cursor-pointer">
+                        <i class="fas fa-trash-alt mr-2"></i>
+                        Xóa các sản phẩm đã chọn
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Table - Simplified: Only basic fields -->
         <!-- Requirements: 6.1, 6.2 -->
         <div class="overflow-x-auto">
-            <table class="w-full">
+            <table class="w-full" data-module="products" data-filter-mode="server">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT
+                        <th class="w-10 px-4 py-3 text-center no-filter no-sort">
+                            <input type="checkbox" id="selectAllProducts"
+                                class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                                title="Chọn tất cả trên trang này">
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã SP
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">STT
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên sản
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã SP">Mã SP
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="name" data-col-title="Tên sản phẩm">Tên sản
                             phẩm</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hãng</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden">
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="brand" data-col-title="Hãng">Hãng</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden" data-col="category" data-col-title="Danh mục">
                             Danh
                             mục</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="unit" data-col-title="Đơn vị">Đơn vị
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="description" data-col-title="Mô tả">Mô tả
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thao
                             tác</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($products as $product)
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 transition-colors" data-product-id="{{ $product->id }}">
+                            <td class="w-10 px-4 py-3 text-center whitespace-nowrap">
+                                <input type="checkbox"
+                                    class="product-checkbox rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                                    value="{{ $product->id }}"
+                                    data-code="{{ $product->code }}"
+                                    data-name="{{ $product->name }}">
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
                                 {{ ($products->currentPage() - 1) * $products->perPage() + $loop->iteration }}
                             </td>
@@ -113,7 +152,7 @@
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                                 @if(!empty($product->brand))
-                                    <span class="font-medium text-gray-900">{{ $product->brand }}</span>
+                                    <span class="text-gray-900">{{ $product->brand }}</span>
                                 @else
                                     @php
                                         $supplierNames = $product->supplierPriceListItems
@@ -122,7 +161,7 @@
                                             ->unique();
                                     @endphp
                                     @if($supplierNames->count() > 0)
-                                        {{ $supplierNames->implode(', ') }}
+                                        <span class="text-gray-900">{{ $supplierNames->implode(', ') }}</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -168,7 +207,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Không có dữ liệu sản phẩm</p>
                             </td>
@@ -186,6 +225,13 @@
         @endif
     </div>
 
+    <!-- Hidden Form for Bulk Delete -->
+    <form id="bulkDeleteForm" action="{{ route('products.bulk-delete') }}" method="POST" class="hidden">
+        @csrf
+        <div id="bulkDeleteInputs"></div>
+    </form>
+
+    @can('import', App\Models\Product::class)
     <!-- Import Modal -->
     <div id="importModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
@@ -220,4 +266,161 @@
             </div>
         </div>
     </div>
+    @endcan
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const selectAllCheckbox = document.getElementById('selectAllProducts');
+            const productCheckboxes = document.querySelectorAll('.product-checkbox');
+            const bulkActionBar = document.getElementById('bulkActionBar');
+            const selectedCountSpan = document.getElementById('selectedCount');
+
+            function updateSelectionState() {
+                const checkedBoxes = document.querySelectorAll('.product-checkbox:checked');
+                const totalBoxes = productCheckboxes.length;
+                const count = checkedBoxes.length;
+
+                if (selectedCountSpan) {
+                    selectedCountSpan.textContent = count;
+                }
+
+                if (bulkActionBar) {
+                    if (count > 0) {
+                        bulkActionBar.classList.remove('hidden');
+                    } else {
+                        bulkActionBar.classList.add('hidden');
+                    }
+                }
+
+                if (selectAllCheckbox) {
+                    if (totalBoxes === 0) {
+                        selectAllCheckbox.checked = false;
+                        selectAllCheckbox.indeterminate = false;
+                    } else if (count === totalBoxes) {
+                        selectAllCheckbox.checked = true;
+                        selectAllCheckbox.indeterminate = false;
+                    } else if (count > 0) {
+                        selectAllCheckbox.checked = false;
+                        selectAllCheckbox.indeterminate = true;
+                    } else {
+                        selectAllCheckbox.checked = false;
+                        selectAllCheckbox.indeterminate = false;
+                    }
+                }
+
+                // Highlight selected rows
+                productCheckboxes.forEach(cb => {
+                    const tr = cb.closest('tr');
+                    if (tr) {
+                        if (cb.checked) {
+                            tr.classList.add('bg-red-50/40');
+                        } else {
+                            tr.classList.remove('bg-red-50/40');
+                        }
+                    }
+                });
+            }
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function () {
+                    const isChecked = selectAllCheckbox.checked;
+                    productCheckboxes.forEach(cb => {
+                        cb.checked = isChecked;
+                    });
+                    updateSelectionState();
+                });
+            }
+
+            productCheckboxes.forEach(cb => {
+                cb.addEventListener('change', updateSelectionState);
+            });
+
+            window.clearProductSelection = function () {
+                productCheckboxes.forEach(cb => {
+                    cb.checked = false;
+                });
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                }
+                updateSelectionState();
+            };
+
+            window.confirmBulkDeleteProducts = function () {
+                const checkedBoxes = Array.from(document.querySelectorAll('.product-checkbox:checked'));
+                const count = checkedBoxes.length;
+
+                if (count === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Chưa chọn sản phẩm',
+                        text: 'Vui lòng chọn ít nhất một sản phẩm để thực hiện xóa.',
+                        confirmButtonText: 'Đã hiểu',
+                        confirmButtonColor: '#3085d6'
+                    });
+                    return;
+                }
+
+                // Preview some product codes
+                const sampleCodes = checkedBoxes.slice(0, 5).map(cb => {
+                    const code = cb.getAttribute('data-code') || '';
+                    const name = cb.getAttribute('data-name') || '';
+                    const display = name ? `<strong>${code}</strong> - ${name.length > 40 ? name.substring(0, 40) + '...' : name}` : `<strong>${code}</strong>`;
+                    return display;
+                });
+
+                let previewHtml = `<div class="text-left text-sm mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <p class="font-medium text-gray-700 mb-1.5">Danh sách sản phẩm được chọn (${count}):</p>
+                    <ul class="list-disc list-inside space-y-1 text-gray-600 max-h-36 overflow-y-auto">
+                        ${sampleCodes.map(s => `<li>${s}</li>`).join('')}
+                        ${count > 5 ? `<li class="text-gray-400 italic">... và ${count - 5} sản phẩm khác</li>` : ''}
+                    </ul>
+                </div>`;
+
+                let warningHtml = `<div class="mt-3 text-left p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                    <i class="fas fa-shield-alt text-amber-600 mr-1"></i>
+                    <strong>Hệ thống bảo vệ dữ liệu:</strong> Các sản phẩm đang được sử dụng trong Báo giá, Đơn hàng bán, Đơn mua hàng (PO), Tồn kho/Serial, Phiếu nhập/xuất kho,... sẽ <strong>tự động được giữ lại</strong> và không bị xóa.
+                </div>`;
+
+                Swal.fire({
+                    title: 'Xác nhận xóa hàng loạt',
+                    html: `Bạn có chắc chắn muốn xóa <strong>${count}</strong> sản phẩm đã chọn không?${previewHtml}${warningHtml}`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> Xóa các sản phẩm hợp lệ',
+                    cancelButtonText: 'Hủy bỏ',
+                    reverseButtons: true,
+                    focusCancel: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('bulkDeleteForm');
+                        const inputsContainer = document.getElementById('bulkDeleteInputs');
+                        inputsContainer.innerHTML = '';
+
+                        checkedBoxes.forEach(cb => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'product_ids[]';
+                            input.value = cb.value;
+                            inputsContainer.appendChild(input);
+                        });
+
+                        // Show loading
+                        Swal.fire({
+                            title: 'Đang kiểm tra và xóa...',
+                            text: 'Vui lòng chờ trong giây lát',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+
+                        form.submit();
+                    }
+                });
+            };
+        });
+    </script>
 @endsection

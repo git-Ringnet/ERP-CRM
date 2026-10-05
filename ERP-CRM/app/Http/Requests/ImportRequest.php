@@ -31,6 +31,9 @@ class ImportRequest extends FormRequest
             'employee_id' => 'nullable|exists:users,id',
             'note' => 'nullable|string|max:1000',
             'reference_code' => 'nullable|string|max:100',
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
+            'reference_type' => 'nullable|string|max:50',
+            'reference_id' => 'nullable|integer',
             
             // Shipping allocation
             'shipping_allocation_id' => 'nullable|exists:shipping_allocations,id',
@@ -173,6 +176,7 @@ class ImportRequest extends FormRequest
             'supplier_id' => 'nhà cung cấp',
             'date' => 'ngày nhập',
             'employee_id' => 'nhân viên',
+            'purchase_order_id' => 'đơn mua hàng (PO)',
             'note' => 'ghi chú',
             'items.*.product_id' => 'sản phẩm',
             'items.*.warehouse_id' => 'kho nhập',

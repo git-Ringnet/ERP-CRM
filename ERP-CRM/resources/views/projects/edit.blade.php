@@ -4,7 +4,20 @@
 @section('page-title', 'Chỉnh sửa dự án: ' . $project->code)
 
 @section('content')
-    <div class="max-w-8xl">
+    <div class="max-w-8xl space-y-6">
+        @if($project->registration_status === 'incomplete')
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-exclamation-triangle text-amber-500 text-lg mt-0.5"></i>
+                    <div>
+                        <h4 class="font-bold text-amber-900 text-sm">DỰ ÁN ĐANG ĐƯỢC YÊU CẦU BỔ SUNG THÔNG TIN ĐĂNG KÝ</h4>
+                        <p class="text-xs text-amber-800 mt-1 font-medium">Lý do/yêu cầu từ PO/PM Team: <span class="italic font-mono text-amber-900">"{{ $project->intake_note ?? 'Vui lòng bổ sung đầy đủ thông tin.' }}"</span></p>
+                        <p class="text-xs text-amber-700 mt-1">Sau khi cập nhật đầy đủ và lưu lại, dự án sẽ được tự động gửi lại cho PO/PM Team xử lý tiếp.</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <form id="project_form" action="{{ route('projects.update', $project) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
@@ -23,11 +36,16 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Vendor <span class="text-red-500">*</span>
                                 </label>
-                                <select name="vendor_id" id="vendor_id" required onchange="onVendorChange(this)"
+                                <select name="vendor_id" id="vendor_id" required onchange="checkVendorRequirement()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                                     <option value="">-- Chọn Vendor --</option>
                                     @foreach($suppliers as $supplier)
-                                        <option value="{{ $supplier->id }}" data-assigned-team="{{ $supplier->assigned_team }}" {{ old('vendor_id', $project->vendor_id) == $supplier->id ? 'selected' : '' }}>
+                                        <option value="{{ $supplier->id }}" 
+                                            data-name="{{ $supplier->name }}"
+                                            data-code="{{ $supplier->code ?? '' }}"
+                                            data-team="{{ $supplier->assigned_team ?? '' }}"
+                                            data-assigned-team="{{ $supplier->assigned_team ?? '' }}"
+                                            {{ old('vendor_id', $project->vendor_id) == $supplier->id ? 'selected' : '' }}>
                                             {{ $supplier->name }}
                                         </option>
                                     @endforeach
@@ -317,7 +335,7 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    BOM (Bill of Materials) hoặc File YCKT <span class="text-red-500">* (Bắt buộc)</span>
+                                    BOM (Bill of Materials) hoặc File Yêu Cầu Kỹ Thuật (YCKT) <span class="text-red-500">* (Bắt buộc)</span>
                                 </label>
                                 @if($project->bom_file && is_array($project->bom_file) && count($project->bom_file) > 0)
                                     <div class="mb-3 space-y-2" id="existing_bom_container">
@@ -346,10 +364,34 @@
                                 @endif
                                 <input type="file" name="bom_file[]" multiple accept=".xlsx,.xls,.pdf,.doc,.docx"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                                <p class="text-xs text-gray-500 mt-1">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới (hệ thống sẽ tự động điền danh sách sản phẩm khi tạo Đơn hàng từ dự án này).</p>
-                                <textarea name="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
+                                <p class="text-xs text-gray-500 mt-1">Đính kèm file BOM/YCKT hoặc dán trực tiếp bảng từ Excel vào ô bên dưới <span class="text-red-500 font-semibold">(Bắt buộc phải có ít nhất 1 file BOM hoặc dán danh sách Part Number)</span>.</p>
+                                <textarea name="bom_data" id="bom_data" rows="3" placeholder="Dán danh sách Part Number / bảng Excel BOM (VD: AW210040	AirEngine 5760-51	2	15,000,000)..."
                                     class="mt-2 w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-primary">{{ old('bom_data', $project->bom_data) }}</textarea>
+                                @error('bom_data') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
+
+                            <!-- Net to FTN / Tech Horizon -->
+                            <div id="net_to_ftn_container" class="md:col-span-2 bg-gray-50 border border-gray-200 rounded-lg p-4 transition-all">
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-semibold text-gray-700">
+                                        Net to FTN (Net to Tech Horizon) <span id="net_to_ftn_required" class="text-red-500 hidden">*</span>
+                                    </label>
+                                    <span id="net_to_ftn_badge" class="hidden text-xs bg-orange-100 text-orange-800 font-bold px-2.5 py-0.5 rounded-full border border-orange-200">
+                                        <i class="fas fa-exclamation-circle mr-1"></i> Bắt buộc với Fortinet (FTN)
+                                    </span>
+                                </div>
+                                <div class="relative">
+                                    <input type="number" name="net_to_tech_horizon" id="net_to_tech_horizon" value="{{ old('net_to_tech_horizon', $project->net_to_tech_horizon) }}"
+                                        min="0" step="any" placeholder="Nhập giá trị Net to FTN (VNĐ)..."
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-14 focus:outline-none focus:ring-2 focus:ring-primary @error('net_to_tech_horizon') border-red-500 @enderror">
+                                    <span class="absolute right-3 top-2 text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">VNĐ</span>
+                                </div>
+                                <p id="net_to_ftn_hint" class="text-xs text-gray-500 mt-1">
+                                    Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng Fortinet.
+                                </p>
+                                @error('net_to_tech_horizon') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                            </div>
+
                             <!-- Deal Type (Fortinet Dealreg Only) -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -1103,6 +1145,47 @@
                         }
                     });
                 }
+
+                // Initialize vendor requirement check
+                window.checkVendorRequirement = function() {
+                    const vendorSelect = document.getElementById('vendor_id');
+                    if (!vendorSelect) return;
+                    const selectedOption = vendorSelect.options[vendorSelect.selectedIndex];
+                    const vendorName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.text || '') : '';
+                    const vendorCode = selectedOption ? (selectedOption.getAttribute('data-code') || '') : '';
+                    const vendorTeam = selectedOption ? (selectedOption.getAttribute('data-team') || '') : '';
+                    
+                    const isFTN = /fortinet|ftn/i.test(vendorName) || /fortinet|ftn/i.test(vendorCode) || vendorTeam === 'po_team';
+                    
+                    const container = document.getElementById('net_to_ftn_container');
+                    const requiredStar = document.getElementById('net_to_ftn_required');
+                    const badge = document.getElementById('net_to_ftn_badge');
+                    const hint = document.getElementById('net_to_ftn_hint');
+                    
+                    if (isFTN) {
+                        if (container) {
+                            container.className = "md:col-span-2 bg-orange-50/70 border-2 border-orange-300 rounded-lg p-4 transition-all shadow-sm";
+                        }
+                        if (requiredStar) requiredStar.classList.remove('hidden');
+                        if (badge) badge.classList.remove('hidden');
+                        if (hint) {
+                            hint.className = "text-xs text-orange-800 font-medium mt-1";
+                            hint.innerHTML = '<i class="fas fa-exclamation-triangle mr-1 text-orange-600"></i> <strong>Bắt buộc:</strong> Dự án Fortinet (FTN) phải nhập Net to FTN.';
+                        }
+                    } else {
+                        if (container) {
+                            container.className = "md:col-span-2 bg-gray-50 border border-gray-200 rounded-lg p-4 transition-all";
+                        }
+                        if (requiredStar) requiredStar.classList.add('hidden');
+                        if (badge) badge.classList.add('hidden');
+                        if (hint) {
+                            hint.className = "text-xs text-gray-500 mt-1";
+                            hint.innerHTML = 'Giá trị Net to FTN dùng để PO Team đăng ký giá dự án với Hãng.';
+                        }
+                    }
+                };
+
+                checkVendorRequirement();
 
                 // Prevent duplicate submit & show loading
                 let isProjectSubmitting = false;

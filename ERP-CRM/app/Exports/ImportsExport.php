@@ -20,7 +20,7 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
     public function collection()
     {
-        $query = Import::with(['warehouse', 'supplier', 'employee'])
+        $query = Import::with(['warehouse', 'supplier', 'employee', 'purchaseOrder', 'shippingAllocation.purchaseOrder'])
             ->orderBy('date', 'desc');
 
         // Apply filters
@@ -47,6 +47,7 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
     {
         return [
             'Mã phiếu',
+            'Mã PO',
             'Ngày nhập',
             'Nhà cung cấp',
             'Kho',
@@ -65,9 +66,14 @@ class ImportsExport implements FromCollection, WithHeadings, WithMapping, WithSt
             'rejected' => 'Từ chối',
         ];
 
+        $poCode = $import->reference_type === 'purchase_order' && $import->purchaseOrder
+            ? $import->purchaseOrder->code
+            : ($import->shippingAllocation?->purchaseOrder?->code ?? '');
+
         return [
             $import->code,
-            $import->date->format('d/m/Y'),
+            $poCode,
+            $import->date ? $import->date->format('d/m/Y') : '',
             $import->supplier->name ?? '',
             $import->warehouse->name ?? 'Nhiều kho',
             $import->employee->name ?? '',

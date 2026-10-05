@@ -49,6 +49,17 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div class="w-44">
+                    <select name="status"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                        <option value="">-- Tình trạng dự án --</option>
+                        <option value="planning" {{ request('status') == 'planning' ? 'selected' : '' }}>Lên kế hoạch</option>
+                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>Đang thực hiện</option>
+                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                        <option value="on_hold" {{ request('status') == 'on_hold' ? 'selected' : '' }}>Tạm dừng</option>
+                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                    </select>
+                </div>
+                <div class="w-44">
                     <select name="registration_status"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary text-sm">
                         <option value="">-- Trạng thái ĐKDA --</option>
@@ -87,21 +98,21 @@
         <!-- Projects Table -->
         <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full" data-module="projects" data-filter-mode="server">
                     <thead class="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         <tr>
-                            <th class="px-3 py-3 text-center w-10">
+                            <th class="px-3 py-3 text-center w-10 no-filter no-sort">
                                 <input type="checkbox" id="selectAllProjects" title="Chọn tất cả"
                                        class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer">
                             </th>
-                            <th class="px-4 py-3 text-left whitespace-nowrap">Mã dự án</th>
-                            <th class="px-4 py-3 text-left">Tên dự án (Vi/En)</th>
-                            <th class="px-4 py-3 text-left">Người đăng ký</th>
-                            <th class="px-4 py-3 text-left">End-User / MST</th>
-                            <th class="px-4 py-3 text-left">Hãng / Team</th>
-                            <th class="px-4 py-3 text-center whitespace-nowrap">Trạng thái ĐKDA</th>
-                            <th class="px-4 py-3 text-center whitespace-nowrap">Cảnh báo SLA</th>
-                            <th class="px-4 py-3 text-center whitespace-nowrap">Thao tác</th>
+                            <th class="px-4 py-3 text-left whitespace-nowrap" data-col="code" data-col-title="Mã dự án">Mã dự án</th>
+                            <th class="px-4 py-3 text-left" data-col="name" data-col-title="Tên dự án">Tên dự án (Vi/En)</th>
+                            <th class="px-4 py-3 text-left" data-col="manager" data-col-title="Người đăng ký">Người đăng ký</th>
+                            <th class="px-4 py-3 text-left" data-col="customer" data-col-title="End-User / MST">End-User / MST</th>
+                            <th class="px-4 py-3 text-left" data-col="brand" data-col-title="Hãng / Team">Hãng / Team</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap" data-col="status" data-col-title="Trạng thái">Trạng thái ĐKDA</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap no-filter no-sort">Cảnh báo SLA</th>
+                            <th class="px-4 py-3 text-center whitespace-nowrap no-filter no-sort">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-sm">
@@ -112,6 +123,22 @@
                                 $partnerId = $project->collaborate_customer_id ?: $project->customer_id;
                                 $euName = $project->eu_name_vi ?: ($project->customer_name ?? 'Trống');
                                 $euTax = $project->eu_tax_code ?? '';
+                                $statusClass = match($project->status) {
+                                    'in_progress' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                    'planning' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                    'completed' => 'bg-purple-50 text-purple-700 border-purple-200',
+                                    'on_hold' => 'bg-amber-50 text-amber-700 border-amber-200',
+                                    'cancelled' => 'bg-red-50 text-red-700 border-red-200',
+                                    default => 'bg-gray-50 text-gray-700 border-gray-200',
+                                };
+                                $statusLabel = match($project->status) {
+                                    'in_progress' => 'Đang thực hiện',
+                                    'planning' => 'Lên kế hoạch',
+                                    'completed' => 'Hoàn thành',
+                                    'on_hold' => 'Tạm dừng',
+                                    'cancelled' => 'Đã hủy',
+                                    default => ucfirst($project->status ?: 'N/A'),
+                                };
                             @endphp
                             <tr class="hover:bg-blue-50/30 transition-colors project-row" id="row-{{ $project->id }}">
                                 <!-- Checkbox -->
@@ -134,12 +161,17 @@
                                         class="font-mono font-bold text-primary hover:underline">
                                         {{ $project->code }}
                                     </a>
-                                    <span class="block text-[11px] text-gray-400">{{ $project->created_at ? $project->created_at->format('d/m/Y H:i') : '' }}</span>
-                                    @if($project->po_code)
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 mt-0.5" title="Đã có đơn hàng bán">
-                                            <i class="fas fa-file-invoice-dollar mr-0.5"></i> {{ $project->po_code }}
+                                    <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border {{ $statusClass }}">
+                                            {{ $statusLabel }}
                                         </span>
-                                    @endif
+                                        @if($project->po_code)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800" title="Đã có đơn hàng bán">
+                                                <i class="fas fa-file-invoice-dollar mr-0.5"></i> {{ $project->po_code }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <span class="block text-[11px] text-gray-400 mt-0.5">{{ $project->created_at ? $project->created_at->format('d/m/Y H:i') : '' }}</span>
                                 </td>
                                 <!-- 2. Tên dự án (Vi/En) -->
                                 <td class="px-4 py-3">
@@ -209,16 +241,22 @@
                                             title="Nhân bản ĐKDA">
                                             <i class="fas fa-copy"></i>
                                         </a>
-                                        @if($project->registration_status === 'duplicate')
-                                            <span class="p-2 text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed" title="Dự án trùng lặp - Đã khóa sửa">
-                                                <i class="fas fa-lock"></i>
-                                            </span>
-                                        @else
+                                        @php
+                                            $currentUser = auth()->user();
+                                            $isPoOrAdmin = $currentUser?->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
+                                            $canDirectEdit = ($project->registration_status !== 'duplicate') && ($isPoOrAdmin || (in_array($project->registration_status, ['submitted', 'incomplete']) && $project->status !== 'cancelled'));
+                                        @endphp
+                                        @if($canDirectEdit)
                                             <a href="{{ route('projects.edit', $project->id) }}"
                                                 class="p-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
                                                 title="Sửa">
                                                 <i class="fas fa-edit"></i>
                                             </a>
+                                        @else
+                                            <span class="p-2 text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed opacity-60"
+                                                title="{{ $project->registration_status === 'duplicate' ? 'Dự án trùng lặp - Đã khóa sửa' : 'Dự án đã duyệt/đăng ký hoặc đã đóng - Dùng chức năng Nhân bản nếu muốn điều chỉnh' }}">
+                                                <i class="fas fa-lock"></i>
+                                            </span>
                                         @endif
                                         <form action="{{ route('projects.destroy', $project) }}" method="POST" class="inline">
                                             @csrf

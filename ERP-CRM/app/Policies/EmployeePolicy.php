@@ -61,6 +61,11 @@ class EmployeePolicy extends BasePolicy
      */
     public function delete(User $user, User $employee): bool
     {
+        // System admin / super admin accounts can never be deleted
+        if ($employee->is_hidden || $employee->hasRole('super_admin')) {
+            return false;
+        }
+
         return $this->checkPermission($user, 'delete_employees');
     }
 }

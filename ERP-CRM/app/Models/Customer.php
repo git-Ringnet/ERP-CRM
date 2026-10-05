@@ -133,6 +133,14 @@ class Customer extends Model
     }
 
     /**
+     * Get the creation activity log record to identify the creator
+     */
+    public function creationLog()
+    {
+        return $this->morphOne(ActivityLog::class, 'subject')->where('action', 'created');
+    }
+
+    /**
      * Get current/latest care stage
      */
     public function currentCareStage()

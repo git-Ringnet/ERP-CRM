@@ -124,7 +124,31 @@
                     @enderror
                 </div>
 
-                <div class="md:col-span-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Đơn mua hàng (PO) <span class="text-xs text-gray-400 font-normal">(Không bắt buộc)</span>
+                    </label>
+                    <div class="searchable-select" id="poSelectable">
+                        <input type="text" class="searchable-input w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary" 
+                               placeholder="Gõ để tìm mã PO..." autocomplete="off">
+                        <input type="hidden" name="purchase_order_id" id="purchaseOrderSelect" value="{{ old('purchase_order_id') }}">
+                        <div class="searchable-dropdown">
+                            <div class="searchable-option" data-value="">-- Không liên kết PO --</div>
+                            @if(!empty($purchaseOrders))
+                                @foreach($purchaseOrders as $po)
+                                    <div class="searchable-option" data-value="{{ $po->id }}" data-text="{{ $po->code }} - {{ $po->supplier->name ?? 'N/A' }}">
+                                        <span class="font-medium text-blue-600">{{ $po->code }}</span>
+                                        @if($po->supplier)
+                                            <span class="text-xs text-gray-500">({{ $po->supplier->name }})</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea name="note" rows="1" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
                         placeholder="Nhập ghi chú về phiếu nhập kho (nếu có)">{{ old('note') }}</textarea>
@@ -816,6 +840,7 @@
                 // Initialize static searchable selects
                 initSearchableSelectEnhanced(document.getElementById('employeeSelectable'));
                 initSearchableSelectEnhanced(document.getElementById('supplierSelectable'));
+                initSearchableSelectEnhanced(document.getElementById('poSelectable'));
 
                 // Initialize date picker
                 flatpickr("#date_picker", {

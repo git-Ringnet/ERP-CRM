@@ -30,6 +30,9 @@ class Kernel extends ConsoleKernel
         // Kiểm tra hạn thanh toán từng đợt (milestones) mỗi ngày lúc 8h sáng
         $schedule->command('payment:check-due-dates')->dailyAt('08:00');
 
+        // Kiểm tra dự án đến hạn update 30 ngày hoặc quá hạn 90 ngày tự động chuyển Expired mỗi ngày lúc 8h30
+        $schedule->command('projects:check-update-deadlines')->dailyAt('08:30');
+
         // Tự động sao lưu toàn diện hệ thống (Database + File đính kèm mọi ổ đĩa) mỗi 1 tiếng 1 lần
         $schedule->command('backup:system --scope=full')
             ->hourly()

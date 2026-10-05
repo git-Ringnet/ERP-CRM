@@ -514,10 +514,16 @@
                         <label class="block text-sm font-medium text-green-700 mb-1">Số ngày nợ</label>
                         <p class="text-2xl font-bold text-green-900">{{ $customer->debt_days ?: 0 }} ngày</p>
                     </div>
-                    @if($customer->am)
+                    @if($customer->creationLog || $customer->am)
                     <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                        <label class="block text-sm font-medium text-purple-700 mb-1">Account Manager (AM)</label>
-                        <p class="text-xl font-bold text-purple-900">{{ $customer->am }}</p>
+                        @if($customer->creationLog)
+                            <label class="block text-xs font-medium text-purple-700 mb-0.5">Người tạo</label>
+                            <p class="text-sm font-bold text-purple-900 mb-2">{{ $customer->creationLog->user_name }} ({{ $customer->created_at ? $customer->created_at->format('d/m/Y') : '' }})</p>
+                        @endif
+                        @if($customer->am)
+                            <label class="block text-xs font-medium text-purple-700 mb-0.5">Account Manager (AM)</label>
+                            <p class="text-base font-bold text-purple-900">{{ $customer->am }}</p>
+                        @endif
                     </div>
                     @endif
                 </div>

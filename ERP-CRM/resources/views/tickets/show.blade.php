@@ -189,6 +189,15 @@
                         </div>
                     @endif
                 </dl>
+
+                @if($ticket->type === 'borrow' && $ticket->status === 'approved' && ($ticket->user_id === auth()->id() || auth()->user()?->hasAnyRole(['super_admin', 'admin'])))
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <a href="{{ route('sales.create', ['from_ticket_id' => $ticket->id]) }}" 
+                           class="w-full inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors">
+                            <i class="fas fa-file-invoice-dollar mr-2"></i> Tạo đơn hàng bán từ yêu cầu này
+                        </a>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

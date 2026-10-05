@@ -96,6 +96,24 @@
                     <label class="text-sm text-gray-500">Mã phiếu</label>
                     <p class="font-medium text-gray-900">{{ $import->code }}</p>
                 </div>
+                <div>
+                    <label class="text-sm text-gray-500">Đơn mua hàng (PO)</label>
+                    <p class="font-medium text-gray-900">
+                        @if($import->reference_type === 'purchase_order' && $import->purchaseOrder)
+                            <a href="{{ route('purchase-orders.show', $import->purchaseOrder) }}" class="text-blue-600 hover:underline">
+                                {{ $import->purchaseOrder->code }}
+                            </a>
+                        @elseif($import->shippingAllocation?->purchaseOrder)
+                            <a href="{{ route('purchase-orders.show', $import->shippingAllocation->purchaseOrder) }}" class="text-blue-600 hover:underline">
+                                {{ $import->shippingAllocation->purchaseOrder->code }}
+                            </a>
+                        @elseif(!empty($import->po_code))
+                            <span class="font-medium text-gray-900">{{ $import->po_code }}</span>
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
+                    </p>
+                </div>
                 @if($import->supplier)
                 <div>
                     <label class="text-sm text-gray-500">Nhà cung cấp</label>

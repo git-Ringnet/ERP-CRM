@@ -21,7 +21,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', User::class);
         
-        $query = User::whereNotNull('employee_code')->with('roles');
+        $query = User::whereNotNull('employee_code')->where('is_hidden', false)->with('roles');
 
         // Search functionality (Requirement 3.9)
         if ($request->filled('search')) {
@@ -202,9 +202,13 @@ class EmployeeController extends Controller
      */
     public function destroy($id)
     {
-        $employee = User::whereNotNull('employee_code')
-            ->findOrFail($id);
+        $employee = User::whereNotNull('employee_code')->findOrFail($id);
         
+        if ($employee->is_hidden || $employee->hasRole('super_admin')) {
+            return redirect()->route('employees.index')
+                ->with('error', 'Không thể xóa tài khoản Quản trị viên hệ thống.');
+        }
+
         $this->authorize('delete', $employee);
 
         // Use delete method on model instance to trigger events
@@ -222,7 +226,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', User::class);
         
-        $query = User::whereNotNull('employee_code');
+        $query = User::whereNotNull('employee_code')->where('is_hidden', false);
 
         // Apply filters if present (Requirement 7.6)
         if ($request->filled('search')) {

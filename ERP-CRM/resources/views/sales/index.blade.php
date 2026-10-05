@@ -169,36 +169,36 @@
 
         <!-- Table - Desktop View -->
         <div class="hidden md:block overflow-x-auto">
-            <table class="w-full">
+            <table class="w-full" data-module="sales" data-filter-mode="server">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">
                             <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"
                                 class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary">
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">STT
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">STT
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã đơn
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="code" data-col-title="Mã đơn">Mã đơn
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã báo giá</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dự án
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="quotation_code" data-col-title="Mã báo giá">Mã báo giá</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Dự án
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">Khách
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]" data-col="customer" data-col-title="Khách hàng">Khách
                             hàng</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="user" data-col-title="Nhân viên">Nhân viên
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo / HĐ
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="date" data-col-title="Ngày tạo" data-col-type="date">Ngày tạo / HĐ
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="total_amount" data-col-title="Tổng tiền" data-col-type="number">Tổng
                             tiền</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Margin
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="margin" data-col-title="Margin" data-col-type="number">Margin
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thanh
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thanh
                             toán</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="status" data-col-title="Trạng thái">Trạng
                             thái</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thao
                             tác</th>
                     </tr>
                 </thead>

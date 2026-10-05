@@ -38,9 +38,23 @@ class ProductController extends Controller
             $query->filterBySupplier($request->supplier_id);
         }
 
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'code' => 'products.code',
+            'name' => 'products.name',
+            'brand' => 'products.brand',
+            'category' => 'products.category',
+            'unit' => 'products.unit',
+            'description' => 'products.description',
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
+
         $products = $query->with(['supplierPriceListItems.priceList.supplier'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->paginate(10)
+            ->withQueryString();
 
         // Get suppliers who have price lists for the tab system
         $suppliersWithProducts = \App\Models\Supplier::whereHas('supplierPriceLists')
@@ -176,56 +190,105 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $this->authorize('delete', $product);
 
-        // Check if product is in use by quotations
-        if (\App\Models\QuotationItem::where('product_id', $id)->exists()) {
+        $usage = $product->getUsageLocations();
+        if (!empty($usage)) {
+            $usedIn = implode(', ', array_unique($usage));
             return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Báo giá.');
+                ->with('error', "Không thể xóa sản phẩm \"{$product->code}\" vì đang được sử dụng trong: {$usedIn}.");
         }
 
-        // Check if product is in use by sales orders
-        if (\App\Models\SaleItem::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Đơn hàng bán.');
-        }
-
-        // Check if product is in use by purchase orders
-        if (\App\Models\PurchaseOrderItem::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Đơn mua hàng.');
-        }
-
-        // Check if product has inventory / items
-        if (\App\Models\ProductItem::where('product_id', $id)->exists() || \App\Models\Inventory::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang có sản phẩm hoặc tồn kho trong hệ thống.');
-        }
-
-        // Check if product is in use by warehouse transactions
-        if (\App\Models\ImportItem::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu nhập kho.');
-        }
-
-        if (\App\Models\ExportItem::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu xuất kho.');
-        }
-
-        if (\App\Models\TransferItem::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Phiếu chuyển kho.');
-        }
-
-        // Check if product is marked as damaged good
-        if (\App\Models\DamagedGood::where('product_id', $id)->exists()) {
-            return redirect()->back()
-                ->with('error', 'Không thể xóa sản phẩm này vì đang được sử dụng trong Báo cáo hàng hỏng.');
-        }
-
+        $code = $product->code;
         $product->delete();
 
-        return redirect()->route('products.index')
-            ->with('success', 'Sản phẩm đã được xóa thành công.');
+        return redirect()->back()
+            ->with('success', "Sản phẩm [{$code}] đã được xóa thành công.");
+    }
+
+    /**
+     * Remove multiple products from storage after checking usage across all modules.
+     */
+    public function bulkDelete(Request $request)
+    {
+        $this->authorize('deleteAny', Product::class);
+
+        $productIds = $request->input('product_ids', []);
+
+        if (is_string($productIds)) {
+            $productIds = explode(',', $productIds);
+        }
+
+        $productIds = array_values(array_filter(array_map('intval', (array) $productIds)));
+
+        if (empty($productIds)) {
+            return redirect()->back()->with('warning', 'Vui lòng chọn ít nhất một sản phẩm để xóa.');
+        }
+
+        $products = Product::whereIn('id', $productIds)->get();
+        if ($products->isEmpty()) {
+            return redirect()->back()->with('error', 'Không tìm thấy sản phẩm nào được chọn.');
+        }
+
+        // Check usage in all modules
+        $usageMap = Product::checkProductsUsage($products->pluck('id')->toArray());
+
+        $deletedCount = 0;
+        $deletedCodes = [];
+        $failedProducts = []; // ['code' => ..., 'name' => ..., 'reasons' => [...]]
+
+        DB::beginTransaction();
+        try {
+            foreach ($products as $product) {
+                $usage = $usageMap[$product->id] ?? [];
+                if (!empty($usage)) {
+                    $failedProducts[] = [
+                        'code' => $product->code,
+                        'name' => $product->name,
+                        'reasons' => array_unique($usage),
+                    ];
+                } else {
+                    $deletedCodes[] = $product->code;
+                    $product->delete();
+                    $deletedCount++;
+                }
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi xóa sản phẩm: ' . $e->getMessage());
+        }
+
+        // Response cases
+        if ($deletedCount > 0 && empty($failedProducts)) {
+            return redirect()->back()
+                ->with('success', "Đã xóa thành công {$deletedCount} sản phẩm.");
+        }
+
+        if ($deletedCount === 0 && !empty($failedProducts)) {
+            $failedSummary = collect($failedProducts)->take(8)->map(function ($item) {
+                return "• <strong>{$item['code']}</strong>: " . implode(', ', $item['reasons']);
+            })->implode('<br>');
+
+            if (count($failedProducts) > 8) {
+                $failedSummary .= '<br>• ... và ' . (count($failedProducts) - 8) . ' sản phẩm khác.';
+            }
+
+            return redirect()->back()
+                ->with('error', "Không thể xóa " . count($failedProducts) . " sản phẩm đã chọn vì đang được sử dụng trong các module khác:<br>" . $failedSummary);
+        }
+
+        // Partial deletion
+        $failedSummary = collect($failedProducts)->take(8)->map(function ($item) {
+            return "• <strong>{$item['code']}</strong>: " . implode(', ', $item['reasons']);
+        })->implode('<br>');
+
+        if (count($failedProducts) > 8) {
+            $failedSummary .= '<br>• ... và ' . (count($failedProducts) - 8) . ' sản phẩm khác.';
+        }
+
+        $warningMessage = "Đã xóa thành công <strong>{$deletedCount}</strong> sản phẩm.<br>Không thể xóa <strong>" . count($failedProducts) . "</strong> sản phẩm do đang được sử dụng:<br>" . $failedSummary;
+
+        return redirect()->back()
+            ->with('warning', $warningMessage);
     }
 
     /**
@@ -281,7 +344,7 @@ class ProductController extends Controller
      */
     public function importTemplate()
     {
-        $this->authorize('create', Product::class);
+        $this->authorize('import', Product::class);
 
         $filepath = ProductsImport::generateTemplate();
         return response()->download($filepath, 'mau-import-san-pham.xlsx')->deleteFileAfterSend(true);
@@ -292,7 +355,7 @@ class ProductController extends Controller
      */
     public function import(Request $request)
     {
-        $this->authorize('create', Product::class);
+        $this->authorize('import', Product::class);
 
         ini_set('memory_limit', '1024M'); // Increased further for 25k rows
         set_time_limit(0); // No limit for import

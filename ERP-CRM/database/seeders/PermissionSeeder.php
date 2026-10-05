@@ -20,7 +20,7 @@ class PermissionSeeder extends Seeder
             'customers' => ['view', 'create', 'edit', 'delete', 'export'],
             'suppliers' => ['view', 'create', 'edit', 'delete', 'export'],
             'employees' => ['view', 'create', 'edit', 'delete', 'export'],
-            'products' => ['view', 'create', 'edit', 'delete', 'export'],
+            'products' => ['view', 'create', 'edit', 'delete', 'export', 'import'],
             'warehouses' => ['view', 'create', 'edit', 'delete'],
             'inventory' => ['view', 'export'],
             'imports' => ['view', 'create', 'edit', 'delete', 'export'],
@@ -225,6 +225,7 @@ class PermissionSeeder extends Seeder
             'edit' => 'Sửa',
             'delete' => 'Xóa',
             'export' => 'Xuất Excel',
+            'import' => 'Import Excel',
             'assign' => 'Gán',
             'revoke' => 'Gỡ bỏ',
         ];
@@ -310,6 +311,7 @@ class PermissionSeeder extends Seeder
             'edit' => 'sửa',
             'delete' => 'xóa',
             'export' => 'xuất excel',
+            'import' => 'import excel',
             'assign' => 'gán',
             'revoke' => 'gỡ bỏ',
         ];

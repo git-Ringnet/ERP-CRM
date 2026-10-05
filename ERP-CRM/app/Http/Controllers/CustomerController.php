@@ -58,7 +58,22 @@ class CustomerController extends Controller
             }
         }
 
-        $customers = $query->with('contacts')->orderBy('created_at', 'desc')->paginate(10);
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'tax_code' => 'customers.tax_code',
+            'name' => 'customers.name',
+            'email' => 'customers.email',
+            'phone' => 'customers.phone',
+            'type' => 'customers.type',
+            'am' => 'customers.am',
+            'debt_limit' => 'customers.debt_limit',
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $customers = $query->with(['contacts', 'creationLog'])->paginate(10)->withQueryString();
 
         return view('customers.index', compact('customers'));
     }

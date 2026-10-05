@@ -102,6 +102,7 @@ class TransactionService
                     'vat_percent' => $data['vat_percent'] ?? 8,
                     'reference_type' => $data['reference_type'] ?? null,
                     'reference_id' => $data['reference_id'] ?? null,
+                    'po_code' => $data['po_code'] ?? null,
                     'shipping_allocation_id' => $data['shipping_allocation_id'] ?? null,
                     'note' => $data['note'] ?? null,
                     'status' => 'pending',

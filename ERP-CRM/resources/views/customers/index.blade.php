@@ -92,17 +92,18 @@
 
     <!-- Table - Desktop View -->
     <div class="hidden md:block overflow-x-auto" x-data="{ expanded: null }">
-        <table class="w-full">
+        <table class="w-full" data-module="customers" data-filter-mode="server">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">STT</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã số thuế</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên công ty</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email/SĐT công ty</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn mức nợ</th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10 no-filter no-sort"></th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10 no-filter no-sort">STT</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="tax_code" data-col-title="Mã số thuế">Mã số thuế</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="name" data-col-title="Tên công ty">Tên công ty</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="email" data-col-title="Email/SĐT">Email/SĐT công ty</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="type" data-col-title="Loại">Loại</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="am" data-col-title="Sales / AM">Sales / Người tạo</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-col="debt_limit" data-col-title="Hạn mức nợ" data-col-type="number">Hạn mức nợ</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider no-filter no-sort">Thao tác</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -143,6 +144,14 @@
                             </span>
                         @endif
                     </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm">
+                        <div class="font-medium text-gray-900">
+                            {{ $customer->creationLog?->user_name ?? ($customer->am ?: '-') }}
+                        </div>
+                        @if($customer->am && $customer->creationLog?->user_name && $customer->am !== $customer->creationLog?->user_name)
+                            <div class="text-xs text-gray-500"><i class="fas fa-user-tag mr-1 text-blue-500"></i>AM: {{ $customer->am }}</div>
+                        @endif
+                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 font-medium">
                         {{ number_format($customer->debt_limit) }} đ
                     </td>
@@ -178,7 +187,7 @@
                 </tr>
                 <!-- Expandable row for Contacts -->
                 <tr x-show="expanded === {{ $customer->id }}" x-cloak class="bg-gray-50">
-                    <td colspan="8" class="px-8 py-4">
+                    <td colspan="9" class="px-8 py-4">
                         <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
                             <table class="w-full text-sm">
                                 <thead class="bg-gray-100">
@@ -218,7 +227,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Không có dữ liệu khách hàng</p>
                     </td>
@@ -240,6 +249,13 @@
                         @endif
                     </div>
                     <div class="text-sm text-gray-500">MST: {{ $customer->tax_code }}</div>
+                    <div class="text-xs text-gray-600 mt-1">
+                        <i class="fas fa-user-tie text-gray-400 mr-1"></i>
+                        <span>Sales/Người tạo: <strong>{{ $customer->creationLog?->user_name ?? ($customer->am ?: '-') }}</strong></span>
+                        @if($customer->am && $customer->creationLog?->user_name && $customer->am !== $customer->creationLog?->user_name)
+                            <span class="text-gray-500 ml-1">(AM: {{ $customer->am }})</span>
+                        @endif
+                    </div>
                 </div>
                 <div class="flex items-center gap-2">
                     @if($customer->type == 'vip')

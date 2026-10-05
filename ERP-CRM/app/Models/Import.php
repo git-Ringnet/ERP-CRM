@@ -28,10 +28,31 @@ class Import extends Model
         'vat_percent',
         'reference_type',
         'reference_id',
+        'po_code',
         'shipping_allocation_id',
         'note',
         'status',
     ];
+
+    /**
+     * Get PO Code attribute (with fallbacks to relations and legacy note text)
+     */
+    public function getPoCodeAttribute($value): ?string
+    {
+        if (!empty($value)) {
+            return $value;
+        }
+        if ($this->reference_type === 'purchase_order' && $this->purchaseOrder) {
+            return $this->purchaseOrder->code;
+        }
+        if ($this->shippingAllocation?->purchaseOrder) {
+            return $this->shippingAllocation->purchaseOrder->code;
+        }
+        if (!empty($this->note) && preg_match('/\(Mã PO:\s*([^\)]+)\)/i', $this->note, $m)) {
+            return trim($m[1]);
+        }
+        return null;
+    }
 
     protected $casts = [
         'date' => 'date',

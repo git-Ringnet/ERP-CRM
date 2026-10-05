@@ -43,6 +43,34 @@ class Notification extends Model
         return $query->orderBy('created_at', 'desc');
     }
 
+    // Booted Model Hook
+    protected static function booted(): void
+    {
+        static::creating(function (Notification $notification) {
+            $user = $notification->user ?: User::find($notification->user_id);
+            if (!$user || $user->status !== 'active' || $user->is_locked) {
+                return false; // Abort saving notification
+            }
+
+            // Do not create notification if the target user has no permission/relation to view the entity
+            if (!$notification->isAccessibleBy($user)) {
+                return false; // Abort saving notification
+            }
+
+            return true;
+        });
+
+        // Real-time broadcast hook: push instantly via WebSockets (Reverb)
+        static::created(function (Notification $notification) {
+            try {
+                broadcast(new \App\Events\NotificationSent($notification));
+            } catch (\Throwable $e) {
+                // If WebSocket broadcasting server is offline or fails, do not break the request
+                \Illuminate\Support\Facades\Log::warning('Realtime Broadcast notification error: ' . $e->getMessage());
+            }
+        });
+    }
+
     // Methods
     public function markAsRead(): void
     {
@@ -64,11 +92,11 @@ class Notification extends Model
 
     /**
      * Check if a notification is accessible by the specified user.
-     * Prevents displaying notifications to users who lack authorization to view the target entity.
+     * Prevents creating or displaying notifications to users who lack authorization to view the target entity.
      */
     public function isAccessibleBy(?User $user = null): bool
     {
-        if (!$user) {
+        if (!$user || $user->status !== 'active' || $user->is_locked) {
             return false;
         }
 
@@ -76,13 +104,10 @@ class Notification extends Model
             return false;
         }
 
-        // Super Admin bypass: can view all notifications
-        if ($user->hasRole('super_admin')) {
-            return true;
-        }
+        $isSuperAdmin = $user->hasRole('super_admin');
 
         try {
-            $link = $this->link;
+            $link = (string) $this->link;
             $type = (string) $this->type;
             $data = is_array($this->data) ? $this->data : [];
 
@@ -92,14 +117,35 @@ class Notification extends Model
                 if ($path) {
                     $path = trim($path, '/');
                     $segments = explode('/', $path);
-                    $resource = $segments[0] ?? '';
-                    $id = $segments[1] ?? null;
+
+                    // List of recognized resource segments
+                    $knownResources = [
+                        'imports', 'exports', 'transfers', 'damaged-goods', 'projects', 'sales',
+                        'quotations', 'purchase-orders', 'purchase-requests', 'tickets',
+                        'technical-tickets', 'invoice-requests', 'work-schedules',
+                        'marketing-events', 'opportunities', 'suppliers', 'customers',
+                        'warehouses', 'inventory', 'warranties', 'meeting-room-bookings'
+                    ];
+
+                    $resource = null;
+                    $id = null;
+                    foreach ($segments as $idx => $segment) {
+                        if (in_array($segment, $knownResources, true)) {
+                            $resource = $segment;
+                            $next = $segments[$idx + 1] ?? null;
+                            if (is_numeric($next)) {
+                                $id = (int) $next;
+                            }
+                            break;
+                        }
+                    }
 
                     switch ($resource) {
                         case 'imports':
                             if (!$user->can('view_imports')) return false;
-                            if (is_numeric($id)) {
-                                $import = \App\Models\Import::find($id);
+                            $importId = $id ?: ($data['document_id'] ?? null);
+                            if (is_numeric($importId)) {
+                                $import = \App\Models\Import::find($importId);
                                 if ($import && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $import)) {
                                     return false;
                                 }
@@ -108,8 +154,9 @@ class Notification extends Model
 
                         case 'exports':
                             if (!$user->can('view_exports')) return false;
-                            if (is_numeric($id)) {
-                                $export = \App\Models\Export::find($id);
+                            $exportId = $id ?: ($data['document_id'] ?? null);
+                            if (is_numeric($exportId)) {
+                                $export = \App\Models\Export::find($exportId);
                                 if ($export && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $export)) {
                                     return false;
                                 }
@@ -118,8 +165,9 @@ class Notification extends Model
 
                         case 'transfers':
                             if (!$user->can('view_transfers')) return false;
-                            if (is_numeric($id)) {
-                                $transfer = \App\Models\Transfer::find($id);
+                            $transferId = $id ?: ($data['document_id'] ?? null);
+                            if (is_numeric($transferId)) {
+                                $transfer = \App\Models\Transfer::find($transferId);
                                 if ($transfer && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $transfer)) {
                                     return false;
                                 }
@@ -128,8 +176,9 @@ class Notification extends Model
 
                         case 'damaged-goods':
                             if (!$user->can('view_damaged_goods')) return false;
-                            if (is_numeric($id)) {
-                                $dg = \App\Models\DamagedGood::find($id);
+                            $dgId = $id ?: ($data['document_id'] ?? null);
+                            if (is_numeric($dgId)) {
+                                $dg = \App\Models\DamagedGood::find($dgId);
                                 if ($dg && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $dg)) {
                                     return false;
                                 }
@@ -137,71 +186,132 @@ class Notification extends Model
                             return true;
 
                         case 'projects':
-                            if (is_numeric($id)) {
-                                $project = \App\Models\Project::find($id);
+                            $projectId = $id ?: ($data['project_id'] ?? null);
+                            if (is_numeric($projectId)) {
+                                $project = \App\Models\Project::find($projectId);
                                 if ($project) {
+                                    if ($type === 'project_submitted') {
+                                        // Restrict to assigned team: PO cannot see Non-FTN submissions, PM cannot see FTN submissions
+                                        if ($project->assigned_team === 'po_team') {
+                                            $canAccessPo = in_array($user->department, ['PO', 'PO Team'], true)
+                                                || $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager']);
+                                            if (!$canAccessPo) return false;
+                                        } elseif ($project->assigned_team === 'pm_team') {
+                                            $canAccessPm = in_array($user->department, ['PM', 'PM Team'], true)
+                                                || $user->hasAnyRole(['super_admin', 'admin', 'director']);
+                                            if (!$canAccessPm) return false;
+                                        }
+                                        return \Illuminate\Support\Facades\Gate::forUser($user)->allows('processIntake', $project)
+                                            || \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $project);
+                                    }
                                     return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $project);
                                 }
+                                return false;
                             }
                             return \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\Project::class);
 
                         case 'sales':
-                            if (is_numeric($id)) {
-                                $sale = \App\Models\Sale::find($id);
+                            $saleId = $id ?: ($data['sale_id'] ?? null);
+                            if (is_numeric($saleId)) {
+                                $sale = \App\Models\Sale::find($saleId);
                                 if ($sale) {
-                                    return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale);
+                                    if (\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale)) {
+                                        return true;
+                                    }
+                                    // If user is a designated approver for P&L or approval flow
+                                    if (str_contains($type, 'approval') || in_array($type, ['pnl_need_revision', 'pnl_rejected', 'order_request', 'payment_alert'])) {
+                                        return $user->can('approve_pnl') || $user->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager', 'accountant']);
+                                    }
+                                    return false;
                                 }
+                                return false;
                             }
                             return \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\Sale::class);
 
                         case 'quotations':
-                            if (is_numeric($id)) {
-                                $quotation = \App\Models\Quotation::find($id);
+                            $quotationId = $id ?: ($data['quotation_id'] ?? null);
+                            if (is_numeric($quotationId)) {
+                                $quotation = \App\Models\Quotation::find($quotationId);
                                 if ($quotation) {
                                     return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $quotation);
                                 }
+                                return false;
                             }
                             return \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\Quotation::class);
 
                         case 'purchase-orders':
-                            if (is_numeric($id)) {
-                                $po = \App\Models\PurchaseOrder::find($id);
+                            $poId = $id ?: ($data['purchase_order_id'] ?? null);
+                            if (is_numeric($poId)) {
+                                $po = \App\Models\PurchaseOrder::find($poId);
                                 if ($po) {
+                                    if ($type === 'purchase_order_approval') {
+                                        return $user->can('approve_purchase_orders')
+                                            && \Illuminate\Support\Facades\Gate::forUser($user)->allows('approve', $po);
+                                    }
                                     return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $po)
                                         || \Illuminate\Support\Facades\Gate::forUser($user)->allows('approve', $po);
                                 }
+                                return false;
+                            }
+                            if ($type === 'purchase_order_approval' || str_contains($link, 'pending_approval')) {
+                                return $user->can('approve_purchase_orders');
                             }
                             return $user->can('view_purchase_orders') 
                                 || $user->can('approve_purchase_orders') 
                                 || \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\PurchaseOrder::class);
 
                         case 'purchase-requests':
-                            if (is_numeric($id)) {
-                                $pr = \App\Models\PurchaseRequest::find($id);
+                            $prId = $id ?: ($data['purchase_request_id'] ?? null);
+                            if (is_numeric($prId)) {
+                                $pr = \App\Models\PurchaseRequest::find($prId);
                                 if ($pr) {
                                     return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $pr);
                                 }
+                                return false;
                             }
                             return $user->can('view_purchase_requests') 
                                 || \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\PurchaseRequest::class);
+
+                        case 'opportunities':
+                            $oppId = $id ?: ($data['opportunity_id'] ?? null);
+                            if (is_numeric($oppId)) {
+                                $opp = \App\Models\Opportunity::find($oppId);
+                                if ($opp) {
+                                    if ($type === 'opportunity_technical_assigned' && $opp->technical_user_id === $user->id) {
+                                        return true;
+                                    }
+                                    return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $opp);
+                                }
+                                return false;
+                            }
+                            return \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\Opportunity::class);
 
                         case 'tickets':
                             return $user->can('view_tickets')
                                 || $user->hasAnyRole(['super_admin', 'admin', 'warehouse_manager', 'warehouse_staff', 'sales_manager', 'sales', 'director']);
 
                         case 'technical-tickets':
+                            $ttId = $id ?: ($data['technical_ticket_id'] ?? null);
+                            if (is_numeric($ttId)) {
+                                $ticket = \App\Models\TechnicalTicket::find($ttId);
+                                if ($ticket && ($ticket->created_by === $user->id || $ticket->assigned_to === $user->id)) {
+                                    return true;
+                                }
+                            }
                             return $user->can('view_technical_tickets')
                                 || $user->hasAnyRole(['super_admin', 'admin', 'technical_lead', 'technical_engineer', 'director']);
 
                         case 'invoice-requests':
-                            if (is_numeric($id)) {
-                                $ir = \App\Models\InvoiceRequest::find($id);
+                            $irId = $id ?: ($data['invoice_request_id'] ?? null);
+                            if (is_numeric($irId)) {
+                                $ir = \App\Models\InvoiceRequest::find($irId);
                                 if ($ir) {
                                     if ($user->hasAnyRole(['super_admin', 'admin', 'accountant', 'sales_manager'])) return true;
                                     if ($ir->requester_id === $user->id) return true;
                                     if ($ir->sale && $ir->sale->user_id === $user->id) return true;
                                     return false;
                                 }
+                                return false;
                             }
                             return $user->hasAnyRole(['super_admin', 'admin', 'accountant', 'sales_manager', 'sales']);
 
@@ -209,7 +319,17 @@ class Notification extends Model
                             return $user->can('view_work_schedules') || \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\WorkSchedule::class);
 
                         case 'marketing-events':
+                            $eventId = $id ?: ($data['marketing_event_id'] ?? null);
+                            if (is_numeric($eventId)) {
+                                $event = \App\Models\MarketingEvent::find($eventId);
+                                if ($event) {
+                                    return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $event);
+                                }
+                            }
                             return $user->can('view_marketing_events') || \Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\MarketingEvent::class);
+
+                        case 'meeting-room-bookings':
+                            return true;
 
                         case 'suppliers':
                             return $user->can('view_suppliers');
@@ -229,7 +349,7 @@ class Notification extends Model
                 }
             }
 
-            // 2. Check by notification type and payload data
+            // 2. Check by notification type and payload data when URL check didn't match
             if (str_starts_with($type, 'import_') && !$user->can('view_imports')) {
                 return false;
             }
@@ -246,15 +366,33 @@ class Notification extends Model
             if (str_starts_with($type, 'project_')) {
                 if (!empty($data['project_id'])) {
                     $project = \App\Models\Project::find($data['project_id']);
-                    if ($project && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $project)) {
-                        return false;
+                    if (!$project) return false;
+                    if ($type === 'project_submitted') {
+                        if ($project->assigned_team === 'po_team') {
+                            $canAccessPo = in_array($user->department, ['PO', 'PO Team'], true)
+                                || $user->hasAnyRole(['super_admin', 'admin', 'director', 'purchase_manager']);
+                            if (!$canAccessPo) return false;
+                        } elseif ($project->assigned_team === 'pm_team') {
+                            $canAccessPm = in_array($user->department, ['PM', 'PM Team'], true)
+                                || $user->hasAnyRole(['super_admin', 'admin', 'director']);
+                            if (!$canAccessPm) return false;
+                        }
+                        return \Illuminate\Support\Facades\Gate::forUser($user)->allows('processIntake', $project)
+                            || \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $project);
                     }
+                    return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $project);
                 } elseif (!$user->can('view_projects') && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('viewAny', \App\Models\Project::class)) {
                     return false;
                 }
             }
 
             if (str_starts_with($type, 'technical_ticket')) {
+                if (!empty($data['technical_ticket_id'])) {
+                    $ticket = \App\Models\TechnicalTicket::find($data['technical_ticket_id']);
+                    if ($ticket && ($ticket->created_by === $user->id || $ticket->assigned_to === $user->id)) {
+                        return true;
+                    }
+                }
                 if (!$user->can('view_technical_tickets') && !$user->hasAnyRole(['super_admin', 'admin', 'technical_lead', 'technical_engineer'])) {
                     return false;
                 }
@@ -272,30 +410,50 @@ class Notification extends Model
                 }
             }
 
-            if (str_starts_with($type, 'payment_') || str_starts_with($type, 'sale_')) {
+            if (str_starts_with($type, 'payment_') || str_starts_with($type, 'sale_') || str_starts_with($type, 'order_request')) {
                 if (!empty($data['sale_id'])) {
                     $sale = \App\Models\Sale::find($data['sale_id']);
-                    if ($sale && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale)) {
-                        return false;
+                    if (!$sale) return false;
+                    if (\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $sale)) {
+                        return true;
                     }
+                    if ($user->hasAnyRole(['super_admin', 'admin', 'director', 'sales_manager', 'accountant'])) {
+                        return true;
+                    }
+                    return false;
                 }
             }
 
             if (str_starts_with($type, 'purchase_order_')) {
                 if (!empty($data['purchase_order_id'])) {
                     $po = \App\Models\PurchaseOrder::find($data['purchase_order_id']);
-                    if ($po && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $po) && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('approve', $po)) {
+                    if (!$po) return false;
+                    if ($type === 'purchase_order_approval') {
+                        return $user->can('approve_purchase_orders')
+                            && \Illuminate\Support\Facades\Gate::forUser($user)->allows('approve', $po);
+                    }
+                    if (!\Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $po) && !\Illuminate\Support\Facades\Gate::forUser($user)->allows('approve', $po)) {
                         return false;
                     }
                 }
             }
 
+            if (str_starts_with($type, 'opportunity_')) {
+                if (!empty($data['opportunity_id'])) {
+                    $opp = \App\Models\Opportunity::find($data['opportunity_id']);
+                    if (!$opp) return false;
+                    if ($type === 'opportunity_technical_assigned' && $opp->technical_user_id === $user->id) {
+                        return true;
+                    }
+                    return \Illuminate\Support\Facades\Gate::forUser($user)->allows('view', $opp);
+                }
+            }
+
             return true;
         } catch (\Throwable $e) {
-            // If any error occurs during permission evaluation, fail safe and return true
-            // or log warning so notification system doesn't crash
+            // Fail-safe: do not expose notification if permission evaluation encounters an error
             \Illuminate\Support\Facades\Log::warning('Notification permission check error: ' . $e->getMessage());
-            return true;
+            return false;
         }
     }
 }

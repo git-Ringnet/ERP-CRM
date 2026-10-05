@@ -65,6 +65,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/dashboard/business-activity/export', [BusinessDashboardController::class, 'export'])->name('dashboard.business-activity.export');
     Route::post('/dashboard/business-activity/refresh', [BusinessDashboardController::class, 'refresh'])->name('dashboard.business-activity.refresh');
 
+    // Excel Table Column Filter Distinct Values API
+    Route::get('/api/table-column-filter/values', [\App\Http\Controllers\Api\TableColumnFilterApiController::class, 'distinctValues'])->name('api.table-column-filter.values');
+
     // Resource routes for CRUD operations
     Route::resource('customers', CustomerController::class);
     Route::get('/ajax/customers/search', [CustomerController::class, 'ajaxSearch'])->name('customers.ajax-search');
@@ -96,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/export/excel', [ProductController::class, 'export'])->name('products.export');
     Route::get('/products/import/template', [ProductController::class, 'importTemplate'])->name('products.import.template');
     Route::post('/products/import', [ProductController::class, 'import'])->name('products.import');
+    Route::post('/products/bulk-delete', [ProductController::class, 'bulkDelete'])->name('products.bulk-delete');
 
     // Excel Import routes
     Route::get('/excel-import/template/{type}', [ExcelImportController::class, 'template'])->name('excel-import.template');
@@ -330,7 +334,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/restore', [ProjectController::class, 'restoreProject'])->name('projects.restore');
     Route::get('/projects/{project}/export-vendor-excel', [ProjectController::class, 'exportVendorExcel'])->name('projects.export-vendor-excel');
     Route::patch('/projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
-    Route::get('/projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->name('projects.duplicate');
+    Route::match(['get', 'post'], '/projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->name('projects.duplicate');
     Route::resource('projects', ProjectController::class);
 
 

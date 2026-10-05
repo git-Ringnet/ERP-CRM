@@ -1413,11 +1413,12 @@ function addProductRow(productData = null) {
     const newRow = document.createElement('div');
     newRow.className = `product-item ${productIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} p-4 border-b last:border-b-0 border-gray-100`;
 
-    const pid = productData ? (productData.id || '') : '';
-    const pcode = productData ? (productData.code || '') : '';
-    const pname = productData ? (productData.name || '') : '';
-    const punit = productData ? (productData.unit || 'Cái') : 'Cái';
+    const pid = productData ? (productData.id || productData.product_id || '') : '';
+    const pcode = productData ? (productData.code || productData.new_code || '') : '';
+    const pname = productData ? (productData.name || productData.new_name || '') : '';
+    const punit = productData ? (productData.unit || productData.new_unit || 'Cái') : 'Cái';
     const pprice = productData ? (productData.price ? (typeof formatMoney === 'function' ? formatMoney(productData.price) : productData.price) : '') : '';
+    const pqty = productData ? (productData.quantity || 1) : 1;
     const pwarranty = productData ? (productData.warranty_months || 12) : '';
     const isFromStock = productData ? (productData.is_from_stock ? 1 : 0) : 0;
     const displayText = productData ? ((pcode ? '[' + pcode + '] ' : '') + pname) : '';
@@ -1447,7 +1448,7 @@ function addProductRow(productData = null) {
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
-                <input type="number" name="products[${productIndex}][quantity]" min="1" value="1" required
+                <input type="number" name="products[${productIndex}][quantity]" min="1" value="${pqty}" required
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
             </div>

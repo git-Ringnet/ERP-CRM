@@ -37,6 +37,7 @@ class User extends Authenticatable
         'bank_name',
         'status',
         'is_locked',
+        'is_hidden',
         'note',
         'avatar',
         'timekeeping_type',
@@ -64,7 +65,17 @@ class User extends Authenticatable
         'birth_date' => 'date',
         'join_date' => 'date',
         'salary' => 'decimal:2',
+        'is_locked' => 'boolean',
+        'is_hidden' => 'boolean',
     ];
+
+    /**
+     * Scope to filter out hidden administrative accounts from general listings
+     */
+    public function scopeVisible(Builder $query): Builder
+    {
+        return $query->where('is_hidden', false);
+    }
 
     /**
      * Scope for searching employees by name, code, email, or phone

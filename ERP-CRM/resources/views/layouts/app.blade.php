@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="google" content="notranslate">
+    @auth
+    <meta name="user-id" content="{{ auth()->id() }}">
+    <meta name="reverb-key" content="{{ config('reverb.apps.apps.0.key', env('REVERB_APP_KEY')) }}">
+    <meta name="reverb-host" content="{{ env('REVERB_HOST', request()->getHost()) }}">
+    <meta name="reverb-port" content="{{ env('REVERB_PORT', request()->isSecure() ? 443 : 8080) }}">
+    <meta name="reverb-scheme" content="{{ env('REVERB_SCHEME', request()->isSecure() ? 'https' : 'http') }}">
+    @endauth
 
     <title>@yield('title', 'Mini ERP') - {{ config('app.name', 'Laravel') }}</title>
 
@@ -422,11 +429,6 @@
                                     <i class="fas fa-calendar-check w-6 text-blue-400 flex-shrink-0"></i>
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Cơ hội</span>
                                 </a>
-                                <a href="{{ route('opportunities.report') }}"
-                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.report') ? 'bg-primary text-white' : '' }}">
-                                    <i class="fas fa-chart-bar w-6 text-indigo-400 flex-shrink-0"></i>
-                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tần suất gặp</span>
-                                </a>
                             @endcan
 
                             @can('view_projects')
@@ -436,6 +438,15 @@
                                     <span class="ml-3 sidebar-text whitespace-nowrap">Đăng ký dự án</span>
                                 </a>
                             @endcan
+
+                            @can('view_opportunities')
+                                <a href="{{ route('opportunities.report') }}"
+                                    class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('opportunities.report') ? 'bg-primary text-white' : '' }}">
+                                    <i class="fas fa-chart-bar w-6 text-indigo-400 flex-shrink-0"></i>
+                                    <span class="ml-3 sidebar-text whitespace-nowrap">Báo cáo tần suất gặp</span>
+                                </a>
+                            @endcan
+
 
                             @can('view_marketing_events')
                                 <a href="{{ route('marketing-events.index') }}"
@@ -625,12 +636,12 @@
                             @endcanany
 
                             <!-- @can('view_shipping_allocations')
-                                                                                                    <a href="{{ route('shipping-allocations.index') }}"
-                                                                                                        class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
-                                                                                                        <i class="fas fa-truck-loading w-6 text-orange-400"></i>
-                                                                                                        <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
-                                                                                                    </a>
-                                                                                                @endcan -->
+                                                                                                            <a href="{{ route('shipping-allocations.index') }}"
+                                                                                                                class="flex items-center px-4 py-2 ml-4 text-gray-300 hover:bg-primary hover:text-white rounded-lg transition-colors {{ request()->routeIs('shipping-allocations.*') ? 'bg-primary text-white' : '' }}">
+                                                                                                                <i class="fas fa-truck-loading w-6 text-orange-400"></i>
+                                                                                                                <span class="ml-3 sidebar-text whitespace-nowrap">Phân bổ CP vận chuyển</span>
+                                                                                                            </a>
+                                                                                                        @endcan -->
 
                             @can('view_purchase_reports')
                                 <a href="{{ route('purchase-reports.index') }}"
@@ -828,7 +839,7 @@
                         <span class="whitespace-nowrap hidden sm:inline">Hướng dẫn sử dụng</span>
                     </a>
 
-                    <!-- Notification Bell -->
+                    <!-- Notification Bell & Push Notification Manager -->
                     <div class="relative" x-data="notificationBell()" x-init="init()">
                         <!-- Bell Icon with Badge -->
                         <button @click="toggleDropdown()"
@@ -839,16 +850,80 @@
                             </span>
                         </button>
 
+                        <!-- In-App Floating Push Toast Notifications -->
+                        <div class="fixed top-5 right-5 z-[99999] flex flex-col space-y-3 max-w-sm w-full pointer-events-none" aria-live="assertive">
+                            <template x-for="toast in pushToasts" :key="toast.id">
+                                <div x-transition:enter="transform ease-out duration-300 transition"
+                                     x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-4"
+                                     x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+                                     x-transition:leave="transition ease-in duration-200"
+                                     x-transition:leave-start="opacity-100 scale-100"
+                                     x-transition:leave-end="opacity-0 scale-95"
+                                     class="pointer-events-auto bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden ring-1 ring-black/5 hover:shadow-xl transition-all duration-200">
+                                    <div class="p-4">
+                                        <div class="flex items-start">
+                                            <div class="flex-shrink-0 pt-0.5">
+                                                <div :class="getToastIconBg(toast.color)" class="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm">
+                                                    <i :class="getIconClass(toast)" class="text-base"></i>
+                                                </div>
+                                            </div>
+                                            <div class="ml-3 w-0 flex-1">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Thông báo mới</span>
+                                                    <span class="text-[10px] text-gray-400">Vừa xong</span>
+                                                </div>
+                                                <p class="text-sm font-bold text-gray-900 mt-0.5 leading-snug" x-text="toast.title"></p>
+                                                <p class="mt-1 text-xs text-gray-600 line-clamp-2 leading-relaxed" x-text="toast.message"></p>
+                                                <div class="mt-3 flex items-center space-x-2">
+                                                    <button @click="openToast(toast)" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors">
+                                                        <span>Xem ngay</span>
+                                                        <i class="fas fa-arrow-right ml-1.5 text-[10px]"></i>
+                                                    </button>
+                                                    <button @click="dismissToast(toast.id)" class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">
+                                                        Bỏ qua
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="ml-2 flex-shrink-0 flex">
+                                                <button @click="dismissToast(toast.id)" class="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none p-1">
+                                                    <span class="sr-only">Close</span>
+                                                    <i class="fas fa-times text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+                                </div>
+                            </template>
+                        </div>
+
                         <!-- Dropdown -->
                         <div x-show="isOpen" x-cloak @click.away="isOpen = false" x-transition
                             class="absolute right-0 mt-2 w-96 bg-white shadow-lg rounded-lg z-50 border border-gray-200">
                             <!-- Header -->
                             <div class="flex justify-between items-center p-4 border-b">
-                                <h3 class="font-semibold text-gray-800">Thông báo</h3>
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="font-semibold text-gray-800">Thông báo</h3>
+                                    <span x-show="desktopPermission === 'granted'" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 mr-1 bg-emerald-500 rounded-full animate-pulse"></span>
+                                        Push ON
+                                    </span>
+                                </div>
                                 <button @click="markAllAsRead()" :disabled="unreadCount === 0"
                                     :class="unreadCount === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'"
                                     class="text-sm">
                                     Đánh dấu tất cả đã đọc
+                                </button>
+                            </div>
+
+                            <!-- Desktop Push Prompt Banner -->
+                            <div x-show="desktopPermission === 'default'" class="px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex items-center justify-between">
+                                <div class="flex items-center text-xs text-blue-900">
+                                    <i class="fas fa-bell text-blue-600 mr-2 text-sm"></i>
+                                    <span>Bật thông báo đẩy trên trình duyệt</span>
+                                </div>
+                                <button @click.stop="requestPushPermission()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium px-2.5 py-1 rounded shadow-sm transition-all hover:scale-105">
+                                    Bật ngay
                                 </button>
                             </div>
 
@@ -1176,6 +1251,7 @@
     @endif
 
     @include('partials.file-preview-modal')
+    @include('partials.excel-column-filter')
     @stack('scripts')
 </body>
 

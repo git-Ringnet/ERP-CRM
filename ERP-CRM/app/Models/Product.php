@@ -257,4 +257,80 @@ class Product extends Model
 
         return round($bestCost, 2);
     }
+
+    /**
+     * Check if a list of product IDs are currently in use across various modules.
+     * Returns an array mapping product_id => array of module names where it is used.
+     *
+     * @param array $productIds
+     * @return array<int, string[]>
+     */
+    public static function checkProductsUsage(array $productIds): array
+    {
+        if (empty($productIds)) {
+            return [];
+        }
+
+        $modules = [
+            ['model' => \App\Models\QuotationItem::class, 'name' => 'Báo giá'],
+            ['model' => \App\Models\SaleItem::class, 'name' => 'Đơn hàng bán'],
+            ['model' => \App\Models\SaleOrderRequestItem::class, 'name' => 'Yêu cầu đặt hàng'],
+            ['model' => \App\Models\PurchaseOrderItem::class, 'name' => 'Đơn mua hàng (PO)'],
+            ['model' => \App\Models\PurchaseRequestItem::class, 'name' => 'Yêu cầu mua hàng'],
+            ['model' => \App\Models\SupplierQuotationItem::class, 'name' => 'Báo giá NCC'],
+            ['model' => \App\Models\ProductItem::class, 'name' => 'Sản phẩm/Serial trong kho'],
+            ['model' => \App\Models\Inventory::class, 'name' => 'Tồn kho'],
+            ['model' => \App\Models\ImportItem::class, 'name' => 'Phiếu nhập kho'],
+            ['model' => \App\Models\ExportItem::class, 'name' => 'Phiếu xuất kho'],
+            ['model' => \App\Models\TransferItem::class, 'name' => 'Phiếu chuyển kho'],
+            ['model' => \App\Models\DamagedGood::class, 'name' => 'Báo cáo hàng hỏng'],
+            ['model' => \App\Models\TicketItem::class, 'name' => 'Phiếu hỗ trợ kỹ thuật'],
+            ['model' => \App\Models\ShippingAllocationItem::class, 'name' => 'Phân bổ vận chuyển'],
+            ['model' => \App\Models\SalesRevenue::class, 'name' => 'Doanh thu bán hàng'],
+            ['model' => \App\Models\PriceListItem::class, 'name' => 'Bảng giá'],
+        ];
+
+        $inUseMap = [];
+        foreach ($productIds as $id) {
+            $inUseMap[$id] = [];
+        }
+
+        foreach ($modules as $mod) {
+            $modelClass = $mod['model'];
+            $modName = $mod['name'];
+            if (class_exists($modelClass)) {
+                $foundIds = $modelClass::whereIn('product_id', $productIds)
+                    ->distinct()
+                    ->pluck('product_id')
+                    ->toArray();
+
+                foreach ($foundIds as $fid) {
+                    $inUseMap[$fid][] = $modName;
+                }
+            }
+        }
+
+        return $inUseMap;
+    }
+
+    /**
+     * Get array of module names where this product is currently in use.
+     *
+     * @return string[]
+     */
+    public function getUsageLocations(): array
+    {
+        $usage = self::checkProductsUsage([$this->id]);
+        return $usage[$this->id] ?? [];
+    }
+
+    /**
+     * Check if this product is currently in use in any module.
+     *
+     * @return bool
+     */
+    public function isInUse(): bool
+    {
+        return !empty($this->getUsageLocations());
+    }
 }

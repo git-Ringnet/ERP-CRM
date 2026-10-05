@@ -769,18 +769,8 @@ class SupplierQuotationController extends Controller
             return $existingProduct;
         }
 
-        // Create new product if not found
-        try {
-            return Product::create([
-                'code' => 'S-' . strtoupper(Str::random(6)),
-                'name' => $name,
-                'unit' => 'Bộ',
-                'category' => 'Z',
-                'description' => 'Sản phẩm tự động tạo từ báo giá NCC',
-            ]);
-        } catch (\Exception $e) {
-            return null;
-        }
+        // Return null for custom / free-text items so they don't clutter the Product list
+        return null;
     }
 
 }

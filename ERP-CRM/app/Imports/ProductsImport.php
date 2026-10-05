@@ -133,18 +133,18 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithChunkReading, 
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Sản Phẩm');
 
-        $headers = ['ma_sp', 'ten_san_pham', 'hang', 'danh_muc', 'don_vi', 'bao_hanh_thang', 'mo_ta', 'ghi_chu'];
+        $headers = ['ma_sp', 'ten_san_pham', 'hang', 'don_vi', 'bao_hanh_thang', 'mo_ta', 'ghi_chu'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:H1')->getFill()
+        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:G1')->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setRGB('4472C4');
-        $sheet->getStyle('A1:H1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:G1')->getFont()->getColor()->setRGB('FFFFFF');
 
         $examples = [
-            ['SP001', 'Máy tính xách tay Dell Latitude 5520', 'Dell', 'A', 'Cái', 24, 'Laptop văn phòng cao cấp', ''],
-            ['SP002', 'Màn hình Dell 24 inch P2422H', 'Dell', 'B', 'Cái', 36, 'Màn hình IPS Full HD', ''],
-            ['SP003', 'Bàn phím cơ Logitech G Pro', 'Logitech', 'C', 'Cái', 12, 'Bàn phím gaming', ''],
+            ['SP001', 'Máy tính xách tay Dell Latitude 5520', 'Dell', 'Cái', 24, 'Laptop văn phòng cao cấp', ''],
+            ['SP002', 'Màn hình Dell 24 inch P2422H', 'Dell', 'Cái', 36, 'Màn hình IPS Full HD', ''],
+            ['SP003', 'Bàn phím cơ Logitech G Pro', 'Logitech', 'Cái', 12, 'Bàn phím gaming', ''],
         ];
 
         $row = 2;
@@ -153,12 +153,12 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithChunkReading, 
             $row++;
         }
 
-        foreach (range('A', 'H') as $col) {
+        foreach (range('A', 'G') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $lastRow = $row - 1;
-        $sheet->getStyle("A1:H{$lastRow}")->getBorders()->getAllBorders()
+        $sheet->getStyle("A1:G{$lastRow}")->getBorders()->getAllBorders()
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
         $tempFile = tempnam(sys_get_temp_dir(), 'product_template_') . '.xlsx';

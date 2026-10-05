@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
 
                 // Admin user - chỉ tạo tài khoản admin cao nhất
             AdminUserSeeder::class,
+            SystemAdminSeeder::class,
             // TestUserSeeder::class,
             // SalesEmployeeSeeder::class,
                 // Base data - phải chạy trước

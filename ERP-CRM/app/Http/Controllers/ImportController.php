@@ -50,7 +50,7 @@ class ImportController extends Controller
     {
         $this->authorize('viewAny', Import::class);
 
-        $query = Import::with(['warehouse', 'supplier', 'employee', 'items.product']);
+        $query = Import::with(['warehouse', 'supplier', 'employee', 'items.product', 'purchaseOrder', 'shippingAllocation.purchaseOrder']);
 
         // Filter by warehouse
         if ($request->filled('warehouse_id')) {
@@ -63,6 +63,11 @@ class ImportController extends Controller
 
         if ($request->filled('employee_id')) {
             $query->where('employee_id', $request->employee_id);
+        }
+
+        if ($request->filled('purchase_order_id')) {
+            $query->where('reference_type', 'purchase_order')
+                  ->where('reference_id', $request->purchase_order_id);
         }
 
         // Filter by status
@@ -78,9 +83,18 @@ class ImportController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        // Search by code
+        // Search by code or PO code
         if ($request->filled('search')) {
-            $query->where('code', 'like', "%{$request->search}%");
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhereHas('purchaseOrder', function($sq) use ($search) {
+                      $sq->where('code', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('shippingAllocation.purchaseOrder', function($sq) use ($search) {
+                      $sq->where('code', 'like', "%{$search}%");
+                  });
+            });
         }
 
         $imports = $query->orderBy('date', 'desc')
@@ -104,6 +118,7 @@ class ImportController extends Controller
         $warehouses = Warehouse::active()->get();
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
+        $purchaseOrders = \App\Models\PurchaseOrder::with('supplier')->orderBy('id', 'desc')->get();
         $code = Import::generateCode();
         
         // Get approved or completed shipping allocations for selection
@@ -112,7 +127,7 @@ class ImportController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('imports.create', compact('warehouses', 'employees', 'suppliers', 'code', 'shippingAllocations'));
+        return view('imports.create', compact('warehouses', 'employees', 'suppliers', 'code', 'shippingAllocations', 'purchaseOrders'));
     }
 
     /**
@@ -129,6 +144,12 @@ class ImportController extends Controller
             // Determine main warehouse_id if all items share the same one
             $warehouseIds = collect($data['items'])->pluck('warehouse_id')->filter()->unique();
             $data['warehouse_id'] = $warehouseIds->count() === 1 ? $warehouseIds->first() : null;
+
+            // Handle optional PO link
+            if (!empty($data['purchase_order_id'])) {
+                $data['reference_type'] = 'purchase_order';
+                $data['reference_id'] = (int) $data['purchase_order_id'];
+            }
 
             // Calculate service costs
             $data['shipping_cost'] = $data['shipping_cost'] ?? 0;
@@ -210,10 +231,11 @@ class ImportController extends Controller
             }
         }
 
-        $import->load(['items.product', 'items.warehouse']);
+        $import->load(['items.product', 'items.warehouse', 'purchaseOrder']);
         $warehouses = Warehouse::active()->get();
         $employees = User::whereNotNull('employee_code')->get();
         $suppliers = \App\Models\Supplier::orderBy('name')->get();
+        $purchaseOrders = \App\Models\PurchaseOrder::with('supplier')->orderBy('id', 'desc')->get();
 
         // Prepare existing items data for JavaScript (include product info for display)
         $existingItems = $import->items->map(function ($item) {
@@ -241,7 +263,7 @@ class ImportController extends Controller
             ];
         })->toArray();
 
-        return view('imports.edit', compact('import', 'warehouses', 'employees', 'suppliers', 'existingItems'));
+        return view('imports.edit', compact('import', 'warehouses', 'employees', 'suppliers', 'existingItems', 'purchaseOrders'));
     }
 
     /**
@@ -264,6 +286,21 @@ class ImportController extends Controller
             $warehouseIds = collect($data['items'])->pluck('warehouse_id')->filter()->unique();
             $mainWarehouseId = $warehouseIds->count() === 1 ? $warehouseIds->first() : null;
 
+            // Handle optional PO link
+            $refType = $import->reference_type;
+            $refId = $import->reference_id;
+            if (array_key_exists('purchase_order_id', $data)) {
+                if (!empty($data['purchase_order_id'])) {
+                    $refType = 'purchase_order';
+                    $refId = (int) $data['purchase_order_id'];
+                } else {
+                    if ($refType === 'purchase_order') {
+                        $refType = null;
+                        $refId = null;
+                    }
+                }
+            }
+
             // Delete old items (ProductItem will only exist if already approved, which shouldn't happen)
             ProductItem::where('import_id', $import->id)->delete();
             $import->items()->delete();
@@ -276,6 +313,8 @@ class ImportController extends Controller
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'date' => $data['date'],
                 'employee_id' => $data['employee_id'] ?? null,
+                'reference_type' => $refType,
+                'reference_id' => $refId,
                 'shipping_cost' => $data['shipping_cost'] ?? 0,
                 'loading_cost' => $data['loading_cost'] ?? 0,
                 'inspection_cost' => $data['inspection_cost'] ?? 0,
@@ -577,7 +616,7 @@ class ImportController extends Controller
     public function print(Import $import)
     {
         $this->authorize('view', $import);
-        $import->load(['warehouse', 'employee', 'items.product']);
+        $import->load(['warehouse', 'employee', 'items.product', 'purchaseOrder', 'shippingAllocation.purchaseOrder']);
         return view('reports.vouchers.phieu-nhap-kho', compact('import'));
     }
 

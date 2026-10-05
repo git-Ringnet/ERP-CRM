@@ -40,7 +40,7 @@
             
             <!-- Nhóm 1: Công cụ & Chỉnh sửa -->
             <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-150">
-                <!-- Duplicate Button (ĐKDA 1) -->
+                <!-- Duplicate Button -->
                 <a href="{{ route('projects.duplicate', $project->id) }}" 
                    class="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
                    title="Nhân bản dữ liệu sang dự án mới để đăng ký hãng khác">
@@ -50,23 +50,21 @@
                 <!-- Edit Button (ĐKDA 2 & 7) -->
                 @php
                     $currentUser = auth()->user();
-                    $isPoOrAdmin = $currentUser->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
+                    $isPoOrAdmin = $currentUser?->hasAnyRole(['admin', 'super_admin', 'pm', 'po']);
                     $isDuplicateDeal = ($project->registration_status === 'duplicate');
                     $isApprovedDeal = ($project->intake_status === 'registered') || in_array($project->registration_status, ['update_status', 'vendor_quoted'], true);
-                    $canEditProject = !$isDuplicateDeal && ($isPoOrAdmin || !$isApprovedDeal) && !in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true);
-                    $canCloseWon = $isPoOrAdmin || $isApprovedDeal;
+                    $canDirectEdit = !$isDuplicateDeal && ($isPoOrAdmin || (in_array($project->registration_status, ['submitted', 'incomplete']) && $project->status !== 'cancelled')) && !in_array($project->registration_status, ['vendor_rejected', 'closed_won', 'closed_lost', 'cancelled', 'expired'], true);
                 @endphp
-                @if($canEditProject)
+                @if($canDirectEdit)
                     <a href="{{ route('projects.edit', $project->id) }}" 
                        class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
                         <i class="fas fa-edit mr-1"></i> Sửa
                     </a>
                 @else
-                    <button type="button" disabled
-                       class="inline-flex items-center px-3 py-1.5 bg-gray-200 text-gray-400 rounded-md font-medium text-xs cursor-not-allowed whitespace-nowrap"
-                       title="{{ $isDuplicateDeal ? 'Dự án trùng lặp - Đã khóa sửa' : ($isApprovedDeal ? 'Dự án đã duyệt - Đã khóa sửa với Sales' : 'Dự án đã đóng hoặc từ chối') }}">
-                        <i class="fas fa-lock mr-1"></i> Sửa
-                    </button>
+                    <span class="inline-flex items-center px-3 py-1.5 bg-gray-200 text-gray-500 rounded-md font-medium text-xs cursor-not-allowed opacity-90 whitespace-nowrap"
+                       title="{{ $isDuplicateDeal ? 'Dự án trùng lặp - Đã khóa sửa' : ($isApprovedDeal ? 'Dự án đã duyệt - Đã khóa sửa với Sales (dùng chức năng Nhân bản nếu muốn điều chỉnh)' : 'Dự án đã đóng hoặc từ chối') }}">
+                        <i class="fas fa-lock mr-1 text-gray-400"></i> Đã khóa sửa
+                    </span>
                 @endif
                 
                 <!-- Vertical Template for Email (ĐKDA 8) -->
@@ -78,7 +76,8 @@
 
                 <!-- 1-Click Excel Export for Vendor -->
                 <a href="{{ route('projects.export-vendor-excel', $project->id) }}" 
-                   class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
+                   class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium text-xs shadow-sm whitespace-nowrap"
+                   title="Xuất file Excel Đăng ký dự án dạng dọc gửi Hãng">
                     <i class="fas fa-file-excel mr-1 text-emerald-600"></i> Xuất Excel gửi Hãng
                 </a>
             </div>
@@ -162,8 +161,13 @@
         </div>
     </div>
 
+    @php
+        $isClosedOrRejected = in_array($project->registration_status, ['rejected', 'duplicate', 'cancelled', 'expired', 'closed_lost', 'closed_won']) 
+            || in_array($project->status, ['cancelled', 'completed']);
+    @endphp
+
     <!-- SLA & Intake Banners -->
-    @if($project->intake_status === 'pending' && (in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])))
+    @if(!$isClosedOrRejected && $project->intake_status === 'pending' && $project->registration_status === 'submitted' && (in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff'])))
         <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-xl p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
@@ -214,6 +218,79 @@
                     </a>
                 </div>
                 @endif
+            </div>
+        </div>
+    @endif
+    @if($project->registration_status === 'duplicate')
+        <div class="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-orange-600 text-white rounded-xl flex items-center justify-center text-xl shadow-md flex-shrink-0">
+                    <i class="fas fa-copy"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-base font-bold text-orange-950 flex items-center gap-2">
+                        <span>THÔNG BÁO DỰ ÁN TRÙNG ĐĂNG KÝ (ĐÃ HỦY)</span>
+                        <span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs font-semibold rounded-full border border-red-200">Đã khóa</span>
+                    </h3>
+                    <p class="text-xs text-orange-800 mt-1">Dự án này đã bị PO/PM Team từ chối tiếp nhận do trùng lặp thông tin với đối tác hoặc Sales khác.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 bg-white p-3.5 rounded-lg border border-orange-200">
+                        <div>
+                            <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">1. Thông tin Sales nội bộ đang làm trùng:</span>
+                            <p class="text-sm font-medium text-gray-900 mt-1 font-mono">
+                                {{ $project->duplicate_sales_info ?: 'Chưa có thông tin cụ thể' }}
+                            </p>
+                            <span class="block text-[11px] text-gray-400 mt-0.5 italic">* Bảo mật: Không công khai nội dung BOM/giá dự án</span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">2. Thông tin Sales Hãng (Vendor Rep) đang làm:</span>
+                            <p class="text-sm font-medium text-gray-900 mt-1 font-mono">
+                                {{ $project->duplicate_vendor_sales_info ?: 'Chưa cập nhật' }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-2">
+                        <form action="{{ route('projects.duplicate', $project->id) }}" method="POST" class="inline">
+                            @csrf
+                            <button type="submit" onclick="return confirm('Xác nhận nhân bản thông tin dự án này sang một dự án mới?')"
+                                class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1">
+                                <i class="fas fa-copy"></i> Tạo dự án mới từ thông tin này (Nhân bản)
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($project->registration_status === 'rejected' || ($project->status === 'cancelled' && $project->registration_status !== 'duplicate'))
+        <div class="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow-md flex-shrink-0">
+                    <i class="fas fa-ban"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-base font-bold text-red-950 flex items-center gap-2">
+                        <span>DỰ ÁN ĐÃ TỪ CHỐI / ĐÃ HỦY (KHÓA CHỈNH SỬA)</span>
+                        <span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs font-semibold rounded-full border border-red-200">Đã khóa</span>
+                    </h3>
+                    <p class="text-xs text-red-800 mt-1">Dự án này đã bị hủy hoặc từ chối và không thể chỉnh sửa trực tiếp.</p>
+                    @if($project->close_reason || $project->close_note || $project->intake_note)
+                        <div class="mt-2 bg-white p-3 rounded-lg border border-red-200 text-xs text-red-700">
+                            <strong>Lý do:</strong> {{ $project->close_reason ?: ($project->close_note ?: $project->intake_note) }}
+                        </div>
+                    @endif
+                    <div class="mt-3">
+                        <form action="{{ route('projects.duplicate', $project->id) }}" method="POST" class="inline">
+                            @csrf
+                            <button type="submit" onclick="return confirm('Xác nhận nhân bản thông tin dự án này sang một dự án mới?')"
+                                class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-semibold text-xs shadow-sm gap-1">
+                                <i class="fas fa-copy"></i> Tạo dự án mới (Nhân bản)
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     @endif
@@ -1815,9 +1892,21 @@
                     </div>
                     
                     <!-- Duplicate info -->
-                    <div id="duplicate_info_container" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700">Thông tin dự án trùng lặp đã có trước <span class="text-red-500">*</span></label>
-                        <textarea name="duplicate_sales_info" id="duplicate_sales_info" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nhập thông tin Sales hoặc mã dự án cũ đã đăng ký trước..."></textarea>
+                    <div id="duplicate_info_container" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                1. Thông tin Sales nội bộ đang làm trùng <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-[11px] text-gray-500 mb-1">Cung cấp tên / contact Sales nội bộ đang phụ trách (Lưu ý: Không công khai nội dung BOM/giá dự án khác).</p>
+                            <textarea name="duplicate_sales_info" id="duplicate_sales_info" rows="2" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="VD: Sales Nguyễn Văn A (Phòng BU1)..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                2. Thông tin Sales Hãng (Vendor Rep) đang làm
+                            </label>
+                            <p class="text-[11px] text-gray-500 mb-1">Cung cấp thông tin AM / Sales Hãng đang làm việc cho dự án này.</p>
+                            <textarea name="duplicate_vendor_sales_info" id="duplicate_vendor_sales_info" rows="2" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="VD: Hãng Fortinet - Sales Rep: Trần B (tran.b@fortinet.com)..."></textarea>
+                        </div>
                     </div>
                     
                     <p class="text-sm text-gray-500" id="intake_confirm_text">Bạn có chắc chắn muốn cập nhật quyết định tiếp nhận này?</p>
@@ -1831,7 +1920,113 @@
     </div>
 </div>
 
+<!-- 6. Vertical Export Modal (Dạng dọc Key-Value gửi Hãng) -->
+<div id="verticalExportModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal('verticalExportModal')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-align-left text-cyan-600"></i> Form Đăng Ký Dự Án Dạng Dọc (Gửi Mail Hãng)
+                </h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeModal('verticalExportModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="mt-4">
+                <p class="text-xs text-gray-500 mb-2">Dưới đây là thông tin dự án được chuẩn hóa dạng cột dọc Key: Value kèm BOM để bạn sao chép nhanh vào email gửi Hãng / Distributor:</p>
+                <div class="relative">
+                    <textarea id="vertical_export_textarea" rows="16" readonly
+                        class="w-full font-mono text-xs p-3.5 bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-cyan-500 focus:outline-none select-all leading-relaxed">=== THÔNG TIN ĐĂNG KÝ DỰ ÁN (PROJECT REGISTRATION) ===
+Mã dự án: {{ $project->code }}
+Tên dự án (VN): {{ $project->name }}
+Tên dự án (EN): {{ $project->name_en ?: $project->name }}
+Hãng sản xuất (Vendor): {{ $project->vendor?->name ?? 'Fortinet' }}
+Distributor: Tech Horizon Corporation
+Distributor AM: {{ $project->distributor_am }}
+
+--- KHÁCH HÀNG CUỐI (END-USER) ---
+Tên khách hàng (VN): {{ $project->eu_name_vi }}
+Tên khách hàng (EN): {{ $project->eu_name_en ?: $project->eu_name_vi }}
+Mã số thuế / Website: {{ $project->eu_tax_code }}
+Địa chỉ triển khai: {{ $project->address }}
+Tỉnh / Thành phố: {{ $project->eu_province ?: 'N/A' }}
+Ngành nghề (Industry): {{ $project->eu_industry_label ?: ($project->eu_industry ?: 'N/A') }}
+
+--- ĐƠN VỊ HỢP TÁC (COLLABORATION) ---
+Hình thức: {{ $project->collaborate_type === 'partner' ? 'Qua đối tác (Partner)' : 'Trực tiếp với End-User' }}
+@if($project->collaborate_type === 'partner')
+Tên đại lý / đối tác: {{ $project->collaborate_company ?: ($project->collaborateCustomer?->name ?: 'N/A') }}
+MST đối tác: {{ $project->collaborate_tax_code ?: 'N/A' }}
+Người liên hệ (PIC): {{ $project->collaborate_pic_name ?: 'N/A' }}
+Chức vụ PIC: {{ $project->collaborate_pic_title ?: 'N/A' }}
+SĐT PIC: {{ $project->collaborate_pic_phone ?: 'N/A' }}
+Email PIC: {{ $project->collaborate_pic_email ?: 'N/A' }}
+@endif
+
+--- THÔNG TIN THƯƠNG MẠI & DEAL ---
+Ngày chốt dự kiến (Close Date): {{ $project->end_date ? $project->end_date->format('d/m/Y') : 'N/A' }}
+@if($project->deal_type)
+Loại Deal: {{ $project->deal_type === 'new_buy' ? 'New Buy (Mua mới)' : 'Trade Up (Nâng cấp)' }}
+@endif
+@if($project->sn_numbers)
+S/N Thiết bị cũ (Trade Up): {{ $project->sn_numbers }}
+@endif
+@if($project->net_to_tech_horizon)
+Net to Tech Horizon / FTN: {{ number_format($project->net_to_tech_horizon) }} VNĐ
+@endif
+@if($project->budget)
+Dự toán / Budget: {{ number_format($project->budget) }} VNĐ
+@endif
+@if($project->special_request_type)
+Yêu cầu thêm: {{ $project->special_request_type === 'bom_project' ? 'BOM dự án (Nhờ Hãng tạo BOM)' : 'Cần giá gấp' }} - {{ $project->special_request_note }}
+@endif
+Phụ trách kinh doanh (Sales Rep): {{ $project->manager?->name ?? 'N/A' }} ({{ $project->manager?->email ?? '' }})
+Ghi chú dự án: {{ $project->note ?: 'Không có' }}
+
+=== DANH MỤC VẬT TƯ (BOM - BILL OF MATERIALS) ===
+@if($project->bom_data)
+{{ $project->bom_data }}
+@else
+(Đính kèm theo file: {{ is_array($project->bom_file) ? implode(', ', array_map('basename', $project->bom_file)) : ($project->bom_file ? basename($project->bom_file) : 'Chưa có file') }})
+@endif</textarea>
+                </div>
+            </div>
+
+            <div class="mt-5 sm:mt-6 flex justify-between items-center gap-3">
+                <span id="vertical_copy_status" class="text-xs text-emerald-600 font-bold hidden">
+                    <i class="fas fa-check-circle mr-1"></i> Đã sao chép nội dung vào bộ nhớ tạm!
+                </span>
+                <div class="flex gap-2 ml-auto">
+                    <button type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50" onclick="closeModal('verticalExportModal')">Đóng</button>
+                    <button type="button" onclick="copyVerticalContent()" class="inline-flex items-center justify-center rounded-lg border border-transparent bg-cyan-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cyan-700 gap-1.5">
+                        <i class="fas fa-copy"></i> Sao chép toàn bộ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    function copyVerticalContent() {
+        const textarea = document.getElementById('vertical_export_textarea');
+        if (!textarea) return;
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            const statusEl = document.getElementById('vertical_copy_status');
+            if (statusEl) {
+                statusEl.classList.remove('hidden');
+                setTimeout(() => {
+                    statusEl.classList.add('hidden');
+                }, 3000);
+            }
+        });
+    }
+
     function openModal(id) {
         const modal = document.getElementById(id);
         if (modal) {

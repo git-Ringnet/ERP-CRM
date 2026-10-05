@@ -64,4 +64,26 @@ class ProductPolicy extends BasePolicy
     {
         return $this->checkPermission($user, 'delete_products');
     }
+
+    /**
+     * Determine whether the user can delete multiple products.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function deleteAny(User $user): bool
+    {
+        return $this->checkPermission($user, 'delete_products');
+    }
+
+    /**
+     * Determine whether the user can import products from Excel.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function import(User $user): bool
+    {
+        return $this->checkPermission($user, 'import_products');
+    }
 }

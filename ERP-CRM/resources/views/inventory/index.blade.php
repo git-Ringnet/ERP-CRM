@@ -21,7 +21,6 @@
                                 class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             <input type="hidden" name="tab" value="{{ $activeTab }}">
-                            <input type="hidden" name="warehouse_id" value="{{ request('warehouse_id') }}">
                             <input type="hidden" name="vendor_id" value="{{ request('vendor_id') }}">
                             <input type="hidden" name="po_code" value="{{ request('po_code') }}">
                             <input type="hidden" name="sales_id" value="{{ request('sales_id') }}">
@@ -175,7 +174,7 @@
                                     <i class="fas fa-question-circle text-gray-400 hover:text-primary text-xs"></i>
                                 </span>
                             </th>
-                            @if(!in_array($activeTab, ['project', 'license']))
+                            @if($activeTab === 'runrate')
                                 <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người giữ thiết bị</th>
                             @endif
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
@@ -202,8 +201,7 @@
                         @php
                             $lastVendorKey = null;
                             $lastProjectStockGroupKey = null;
-                            $hasHoldCol = !in_array($activeTab, ['project', 'license']);
-                            $columnCount = 9 + ($hasHoldCol ? 1 : 0) + ($activeTab === 'runrate' ? 1 : 0) + $cols->count();
+                            $columnCount = 9 + ($activeTab === 'runrate' ? 2 : 0) + $cols->count();
                         @endphp
                         @forelse($items as $item)
                             @php
@@ -245,14 +243,14 @@
                                     <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
                                         @php
-                                            $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
-                                            $isNoSku = false;
-                                            foreach ($serialsList as $s) {
-                                                if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
-                                                    $isNoSku = true;
-                                                    break;
-                                                }
-                                            }
+                                             $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
+                                             $isNoSku = false;
+                                             foreach ($serialsList as $s) {
+                                                 if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
+                                                     $isNoSku = true;
+                                                     break;
+                                                 }
+                                             }
                                         @endphp
                                         @if(!$isNoSku && count($serialsList) > 0)
                                             <div class="flex flex-wrap gap-1 items-center">
@@ -310,7 +308,7 @@
                                 <td class="px-3 py-2 text-gray-700">
                                     {{ $item->project_name ?: '-' }}
                                 </td>
-                                @if(!in_array($activeTab, ['project', 'license']))
+                                @if($activeTab === 'runrate')
                                     <td class="px-3 py-1.5">
                                         @if($item->borrower_display)
                                             <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
@@ -324,9 +322,23 @@
                                 </td>
                                 @if($activeTab === 'runrate')
                                     <td class="px-3 py-2 text-center whitespace-nowrap">
-                                        <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu giữ sản phẩm này">
-                                            <i class="fas fa-people-arrows mr-1"></i> Giữ hàng
-                                        </a>
+                                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                            <a href="{{ route('tickets.create', ['product_id' => $item->product_id]) }}" class="inline-flex items-center px-2 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded text-xs font-bold transition-all border border-teal-200" title="Yêu cầu giữ sản phẩm này">
+                                                <i class="fas fa-people-arrows mr-1"></i> Giữ hàng
+                                            </a>
+                                            @php
+                                                $currentUserName = auth()->user()?->name;
+                                                $myHeldQty = 0;
+                                                if ($currentUserName && isset($item->borrower_allocations_map[$currentUserName])) {
+                                                    $myHeldQty = (int)$item->borrower_allocations_map[$currentUserName];
+                                                }
+                                            @endphp
+                                            @if($myHeldQty > 0)
+                                                <a href="{{ route('sales.create', ['from_stock_product_id' => $item->product_id, 'from_stock_qty' => $myHeldQty]) }}" class="inline-flex items-center px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all shadow-xs" title="Tạo đơn hàng bán từ {{ $myHeldQty }} sản phẩm bạn đang giữ">
+                                                    <i class="fas fa-file-invoice-dollar mr-1"></i> Tạo đơn bán ({{ $myHeldQty }})
+                                                </a>
+                                            @endif
+                                        </div>
                                     </td>
                                 @endif
                                 
@@ -347,7 +359,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 9 + count($cols) }}" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="{{ $columnCount }}" class="px-4 py-8 text-center text-gray-500">
                                     <i class="fas fa-boxes text-4xl mb-2"></i>
                                     <p>Không có dữ liệu thiết bị nào</p>
                                 </td>
@@ -364,7 +376,7 @@
                 </div>
             @endif
 
-        <!-- Tab 3: R & NFR Model -->
+        <!-- Tab 4: R & NFR Model (Hàng bảo hành) -->
         @elseif($activeTab === 'rmodel')
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -375,7 +387,7 @@
                             <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase w-16">Số lượng</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[120px]">Kho</th>
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người đặt hàng</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[150px]">Người giữ thiết bị</th>
+
                             <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase min-w-[200px]">Ghi chú hệ thống</th>
                             
                             <!-- Custom columns headers -->
@@ -404,14 +416,14 @@
                                     <div class="text-xs text-gray-500 flex flex-col gap-y-1 mt-1">
                                         <span>Mã: {{ $item->product->code }}</span>
                                         @php
-                                            $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
-                                            $isNoSku = false;
-                                            foreach ($serialsList as $s) {
-                                                if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
-                                                    $isNoSku = true;
-                                                    break;
-                                                }
-                                            }
+                                             $serialsList = array_filter(array_map('trim', explode(',', $item->sku)));
+                                             $isNoSku = false;
+                                             foreach ($serialsList as $s) {
+                                                 if (str_starts_with($s, \App\Models\ProductItem::NO_SKU_PREFIX) || str_starts_with($s, \App\Models\ProductItem::OLD_NO_SKU_PREFIX)) {
+                                                     $isNoSku = true;
+                                                     break;
+                                                 }
+                                             }
                                         @endphp
                                         @if(!$isNoSku && count($serialsList) > 0)
                                             <div class="flex flex-wrap gap-1 items-center">
@@ -461,13 +473,6 @@
                                     {{ $item->r_model_orderer_info ?: '-' }}
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    @if($item->borrower_display)
-                                        <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded"><i class="fas fa-user-clock text-amber-600"></i>{{ $item->borrower_display }}</span>
-                                    @else
-                                        <span class="text-sm text-gray-400">Chưa phân bổ</span>
-                                    @endif
-                                </td>
-                                <td class="px-3 py-1.5">
                                     <span class="text-sm text-gray-600">{{ $item->comments ?: '-' }}</span>
                                 </td>
                                 
@@ -488,7 +493,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 7 + count($rmodelColumns) }}" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="{{ 6 + count($rmodelColumns) }}" class="px-4 py-8 text-center text-gray-500">
                                     <i class="fas fa-boxes text-4xl mb-2"></i>
                                     <p>Không có dữ liệu thiết bị nào</p>
                                 </td>

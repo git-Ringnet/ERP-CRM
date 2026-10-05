@@ -64,6 +64,7 @@ class Project extends Model
         'intake_status',
         'intake_note',
         'duplicate_sales_info',
+        'duplicate_vendor_sales_info',
         'registration_status',
         // Vendor Response SLA
         'vendor_submitted_at',

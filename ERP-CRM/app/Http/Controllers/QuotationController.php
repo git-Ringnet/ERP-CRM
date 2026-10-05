@@ -55,7 +55,32 @@ class QuotationController extends Controller
             $query->search($request->search);
         }
 
-        $quotations = $query->orderBy('created_at', 'desc')->paginate(10);
+        // Apply Excel table column filters & sorting
+        $query = \App\Services\TableColumnFilterService::apply($query, $request, [
+            'code' => 'quotations.code',
+            'status' => 'quotations.status',
+            'total_amount' => 'quotations.total_amount',
+            'customer' => function($q, $op, $val) {
+                if ($op === 'in') {
+                    $q->whereHas('customer', fn($sub) => $sub->whereIn('name', $val));
+                } else {
+                    $q->whereHas('customer', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+                }
+            },
+            'creator' => function($q, $op, $val) {
+                if ($op === 'in') {
+                    $q->whereHas('creator', fn($sub) => $sub->whereIn('name', $val));
+                } else {
+                    $q->whereHas('creator', fn($sub) => $sub->where('name', 'like', "%{$val}%"));
+                }
+            },
+        ]);
+
+        if (!$request->filled('col_sort')) {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $quotations = $query->paginate(10)->withQueryString();
 
         return view('quotations.index', compact('quotations'));
     }
@@ -262,6 +287,8 @@ class QuotationController extends Controller
                         if (empty($productName)) {
                             $productName = $product->name;
                         }
+                    } else {
+                        $productCode = $item['product_code'] ?? (!empty($item['product_id']) && !str_starts_with($item['product_id'], 'p-') && !str_starts_with($item['product_id'], 'c-') ? $item['product_id'] : null);
                     }
                 }
 
@@ -484,6 +511,8 @@ class QuotationController extends Controller
                         if (empty($productName)) {
                             $productName = $product->name;
                         }
+                    } else {
+                        $productCode = $item['product_code'] ?? (!empty($item['product_id']) && !str_starts_with($item['product_id'], 'p-') && !str_starts_with($item['product_id'], 'c-') ? $item['product_id'] : null);
                     }
                 }
 
@@ -929,7 +958,7 @@ class QuotationController extends Controller
             return Product::find($productIdRaw);
         }
 
-        // 4. Manual text entry - Check if exists by name first, then create
+        // 4. Manual text entry - Check if exists by name or code, otherwise return null
         $name = !empty($fallbackName) ? $fallbackName : $productIdRaw;
         
         // Search for existing product by name (exact match)
@@ -940,38 +969,14 @@ class QuotationController extends Controller
 
         // Search for existing product by code (if the manual entry looks like a code)
         if (!empty($productIdRaw) && strlen($productIdRaw) < 50) {
-            $existingByCode = Product::where('code', strtoupper($productIdRaw))->first();
+            $existingByCode = Product::where('code', strtoupper($productIdRaw))->orWhere('code', $productIdRaw)->first();
             if ($existingByCode) {
                 return $existingByCode;
             }
         }
 
-        // Create new product if not found
-        try {
-            $baseSlug = strtoupper(Str::slug($name));
-            $baseSlug = substr($baseSlug, 0, 45);
-            $code = $baseSlug;
-
-            // Ensure unique code
-            $count = 1;
-            while (Product::where('code', $code)->exists()) {
-                $suffix = '-' . $count;
-                $maxBaseLength = 50 - strlen($suffix);
-                $code = substr($baseSlug, 0, $maxBaseLength) . $suffix;
-                $count++;
-            }
-
-            return Product::create([
-                'code' => $code,
-                'name' => $name,
-                'unit' => 'Bộ',
-                'category' => 'Z',
-                'description' => 'Sản phẩm tự động tạo từ báo giá',
-            ]);
-        } catch (\Exception $e) {
-            // If creation fails (e.g. code collision), return null to fallback to transient data
-            return null;
-        }
+        // Return null for custom / free-text items so they don't clutter the Product list
+        return null;
     }
 
     /**

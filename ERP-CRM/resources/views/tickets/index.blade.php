@@ -179,9 +179,16 @@
                                 {{ $ticket->created_at->format('d/m/Y H:i') }}
                             </td>
                             <td class="px-4 py-3 text-center whitespace-nowrap">
-                                <a href="{{ route('tickets.show', $ticket->id) }}" class="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium whitespace-nowrap">
-                                    Chi tiết <i class="fas fa-chevron-right ml-1 text-xs"></i>
-                                </a>
+                                <div class="flex items-center justify-center gap-2">
+                                    <a href="{{ route('tickets.show', $ticket->id) }}" class="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium whitespace-nowrap text-xs">
+                                        Chi tiết <i class="fas fa-chevron-right ml-1 text-xs"></i>
+                                    </a>
+                                    @if($ticket->type === 'borrow' && $ticket->status === 'approved')
+                                        <a href="{{ route('sales.create', ['from_ticket_id' => $ticket->id]) }}" class="inline-flex items-center px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs transition-colors shadow-xs" title="Tạo đơn hàng bán">
+                                            <i class="fas fa-file-invoice-dollar mr-1"></i> Tạo đơn
+                                        </a>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty

@@ -465,19 +465,43 @@ class NotificationService
         $message = "Dự án '{$project->name}' đã được đăng ký bởi {$salesName}. Đã phân luồng cho {$teamLabel} (Hạn tiếp nhận: 4h).";
         $link = route('projects.show', $project->id);
 
-        // Find users in target department or admin users
-        $dept = $project->assigned_team === 'po_team' ? 'PO' : 'PM';
-        $targetUserIds = \App\Models\User::where('status', 'active')
-            ->where(function ($q) use ($dept) {
-                $q->where('department', $dept)
-                  ->orWhere('department', 'PM Team')
-                  ->orWhere('department', 'PO Team')
-                  ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director', 'purchase_manager']));
-            })
-            ->pluck('id')
-            ->toArray();
+        // Find users strictly belonging to the assigned department/team
+        if ($project->assigned_team === 'po_team') {
+            $targetUserIds = \App\Models\User::where('status', 'active')
+                ->where('is_locked', false)
+                ->where(function ($q) {
+                    $q->whereIn('department', ['PO', 'PO Team'])
+                      ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director', 'purchase_manager']));
+                })
+                ->pluck('id')
+                ->toArray();
+        } else {
+            $targetUserIds = \App\Models\User::where('status', 'active')
+                ->where('is_locked', false)
+                ->where(function ($q) {
+                    $q->whereIn('department', ['PM', 'PM Team'])
+                      ->orWhereHas('roles', fn($rq) => $rq->whereIn('slug', ['super_admin', 'admin', 'director']));
+                })
+                ->pluck('id')
+                ->toArray();
+        }
 
-        foreach (array_unique($targetUserIds) as $userId) {
+        // Exclude the project submitter/manager from receiving notification for their own action
+        $excludeIds = array_filter([$project->manager_id, auth()->id()]);
+        $targetUserIds = array_diff(array_unique($targetUserIds), $excludeIds);
+
+        foreach ($targetUserIds as $userId) {
+            $targetUser = \App\Models\User::find($userId);
+            if (!$targetUser) {
+                continue;
+            }
+
+            // Verify permission before creating notification
+            if (!\Illuminate\Support\Facades\Gate::forUser($targetUser)->allows('processIntake', $project) &&
+                !\Illuminate\Support\Facades\Gate::forUser($targetUser)->allows('view', $project)) {
+                continue;
+            }
+
             $this->createNotification(
                 $userId,
                 'project_submitted',

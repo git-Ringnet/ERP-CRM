@@ -195,7 +195,7 @@ class ProductItem extends Model
      */
     public function getPurchaseOrderCodeAttribute(): ?string
     {
-        return $this->purchase_order ? $this->purchase_order->code : null;
+        return $this->purchase_order?->code ?: ($this->import?->po_code ?: null);
     }
 
     /**
@@ -328,6 +328,7 @@ class ProductItem extends Model
         }
         return $this->order_creator_name ?: 'N/A';
     }
+
 
     /**
      * Get unified trace info (PO, supplier, SO, sales, project, comments)

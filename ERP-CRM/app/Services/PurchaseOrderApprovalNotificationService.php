@@ -26,12 +26,17 @@ class PurchaseOrderApprovalNotificationService
                 ->get(['id']);
 
             foreach ($approvers as $approver) {
+                // Verify user can actually approve this purchase order
+                if (!\Illuminate\Support\Facades\Gate::forUser($approver)->allows('approve', $purchaseOrder)) {
+                    continue;
+                }
+
                 Notification::create([
                     'user_id' => $approver->id,
                     'type' => 'purchase_order_approval',
                     'title' => 'Có PO chờ duyệt',
                     'message' => "PO {$purchaseOrder->code} vừa được gửi duyệt. Vui lòng kiểm tra và duyệt hoặc từ chối.",
-                    'link' => route('purchase-orders.index', ['status' => 'pending_approval']),
+                    'link' => route('purchase-orders.show', $purchaseOrder),
                     'icon' => 'fas fa-file-signature',
                     'color' => 'orange',
                     'data' => [

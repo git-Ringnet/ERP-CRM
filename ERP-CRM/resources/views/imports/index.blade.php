@@ -144,6 +144,7 @@
                     <tr>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-32">Mã phiếu</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Mã PO</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Nhà cung cấp</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Kho nhập</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ngày nhập</th>
@@ -165,10 +166,27 @@
                                     {{ $import->code }}
                                 </a>
                             </td>
+                            <td class="px-4 py-3 text-sm">
+                                @if($import->reference_type === 'purchase_order' && $import->purchaseOrder)
+                                    <a href="{{ route('purchase-orders.show', $import->purchaseOrder) }}"
+                                        class="text-blue-600 hover:underline font-medium" @click.stop>
+                                        {{ $import->purchaseOrder->code }}
+                                    </a>
+                                @elseif($import->shippingAllocation?->purchaseOrder)
+                                    <a href="{{ route('purchase-orders.show', $import->shippingAllocation->purchaseOrder) }}"
+                                        class="text-blue-600 hover:underline font-medium" @click.stop>
+                                        {{ $import->shippingAllocation->purchaseOrder->code }}
+                                    </a>
+                                @elseif(!empty($import->po_code))
+                                    <span class="font-medium text-gray-800">{{ $import->po_code }}</span>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-sm text-gray-600">
                                 @if($import->supplier)
                                     <a href="{{ route('suppliers.show', $import->supplier) }}"
-                                        class="text-blue-600 hover:underline">
+                                        class="text-blue-600 hover:underline" @click.stop>
                                         {{ $import->supplier->name }}
                                     </a>
                                 @else
@@ -236,7 +254,7 @@
                         </tr>
                         <!-- Details Row (Hidden by default) -->
                         <tr x-show="expanded === {{ $import->id }}" x-cloak class="bg-gray-50">
-                            <td colspan="9" class="px-8 py-4">
+                            <td colspan="10" class="px-8 py-4">
                                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                     <h4 class="font-bold text-sm mb-3 text-gray-700">Chi tiết sản phẩm nhập kho:</h4>
                                     <div class="overflow-x-auto">
@@ -275,7 +293,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                                 <i class="fas fa-inbox text-4xl mb-2"></i>
                                 <p>Chưa có phiếu nhập kho nào.</p>
                             </td>

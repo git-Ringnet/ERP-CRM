@@ -217,6 +217,7 @@ class InventoryController extends Controller
                             $allocations[$label] = ($allocations[$label] ?? 0) + (int) $quantity;
                         }
 
+                        $item->borrower_allocations_map = $allocations;
                         $item->borrower_display = collect($allocations)
                             ->map(fn ($quantity, $label) => "{$label} ({$quantity})")
                             ->implode(', ');

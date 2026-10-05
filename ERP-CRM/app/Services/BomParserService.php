@@ -589,7 +589,7 @@ class BomParserService
     }
 
     /**
-     * Search Product table for a match by PN or Model
+     * Search Product table for a match by PN or Model with high accuracy
      */
     public function findMatchingProduct(?string $pn, ?string $model): ?Product
     {
@@ -600,48 +600,72 @@ class BomParserService
 
         foreach ($queries as $q) {
             if (empty($q)) continue;
+            $cleanQ = strtoupper(trim($q));
 
             // 1. Exact match on code
-            $product = Product::where('code', $q)
-                ->orWhere('code', strtoupper($q))
+            $product = Product::where('code', $cleanQ)
+                ->orWhere('code', $q)
                 ->first();
             if ($product) return $product;
 
             // 2. Exact match on supplier price list SKU
-            $product = Product::whereHas('supplierPriceListItems', function ($sq) use ($q) {
-                $sq->where('sku', $q)->orWhere('sku', strtoupper($q));
+            $product = Product::whereHas('supplierPriceListItems', function ($sq) use ($cleanQ, $q) {
+                $sq->where('sku', $cleanQ)->orWhere('sku', $q);
             })->first();
             if ($product) return $product;
 
             // 3. Exact match on name
-            $product = Product::where('name', $q)->first();
+            $product = Product::where('name', $q)->orWhere('name', $cleanQ)->first();
             if ($product) return $product;
+
+            // 4. Normalized code match (without dashes/spaces, e.g. FG200GBDL95012)
+            $normalizedQ = preg_replace('/[^A-Z0-9]/', '', $cleanQ);
+            if (strlen($normalizedQ) >= 4) {
+                $candidate = Product::whereRaw("REPLACE(REPLACE(UPPER(code), '-', ''), ' ', '') = ?", [$normalizedQ])->first();
+                if ($candidate) return $candidate;
+            }
         }
 
-        // 4. Try matching product where code matches the prefix or query starts with product code
-        // e.g., query "FG-200G-BDL-950-12" starts with product code "FG-200G"
+        // 5. Prefix match or query starts with product code
         foreach ($queries as $q) {
-            if (strlen($q) >= 3) {
+            $cleanQ = strtoupper(trim($q));
+            if (strlen($cleanQ) >= 4) {
                 // Match where query starts with product code (longest code first)
-                $product = Product::whereRaw('? LIKE CONCAT(code, "%")', [$q])
+                $product = Product::whereRaw('? LIKE CONCAT(code, "%")', [$cleanQ])
                     ->orderByRaw('LENGTH(code) DESC')
                     ->first();
                 if ($product) return $product;
 
                 // Match where product code starts with query
-                $product = Product::where('code', 'like', "{$q}%")
+                $product = Product::where('code', 'like', "{$cleanQ}%")
+                    ->orderByRaw('LENGTH(code) ASC')
                     ->first();
                 if ($product) return $product;
             }
         }
 
-        // 5. Fallback: partial match on code or name (if length >= 5)
+        // 6. Word-boundary / Substring search with Model token validation
         foreach ($queries as $q) {
-            if (strlen($q) >= 5) {
-                $product = Product::where('code', 'like', "%{$q}%")
-                    ->orWhere('name', 'like', "%{$q}%")
-                    ->first();
-                if ($product) return $product;
+            $cleanQ = strtoupper(trim($q));
+            if (strlen($cleanQ) >= 6) {
+                // Extract model token if present (e.g. "200G", "40F", "100F", "5760-51")
+                if (preg_match('/\b([0-9]+[A-Z]+|[A-Z]+[0-9]+)\b/', $cleanQ, $modelMatch)) {
+                    $modelToken = $modelMatch[1];
+                    $product = Product::where('code', 'like', "%{$cleanQ}%")
+                        ->orWhere(function ($sq) use ($cleanQ, $modelToken) {
+                            $sq->where('code', 'like', "%{$modelToken}%")
+                               ->where('name', 'like', "%{$modelToken}%");
+                        })
+                        ->orderByRaw("CASE WHEN code LIKE '{$cleanQ}%' THEN 1 WHEN code LIKE '%{$cleanQ}%' THEN 2 ELSE 3 END")
+                        ->orderByRaw('LENGTH(code) ASC')
+                        ->first();
+                    if ($product) return $product;
+                } else {
+                    $product = Product::where('code', 'like', "%{$cleanQ}%")
+                        ->orderByRaw('LENGTH(code) ASC')
+                        ->first();
+                    if ($product) return $product;
+                }
             }
         }
 

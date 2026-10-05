@@ -1610,11 +1610,12 @@ function addProductRow(productData = null) {
     const newRow = document.createElement('div');
     newRow.className = `product-item ${productIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} p-4 border-b last:border-b-0 border-gray-100`;
 
-    const pid = productData ? (productData.id || '') : '';
-    const pcode = productData ? (productData.code || '') : '';
-    const pname = productData ? (productData.name || '') : '';
-    const punit = productData ? (productData.unit || 'Cái') : 'Cái';
+    const pid = productData ? (productData.id || productData.product_id || '') : '';
+    const pcode = productData ? (productData.code || productData.new_code || '') : '';
+    const pname = productData ? (productData.name || productData.new_name || '') : '';
+    const punit = productData ? (productData.unit || productData.new_unit || 'Cái') : 'Cái';
     const pprice = productData ? (productData.price ? formatMoney(productData.price) : '') : '';
+    const pqty = productData ? (productData.quantity || 1) : 1;
     const pwarranty = productData ? (productData.warranty_months || 12) : '';
     const isFromStock = productData ? (productData.is_from_stock ? 1 : 0) : 0;
     const displayText = productData ? ((pcode ? '[' + pcode + '] ' : '') + pname) : '';
@@ -1644,7 +1645,7 @@ function addProductRow(productData = null) {
             </div>
             <div class="md:col-span-1">
                 <label class="block md:hidden text-sm font-medium text-gray-700 mb-1">Số lượng</label>
-                <input type="number" name="products[${productIndex}][quantity]" min="1" value="1" required
+                <input type="number" name="products[${productIndex}][quantity]" min="1" value="${pqty}" required
                        onchange="calculateRowTotal(${productIndex})"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary quantity-input">
             </div>
@@ -3376,7 +3377,21 @@ function searchCreateAvailableStock(query) {
 
 function selectStockItemForCreate(item) {
     item.is_from_stock = 1;
+    // Remove the initial empty row if not filled yet
+    const rows = document.querySelectorAll('#productList .product-item');
+    if (rows.length === 1) {
+        const pid = rows[0].querySelector('.product-id-input')?.value;
+        const pname = rows[0].querySelector('.new-name-input')?.value;
+        const pcode = rows[0].querySelector('.new-code-input')?.value;
+        const sInput = rows[0].querySelector('.searchable-input')?.value;
+        if (!pid && !pname && !pcode && !sInput) {
+            rows[0].remove();
+        }
+    }
     addProductRow(item);
+    if (typeof calculateTotal === 'function') {
+        calculateTotal();
+    }
     closeCreateStockPickerModal();
 }
 
@@ -3744,6 +3759,35 @@ $(document).ready(function() {
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Chọn Hàng Sẵn Kho / Hàng Đang Giữ khi Tạo Đơn hàng -->
+<div id="createStockPickerModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-emerald-50">
+            <h3 class="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                <i class="fas fa-boxes-stacked text-emerald-600"></i> Chọn hàng có sẵn trong kho / Hàng bạn đang giữ
+            </h3>
+            <button type="button" onclick="closeCreateStockPickerModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <div class="relative">
+                <input type="text" id="createStockSearchInput" onkeyup="searchCreateAvailableStock(this.value)" placeholder="Tìm kiếm theo tên sản phẩm, mã part..."
+                       class="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+            </div>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 max-h-96" id="createStockPickerList">
+            <div class="text-center py-6 text-gray-400 text-xs">Đang tải danh sách hàng bạn đang giữ...</div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+            <button type="button" onclick="closeCreateStockPickerModal()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-100 cursor-pointer">
+                Đóng
+            </button>
         </div>
     </div>
 </div>
