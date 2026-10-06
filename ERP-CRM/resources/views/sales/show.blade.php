@@ -30,16 +30,38 @@
                       title="Đơn hàng đã hủy, không thể chỉnh sửa.">
                     <i class="fas fa-ban mr-2 text-red-400"></i> Đã hủy
                 </span>
-            @elseif(!$sale->hasPayment())
-                <a href="{{ route('sales.edit', $sale->id) }}" 
-                   class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
-                    <i class="fas fa-edit mr-2"></i> Sửa
-                </a>
-            @else
+            @elseif($sale->hasPayment())
                 <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed" 
                       title="Đơn hàng đã phát sinh thanh toán, đã khóa chỉnh sửa thông tin và BOM.">
                     <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đã thanh toán)
                 </span>
+            @elseif($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale))
+                <span class="inline-flex items-center px-3.5 py-2 bg-gray-100 text-gray-400 text-sm font-semibold rounded-lg border border-gray-200 cursor-not-allowed" 
+                      title="Đơn hàng đã duyệt P&L, tài khoản không có quyền chỉnh sửa.">
+                    <i class="fas fa-lock mr-2 text-gray-400"></i> Đã khóa (Đã duyệt P&L)
+                </span>
+            @elseif(auth()->user()->can('update', $sale))
+                <a href="{{ route('sales.edit', $sale->id) }}" 
+                   class="inline-flex items-center px-3.5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-xs">
+                    <i class="fas fa-edit mr-2"></i> Sửa
+                </a>
+            @endif
+
+            @php
+                $canDeleteSale = auth()->user()->can('delete', $sale) 
+                    && !$sale->hasPayment() 
+                    && !$sale->exports()->where('status', 'completed')->exists()
+                    && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+            @endphp
+            @if($canDeleteSale)
+            <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa đơn hàng {{ $sale->code }}? Hành động này không thể hoàn tác!')">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="inline-flex items-center px-3.5 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors shadow-xs">
+                    <i class="fas fa-trash mr-2"></i> Xóa
+                </button>
+            </form>
             @endif
 
             @if($sale->status !== 'cancelled')

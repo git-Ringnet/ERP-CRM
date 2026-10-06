@@ -842,6 +842,11 @@ class SaleController extends Controller
                 ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
         }
 
+        if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền chỉnh sửa.');
+        }
+
         $this->authorize('update', $sale);
 
         $sale->load([
@@ -878,6 +883,11 @@ class SaleController extends Controller
         if ($sale->hasPayment()) {
             return redirect()->route('sales.show', $sale)
                 ->with('error', 'Đơn hàng đã có phát sinh thanh toán, không được phép chỉnh sửa thông tin đơn hàng và BOM.');
+        }
+
+        if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
+            return redirect()->route('sales.show', $sale)
+                ->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền chỉnh sửa.');
         }
 
         $this->authorize('update', $sale);
@@ -1411,10 +1421,25 @@ class SaleController extends Controller
      */
     public function destroy(Sale $sale)
     {
+        if ($sale->pl_status === 'approved' && !auth()->user()->can('deleteApprovedPnl', $sale)) {
+            return back()->with('error', 'Đơn hàng đã duyệt P&L, tài khoản không có quyền xóa.');
+        }
+
         $this->authorize('delete', $sale);
 
-        // Chặn xóa nếu đơn hàng đã được duyệt hoặc ở các trạng thái sau đó
-        if ($sale->status !== 'pending') {
+        // Chặn xóa nếu đơn hàng đã phát sinh thanh toán
+        if ($sale->hasPayment()) {
+            return back()->with('error', 'Không thể xóa đơn hàng đã phát sinh thanh toán.');
+        }
+
+        // Chặn xóa nếu đơn hàng đã hoàn tất xuất kho
+        if ($sale->exports()->where('status', 'completed')->exists()) {
+            return back()->with('error', 'Không thể xóa đơn hàng đã hoàn tất xuất kho.');
+        }
+
+        // Chặn xóa nếu đơn hàng đã duyệt hoặc ở các trạng thái sau đó (trừ khi có quyền xóa đơn đã duyệt P&L)
+        $canDeleteApprovedPnl = $sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale);
+        if ($sale->status !== 'pending' && !$canDeleteApprovedPnl) {
             return back()->with('error', 'Không thể xóa đơn hàng đã duyệt hoặc đang trong quá trình thực hiện.');
         }
 
@@ -1950,8 +1975,8 @@ class SaleController extends Controller
 
         $this->authorize('update', $sale);
 
-        if ($sale->pl_status === 'approved' && !auth()->user()->hasAnyRole(['super_admin', 'sales_manager'])) {
-            return back()->with('error', 'P&L đã được duyệt, không thể chỉnh sửa.');
+        if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
+            return back()->with('error', 'P&L đã được duyệt, bạn không có quyền chỉnh sửa.');
         }
 
         $itemsPayload = $request->input('items', []);
@@ -4960,8 +4985,8 @@ class SaleController extends Controller
      */
     public function syncMilestones(Request $request, Sale $sale)
     {
-        if ($sale->pl_status === 'approved') {
-            return back()->with('error', 'Đơn hàng đã được duyệt P&L, không thể thay đổi điều khoản thanh toán.');
+        if ($sale->pl_status === 'approved' && !auth()->user()->can('editApprovedPnl', $sale)) {
+            return back()->with('error', 'Đơn hàng đã được duyệt P&L, bạn không có quyền thay đổi điều khoản thanh toán.');
         }
 
         $hasPaid = $sale->paymentSchedules()->where('status', 'paid')->exists();

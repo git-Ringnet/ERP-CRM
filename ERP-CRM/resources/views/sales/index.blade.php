@@ -518,14 +518,25 @@
                                         title="Xem chi tiết">
                                         <i class="fas fa-eye"></i><span>Xem</span>
                                     </a>
-                                    @if($sale->status !== 'cancelled' && !$sale->hasPayment())
+                                    @php
+                                        $canEditThis = $sale->status !== 'cancelled' 
+                                            && !$sale->hasPayment() 
+                                            && ($sale->pl_status !== 'approved' || auth()->user()->can('editApprovedPnl', $sale))
+                                            && auth()->user()->can('update', $sale);
+                                    @endphp
+                                    @if($canEditThis)
                                     <a href="{{ route('sales.edit', $sale->id) }}"
                                         class="inline-flex items-center gap-1.5 px-2.5 py-2 text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 hover:text-yellow-700 transition-colors text-xs font-semibold"
                                         title="Sửa">
                                         <i class="fas fa-edit"></i><span>Sửa</span>
                                     </a>
                                     @endif
-                                    @if($sale->status === 'pending')
+                                    @php
+                                        $canDeleteThis = auth()->user()->can('delete', $sale)
+                                            && !$sale->hasPayment()
+                                            && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+                                    @endphp
+                                    @if($canDeleteThis)
                                     <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
@@ -599,13 +610,24 @@
                             class="flex-1 text-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
                             <i class="fas fa-eye mr-1"></i>Xem
                         </a>
-                        @if($sale->status !== 'cancelled' && !$sale->hasPayment())
+                        @php
+                            $canEditThisMobile = $sale->status !== 'cancelled' 
+                                && !$sale->hasPayment() 
+                                && ($sale->pl_status !== 'approved' || auth()->user()->can('editApprovedPnl', $sale))
+                                && auth()->user()->can('update', $sale);
+                        @endphp
+                        @if($canEditThisMobile)
                         <a href="{{ route('sales.edit', $sale->id) }}"
                             class="flex-1 text-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm">
                             <i class="fas fa-edit mr-1"></i>Sửa
                         </a>
                         @endif
-                        @if($sale->status === 'pending')
+                        @php
+                            $canDeleteThisMobile = auth()->user()->can('delete', $sale)
+                                && !$sale->hasPayment()
+                                && ($sale->status === 'pending' || ($sale->pl_status === 'approved' && auth()->user()->can('deleteApprovedPnl', $sale)));
+                        @endphp
+                        @if($canDeleteThisMobile)
                         <form action="{{ route('sales.destroy', $sale) }}" method="POST"
                             class="flex-1">
                             @csrf

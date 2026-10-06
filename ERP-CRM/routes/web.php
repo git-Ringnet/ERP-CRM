@@ -337,6 +337,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/add-note', [ProjectController::class, 'addNote'])->name('projects.add-note');
     Route::post('/projects/{project}/remind-vendor', [ProjectController::class, 'remindVendor'])->name('projects.remind-vendor');
     Route::post('/projects/{project}/submit-vendor-quote', [ProjectController::class, 'submitVendorQuote'])->name('projects.submit-vendor-quote');
+    Route::delete('/projects/{project}/vendor-quotes/{quote}/file', [ProjectController::class, 'deleteVendorQuoteFile'])->name('projects.delete-vendor-quote-file');
+    Route::delete('/projects/{project}/vendor-quotes/{quote}', [ProjectController::class, 'deleteVendorQuoteVersion'])->name('projects.delete-vendor-quote-version');
     Route::post('/projects/{project}/complete-registration', [ProjectController::class, 'completeRegistration'])->name('projects.complete-registration');
     Route::post('/projects/{project}/update-status-monthly', [ProjectController::class, 'updateProjectStatus'])->name('projects.update-status-monthly');
     Route::post('/projects/{project}/close', [ProjectController::class, 'closeProject'])->name('projects.close');

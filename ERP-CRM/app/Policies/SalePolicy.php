@@ -83,6 +83,11 @@ class SalePolicy extends BasePolicy
             return false;
         }
 
+        // Chặn sửa nếu đơn hàng đã duyệt P&L trừ khi có quyền edit_approved_pnl_sales
+        if ($sale->pl_status === 'approved' && !$this->checkPermission($user, 'edit_approved_pnl_sales')) {
+            return false;
+        }
+
         // If pending approval, only allow users with approve_sales permission (BOD/Legal) to edit
         if ($sale->isPendingApproval()) {
             return $this->checkPermission($user, 'approve_sales');
@@ -127,6 +132,30 @@ class SalePolicy extends BasePolicy
     }
 
     /**
+     * Determine whether the user can edit the sale after P&L is approved.
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function editApprovedPnl(User $user, Sale $sale): bool
+    {
+        return $this->checkPermission($user, 'edit_approved_pnl_sales');
+    }
+
+    /**
+     * Determine whether the user can delete the sale after P&L is approved.
+     *
+     * @param User $user
+     * @param Sale $sale
+     * @return bool
+     */
+    public function deleteApprovedPnl(User $user, Sale $sale): bool
+    {
+        return $this->checkPermission($user, 'delete_approved_pnl_sales');
+    }
+
+    /**
      * Determine whether the user can delete the sale.
      *
      * @param User $user
@@ -135,6 +164,11 @@ class SalePolicy extends BasePolicy
      */
     public function delete(User $user, Sale $sale): bool
     {
+        // Chặn xóa nếu đơn hàng đã duyệt P&L trừ khi có quyền delete_approved_pnl_sales
+        if ($sale->pl_status === 'approved' && !$this->checkPermission($user, 'delete_approved_pnl_sales')) {
+            return false;
+        }
+
         return $this->checkPermission($user, 'delete_sales');
     }
 

@@ -20,13 +20,23 @@
             </div>
         @endif
         
-        @php $isLocked = $sale->pl_status === 'approved'; @endphp
+        @php 
+            $canEditApprovedPnl = auth()->user()->can('editApprovedPnl', $sale);
+            $isLocked = $sale->pl_status === 'approved' && !$canEditApprovedPnl; 
+        @endphp
         
         @if($isLocked)
         <div class="p-4 mx-6 mt-6 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
             <i class="fas fa-lock text-yellow-600 mt-1 mr-3"></i>
             <div class="text-sm text-yellow-800">
                 <span class="font-bold">Đơn hàng đã được duyệt P&L:</span> Thông tin sản phẩm, chi phí và khách hàng đã bị khóa để đảm bảo tính nhất quán.
+            </div>
+        </div>
+        @elseif($sale->pl_status === 'approved')
+        <div class="p-4 mx-6 mt-6 bg-amber-50 border border-amber-200 rounded-lg flex items-start">
+            <i class="fas fa-info-circle text-amber-600 mt-1 mr-3"></i>
+            <div class="text-sm text-amber-800">
+                <span class="font-bold">Đơn hàng đã được duyệt P&L:</span> Bạn đang chỉnh sửa đơn hàng đã duyệt P&L theo quyền được cấp trong Ma trận quyền.
             </div>
         </div>
         @endif

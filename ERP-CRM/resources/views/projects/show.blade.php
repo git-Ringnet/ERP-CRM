@@ -118,12 +118,14 @@
             <div class="flex flex-wrap items-center gap-2 bg-purple-50/40 p-1 rounded-lg border border-purple-100/50">
                 <!-- PM / PO Quote & Vendor Actions -->
                 @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']))
-                    @if(in_array($project->registration_status, ['vendor_processing', 'vendor_reminded', 'registered', 'processing']))
+                    @if(in_array($project->registration_status, ['vendor_processing', 'vendor_reminded', 'registered', 'processing', 'vendor_quoted', 'update_status']))
                         <!-- Submit Vendor Quote Modal Button -->
                         <button type="button" onclick="openModal('vendorQuoteModal')"
                             class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
-                            <i class="fas fa-file-invoice-dollar mr-1"></i> Đính kèm Báo giá Hãng
+                            <i class="fas fa-file-invoice-dollar mr-1"></i> {{ $project->vendorQuoteVersions->count() > 0 ? 'Cập nhật Báo giá Hãng' : 'Đính kèm Báo giá Hãng' }}
                         </button>
+                    @endif
+                    @if(in_array($project->registration_status, ['vendor_processing', 'vendor_reminded', 'registered', 'processing']))
                         <!-- Remind Vendor SLA Button -->
                         <button type="button" onclick="openModal('remindVendorModal')"
                             class="inline-flex items-center px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors font-medium text-xs shadow-sm whitespace-nowrap">
@@ -1118,9 +1120,17 @@
             <h3 class="text-base font-semibold text-gray-900 flex items-center">
                 <i class="fas fa-file-invoice-dollar mr-2 text-indigo-500"></i> Lịch sử các phiên bản Báo giá từ Hãng
             </h3>
-            <span class="px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">
-                {{ $project->vendorQuoteVersions->count() }} phiên bản
-            </span>
+            <div class="flex items-center gap-2">
+                <span class="px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">
+                    {{ $project->vendorQuoteVersions->count() }} phiên bản
+                </span>
+                @if(in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']))
+                    <button type="button" onclick="openModal('vendorQuoteModal')"
+                        class="inline-flex items-center px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-xs shadow-xs">
+                        <i class="fas fa-plus mr-1"></i> {{ $project->vendorQuoteVersions->count() > 0 ? 'Cập nhật Báo giá' : 'Đính kèm Báo giá' }}
+                    </button>
+                @endif
+            </div>
         </div>
         <div class="p-6">
             @if($project->vendorQuoteVersions->count() > 0)
@@ -1136,6 +1146,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Lý do cập nhật</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">File báo giá</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ghi chú</th>
+                                <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
@@ -1155,10 +1166,11 @@
                                     <td class="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate" title="{{ $quote->requote_reason }}">{{ $quote->requote_reason ?: '-' }}</td>
                                     <td class="px-4 py-3 text-xs">
                                         @if($quote->quote_file && count($quote->quote_file) > 0)
-                                            <div class="flex flex-col gap-1">
+                                            <div class="flex flex-col gap-1.5">
                                                 @foreach($quote->quote_file as $file)
                                                     @php
                                                         $filename = basename($file);
+                                                        $displayFilename = preg_replace('/^\d+_/', '', $filename);
                                                         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
                                                         $quoteIcon = 'fa-file-alt';
                                                         $quoteColor = 'text-gray-400';
@@ -1168,20 +1180,48 @@
                                                         } elseif ($ext === 'pdf') {
                                                             $quoteIcon = 'fa-file-pdf';
                                                             $quoteColor = 'text-red-500';
+                                                        } elseif (in_array($ext, ['doc', 'docx'])) {
+                                                            $quoteIcon = 'fa-file-word';
+                                                            $quoteColor = 'text-blue-600';
                                                         }
                                                     @endphp
-                                                    <a href="{{ Storage::url($file) }}" target="_blank"
-                                                       class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                                                        <i class="fas {{ $quoteIcon }} {{ $quoteColor }} mr-0.5"></i>
-                                                        <span class="truncate max-w-[120px]">{{ $filename }}</span>
-                                                    </a>
+                                                    <div class="inline-flex items-center justify-between gap-1.5 bg-gray-50 hover:bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                                                        <a href="{{ Storage::url($file) }}" target="_blank"
+                                                           class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline max-w-[150px]">
+                                                            <i class="fas {{ $quoteIcon }} {{ $quoteColor }} mr-0.5"></i>
+                                                            <span class="truncate" title="{{ $displayFilename }}">{{ $displayFilename }}</span>
+                                                        </a>
+                                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
+                                                            <form action="{{ route('projects.delete-vendor-quote-file', [$project->id, $quote->id]) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc muốn xóa file báo giá này: {{ addslashes($displayFilename) }}?');">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <input type="hidden" name="file_path" value="{{ $file }}">
+                                                                <button type="submit" class="text-red-400 hover:text-red-600 p-0.5 transition-colors" title="Xóa file này">
+                                                                    <i class="fas fa-times-circle"></i>
+                                                                </button>
+                                                            </form>
+                                                        @endif
+                                                    </div>
                                                 @endforeach
                                             </div>
+                                        @else
+                                            <span class="text-gray-400 italic">Không có file</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="{{ $quote->quote_note }}">{{ $quote->quote_note ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center text-xs">
+                                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin', 'purchase_manager', 'purchase_staff']) || in_array(auth()->user()->department, ['PM', 'PO', 'PM Team', 'PO Team']) || auth()->id() === $quote->created_by)
+                                            <form action="{{ route('projects.delete-vendor-quote-version', [$project->id, $quote->id]) }}" method="POST" class="inline" onsubmit="return confirm('Bạn có chắc muốn xóa toàn bộ phiên bản báo giá v{{ $quote->version_number }} này không?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 rounded border border-red-200 font-medium transition-colors" title="Xóa toàn bộ phiên bản này">
+                                                    <i class="fas fa-trash-alt"></i> Xóa bản này
+                                                </button>
+                                            </form>
                                         @else
                                             -
                                         @endif
                                     </td>
-                                    <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="{{ $quote->quote_note }}">{{ $quote->quote_note ?: '-' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -1691,7 +1731,9 @@
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
         <div class="inline-block align-bottom bg-white rounded-xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
             <div class="flex justify-between items-center pb-3 border-b">
-                <h3 class="text-lg font-bold text-gray-900">Đính kèm Báo giá Hãng</h3>
+                <h3 class="text-lg font-bold text-gray-900">
+                    {{ $project->vendorQuoteVersions->count() > 0 ? 'Cập nhật Báo giá Hãng (Phiên bản v' . ($project->vendorQuoteVersions->count() + 1) . ')' : 'Đính kèm Báo giá Hãng' }}
+                </h3>
                 <button type="button" class="text-gray-400 hover:text-gray-500" onclick="closeModal('vendorQuoteModal')">
                     <i class="fas fa-times"></i>
                 </button>
@@ -1705,8 +1747,11 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">File báo giá từ Hãng <span class="text-red-500">*</span></label>
-                        <input type="file" name="quote_file[]" multiple required accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                        <p class="text-xs text-gray-400 mt-1">Chọn một hoặc nhiều file báo giá/cấu hình từ Hãng.</p>
+                        <input type="file" name="quote_file[]" id="vendor_quote_file_input" multiple required accept=".xlsx,.xls,.pdf,.doc,.docx,.jpg,.png" 
+                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            onchange="previewVendorQuoteFiles(this)">
+                        <p class="text-xs text-gray-400 mt-1">Đính kèm một hoặc nhiều file báo giá/cấu hình (giữ <kbd class="px-1 py-0.5 bg-gray-100 border rounded text-[10px] font-mono">Ctrl</kbd> hoặc <kbd class="px-1 py-0.5 bg-gray-100 border rounded text-[10px] font-mono">Shift</kbd> khi chọn để chọn nhiều file cùng lúc).</p>
+                        <div id="vendor_quote_preview_list" class="mt-2 space-y-1.5 hidden"></div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Thời hạn hiệu lực báo giá</label>
@@ -2301,6 +2346,28 @@ Ghi chú dự án: {{ $project->note ?: 'Không có' }}
                     }, 2500);
                 }
             });
+        }
+    }
+
+    function previewVendorQuoteFiles(input) {
+        const container = document.getElementById('vendor_quote_preview_list');
+        if (!container) return;
+        container.innerHTML = '';
+        if (input.files && input.files.length > 0) {
+            container.classList.remove('hidden');
+            const title = document.createElement('div');
+            title.className = 'text-xs font-semibold text-gray-700 mb-1';
+            title.innerText = `Đã chọn ${input.files.length} file:`;
+            container.appendChild(title);
+            Array.from(input.files).forEach((file) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between text-xs bg-indigo-50/70 border border-indigo-100 px-2.5 py-1.5 rounded-lg text-indigo-900';
+                const sizeKb = (file.size / 1024).toFixed(1);
+                item.innerHTML = `<span class="truncate max-w-[320px] font-medium"><i class="fas fa-file-alt mr-1.5 text-indigo-500"></i>${file.name}</span><span class="text-gray-500 text-[11px] shrink-0 font-mono">${sizeKb} KB</span>`;
+                container.appendChild(item);
+            });
+        } else {
+            container.classList.add('hidden');
         }
     }
 </script>

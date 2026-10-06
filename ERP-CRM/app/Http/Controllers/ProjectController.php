@@ -954,6 +954,103 @@ class ProjectController extends Controller
     }
 
     /**
+     * Delete a single file from a Vendor Quote version
+     */
+    public function deleteVendorQuoteFile(Request $request, Project $project, ProjectVendorQuote $quote)
+    {
+        $this->authorize('update', $project);
+
+        $request->validate([
+            'file_path' => ['required', 'string'],
+        ]);
+
+        $filePath = $request->input('file_path');
+        $files = $quote->quote_file ?? [];
+
+        if (is_array($files) && in_array($filePath, $files)) {
+            // Remove file from disk
+            if (Storage::disk('public')->exists($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
+
+            // Update quote version files
+            $updatedFiles = array_values(array_filter($files, fn($f) => $f !== $filePath));
+            $quote->update(['quote_file' => $updatedFiles]);
+
+            // Also update project's vendor_quote_file array
+            $projectFiles = $project->vendor_quote_file ?? [];
+            if (is_array($projectFiles)) {
+                $updatedProjectFiles = array_values(array_filter($projectFiles, fn($f) => $f !== $filePath));
+                $project->update(['vendor_quote_file' => $updatedProjectFiles]);
+            }
+
+            app(\App\Services\ActivityLogService::class)->logUpdated(
+                $project,
+                ['vendor_quote_file' => $filePath],
+                ['vendor_quote_file' => 'deleted']
+            );
+
+            return back()->with('success', 'Đã xóa file báo giá đính kèm thành công.');
+        }
+
+        return back()->with('error', 'Không tìm thấy file cần xóa trong phiên bản báo giá này.');
+    }
+
+    /**
+     * Delete an entire Vendor Quote version
+     */
+    public function deleteVendorQuoteVersion(Project $project, ProjectVendorQuote $quote)
+    {
+        $this->authorize('update', $project);
+
+        $versionNumber = $quote->version_number;
+        $files = $quote->quote_file ?? [];
+
+        // Delete all files in this version from disk
+        if (is_array($files)) {
+            foreach ($files as $file) {
+                if (Storage::disk('public')->exists($file)) {
+                    Storage::disk('public')->delete($file);
+                }
+            }
+
+            // Clean from project vendor_quote_file
+            $projectFiles = $project->vendor_quote_file ?? [];
+            if (is_array($projectFiles)) {
+                $updatedProjectFiles = array_values(array_filter($projectFiles, fn($f) => !in_array($f, $files)));
+                $project->update(['vendor_quote_file' => $updatedProjectFiles]);
+            }
+        }
+
+        $quote->delete();
+
+        // Check remaining quote versions
+        $latestQuote = $project->vendorQuoteVersions()->orderBy('version_number', 'desc')->first();
+        if ($latestQuote) {
+            $project->update([
+                'vendor_deal_id' => $latestQuote->vendor_deal_id,
+                'vendor_quote_note' => $latestQuote->quote_note,
+                'vendor_quote_valid_until' => $latestQuote->valid_until,
+            ]);
+        } else {
+            // No quote versions remaining -> revert quote fields
+            $revertData = [
+                'vendor_deal_id' => null,
+                'vendor_quote_file' => [],
+                'vendor_quote_note' => null,
+                'vendor_quote_valid_until' => null,
+            ];
+            // If status is vendor_quoted, revert back to vendor_processing
+            if ($project->registration_status === 'vendor_quoted') {
+                $revertData['registration_status'] = 'vendor_processing';
+            }
+            $project->update($revertData);
+        }
+
+        return back()->with('success', "Đã xóa toàn bộ phiên bản báo giá v{$versionNumber} thành công.");
+    }
+
+    /**
      * Complete Registration Workflow (PM Action -> Transition to Update Status mode)
      */
     public function completeRegistration(Project $project)

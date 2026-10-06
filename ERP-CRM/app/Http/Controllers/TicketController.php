@@ -97,9 +97,11 @@ class TicketController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.selected_serial_ids' => 'nullable|array',
             'items.*.selected_serial_ids.*' => 'exists:product_items,id',
-            // Borrow ticket validation
-            'source' => 'required_if:type,borrow|in:warehouse,sales',
-            'target_user_id' => 'required_if:source,sales|nullable|exists:users,id',
+            'items.*.source' => 'nullable|in:warehouse,sales',
+            'items.*.target_user_id' => 'nullable|exists:users,id',
+            // Borrow ticket validation (fallback for backward compatibility)
+            'source' => 'nullable|in:warehouse,sales',
+            'target_user_id' => 'nullable|exists:users,id',
         ]);
 
         $borrowerUserId = ($canChooseBorrower && $request->filled('borrower_user_id'))
@@ -112,7 +114,14 @@ class TicketController extends Controller
                 return back()->withInput()->with('error', 'Chưa cấu hình Kho runrate, không thể tạo yêu cầu mượn hàng.');
             }
 
-            foreach ($request->items as $item) {
+            foreach ($request->items as $idx => $item) {
+                $itemSource = $item['source'] ?? $request->source ?? 'warehouse';
+                $itemTargetUserId = ($itemSource === 'sales') ? ($item['target_user_id'] ?? $request->target_user_id ?? null) : null;
+
+                if ($itemSource === 'sales' && empty($itemTargetUserId)) {
+                    return back()->withInput()->with('error', "Dòng thứ " . ($idx + 1) . ": Vui lòng chọn nhân viên muốn mượn hàng.");
+                }
+
                 $hasRunrateStock = ProductItem::where('product_id', $item['product_id'])
                     ->where('status', ProductItem::STATUS_IN_STOCK)
                     ->where('warehouse_id', $runrateWarehouseId)
@@ -138,49 +147,31 @@ class TicketController extends Controller
 
         DB::beginTransaction();
         try {
-            $ticket = Ticket::create([
-                'code' => Ticket::generateCode(),
-                'user_id' => $borrowerUserId,
-                'type' => $request->type,
-                'source' => $request->type === 'borrow' ? $request->source : null,
-                'target_user_id' => ($request->type === 'borrow' && $request->source === 'sales') ? $request->target_user_id : null,
-                'status' => 'pending',
-                'note' => $request->note,
-            ]);
-
-            foreach ($request->items as $item) {
-                $allocatedIds = null;
-                if ($request->type === 'borrow' && isset($item['selected_serial_ids'])) {
-                    $allocatedIds = $item['selected_serial_ids'];
-                }
-
-                TicketItem::create([
-                    'ticket_id' => $ticket->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'allocated_item_ids' => $allocatedIds,
-                ]);
-            }
-
-            // --- Notifications ---
             $senderName = auth()->user()->name;
             $borrower = User::find($borrowerUserId);
             $borrowerName = $borrower ? $borrower->name : $senderName;
             $senderDisplay = ($borrowerUserId !== auth()->id()) ? "{$senderName} (tạo hộ cho {$borrowerName})" : $senderName;
 
-            if ($borrowerUserId !== auth()->id()) {
-                Notification::create([
+            if ($request->type === 'preload') {
+                $ticket = Ticket::create([
+                    'code' => Ticket::generateCode(),
                     'user_id' => $borrowerUserId,
-                    'type' => 'ticket_borrow_assigned',
-                    'title' => 'Phiếu mượn hàng được tạo cho bạn',
-                    'message' => "{$senderName} đã tạo phiếu mượn hàng {$ticket->code} đứng tên bạn.",
-                    'link' => route('tickets.show', $ticket->id),
-                    'icon' => 'fas fa-people-arrows',
-                    'color' => 'teal',
+                    'type' => 'preload',
+                    'source' => null,
+                    'target_user_id' => null,
+                    'status' => 'pending',
+                    'note' => $request->note,
                 ]);
-            }
 
-            if ($ticket->type === 'preload') {
+                foreach ($request->items as $item) {
+                    TicketItem::create([
+                        'ticket_id' => $ticket->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'allocated_item_ids' => null,
+                    ]);
+                }
+
                 // Notify Admins and Procurement/PO team
                 $admins = User::whereHas('roles', function ($q) {
                     $q->whereIn('slug', ['super_admin', 'admin', 'purchase_manager']);
@@ -198,40 +189,98 @@ class TicketController extends Controller
                     ]);
                 }
             } else {
-                // Borrow Request
-                if ($ticket->source === 'warehouse') {
-                    // Notify Warehouse Team and Admins
-                    $warehouseUsers = User::whereHas('roles', function ($q) {
-                        $q->whereIn('slug', ['super_admin', 'warehouse_manager', 'warehouse_staff']);
-                    })->get();
+                // Group borrow items by source & target_user_id
+                $grouped = [];
+                foreach ($request->items as $item) {
+                    $itemSource = $item['source'] ?? $request->source ?? 'warehouse';
+                    $itemTargetUserId = ($itemSource === 'sales') ? ($item['target_user_id'] ?? $request->target_user_id ?? null) : null;
+                    $groupKey = $itemSource . '_' . ($itemTargetUserId ?: '0');
 
-                    foreach ($warehouseUsers as $whUser) {
+                    if (!isset($grouped[$groupKey])) {
+                        $grouped[$groupKey] = [
+                            'source' => $itemSource,
+                            'target_user_id' => $itemTargetUserId,
+                            'items' => [],
+                        ];
+                    }
+                    $grouped[$groupKey]['items'][] = $item;
+                }
+
+                $createdTickets = [];
+                foreach ($grouped as $group) {
+                    $ticket = Ticket::create([
+                        'code' => Ticket::generateCode(),
+                        'user_id' => $borrowerUserId,
+                        'type' => 'borrow',
+                        'source' => $group['source'],
+                        'target_user_id' => $group['target_user_id'],
+                        'status' => 'pending',
+                        'note' => $request->note,
+                    ]);
+
+                    foreach ($group['items'] as $item) {
+                        $allocatedIds = !empty($item['selected_serial_ids']) ? $item['selected_serial_ids'] : null;
+                        TicketItem::create([
+                            'ticket_id' => $ticket->id,
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'allocated_item_ids' => $allocatedIds,
+                        ]);
+                    }
+
+                    if ($borrowerUserId !== auth()->id()) {
                         Notification::create([
-                            'user_id' => $whUser->id,
-                            'type' => 'ticket_borrow_warehouse',
-                            'title' => 'Yêu cầu mượn hàng từ kho',
-                            'message' => "{$senderDisplay} đã gửi yêu cầu mượn hàng từ kho {$ticket->code}.",
+                            'user_id' => $borrowerUserId,
+                            'type' => 'ticket_borrow_assigned',
+                            'title' => 'Phiếu mượn hàng được tạo cho bạn',
+                            'message' => "{$senderName} đã tạo phiếu mượn hàng {$ticket->code} đứng tên bạn.",
                             'link' => route('tickets.show', $ticket->id),
-                            'icon' => 'fas fa-boxes',
+                            'icon' => 'fas fa-people-arrows',
                             'color' => 'teal',
                         ]);
                     }
-                } else {
-                    // Notify target salesperson
-                    Notification::create([
-                        'user_id' => $ticket->target_user_id,
-                        'type' => 'ticket_borrow_sales',
-                        'title' => 'Yêu cầu mượn hàng từ bạn',
-                        'message' => "{$senderDisplay} gửi yêu cầu mượn hàng từ đơn của bạn ({$ticket->code}).",
-                        'link' => route('tickets.show', $ticket->id),
-                        'icon' => 'fas fa-people-arrows',
-                        'color' => 'orange',
-                    ]);
+
+                    if ($ticket->source === 'warehouse') {
+                        // Notify Warehouse Team and Admins
+                        $warehouseUsers = User::whereHas('roles', function ($q) {
+                            $q->whereIn('slug', ['super_admin', 'warehouse_manager', 'warehouse_staff']);
+                        })->get();
+
+                        foreach ($warehouseUsers as $whUser) {
+                            Notification::create([
+                                'user_id' => $whUser->id,
+                                'type' => 'ticket_borrow_warehouse',
+                                'title' => 'Yêu cầu mượn hàng từ kho',
+                                'message' => "{$senderDisplay} đã gửi yêu cầu mượn hàng từ kho {$ticket->code}.",
+                                'link' => route('tickets.show', $ticket->id),
+                                'icon' => 'fas fa-boxes',
+                                'color' => 'teal',
+                            ]);
+                        }
+                    } else {
+                        // Notify target salesperson
+                        if ($ticket->target_user_id) {
+                            Notification::create([
+                                'user_id' => $ticket->target_user_id,
+                                'type' => 'ticket_borrow_sales',
+                                'title' => 'Yêu cầu mượn hàng từ bạn',
+                                'message' => "{$senderDisplay} gửi yêu cầu mượn hàng từ đơn của bạn ({$ticket->code}).",
+                                'link' => route('tickets.show', $ticket->id),
+                                'icon' => 'fas fa-people-arrows',
+                                'color' => 'orange',
+                            ]);
+                        }
+                    }
+
+                    $createdTickets[] = $ticket;
                 }
             }
 
             DB::commit();
-            return redirect()->route('tickets.index')->with('success', 'Tạo yêu cầu (Ticket) thành công.');
+            $msg = (!empty($createdTickets) && count($createdTickets) > 1)
+                ? 'Đã tạo thành công ' . count($createdTickets) . ' yêu cầu mượn hàng theo từng nguồn tương ứng.'
+                : 'Tạo yêu cầu (Ticket) thành công.';
+            return redirect()->route('tickets.index')->with('success', $msg);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -571,31 +620,44 @@ class TicketController extends Controller
                 'is_placeholder' => $isPlaceholder
             ];
 
+            // Determine PO code for this item
+            $poCode = $item->purchase_order_code ?: ($item->import?->po_code ?: null);
+            $poLabel = $poCode ? "PO: {$poCode}" : "Chưa gắn PO";
+
             if ($holderName) {
-                $key = $holderUserId ?: $holderName;
+                $key = ($holderUserId ?: $holderName) . '___' . ($poCode ?: 'NONE');
                 if (!isset($salesStock[$key])) {
                     $salesStock[$key] = [
                         'user_id' => $holderUserId,
                         'name' => $holderName,
+                        'po_code' => $poCode,
+                        'po_label' => $poLabel,
                         'qty' => 0,
+                        'item_ids' => [],
                         'items' => []
                     ];
                 }
                 $salesStock[$key]['qty'] += $item->quantity ?: 1;
+                $salesStock[$key]['item_ids'][] = $item->id;
                 $salesStock[$key]['items'][] = $serialInfo;
             } else {
                 $warehouseId = $item->warehouse_id;
                 $warehouseName = $item->warehouse ? $item->warehouse->name : 'Kho chung';
-                if (!isset($warehouseStock[$warehouseId])) {
-                    $warehouseStock[$warehouseId] = [
+                $key = $warehouseId . '___' . ($poCode ?: 'NONE');
+                if (!isset($warehouseStock[$key])) {
+                    $warehouseStock[$key] = [
                         'warehouse_id' => $warehouseId,
                         'name' => $warehouseName,
+                        'po_code' => $poCode,
+                        'po_label' => $poLabel,
                         'qty' => 0,
+                        'item_ids' => [],
                         'items' => []
                     ];
                 }
-                $warehouseStock[$warehouseId]['qty'] += $item->quantity ?: 1;
-                $warehouseStock[$warehouseId]['items'][] = $serialInfo;
+                $warehouseStock[$key]['qty'] += $item->quantity ?: 1;
+                $warehouseStock[$key]['item_ids'][] = $item->id;
+                $warehouseStock[$key]['items'][] = $serialInfo;
             }
         }
 

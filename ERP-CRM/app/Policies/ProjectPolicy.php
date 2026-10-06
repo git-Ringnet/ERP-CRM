@@ -65,11 +65,15 @@ class ProjectPolicy extends BasePolicy
             return false;
         }
 
-        // Admin and PM can update. PO only processes the dedicated intake
-        // decision and cannot alter project information or status.
+        // Admin and PM can update. PO can update Fortinet projects.
         if ($user->hasAnyRole(['super_admin', 'admin']) ||
             in_array($user->department, ['PM', 'PM Team'], true)) {
             return true;
+        }
+
+        if ($user->hasAnyRole(['purchase_manager', 'purchase_staff']) ||
+            in_array($user->department, ['PO', 'PO Team'], true)) {
+            return str_contains(strtolower((string) $project->vendor?->name), 'fortinet');
         }
 
         // Sales owner can update

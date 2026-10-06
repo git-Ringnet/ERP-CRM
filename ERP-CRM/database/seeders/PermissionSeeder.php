@@ -209,6 +209,20 @@ class PermissionSeeder extends Seeder
                 'action' => 'approve',
             ],
             [
+                'name' => 'Sửa đơn hàng đã duyệt P&L',
+                'slug' => 'edit_approved_pnl_sales',
+                'description' => 'Cho phép sửa đơn hàng bán sau khi P&L đã được duyệt',
+                'module' => 'sales',
+                'action' => 'edit',
+            ],
+            [
+                'name' => 'Xóa đơn hàng đã duyệt P&L',
+                'slug' => 'delete_approved_pnl_sales',
+                'description' => 'Cho phép xóa đơn hàng bán sau khi P&L đã được duyệt',
+                'module' => 'sales',
+                'action' => 'delete',
+            ],
+            [
                 'name' => 'Duyệt Ngân sách Marketing',
                 'slug' => 'approve_marketing_events',
                 'description' => 'Quyền duyệt ngân sách sự kiện marketing',
